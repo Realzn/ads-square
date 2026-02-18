@@ -4,11 +4,11 @@ import {
   D, FF, GRID_COLS, GRID_ROWS, CENTER_X, CENTER_Y,
   TIER_SIZE, TIER_COLOR, TIER_LABEL, TIER_PRICE, PROFILES,
   buildStructuralGrid, buildDemoGrid, mergeGridWithBookings,
-} from '@/lib/grid';
+} from '../lib/grid';
 import {
   isSupabaseConfigured, fetchActiveSlots,
   subscribeToBookings, createCheckoutSession,
-} from '@/lib/supabase';
+} from '../lib/supabase';
 
 // ─── Global CSS (unchanged) ───────────────────────────────
 const GLOBAL_CSS = `
