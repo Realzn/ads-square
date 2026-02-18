@@ -8,8 +8,8 @@ import { createServiceClient } from '../../../../lib/supabase-server';
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
 
-// Disable body parsing — Stripe needs the raw body
-export const runtime = 'nodejs'; // webhooks need Node.js runtime, not Edge
+// Edge Runtime — body lu via request.text() (compatible Cloudflare Pages)
+export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
 
 export async function POST(request) {
