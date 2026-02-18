@@ -1,0 +1,65 @@
+/* Fonts moved to <link> preconnect in layout.js for non-blocking load */
+
+/* Ensure text is visible during font load (FOIT prevention) */
+@font-face {
+  font-family: 'Clash Display';
+  font-display: swap;
+}
+@font-face {
+  font-family: 'DM Sans';
+  font-display: swap;
+}
+
+body {
+  font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
+}
+
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+
+::-webkit-scrollbar{width:4px;height:4px;}
+::-webkit-scrollbar-track{background:transparent;}
+::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.09);border-radius:2px;}
+
+input,textarea,select{color-scheme:dark;}
+input::placeholder,textarea::placeholder{color:rgba(185,205,255,0.22);}
+
+@keyframes blink{
+  0%,100%{opacity:1;box-shadow:0 0 8px #ff4455;}
+  50%{opacity:.1;box-shadow:none;}
+}
+@keyframes rpulse{
+  from{opacity:.2}
+  to{opacity:.6}
+}
+@keyframes zoomPulse{
+  0%{transform:scale(1);box-shadow:0 0 0px rgba(0,217,245,0);}
+  40%{transform:scale(1.55);box-shadow:0 0 22px rgba(0,217,245,.7);}
+  70%{transform:scale(1.35);box-shadow:0 0 14px rgba(0,217,245,.4);}
+  100%{transform:scale(1);box-shadow:0 0 0px rgba(0,217,245,0);}
+}
+@keyframes zoomRing{
+  0%{transform:scale(1);opacity:.9;}
+  100%{transform:scale(2.8);opacity:0;}
+}
+@keyframes floatUp{
+  0%{transform:translateY(0px);opacity:1;}
+  100%{transform:translateY(-32px);opacity:0;}
+}
+@keyframes promoBanner{
+  0%,100%{background-position:0% 50%;}
+  50%{background-position:100% 50%;}
+}
+@keyframes visitorPop{
+  0%{transform:scale(0.85);opacity:0;}
+  100%{transform:scale(1);opacity:1;}
+}
+@keyframes shimmer{
+  0%{background-position:-200% 0;}
+  100%{background-position:200% 0;}
+}
+
+@keyframes tenantReveal{
+  0%{opacity:0;transform:scale(.86) translateY(30px);}
+  60%{opacity:1;transform:scale(1.02) translateY(-4px);}
+  100%{opacity:1;transform:scale(1) translateY(0);}
+}
