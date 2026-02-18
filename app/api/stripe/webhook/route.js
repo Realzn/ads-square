@@ -8,8 +8,6 @@ import { createServiceClient } from '../../../../lib/supabase-server';
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
 
-// Edge Runtime — body lu via request.text() (compatible Cloudflare Pages)
-export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
 
 export async function POST(request) {
@@ -54,7 +52,6 @@ export async function POST(request) {
 
       if (error) {
         console.error('[Webhook] Failed to activate booking:', error.message);
-        // Try to find and log the issue
         const { data: existing } = await supabase
           .from('bookings')
           .select('id, status')
@@ -80,7 +77,6 @@ export async function POST(request) {
 
       console.log(`[Webhook] Session expired: ${session.id}`);
 
-      // Cancel the pending booking
       await supabase
         .from('bookings')
         .update({ status: 'cancelled' })
@@ -96,7 +92,6 @@ export async function POST(request) {
 
       console.log(`[Webhook] Refund for payment: ${paymentIntent}`);
 
-      // Cancel the booking on refund
       await supabase
         .from('bookings')
         .update({ status: 'cancelled' })
