@@ -14,7 +14,7 @@
     "stripe": "^14.14.0"
   },
   "devDependencies": {
-    "@cloudflare/next-on-pages": "1.13.3",
+    "@cloudflare/next-on-pages": "^1.13.6",
     "wrangler": "^3.100.0",
     "autoprefixer": "^10.0.1",
     "postcss": "^8.4.0",
