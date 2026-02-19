@@ -376,40 +376,196 @@ function FocusModal({ slot, allSlots, onClose, onWaitlist, onNavigate }) {
   );
 }
 
+// ─── TikTok Feed View ─────────────────────────────────────
+function TikTokFeed({ slots, isLive, onWaitlist }) {
+  const feedRef = useRef(null);
+  const [currentIdx, setCurrentIdx] = useState(0);
+  const { isMobile } = useScreenSize();
+
+  const feedSlots = useMemo(() => {
+    const occ = slots.filter(s => s.occ);
+    const vacantPremium = slots.filter(s => !s.occ && (s.tier === 'one' || s.tier === 'corner_ten')).slice(0, 4);
+    return [...occ, ...vacantPremium];
+  }, [slots]);
+
+  useEffect(() => {
+    const container = feedRef.current;
+    if (!container) return;
+    const cards = container.querySelectorAll('[data-card]');
+    const obs = new IntersectionObserver((entries) => {
+      entries.forEach(e => {
+        if (e.isIntersecting && e.intersectionRatio >= 0.5) {
+          setCurrentIdx(parseInt(e.target.dataset.card));
+        }
+      });
+    }, { threshold: 0.5, root: container });
+    cards.forEach(c => obs.observe(c));
+    return () => obs.disconnect();
+  }, [feedSlots.length]);
+
+  const scrollTo = useCallback((idx) => {
+    const cards = feedRef.current?.querySelectorAll('[data-card]');
+    cards?.[idx]?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, []);
+
+  if (feedSlots.length === 0) return (
+    <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: D.muted, fontSize: 14 }}>
+      Aucun bloc actif pour le moment
+    </div>
+  );
+
+  return (
+    <div ref={feedRef} style={{ flex: 1, overflowY: 'scroll', overflowX: 'hidden', scrollSnapType: 'y mandatory', WebkitOverflowScrolling: 'touch', position: 'relative' }}>
+      {feedSlots.map((slot, idx) => {
+        const { tier, occ, tenant } = slot;
+        const c = occ ? tenant.c : TIER_COLOR[tier];
+        const isActive = currentIdx === idx;
+        return (
+          <div key={slot.id} data-card={idx} style={{ scrollSnapAlign: 'start', width: '100%', height: '100%', minHeight: '100%', position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: isMobile ? 20 : 28, padding: isMobile ? '16px 16px 16px 8px' : '24px 60px 24px 24px', boxSizing: 'border-box', overflow: 'hidden', background: `radial-gradient(ellipse at 50% 40%, ${c}0a 0%, ${D.bg} 65%)` }}>
+
+            {/* Blurred bg image */}
+            {occ && tenant?.img && (<>
+              <div style={{ position: 'absolute', inset: 0, overflow: 'hidden' }}>
+                <img src={tenant.img} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: 0.08, filter: 'blur(32px)', transform: 'scale(1.15)' }} onError={e => e.target.style.display='none'} />
+              </div>
+              <div style={{ position: 'absolute', inset: 0, background: `linear-gradient(180deg, ${D.bg}bb 0%, transparent 40%, ${D.bg}cc 100%)` }} />
+            </>)}
+
+            {/* Top badge */}
+            <div style={{ position: 'absolute', top: 14, left: 14, zIndex: 2, display: 'flex', gap: 6 }}>
+              <span style={{ padding: '3px 10px', borderRadius: 20, background: `${TIER_COLOR[tier]}18`, border: `1px solid ${TIER_COLOR[tier]}44`, color: TIER_COLOR[tier], fontSize: 9, fontWeight: 800, letterSpacing: 1 }}>{TIER_LABEL[tier]}</span>
+              <span style={{ padding: '3px 10px', borderRadius: 20, background: `${D.faint}`, border: `1px solid ${D.bord}`, color: D.muted, fontSize: 9, fontWeight: 700 }}>({slot.x},{slot.y})</span>
+            </div>
+            {isLive && <div style={{ position: 'absolute', top: 14, right: isMobile ? 14 : 54, zIndex: 2, display: 'flex', alignItems: 'center', gap: 4, padding: '3px 8px', borderRadius: 12, background: `${D.mint}15`, border: `1px solid ${D.mint}33` }}>
+              <div style={{ width: 5, height: 5, borderRadius: '50%', background: D.mint, animation: 'blink 1.5s infinite' }} />
+              <span style={{ color: D.mint, fontSize: 8, fontWeight: 700 }}>LIVE</span>
+            </div>}
+
+            {/* Block visual */}
+            <div style={{ position: 'relative', zIndex: 1, width: isMobile ? 180 : 240, height: isMobile ? 180 : 240, borderRadius: tier === 'one' ? 28 : 20, background: occ ? (tenant.b || D.card) : D.s2, border: `2px solid ${c}44`, boxShadow: isActive ? `0 0 80px ${c}33, 0 0 30px ${c}22` : `0 0 40px ${c}11`, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'box-shadow 0.5s', animation: isActive && tier === 'one' ? 'glowPulse 3s infinite' : undefined }}>
+              <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(135deg,rgba(255,255,255,0.07) 0%,transparent 55%)' }} />
+              {occ && tenant?.img && <img src={tenant.img} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', opacity: 0.55 }} onError={e => e.target.style.display='none'} />}
+              {occ ? (
+                <div style={{ position: 'relative', zIndex: 1, textAlign: 'center', padding: 16 }}>
+                  <div style={{ fontSize: tier === 'one' ? 52 : 36, fontWeight: 900, color: c, fontFamily: FF.h, textShadow: `0 0 40px ${c}`, lineHeight: 1, marginBottom: 6 }}>{tenant.l}</div>
+                  {tier !== 'thousand' && <div style={{ color: c, fontSize: tier === 'one' ? 14 : 11, fontWeight: 800, textShadow: `0 0 12px ${c}` }}>{tenant.name}</div>}
+                </div>
+              ) : (
+                <div style={{ textAlign: 'center', padding: 16 }}>
+                  <div style={{ color: c, fontSize: 42, fontWeight: 900, fontFamily: FF.h, animation: 'vacantBreath 2s infinite', lineHeight: 1 }}>+</div>
+                  <div style={{ color: `${c}88`, fontSize: 10, fontWeight: 800, marginTop: 6, letterSpacing: 1 }}>DISPONIBLE</div>
+                  <div style={{ color: D.muted, fontSize: 9, marginTop: 3 }}>€{TIER_PRICE[tier]}/j</div>
+                </div>
+              )}
+            </div>
+
+            {/* Info card */}
+            <div style={{ position: 'relative', zIndex: 1, width: '100%', maxWidth: isMobile ? '92vw' : 400, padding: isMobile ? '16px 16px' : '20px 22px', borderRadius: 18, background: 'rgba(6,12,22,0.88)', backdropFilter: 'blur(20px)', border: `1px solid ${c}22`, boxShadow: `0 4px 32px rgba(0,0,0,0.5)` }}>
+              {occ ? (<>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+                  <div style={{ width: 40, height: 40, borderRadius: 11, background: `${c}20`, border: `2px solid ${c}44`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, fontWeight: 900, color: c, fontFamily: FF.h, flexShrink: 0 }}>{tenant.l}</div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ color: D.txt, fontWeight: 900, fontSize: 15, fontFamily: FF.h, lineHeight: 1.2 }}>{tenant.name}</div>
+                    <div style={{ color: `${c}99`, fontSize: 10, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tenant.slogan}</div>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
+                  <span style={{ padding: '2px 8px', borderRadius: 20, background: `${c}12`, border: `1px solid ${c}30`, color: c, fontSize: 8, fontWeight: 800 }}>{tenant.badge}</span>
+                  <span style={{ padding: '2px 8px', borderRadius: 20, background: `${TIER_COLOR[tier]}12`, border: `1px solid ${TIER_COLOR[tier]}30`, color: TIER_COLOR[tier], fontSize: 8, fontWeight: 800 }}>€{TIER_PRICE[tier]}/j</span>
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <a href={tenant.url} target="_blank" rel="noopener noreferrer" style={{ flex: 1, padding: '10px 14px', borderRadius: 11, background: `linear-gradient(135deg,${c}ee,${c}88)`, color: '#030810', fontWeight: 900, fontSize: 12, fontFamily: FF.b, textDecoration: 'none', textAlign: 'center', boxShadow: `0 0 18px ${c}44` }}>{tenant.cta} →</a>
+                  <button onClick={onWaitlist} style={{ padding: '10px 14px', borderRadius: 11, fontFamily: FF.b, cursor: 'pointer', background: `${D.violet}18`, border: `1px solid ${D.violet}44`, color: D.violet, fontWeight: 700, fontSize: 11 }}>Louer</button>
+                </div>
+              </>) : (<>
+                <div style={{ color: D.txt, fontWeight: 900, fontSize: 16, fontFamily: FF.h, marginBottom: 4 }}>Espace disponible</div>
+                <div style={{ color: D.muted, fontSize: 11, lineHeight: 1.6, marginBottom: 12 }}>Bloc {TIER_LABEL[tier]} · €{TIER_PRICE[tier]}/jour<br/>Visibilité immédiate devant toute l'audience.</div>
+                <button onClick={onWaitlist} style={{ width: '100%', padding: '11px', borderRadius: 11, fontFamily: FF.b, cursor: 'pointer', background: `linear-gradient(135deg,${c}ee,${c}88)`, border: 'none', color: '#030810', fontWeight: 900, fontSize: 12 }}>📬 Réserver ce bloc →</button>
+              </>)}
+            </div>
+
+            {/* Right: progress dots */}
+            <div style={{ position: 'absolute', right: isMobile ? 8 : 18, top: '50%', transform: 'translateY(-50%)', display: 'flex', flexDirection: 'column', gap: 5, zIndex: 2 }}>
+              {feedSlots.map((_, i) => (
+                <div key={i} onClick={() => scrollTo(i)} style={{ width: i === currentIdx ? 4 : 3, height: i === currentIdx ? 20 : 4, borderRadius: 3, background: i === currentIdx ? c : 'rgba(255,255,255,0.18)', cursor: 'pointer', transition: 'all 0.3s ease' }} />
+              ))}
+            </div>
+
+            {/* Counter */}
+            <div style={{ position: 'absolute', bottom: 14, left: '50%', transform: 'translateX(-50%)', color: D.muted, fontSize: 9, fontWeight: 700, letterSpacing: 1, zIndex: 2 }}>{idx + 1} / {feedSlots.length}</div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 // ─── Public View ───────────────────────────────────────────
 function PublicView({ slots, isLive, onWaitlist }) {
   const containerRef = useRef(null);
   const [containerW, setContainerW] = useState(1200);
+  const [containerH, setContainerH] = useState(800);
   const [focusSlot, setFocusSlot] = useState(null);
   const [selected, setSelected] = useState(new Set());
   const [filterTier, setFilterTier] = useState('all');
   const [showVacant, setShowVacant] = useState(false);
   const [zoomLevel, setZoomLevel] = useState(0);
+  const [feedMode, setFeedMode] = useState(false);
   const { colOffsets, rowOffsets, totalGridW, totalGridH } = useGridLayout();
   const { isMobile } = useScreenSize();
-  useEffect(() => { const el = containerRef.current; if (!el) return; const obs = new ResizeObserver(e => setContainerW(e[0].contentRect.width)); obs.observe(el); return () => obs.disconnect(); }, []);
-  const baseScale = Math.min(1, Math.max(0.15, (containerW - (isMobile ? 16 : 32)) / totalGridW));
-  const scale = Math.min(2, Math.max(0.12, baseScale * Math.pow(1.25, zoomLevel)));
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const obs = new ResizeObserver(e => {
+      setContainerW(e[0].contentRect.width);
+      setContainerH(e[0].contentRect.height);
+    });
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, []);
+
+  // Fit-to-screen: scale uses both W and H so the grid fills 100% of the area
+  const pad = isMobile ? 8 : 16;
+  const baseScale = Math.min(
+    (containerW - pad * 2) / totalGridW,
+    (containerH - pad * 2) / totalGridH
+  );
+  const scale = Math.max(0.05, baseScale * Math.pow(1.25, zoomLevel));
+
   const filteredSlots = useMemo(() => {
     let s = slots;
     if (filterTier !== 'all') s = s.filter(sl => sl.tier === filterTier || (filterTier === 'ten' && sl.tier === 'corner_ten'));
     if (showVacant) s = s.filter(sl => !sl.occ);
     return new Set(s.map(sl => sl.id));
   }, [slots, filterTier, showVacant]);
+
   const toggleSelect = useCallback(slot => {
     if (slot.occ) return;
     setSelected(prev => { const n = new Set(prev); n.has(slot.id) ? n.delete(slot.id) : n.add(slot.id); return n; });
   }, []);
+
   const stats = useMemo(() => ({ occupied: slots.filter(s => s.occ).length, vacant: slots.filter(s => !s.occ).length }), [slots]);
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: D.bg }}>
+      {/* Toolbar */}
       <div style={{ padding: '8px 16px', borderBottom: `1px solid ${D.bord}`, background: D.s1, display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0, flexWrap: 'wrap' }}>
-        {[['all', 'Tous', D.txt], ['one', 'ÉPICENTRE', D.gold], ['ten', 'PRESTIGE', D.rose], ['hundred', 'BUSINESS', D.cyan], ['thousand', 'VIRAL', D.mint]].map(([id, label, color]) => (
-          <button key={id} onClick={() => setFilterTier(id)} style={{ padding: '4px 12px', borderRadius: 20, fontFamily: FF.b, cursor: 'pointer', fontSize: 11, background: filterTier === id ? `${color}20` : 'transparent', border: `1px solid ${filterTier === id ? color : D.bord}`, color: filterTier === id ? color : D.muted, fontWeight: filterTier === id ? 800 : 400, transition: 'all 0.2s', whiteSpace: 'nowrap' }}>{label}</button>
-        ))}
-        <div style={{ width: 1, height: 18, background: D.bord }} />
-        <button onClick={() => setShowVacant(v => !v)} style={{ padding: '4px 12px', borderRadius: 20, fontFamily: FF.b, cursor: 'pointer', fontSize: 11, background: showVacant ? `${D.violet}20` : 'transparent', border: `1px solid ${showVacant ? D.violet : D.bord}`, color: showVacant ? D.violet : D.muted }}>Disponibles</button>
+        {/* View mode toggle */}
+        <div style={{ display: 'flex', background: D.faint, border: `1px solid ${D.bord}`, borderRadius: 10, overflow: 'hidden', flexShrink: 0 }}>
+          <button onClick={() => setFeedMode(false)} style={{ padding: '4px 12px', fontFamily: FF.b, cursor: 'pointer', fontSize: 11, background: !feedMode ? `${D.cyan}22` : 'transparent', border: 'none', color: !feedMode ? D.cyan : D.muted, fontWeight: !feedMode ? 800 : 400, transition: 'all 0.2s' }}>⊞ Grille</button>
+          <button onClick={() => setFeedMode(true)} style={{ padding: '4px 12px', fontFamily: FF.b, cursor: 'pointer', fontSize: 11, background: feedMode ? `${D.rose}22` : 'transparent', border: 'none', color: feedMode ? D.rose : D.muted, fontWeight: feedMode ? 800 : 400, transition: 'all 0.2s' }}>↕ Feed</button>
+        </div>
+
+        {!feedMode && <>
+          <div style={{ width: 1, height: 18, background: D.bord }} />
+          {[['all', 'Tous', D.txt], ['one', 'ÉPICENTRE', D.gold], ['ten', 'PRESTIGE', D.rose], ['hundred', 'BUSINESS', D.cyan], ['thousand', 'VIRAL', D.mint]].map(([id, label, color]) => (
+            <button key={id} onClick={() => setFilterTier(id)} style={{ padding: '4px 12px', borderRadius: 20, fontFamily: FF.b, cursor: 'pointer', fontSize: 11, background: filterTier === id ? `${color}20` : 'transparent', border: `1px solid ${filterTier === id ? color : D.bord}`, color: filterTier === id ? color : D.muted, fontWeight: filterTier === id ? 800 : 400, transition: 'all 0.2s', whiteSpace: 'nowrap' }}>{label}</button>
+          ))}
+          <div style={{ width: 1, height: 18, background: D.bord }} />
+          <button onClick={() => setShowVacant(v => !v)} style={{ padding: '4px 12px', borderRadius: 20, fontFamily: FF.b, cursor: 'pointer', fontSize: 11, background: showVacant ? `${D.violet}20` : 'transparent', border: `1px solid ${showVacant ? D.violet : D.bord}`, color: showVacant ? D.violet : D.muted }}>Disponibles</button>
+        </>}
+
         {isLive && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '3px 8px', borderRadius: 12, background: `${D.mint}15`, border: `1px solid ${D.mint}33` }}>
             <div style={{ width: 6, height: 6, borderRadius: '50%', background: D.mint, animation: 'blink 1.5s infinite' }} />
@@ -421,25 +577,32 @@ function PublicView({ slots, isLive, onWaitlist }) {
             <div key={l} style={{ display: 'flex', alignItems: 'center', gap: 5 }}><span style={{ color: c, fontWeight: 900, fontSize: 13, fontFamily: FF.h }}>{v}</span><span style={{ color: D.muted, fontSize: 10 }}>{l}</span></div>
           ))}
         </div>
-        {selected.size > 0 && <button onClick={onWaitlist} style={{ padding: '6px 16px', borderRadius: 9, fontFamily: FF.b, cursor: 'pointer', background: `linear-gradient(135deg,${D.violet}ee,${D.violet}88)`, border: 'none', color: '#030810', fontWeight: 900, fontSize: 12, boxShadow: `0 0 18px ${D.violet}44` }}>📬 Réserver {selected.size} bloc{selected.size > 1 ? 's' : ''} →</button>}
+        {selected.size > 0 && !feedMode && <button onClick={onWaitlist} style={{ padding: '6px 16px', borderRadius: 9, fontFamily: FF.b, cursor: 'pointer', background: `linear-gradient(135deg,${D.violet}ee,${D.violet}88)`, border: 'none', color: '#030810', fontWeight: 900, fontSize: 12, boxShadow: `0 0 18px ${D.violet}44` }}>📬 Réserver {selected.size} bloc{selected.size > 1 ? 's' : ''} →</button>}
       </div>
-      <div ref={containerRef} style={{ flex: 1, overflow: 'auto', padding: isMobile ? 8 : 16, position: 'relative' }}>
-        <div style={{ position: 'relative', width: totalGridW * scale, height: totalGridH * scale }}>
-          <div style={{ position: 'absolute', top: 0, left: 0, transform: `scale(${scale})`, transformOrigin: 'top left', width: totalGridW, height: totalGridH }}>
-            {slots.map(slot => (
-              <div key={slot.id} style={{ position: 'absolute', left: colOffsets[slot.x], top: rowOffsets[slot.y], opacity: filteredSlots.has(slot.id) ? 1 : 0.08, transition: 'opacity 0.25s' }}>
-                <BlockCell slot={slot} isSelected={selected.has(slot.id)} onSelect={toggleSelect} onFocus={setFocusSlot} />
-              </div>
+
+      {feedMode ? (
+        <TikTokFeed slots={slots} isLive={isLive} onWaitlist={onWaitlist} />
+      ) : (
+        // Grid view — fit-to-screen with centered layout
+        <div ref={containerRef} style={{ flex: 1, overflow: 'auto', padding: `${pad}px`, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ position: 'relative', width: totalGridW * scale, height: totalGridH * scale, flexShrink: 0 }}>
+            <div style={{ position: 'absolute', top: 0, left: 0, transform: `scale(${scale})`, transformOrigin: 'top left', width: totalGridW, height: totalGridH }}>
+              {slots.map(slot => (
+                <div key={slot.id} style={{ position: 'absolute', left: colOffsets[slot.x], top: rowOffsets[slot.y], opacity: filteredSlots.has(slot.id) ? 1 : 0.08, transition: 'opacity 0.25s' }}>
+                  <BlockCell slot={slot} isSelected={selected.has(slot.id)} onSelect={toggleSelect} onFocus={setFocusSlot} />
+                </div>
+              ))}
+            </div>
+          </div>
+          {/* Zoom controls */}
+          <div style={{ position: 'absolute', bottom: 16, right: 16, display: 'flex', flexDirection: 'column', gap: 4 }}>
+            {[{ icon: '+', fn: () => setZoomLevel(z => Math.min(z + 1, 6)) }, { icon: '−', fn: () => setZoomLevel(z => Math.max(z - 1, -4)) }].map((z, i) => (
+              <button key={i} onClick={z.fn} style={{ width: 40, height: 40, borderRadius: 12, background: 'rgba(6,12,22,0.92)', backdropFilter: 'blur(12px)', border: `1px solid ${D.bord2}`, color: D.txt, fontSize: 18, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{z.icon}</button>
             ))}
+            {zoomLevel !== 0 && <button onClick={() => setZoomLevel(0)} title="Fit to screen" style={{ width: 40, height: 40, borderRadius: 12, background: 'rgba(6,12,22,0.92)', backdropFilter: 'blur(12px)', border: `1px solid ${D.bord2}`, color: D.cyan, fontSize: 15, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>⊡</button>}
           </div>
         </div>
-        <div style={{ position: 'sticky', bottom: 16, float: 'right', zIndex: 50, display: 'flex', flexDirection: 'column', gap: 4, marginTop: -120, pointerEvents: 'none' }}>
-          {[{ icon: '+', fn: () => setZoomLevel(z => Math.min(z + 1, 4)) }, { icon: '−', fn: () => setZoomLevel(z => Math.max(z - 1, -3)) }].map((z, i) => (
-            <button key={i} onClick={z.fn} style={{ pointerEvents: 'auto', width: 40, height: 40, borderRadius: 12, background: 'rgba(6,12,22,0.92)', backdropFilter: 'blur(12px)', border: `1px solid ${D.bord2}`, color: D.txt, fontSize: 18, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{z.icon}</button>
-          ))}
-          {zoomLevel !== 0 && <button onClick={() => setZoomLevel(0)} style={{ pointerEvents: 'auto', width: 40, height: 40, borderRadius: 12, background: 'rgba(6,12,22,0.92)', backdropFilter: 'blur(12px)', border: `1px solid ${D.bord2}`, color: D.txt, fontSize: 12, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>⟳</button>}
-        </div>
-      </div>
+      )}
       {focusSlot && <FocusModal slot={focusSlot} allSlots={slots} onClose={() => setFocusSlot(null)} onWaitlist={onWaitlist} onNavigate={setFocusSlot} />}
     </div>
   );
