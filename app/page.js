@@ -574,6 +574,20 @@ function PublicView({ slots, isLive, onWaitlist }) {
   const { colOffsets, rowOffsets, totalGridW, totalGridH, tierSizes, k } =
     useGridLayout(containerW, containerH, isMobile);
 
+  // Centre la vue sur le bloc ÉPICENTRE (18,18) au premier rendu
+  const centeredRef = useRef(false);
+  useEffect(() => {
+    if (centeredRef.current || !containerRef.current || containerW === 0) return;
+    const el = containerRef.current;
+    // Position du centre du bloc central dans la grille
+    const centerBlockX = colOffsets[CENTER_X] + tierSizes.one / 2;
+    const centerBlockY = rowOffsets[CENTER_Y] + tierSizes.one / 2;
+    // Scroll pour centrer
+    el.scrollLeft = centerBlockX - el.clientWidth / 2;
+    el.scrollTop  = centerBlockY - el.clientHeight / 2;
+    centeredRef.current = true;
+  }, [colOffsets, rowOffsets, tierSizes, containerW]);
+
   const filteredSlots = useMemo(() => {
     let s = slots;
     if (filterTier !== 'all') s = s.filter(sl => sl.tier === filterTier || (filterTier === 'ten' && sl.tier === 'corner_ten'));
