@@ -608,19 +608,15 @@ function PublicView({ slots, isLive, onWaitlist }) {
   const { colOffsets, rowOffsets, totalGridW, totalGridH, tierSizes, k } =
     useGridLayout(containerW, containerH, isMobile);
 
-  // Centre sur ÉPICENTRE au montage ET à chaque retour en mode grille
+  // Centre sur ÉPICENTRE au premier rendu + à chaque retour depuis Feed
   const centeredRef = useRef(false);
   useEffect(() => {
-    if (feedMode) { centeredRef.current = false; return; } // reset quand on va en Feed
+    if (feedMode) { centeredRef.current = false; return; }
     if (centeredRef.current || !containerRef.current || containerW === 0) return;
     const el = containerRef.current;
-    // Petit délai pour laisser le DOM se monter après le switch Feed→Grille
-    const t = setTimeout(() => {
-      el.scrollLeft = colOffsets[CENTER_X] + tierSizes.one / 2 - el.clientWidth / 2;
-      el.scrollTop  = rowOffsets[CENTER_Y] + tierSizes.one / 2 - el.clientHeight / 2;
-      centeredRef.current = true;
-    }, 16);
-    return () => clearTimeout(t);
+    el.scrollLeft = colOffsets[CENTER_X] + tierSizes.one / 2 - el.clientWidth / 2;
+    el.scrollTop  = rowOffsets[CENTER_Y] + tierSizes.one / 2 - el.clientHeight / 2;
+    centeredRef.current = true;
   }, [feedMode, colOffsets, rowOffsets, tierSizes, containerW]);
 
   const filteredSlots = useMemo(() => {
@@ -687,19 +683,19 @@ function PublicView({ slots, isLive, onWaitlist }) {
         )}
       </div>
 
-      {feedMode ? (
-        <TikTokFeed slots={slots} isLive={isLive} onWaitlist={onWaitlist} />
-      ) : (
-        <div ref={containerRef} style={{ flex: 1, overflow: 'auto', display: 'flex', alignItems: 'flex-start', justifyContent: 'center' }}>
-          <div style={{ position: 'relative', width: totalGridW, height: totalGridH, flexShrink: 0 }}>
-            {slots.map(slot => (
-              <div key={slot.id} style={{ position: 'absolute', left: colOffsets[slot.x], top: rowOffsets[slot.y], opacity: filteredSlots.has(slot.id) ? 1 : 0.06, transition: 'opacity 0.2s' }}>
-                <BlockCell slot={slot} isSelected={selected.has(slot.id)} onSelect={toggleSelect} onFocus={setFocusSlot} sz={tierSizes[slot.tier]} />
-              </div>
-            ))}
-          </div>
+      {/* Les deux vues restent dans le DOM — display:none évite le remount et préserve containerW */}
+      <div style={{ flex: 1, display: feedMode ? 'none' : 'flex', overflow: 'auto', alignItems: 'flex-start', justifyContent: 'center' }} ref={containerRef}>
+        <div style={{ position: 'relative', width: totalGridW, height: totalGridH, flexShrink: 0 }}>
+          {slots.map(slot => (
+            <div key={slot.id} style={{ position: 'absolute', left: colOffsets[slot.x], top: rowOffsets[slot.y], opacity: filteredSlots.has(slot.id) ? 1 : 0.06, transition: 'opacity 0.2s' }}>
+              <BlockCell slot={slot} isSelected={selected.has(slot.id)} onSelect={toggleSelect} onFocus={setFocusSlot} sz={tierSizes[slot.tier]} />
+            </div>
+          ))}
         </div>
-      )}
+      </div>
+      <div style={{ flex: 1, display: feedMode ? 'flex' : 'none', flexDirection: 'column', overflow: 'hidden' }}>
+        <TikTokFeed slots={slots} isLive={isLive} onWaitlist={onWaitlist} />
+      </div>
       {focusSlot && <FocusModal slot={focusSlot} allSlots={slots} onClose={() => setFocusSlot(null)} onWaitlist={onWaitlist} onNavigate={setFocusSlot} />}
     </div>
   );
