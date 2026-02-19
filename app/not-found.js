@@ -4,10 +4,12 @@ export default function NotFound() {
       <head>
         <title>404 — Page introuvable · ADS-SQUARE</title>
         <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;700;900&display=swap" />
         <style>{`
           *{box-sizing:border-box;margin:0;padding:0;}
           body{background:#020609;color:#dde8ff;font-family:'DM Sans',sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;text-align:center;padding:24px;}
-          @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;700;900&display=swap');
           @keyframes fadeUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
           @keyframes blink{0%,100%{opacity:1}50%{opacity:0.2}}
           .wrap{animation:fadeUp 0.6s ease forwards;max-width:480px;}

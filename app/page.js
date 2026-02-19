@@ -1,5 +1,5 @@
 'use client';
-import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
+import { useState, useMemo, useCallback, useRef, useEffect, memo } from 'react';
 import {
   D, FF, GRID_COLS, GRID_ROWS, CENTER_X, CENTER_Y,
   TIER_SIZE, TIER_COLOR, TIER_LABEL, TIER_PRICE, PROFILES,
@@ -10,38 +10,8 @@ import {
   subscribeToBookings, createCheckoutSession,
 } from '../lib/supabase';
 
-// ─── Global CSS (unchanged) ───────────────────────────────
-const GLOBAL_CSS = `
-  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700;800&display=swap');
-  @import url('https://api.fontshare.com/v2/css?f[]=clash-display@700,800,900&display=swap');
-  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
-  html,body{height:100%;background:#020609;color:#dde8ff;font-family:'DM Sans',sans-serif;overflow:hidden;}
-  ::-webkit-scrollbar{width:6px;height:6px;}
-  ::-webkit-scrollbar-track{background:rgba(255,255,255,0.03);}
-  ::-webkit-scrollbar-thumb{background:rgba(0,217,245,0.25);border-radius:3px;}
-  @keyframes fadeUp{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:translateY(0)}}
-  @keyframes blink{0%,100%{opacity:1}50%{opacity:0.2}}
-  @keyframes glowPulse{0%,100%{box-shadow:0 0 20px rgba(0,217,245,0.2)}50%{box-shadow:0 0 60px rgba(0,217,245,0.5)}}
-  @keyframes selectedPulse{0%,100%{box-shadow:0 0 0 2px currentColor,0 0 12px currentColor}50%{box-shadow:0 0 0 4px currentColor,0 0 28px currentColor,0 0 60px currentColor}}
-  @keyframes vacantBreath{0%,100%{opacity:0.6}50%{opacity:1}}
-  @keyframes tierHighlight{0%,100%{box-shadow:inset 0 0 0 1px currentColor,0 0 8px currentColor}50%{box-shadow:inset 0 0 0 2px currentColor,0 0 22px currentColor}}
-  @keyframes slideDown{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}
-  @keyframes modalIn{from{opacity:0;transform:scale(0.92) translateY(16px)}to{opacity:1;transform:scale(1) translateY(0)}}
-  .block-hover{transition:transform 0.12s,box-shadow 0.12s;cursor:pointer;}
-  .block-hover:hover{transform:scale(1.15);z-index:20;}
-  .block-hover:hover .rent-cta{opacity:1!important;}
-  .rent-cta{opacity:0;transition:opacity 0.15s;}
-  .landing-btn{transition:all 0.25s cubic-bezier(0.34,1.56,0.64,1);}
-  .landing-btn:hover{transform:translateY(-3px) scale(1.03);}
-  .landing-btn:active{transform:scale(0.97);}
-  .profile-card{transition:all 0.2s cubic-bezier(0.34,1.3,0.64,1);cursor:pointer;}
-  .profile-card:hover{transform:translateY(-4px) scale(1.02);}
-  .focus-nav{transition:all 0.2s;}
-  .focus-nav:hover{transform:scale(1.1);background:rgba(0,217,245,0.2)!important;}
-  @media(hover:none)and(pointer:coarse){.block-hover:hover{transform:none;}.block-hover:active{transform:scale(1.08);}.rent-cta{opacity:0.7!important;}}
-`;
-
 // ─── Hooks ────────────────────────────────────────────────
+
 function useScreenSize() {
   const [w, setW] = useState(typeof window !== 'undefined' ? window.innerWidth : 1200);
   useEffect(() => {
@@ -52,10 +22,6 @@ function useScreenSize() {
   return { w, isMobile: w < 768 };
 }
 
-/**
- * Core hook: loads grid data from Supabase with realtime updates.
- * Falls back to demo grid if Supabase is not configured.
- */
 function useGridData() {
   const structuralGrid = useMemo(() => buildStructuralGrid(), []);
   const demoGrid = useMemo(() => buildDemoGrid(), []);
@@ -63,42 +29,27 @@ function useGridData() {
   const [isLive, setIsLive] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  // Initial fetch
   useEffect(() => {
-    if (!isSupabaseConfigured()) {
-      setLoading(false);
-      return;
-    }
-
+    if (!isSupabaseConfigured()) { setLoading(false); return; }
     fetchActiveSlots().then(({ data, error }) => {
       if (!error && data.length > 0) {
         setSlots(mergeGridWithBookings(structuralGrid, data));
         setIsLive(true);
-      }
-      // If no data from Supabase (empty DB), show empty grid not demo
-      else if (!error && data.length === 0) {
-        // Supabase connected but no bookings → show real empty grid
+      } else if (!error && data.length === 0) {
         setSlots(structuralGrid.map(s => ({ ...s, occ: false, tenant: null, hot: false })));
         setIsLive(true);
       }
       setLoading(false);
     });
-  }, [structuralGrid, demoGrid]);
+  }, [structuralGrid]);
 
-  // Realtime subscription
   useEffect(() => {
     if (!isSupabaseConfigured()) return;
-
     const unsubscribe = subscribeToBookings(() => {
-      // On any booking change, refetch the full grid
       fetchActiveSlots().then(({ data, error }) => {
-        if (!error) {
-          setSlots(mergeGridWithBookings(structuralGrid, data));
-          setIsLive(true);
-        }
+        if (!error) { setSlots(mergeGridWithBookings(structuralGrid, data)); setIsLive(true); }
       });
     });
-
     return unsubscribe;
   }, [structuralGrid]);
 
@@ -128,7 +79,8 @@ function useGridLayout() {
   return { colOffsets, rowOffsets, totalGridW: colOffsets[GRID_COLS - 1] + colWidths[GRID_COLS - 1], totalGridH: rowOffsets[GRID_ROWS - 1] + rowHeights[GRID_ROWS - 1] };
 }
 
-// ─── Small components (unchanged visually) ────────────────
+// ─── Small Components ─────────────────────────────────────
+
 function BrandLogo({ size = 22, onClick }) {
   return (
     <button onClick={onClick} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -155,6 +107,7 @@ function BetaBanner() {
   );
 }
 
+// ─── PATCH 1 : WaitlistModal — ajout de position:'relative' sur la boîte modale
 function WaitlistModal({ onClose }) {
   const { isMobile } = useScreenSize();
   const [entered, setEntered] = useState(false);
@@ -162,7 +115,8 @@ function WaitlistModal({ onClose }) {
   useEffect(() => { const fn = e => { if (e.key === 'Escape') onClose(); }; window.addEventListener('keydown', fn); return () => window.removeEventListener('keydown', fn); }, [onClose]);
   return (
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 2000, background: 'rgba(2,6,9,0.95)', backdropFilter: 'blur(28px)', display: 'flex', alignItems: isMobile ? 'flex-end' : 'center', justifyContent: 'center', opacity: entered ? 1 : 0, transition: 'opacity 0.3s ease' }}>
-      <div onClick={e => e.stopPropagation()} style={{ width: isMobile ? '100vw' : 'min(96vw,560px)', background: `linear-gradient(145deg,${D.s2},${D.card})`, border: `2px solid ${D.violet}44`, borderRadius: isMobile ? '24px 24px 0 0' : 20, overflow: 'hidden', overflowY: 'auto', maxHeight: isMobile ? '90vh' : 'auto', boxShadow: `0 0 80px ${D.violet}22`, animation: entered ? 'modalIn 0.3s cubic-bezier(0.34,1.2,0.64,1) forwards' : undefined }}>
+      {/* FIX: position:'relative' ajouté pour que le bouton × se positionne correctement */}
+      <div onClick={e => e.stopPropagation()} style={{ position: 'relative', width: isMobile ? '100vw' : 'min(96vw,560px)', background: `linear-gradient(145deg,${D.s2},${D.card})`, border: `2px solid ${D.violet}44`, borderRadius: isMobile ? '24px 24px 0 0' : 20, overflow: 'hidden', overflowY: 'auto', maxHeight: isMobile ? '90vh' : 'auto', boxShadow: `0 0 80px ${D.violet}22`, animation: entered ? 'modalIn 0.3s cubic-bezier(0.34,1.2,0.64,1) forwards' : undefined }}>
         {isMobile && <div style={{ display: 'flex', justifyContent: 'center', padding: '10px 0 2px' }}><div style={{ width: 40, height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.2)' }} /></div>}
         <div style={{ height: 3, background: `linear-gradient(90deg,${D.violet},${D.cyan}44,transparent)` }} />
         <button onClick={onClose} style={{ position: 'absolute', top: 14, right: 14, width: 34, height: 34, borderRadius: '50%', border: `1px solid ${D.bord2}`, background: D.faint, color: D.muted, cursor: 'pointer', fontSize: 18, zIndex: 10, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
@@ -196,7 +150,7 @@ function WaitlistModal({ onClose }) {
   );
 }
 
-// ─── Checkout Modal (NEW — replaces waitlist for paid slots) ──
+// ─── PATCH 2 : CheckoutModal — ajout de position:'relative' sur la boîte modale
 function CheckoutModal({ slot, onClose }) {
   const { isMobile } = useScreenSize();
   const [email, setEmail] = useState('');
@@ -213,20 +167,11 @@ function CheckoutModal({ slot, onClose }) {
   const totalPrice = pricePerDay * days;
 
   const handleCheckout = async () => {
-    if (!email || !email.includes('@')) {
-      setError('Entrez un email valide');
-      return;
-    }
+    if (!email || !email.includes('@')) { setError('Entrez un email valide'); return; }
     setLoading(true);
     setError(null);
     try {
-      const { url } = await createCheckoutSession({
-        slotX: slot.x,
-        slotY: slot.y,
-        tier: slot.tier,
-        days,
-        email,
-      });
+      const { url } = await createCheckoutSession({ slotX: slot.x, slotY: slot.y, tier: slot.tier, days, email });
       window.location.href = url;
     } catch (err) {
       setError(err.message || 'Erreur lors du paiement');
@@ -239,7 +184,8 @@ function CheckoutModal({ slot, onClose }) {
 
   return (
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 2000, background: 'rgba(2,6,9,0.95)', backdropFilter: 'blur(28px)', display: 'flex', alignItems: isMobile ? 'flex-end' : 'center', justifyContent: 'center', opacity: entered ? 1 : 0, transition: 'opacity 0.3s ease' }}>
-      <div onClick={e => e.stopPropagation()} style={{ width: isMobile ? '100vw' : 'min(96vw,480px)', background: `linear-gradient(145deg,${D.s2},${D.card})`, border: `2px solid ${c}44`, borderRadius: isMobile ? '24px 24px 0 0' : 20, overflow: 'hidden', overflowY: 'auto', maxHeight: isMobile ? '90vh' : 'auto', boxShadow: `0 0 80px ${c}22`, animation: entered ? 'modalIn 0.3s cubic-bezier(0.34,1.2,0.64,1) forwards' : undefined }}>
+      {/* FIX: position:'relative' ajouté */}
+      <div onClick={e => e.stopPropagation()} style={{ position: 'relative', width: isMobile ? '100vw' : 'min(96vw,480px)', background: `linear-gradient(145deg,${D.s2},${D.card})`, border: `2px solid ${c}44`, borderRadius: isMobile ? '24px 24px 0 0' : 20, overflow: 'hidden', overflowY: 'auto', maxHeight: isMobile ? '90vh' : 'auto', boxShadow: `0 0 80px ${c}22`, animation: entered ? 'modalIn 0.3s cubic-bezier(0.34,1.2,0.64,1) forwards' : undefined }}>
         {isMobile && <div style={{ display: 'flex', justifyContent: 'center', padding: '10px 0 2px' }}><div style={{ width: 40, height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.2)' }} /></div>}
         <div style={{ height: 3, background: `linear-gradient(90deg,${c},${c}44,transparent)` }} />
         <button onClick={onClose} style={{ position: 'absolute', top: 14, right: 14, width: 34, height: 34, borderRadius: '50%', border: `1px solid ${D.bord2}`, background: D.faint, color: D.muted, cursor: 'pointer', fontSize: 18, zIndex: 10, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
@@ -255,43 +201,28 @@ function CheckoutModal({ slot, onClose }) {
             </div>
           </div>
 
-          {/* Duration selector */}
           <div style={{ marginBottom: 16 }}>
             <div style={{ color: D.muted, fontSize: 10, fontWeight: 700, letterSpacing: 1, marginBottom: 8 }}>DURÉE</div>
             <div style={{ display: 'flex', gap: 8 }}>
               {[7, 30, 90].map(d => (
-                <button key={d} onClick={() => setDays(d)} style={{
-                  flex: 1, padding: '10px 8px', borderRadius: 10, cursor: 'pointer', fontFamily: FF.b,
-                  background: days === d ? `${c}22` : D.faint,
-                  border: `1px solid ${days === d ? c : D.bord}`,
-                  color: days === d ? c : D.muted,
-                  fontWeight: days === d ? 800 : 400, fontSize: 12, textAlign: 'center',
-                }}>
+                <button key={d} onClick={() => setDays(d)} style={{ flex: 1, padding: '10px 8px', borderRadius: 10, cursor: 'pointer', fontFamily: FF.b, background: days === d ? `${c}22` : D.faint, border: `1px solid ${days === d ? c : D.bord}`, color: days === d ? c : D.muted, fontWeight: days === d ? 800 : 400, fontSize: 12, textAlign: 'center' }}>
                   {d}j<br /><span style={{ fontSize: 10, opacity: 0.7 }}>€{pricePerDay * d}</span>
                 </button>
               ))}
             </div>
           </div>
 
-          {/* Email */}
           <div style={{ marginBottom: 16 }}>
             <div style={{ color: D.muted, fontSize: 10, fontWeight: 700, letterSpacing: 1, marginBottom: 8 }}>EMAIL</div>
             <input
-              type="email"
-              value={email}
-              onChange={e => setEmail(e.target.value)}
+              type="email" value={email} onChange={e => setEmail(e.target.value)}
               placeholder="votre@email.com"
-              style={{
-                width: '100%', padding: '12px 16px', borderRadius: 10,
-                background: D.faint, border: `1px solid ${D.bord}`,
-                color: D.txt, fontSize: 14, fontFamily: FF.b, outline: 'none',
-              }}
+              style={{ width: '100%', padding: '12px 16px', borderRadius: 10, background: D.faint, border: `1px solid ${D.bord}`, color: D.txt, fontSize: 14, fontFamily: FF.b, outline: 'none' }}
               onFocus={e => e.target.style.borderColor = c}
               onBlur={e => e.target.style.borderColor = D.bord}
             />
           </div>
 
-          {/* Price summary */}
           <div style={{ padding: '12px 14px', borderRadius: 10, background: `${c}08`, border: `1px solid ${c}22`, marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span style={{ color: D.muted, fontSize: 12 }}>{days} jours × €{pricePerDay}/j</span>
             <span style={{ color: c, fontWeight: 900, fontSize: 20, fontFamily: FF.h }}>€{totalPrice}</span>
@@ -303,17 +234,7 @@ function CheckoutModal({ slot, onClose }) {
             </div>
           )}
 
-          <button
-            onClick={handleCheckout}
-            disabled={loading}
-            style={{
-              width: '100%', padding: '14px', borderRadius: 12, fontFamily: FF.b, cursor: loading ? 'wait' : 'pointer',
-              background: loading ? `${c}44` : `linear-gradient(135deg,${c}ee,${c}88)`,
-              border: 'none', color: '#030810', fontWeight: 900, fontSize: 14,
-              boxShadow: `0 0 28px ${c}44`,
-              opacity: loading ? 0.7 : 1,
-            }}
-          >
+          <button onClick={handleCheckout} disabled={loading} style={{ width: '100%', padding: '14px', borderRadius: 12, fontFamily: FF.b, cursor: loading ? 'wait' : 'pointer', background: loading ? `${c}44` : `linear-gradient(135deg,${c}ee,${c}88)`, border: 'none', color: '#030810', fontWeight: 900, fontSize: 14, boxShadow: `0 0 28px ${c}44`, opacity: loading ? 0.7 : 1 }}>
             {loading ? '⏳ Redirection vers Stripe…' : `💳 Payer €${totalPrice}`}
           </button>
 
@@ -326,7 +247,8 @@ function CheckoutModal({ slot, onClose }) {
   );
 }
 
-// ─── Block rendering (unchanged visually) ─────────────────
+// ─── Block rendering ───────────────────────────────────────
+
 function BlockMedia({ tenant, tier }) {
   const sz = TIER_SIZE[tier] || 56;
   if (!tenant) return null;
@@ -346,7 +268,8 @@ function BlockMedia({ tenant, tier }) {
   return null;
 }
 
-const BlockCell = ({ slot, isSelected, onSelect, onFocus }) => {
+// PATCH 3 : BlockCell mémoïsé pour éviter les re-renders inutiles (1369 blocs)
+const BlockCell = memo(({ slot, isSelected, onSelect, onFocus }) => {
   const { tier, occ, tenant, hot } = slot;
   const sz = TIER_SIZE[tier];
   const isCornerTen = tier === 'corner_ten';
@@ -355,15 +278,7 @@ const BlockCell = ({ slot, isSelected, onSelect, onFocus }) => {
   const glow = isCornerTen ? `0 0 ${sz * 0.5}px ${D.gold}88,0 0 ${sz * 0.2}px ${D.gold}cc` : hot ? `0 0 ${sz * 0.25}px ${color}66` : occ ? `0 0 ${sz * 0.12}px ${color}22` : 'none';
   const selectedGlow = isSelected ? `0 0 0 3px ${TIER_COLOR[tier]},0 0 18px ${TIER_COLOR[tier]}aa,0 0 40px ${TIER_COLOR[tier]}44` : glow;
   return (
-    <div className="block-hover" onClick={() => occ ? onFocus(slot) : onSelect && onSelect(slot)} style={{
-      width: sz, height: sz, flexShrink: 0, position: 'relative',
-      borderRadius: tier === 'one' ? 10 : tier === 'ten' || isCornerTen ? 6 : tier === 'hundred' ? 3 : 2,
-      background: isSelected && !occ ? `${TIER_COLOR[tier]}18` : bg,
-      border: `${isSelected ? 2 : isCornerTen ? 2 : 1}px solid ${isSelected ? TIER_COLOR[tier] : isCornerTen ? D.gold : occ ? `${color}45` : `${TIER_COLOR[tier]}18`}`,
-      boxShadow: selectedGlow, overflow: 'hidden', transition: 'transform 0.12s,box-shadow 0.12s',
-      animation: isSelected && !occ ? 'selectedPulse 1.8s ease-in-out infinite' : isCornerTen ? 'glowPulse 3s infinite' : undefined,
-      color: TIER_COLOR[tier],
-    }}>
+    <div className="block-hover" onClick={() => occ ? onFocus(slot) : onSelect && onSelect(slot)} style={{ width: sz, height: sz, flexShrink: 0, position: 'relative', borderRadius: tier === 'one' ? 10 : tier === 'ten' || isCornerTen ? 6 : tier === 'hundred' ? 3 : 2, background: isSelected && !occ ? `${TIER_COLOR[tier]}18` : bg, border: `${isSelected ? 2 : isCornerTen ? 2 : 1}px solid ${isSelected ? TIER_COLOR[tier] : isCornerTen ? D.gold : occ ? `${color}45` : `${TIER_COLOR[tier]}18`}`, boxShadow: selectedGlow, overflow: 'hidden', transition: 'transform 0.12s,box-shadow 0.12s', animation: isSelected && !occ ? 'selectedPulse 1.8s ease-in-out infinite' : isCornerTen ? 'glowPulse 3s infinite' : undefined, color: TIER_COLOR[tier] }}>
       <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(135deg,rgba(255,255,255,0.07) 0%,transparent 50%)', pointerEvents: 'none' }} />
       {isCornerTen && <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', background: `linear-gradient(45deg,${D.gold}22 0%,transparent 40%,${D.gold}11 100%)` }} />}
       {occ && <BlockMedia tenant={tenant} tier={tier} />}
@@ -395,9 +310,10 @@ const BlockCell = ({ slot, isSelected, onSelect, onFocus }) => {
       {isCornerTen && !occ && <div style={{ position: 'absolute', top: 3, right: 3, width: 5, height: 5, borderRadius: '50%', background: D.gold, boxShadow: `0 0 8px ${D.gold}`, animation: 'blink 2s infinite' }} />}
     </div>
   );
-};
+});
+BlockCell.displayName = 'BlockCell';
 
-// ─── Focus Modal (view a booked slot) ─────────────────────
+// ─── PATCH 4 : FocusModal — position:'relative' sur la boîte modale
 function FocusModal({ slot, allSlots, onClose, onWaitlist, onNavigate }) {
   const [entered, setEntered] = useState(false);
   const [dir, setDir] = useState(0);
@@ -408,15 +324,21 @@ function FocusModal({ slot, allSlots, onClose, onWaitlist, onNavigate }) {
   const goPrev = useCallback(() => { if (!hasPrev) return; setDir(-1); onNavigate(occupiedSlots[curIdx - 1]); setTimeout(() => setDir(0), 250); }, [hasPrev, curIdx, occupiedSlots, onNavigate]);
   const goNext = useCallback(() => { if (!hasNext) return; setDir(1); onNavigate(occupiedSlots[curIdx + 1]); setTimeout(() => setDir(0), 250); }, [hasNext, curIdx, occupiedSlots, onNavigate]);
   useEffect(() => { const t = requestAnimationFrame(() => setEntered(true)); return () => cancelAnimationFrame(t); }, [slot]);
-  useEffect(() => { const fn = e => { if (e.key === 'Escape') onClose(); if (e.key === 'ArrowLeft') goPrev(); if (e.key === 'ArrowRight') goNext(); }; window.addEventListener('keydown', fn); return () => window.removeEventListener('keydown', fn); }, [slot, onClose, goPrev, goNext]);
+  useEffect(() => {
+    const fn = e => { if (e.key === 'Escape') onClose(); if (e.key === 'ArrowLeft') goPrev(); if (e.key === 'ArrowRight') goNext(); };
+    window.addEventListener('keydown', fn); return () => window.removeEventListener('keydown', fn);
+  }, [slot, onClose, goPrev, goNext]);
+
   if (!slot) return null;
   const { tier, occ, tenant } = slot;
   const color = occ ? tenant.c : TIER_COLOR[tier];
+
   return (
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(2,6,9,0.95)', backdropFilter: 'blur(28px)', display: 'flex', alignItems: isMobile ? 'flex-end' : 'center', justifyContent: 'center', opacity: entered ? 1 : 0, transition: 'opacity 0.3s ease' }}>
       {!isMobile && hasPrev && <button onClick={e => { e.stopPropagation(); goPrev(); }} className="focus-nav" style={{ position: 'fixed', left: 'max(12px,calc(50% - 420px))', top: '50%', transform: 'translateY(-50%)', width: 48, height: 48, borderRadius: '50%', background: 'rgba(6,12,22,0.85)', backdropFilter: 'blur(12px)', border: `1px solid ${D.bord2}`, color: D.txt, fontSize: 22, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1020 }}>‹</button>}
       {!isMobile && hasNext && <button onClick={e => { e.stopPropagation(); goNext(); }} className="focus-nav" style={{ position: 'fixed', right: 'max(12px,calc(50% - 420px))', top: '50%', transform: 'translateY(-50%)', width: 48, height: 48, borderRadius: '50%', background: 'rgba(6,12,22,0.85)', backdropFilter: 'blur(12px)', border: `1px solid ${D.bord2}`, color: D.txt, fontSize: 22, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1020 }}>›</button>}
-      <div onClick={e => e.stopPropagation()} style={{ width: isMobile ? '100vw' : 'min(96vw,760px)', background: `linear-gradient(145deg,${D.s2},${D.card})`, border: `2px solid ${color}44`, borderRadius: isMobile ? '24px 24px 0 0' : 20, overflow: 'hidden', overflowY: 'auto', maxHeight: isMobile ? '88vh' : '90vh', boxShadow: `0 0 0 1px ${color}18,0 40px 100px rgba(0,0,0,0.9),0 0 80px ${color}18`, transform: entered ? (isMobile ? undefined : `scale(1) translateX(${dir * -18}px)`) : (isMobile ? undefined : 'scale(0.88) translateY(28px)'), transition: 'transform 0.25s cubic-bezier(0.34,1.2,0.64,1)' }}>
+      {/* FIX: position:'relative' ajouté */}
+      <div onClick={e => e.stopPropagation()} style={{ position: 'relative', width: isMobile ? '100vw' : 'min(96vw,760px)', background: `linear-gradient(145deg,${D.s2},${D.card})`, border: `2px solid ${color}44`, borderRadius: isMobile ? '24px 24px 0 0' : 20, overflow: 'hidden', overflowY: 'auto', maxHeight: isMobile ? '88vh' : '90vh', boxShadow: `0 0 0 1px ${color}18,0 40px 100px rgba(0,0,0,0.9),0 0 80px ${color}18`, transform: entered ? (isMobile ? undefined : `scale(1) translateX(${dir * -18}px)`) : (isMobile ? undefined : 'scale(0.88) translateY(28px)'), transition: 'transform 0.25s cubic-bezier(0.34,1.2,0.64,1)' }}>
         {isMobile && <div style={{ display: 'flex', justifyContent: 'center', padding: '10px 0 2px' }}><div style={{ width: 40, height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.2)' }} /></div>}
         <div style={{ height: 3, background: `linear-gradient(90deg,${color},${color}44,transparent)` }} />
         <div style={{ position: 'absolute', top: isMobile ? 22 : 12, left: 16, zIndex: 10, padding: '3px 10px', borderRadius: 20, background: `${TIER_COLOR[tier]}18`, border: `1px solid ${TIER_COLOR[tier]}40`, color: TIER_COLOR[tier], fontSize: 8, fontWeight: 800, letterSpacing: 1 }}>{TIER_LABEL[tier]} · €{TIER_PRICE[tier]}/j</div>
@@ -454,7 +376,7 @@ function FocusModal({ slot, allSlots, onClose, onWaitlist, onNavigate }) {
   );
 }
 
-// ─── Public View (grid explorer) ──────────────────────────
+// ─── Public View ───────────────────────────────────────────
 function PublicView({ slots, isLive, onWaitlist }) {
   const containerRef = useRef(null);
   const [containerW, setContainerW] = useState(1200);
@@ -474,7 +396,10 @@ function PublicView({ slots, isLive, onWaitlist }) {
     if (showVacant) s = s.filter(sl => !sl.occ);
     return new Set(s.map(sl => sl.id));
   }, [slots, filterTier, showVacant]);
-  const toggleSelect = slot => { if (slot.occ) return; setSelected(prev => { const n = new Set(prev); n.has(slot.id) ? n.delete(slot.id) : n.add(slot.id); return n; }); };
+  const toggleSelect = useCallback(slot => {
+    if (slot.occ) return;
+    setSelected(prev => { const n = new Set(prev); n.has(slot.id) ? n.delete(slot.id) : n.add(slot.id); return n; });
+  }, []);
   const stats = useMemo(() => ({ occupied: slots.filter(s => s.occ).length, vacant: slots.filter(s => !s.occ).length }), [slots]);
 
   return (
@@ -485,7 +410,6 @@ function PublicView({ slots, isLive, onWaitlist }) {
         ))}
         <div style={{ width: 1, height: 18, background: D.bord }} />
         <button onClick={() => setShowVacant(v => !v)} style={{ padding: '4px 12px', borderRadius: 20, fontFamily: FF.b, cursor: 'pointer', fontSize: 11, background: showVacant ? `${D.violet}20` : 'transparent', border: `1px solid ${showVacant ? D.violet : D.bord}`, color: showVacant ? D.violet : D.muted }}>Disponibles</button>
-        {/* Live indicator */}
         {isLive && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '3px 8px', borderRadius: 12, background: `${D.mint}15`, border: `1px solid ${D.mint}33` }}>
             <div style={{ width: 6, height: 6, borderRadius: '50%', background: D.mint, animation: 'blink 1.5s infinite' }} />
@@ -521,7 +445,39 @@ function PublicView({ slots, isLive, onWaitlist }) {
   );
 }
 
-// ─── Advertiser View (pick & book a slot) ─────────────────
+// ─── PATCH 5 : AnonBlock sorti de AdvertiserView et mémoïsé
+const AnonBlock = memo(({ slot, chosenSlot, activeTier, onChoose }) => {
+  const { tier: t, occ } = slot;
+  const sz = TIER_SIZE[t];
+  const c = TIER_COLOR[t];
+  const isChosen = chosenSlot?.id === slot.id;
+  const isTierHighlighted = activeTier && (t === activeTier || (activeTier === 'ten' && t === 'corner_ten'));
+  const dimmed = activeTier && !isTierHighlighted;
+
+  if (occ) return (
+    <div style={{ width: sz, height: sz, borderRadius: t === 'one' ? 10 : 5, background: 'rgba(10,15,25,0.9)', border: `1px solid ${isTierHighlighted ? c + '55' : 'rgba(255,255,255,0.04)'}`, position: 'relative', overflow: 'hidden', flexShrink: 0, opacity: dimmed ? 0.15 : 1, transition: 'opacity 0.3s' }}>
+      <div style={{ position: 'absolute', inset: 0, background: `${c}06`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        {sz >= 20 && <div style={{ width: '40%', height: 1.5, background: `${c}30`, borderRadius: 1 }} />}
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="block-hover" onClick={() => onChoose(slot)} style={{ width: sz, height: sz, flexShrink: 0, position: 'relative', borderRadius: t === 'one' ? 10 : t === 'ten' || t === 'corner_ten' ? 6 : t === 'hundred' ? 3 : 2, background: isChosen ? `${c}22` : isTierHighlighted ? `${c}0c` : D.s2, border: `${t === 'corner_ten' ? 2 : isChosen ? 2 : 1}px solid ${isChosen ? c : isTierHighlighted ? c : t === 'corner_ten' ? D.gold : `${c}25`}`, boxShadow: isChosen ? `0 0 0 2px ${c},0 0 20px ${c}44` : t === 'corner_ten' ? `0 0 15px ${D.gold}44` : 'none', cursor: 'pointer', opacity: dimmed ? 0.15 : 1, transition: 'opacity 0.3s,border-color 0.3s,background 0.3s', animation: isTierHighlighted && !isChosen ? 'tierHighlight 2s ease-in-out infinite' : t === 'corner_ten' ? 'glowPulse 3s infinite' : undefined, color: c }}>
+      <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(135deg,rgba(255,255,255,0.05) 0%,transparent 50%)', pointerEvents: 'none' }} />
+      <div className="rent-cta" style={{ position: 'absolute', inset: 0, background: isChosen ? `${c}15` : 'rgba(0,0,0,0.75)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
+        {isChosen
+          ? <span style={{ color: c, fontSize: Math.max(8, sz * 0.3), fontWeight: 900 }}>✓</span>
+          : sz >= 28
+            ? (<><span style={{ fontSize: Math.min(14, sz * 0.22), color: c, fontWeight: 900 }}>+</span>{sz >= 46 && <span style={{ fontSize: Math.min(8, sz * 0.13), color: c, fontWeight: 700 }}>{t === 'corner_ten' ? 'CORNER' : t === 'one' ? 'ÉPICENTRE' : 'Choisir'}</span>}</>)
+            : <div style={{ width: 3, height: 3, borderRadius: '50%', background: c }} />}
+      </div>
+    </div>
+  );
+});
+AnonBlock.displayName = 'AnonBlock';
+
+// ─── Advertiser View ───────────────────────────────────────
 function AdvertiserView({ slots, isLive, selectedSlot, onWaitlist, onCheckout }) {
   const [chosenSlot, setChosenSlot] = useState(selectedSlot || null);
   const [hoveredTier, setHoveredTier] = useState(null);
@@ -535,19 +491,10 @@ function AdvertiserView({ slots, isLive, selectedSlot, onWaitlist, onCheckout })
   const activeTier = selectedTier || hoveredTier;
   const tierStats = useMemo(() => { const map = {}; for (const t of ['one', 'ten', 'corner_ten', 'hundred', 'thousand']) { const s = slots.filter(sl => sl.tier === t); map[t] = { total: s.length, vacant: s.filter(sl => !sl.occ).length }; } return map; }, [slots]);
 
-  const AnonBlock = ({ slot }) => {
-    const { tier: t, occ } = slot; const sz = TIER_SIZE[t]; const c = TIER_COLOR[t];
-    const isChosen = chosenSlot?.id === slot.id;
-    const isTierHighlighted = activeTier && (t === activeTier || (activeTier === 'ten' && t === 'corner_ten'));
-    const dimmed = activeTier && !isTierHighlighted;
-    if (occ) return (<div style={{ width: sz, height: sz, borderRadius: t === 'one' ? 10 : 5, background: 'rgba(10,15,25,0.9)', border: `1px solid ${isTierHighlighted ? c + '55' : 'rgba(255,255,255,0.04)'}`, position: 'relative', overflow: 'hidden', flexShrink: 0, opacity: dimmed ? 0.15 : 1, transition: 'opacity 0.3s' }}><div style={{ position: 'absolute', inset: 0, background: `${c}06`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{sz >= 20 && <div style={{ width: '40%', height: 1.5, background: `${c}30`, borderRadius: 1 }} />}</div></div>);
-    return (<div className="block-hover" onClick={() => { setChosenSlot(slot); setSelectedTier(slot.tier === 'corner_ten' ? 'corner_ten' : slot.tier); }} style={{ width: sz, height: sz, flexShrink: 0, position: 'relative', borderRadius: t === 'one' ? 10 : t === 'ten' || t === 'corner_ten' ? 6 : t === 'hundred' ? 3 : 2, background: isChosen ? `${c}22` : isTierHighlighted ? `${c}0c` : D.s2, border: `${t === 'corner_ten' ? 2 : isChosen ? 2 : 1}px solid ${isChosen ? c : isTierHighlighted ? c : t === 'corner_ten' ? D.gold : `${c}25`}`, boxShadow: isChosen ? `0 0 0 2px ${c},0 0 20px ${c}44` : t === 'corner_ten' ? `0 0 15px ${D.gold}44` : 'none', cursor: 'pointer', opacity: dimmed ? 0.15 : 1, transition: 'opacity 0.3s,border-color 0.3s,background 0.3s', animation: isTierHighlighted && !isChosen ? 'tierHighlight 2s ease-in-out infinite' : t === 'corner_ten' ? 'glowPulse 3s infinite' : undefined, color: c }}>
-      <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(135deg,rgba(255,255,255,0.05) 0%,transparent 50%)', pointerEvents: 'none' }} />
-      <div className="rent-cta" style={{ position: 'absolute', inset: 0, background: isChosen ? `${c}15` : 'rgba(0,0,0,0.75)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
-        {isChosen ? <span style={{ color: c, fontSize: Math.max(8, sz * 0.3), fontWeight: 900 }}>✓</span> : sz >= 28 ? (<><span style={{ fontSize: Math.min(14, sz * 0.22), color: c, fontWeight: 900 }}>+</span>{sz >= 46 && <span style={{ fontSize: Math.min(8, sz * 0.13), color: c, fontWeight: 700 }}>{t === 'corner_ten' ? 'CORNER' : t === 'one' ? 'ÉPICENTRE' : 'Choisir'}</span>}</>) : <div style={{ width: 3, height: 3, borderRadius: '50%', background: c }} />}
-      </div>
-    </div>);
-  };
+  const handleChoose = useCallback((slot) => {
+    setChosenSlot(slot);
+    setSelectedTier(slot.tier === 'corner_ten' ? 'corner_ten' : slot.tier);
+  }, []);
 
   return (
     <div style={{ flex: 1, display: 'flex', overflow: 'hidden', background: D.bg, flexDirection: isMobile ? 'column' : 'row' }}>
@@ -559,29 +506,39 @@ function AdvertiserView({ slots, isLive, selectedSlot, onWaitlist, onCheckout })
             {PROFILES.map(p => (<div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '3px 8px', borderRadius: 20, background: `${p.color}10`, border: `1px solid ${p.color}33` }}><span style={{ fontSize: 11 }}>{p.icon}</span><span style={{ color: p.color, fontSize: 9, fontWeight: 700 }}>{p.label}</span></div>))}
           </div>
         </div>
+
         <div style={{ padding: '16px 20px', borderBottom: `1px solid ${D.bord}` }}>
           <div style={{ color: D.muted, fontSize: 9, fontWeight: 700, letterSpacing: 1.2, marginBottom: 10 }}>TIERS DISPONIBLES</div>
-          {[{ tier: 'one', label: 'ÉPICENTRE', desc: 'Bloc central unique', icon: '◆', who: 'Toute marque premium' }, { tier: 'corner_ten', label: 'CORNER', desc: '4 coins emblématiques', icon: '⬛', who: 'Marques & créateurs' }, { tier: 'ten', label: 'PRESTIGE', desc: 'Anneau autour du centre', icon: '💎', who: 'Freelances & PME' }, { tier: 'hundred', label: 'BUSINESS', desc: 'Zone business principale', icon: '🏢', who: 'Auto-entrepreneurs' }, { tier: 'thousand', label: 'VIRAL', desc: 'Maximum de portée', icon: '🚀', who: 'Créateurs & particuliers' }].map(({ tier: t, label, desc, icon, who }) => {
+          {[
+            { tier: 'one', label: 'ÉPICENTRE', desc: 'Bloc central unique', icon: '◆', who: 'Toute marque premium' },
+            { tier: 'corner_ten', label: 'CORNER', desc: '4 coins emblématiques', icon: '⬛', who: 'Marques & créateurs' },
+            { tier: 'ten', label: 'PRESTIGE', desc: 'Anneau autour du centre', icon: '💎', who: 'Freelances & PME' },
+            { tier: 'hundred', label: 'BUSINESS', desc: 'Zone business principale', icon: '🏢', who: 'Auto-entrepreneurs' },
+            { tier: 'thousand', label: 'VIRAL', desc: 'Maximum de portée', icon: '🚀', who: 'Créateurs & particuliers' },
+          ].map(({ tier: t, label, desc, icon, who }) => {
             const s = tierStats[t]; const isHov = hoveredTier === t; const isSel = selectedTier === t; const c = TIER_COLOR[t];
-            return (<div key={t} onMouseEnter={() => setHoveredTier(t)} onMouseLeave={() => setHoveredTier(null)} onClick={() => setSelectedTier(prev => prev === t ? null : t)} style={{ padding: '11px 14px', borderRadius: 11, marginBottom: 7, cursor: 'pointer', background: isSel ? `${c}18` : isHov ? `${c}12` : D.faint, border: `1px solid ${isSel ? c : isHov ? c + '44' : D.bord}`, transition: 'all 0.2s', boxShadow: isSel ? `0 0 16px ${c}33` : 'none' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <span style={{ fontSize: 18 }}>{icon}</span>
-                <div style={{ flex: 1 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span style={{ color: c, fontWeight: 900, fontSize: 13, fontFamily: FF.h, letterSpacing: 1 }}>{label}</span>
-                    {isSel && <div style={{ width: 6, height: 6, borderRadius: '50%', background: c, boxShadow: `0 0 8px ${c}`, animation: 'blink 1.5s infinite' }} />}
+            return (
+              <div key={t} onMouseEnter={() => setHoveredTier(t)} onMouseLeave={() => setHoveredTier(null)} onClick={() => setSelectedTier(prev => prev === t ? null : t)} style={{ padding: '11px 14px', borderRadius: 11, marginBottom: 7, cursor: 'pointer', background: isSel ? `${c}18` : isHov ? `${c}12` : D.faint, border: `1px solid ${isSel ? c : isHov ? c + '44' : D.bord}`, transition: 'all 0.2s', boxShadow: isSel ? `0 0 16px ${c}33` : 'none' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <span style={{ fontSize: 18 }}>{icon}</span>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span style={{ color: c, fontWeight: 900, fontSize: 13, fontFamily: FF.h, letterSpacing: 1 }}>{label}</span>
+                      {isSel && <div style={{ width: 6, height: 6, borderRadius: '50%', background: c, boxShadow: `0 0 8px ${c}`, animation: 'blink 1.5s infinite' }} />}
+                    </div>
+                    <div style={{ color: D.muted, fontSize: 10, marginTop: 1 }}>{desc}</div>
+                    <div style={{ color: `${c}88`, fontSize: 9, marginTop: 2 }}>👤 {who}</div>
                   </div>
-                  <div style={{ color: D.muted, fontSize: 10, marginTop: 1 }}>{desc}</div>
-                  <div style={{ color: `${c}88`, fontSize: 9, marginTop: 2 }}>👤 {who}</div>
-                </div>
-                <div style={{ textAlign: 'right' }}>
-                  <div style={{ color: c, fontWeight: 900, fontSize: 13, fontFamily: FF.h }}>€{TIER_PRICE[t]}/j</div>
-                  <div style={{ color: D.muted, fontSize: 9 }}>{s.vacant} libres</div>
+                  <div style={{ textAlign: 'right' }}>
+                    <div style={{ color: c, fontWeight: 900, fontSize: 13, fontFamily: FF.h }}>€{TIER_PRICE[t]}/j</div>
+                    <div style={{ color: D.muted, fontSize: 9 }}>{s.vacant} libres</div>
+                  </div>
                 </div>
               </div>
-            </div>);
+            );
           })}
         </div>
+
         <div style={{ padding: '16px 20px', flex: 1 }}>
           {chosenSlot ? (
             <>
@@ -593,7 +550,6 @@ function AdvertiserView({ slots, isLive, selectedSlot, onWaitlist, onCheckout })
                 </div>
                 <div style={{ color: D.muted, fontSize: 10 }}>Position ({chosenSlot.x},{chosenSlot.y}) · 30j = €{TIER_PRICE[chosenSlot.tier] * 30}</div>
               </div>
-              {/* Primary CTA: Checkout if Stripe is ready, otherwise Waitlist */}
               <button onClick={() => onCheckout(chosenSlot)} style={{ width: '100%', padding: '13px', borderRadius: 12, fontFamily: FF.b, cursor: 'pointer', background: `linear-gradient(135deg,${D.cyan}ee,${D.cyan}88)`, border: 'none', color: '#030810', fontWeight: 900, fontSize: 14, boxShadow: `0 0 22px ${D.cyan}44` }}>
                 💳 Réserver ce bloc →
               </button>
@@ -610,10 +566,15 @@ function AdvertiserView({ slots, isLive, selectedSlot, onWaitlist, onCheckout })
           )}
         </div>
       </div>
+
       <div ref={containerRef} style={{ flex: 1, overflow: 'auto', padding: 16, background: D.bg, order: isMobile ? 1 : 0, minHeight: isMobile ? '30vh' : undefined }}>
         <div style={{ position: 'relative', width: totalGridW * scale, height: totalGridH * scale }}>
           <div style={{ position: 'absolute', top: 0, left: 0, transform: `scale(${scale})`, transformOrigin: 'top left', width: totalGridW, height: totalGridH }}>
-            {slots.map(slot => (<div key={slot.id} style={{ position: 'absolute', left: colOffsets[slot.x], top: rowOffsets[slot.y] }}><AnonBlock slot={slot} /></div>))}
+            {slots.map(slot => (
+              <div key={slot.id} style={{ position: 'absolute', left: colOffsets[slot.x], top: rowOffsets[slot.y] }}>
+                <AnonBlock slot={slot} chosenSlot={chosenSlot} activeTier={activeTier} onChoose={handleChoose} />
+              </div>
+            ))}
           </div>
         </div>
       </div>
@@ -621,7 +582,7 @@ function AdvertiserView({ slots, isLive, selectedSlot, onWaitlist, onCheckout })
   );
 }
 
-// ─── Landing Page (unchanged visually) ────────────────────
+// ─── Landing Page ──────────────────────────────────────────
 function LandingPage({ slots, onPublic, onAdvertiser, onWaitlist }) {
   const { isMobile } = useScreenSize();
   const stats = useMemo(() => ({ occupied: slots.filter(s => s.occ).length, vacant: slots.filter(s => !s.occ).length }), [slots]);
@@ -650,12 +611,14 @@ function LandingPage({ slots, onPublic, onAdvertiser, onWaitlist }) {
           Choisissez votre bloc. Diffusez votre contenu. Dès 1€/jour.
         </p>
         <div style={{ display: 'flex', gap: 10, justifyContent: 'center', marginBottom: 24, flexWrap: 'wrap' }}>
-          {PROFILES.map(p => (<div key={p.id} className="profile-card" onClick={onAdvertiser} style={{ padding: '12px 16px', borderRadius: 14, background: `${p.color}0c`, border: `1px solid ${p.color}33`, textAlign: 'center', minWidth: isMobile ? 90 : 120 }}>
-            <div style={{ fontSize: 22, marginBottom: 4 }}>{p.icon}</div>
-            <div style={{ color: p.color, fontWeight: 800, fontSize: 11, fontFamily: FF.h, marginBottom: 2 }}>{p.label}</div>
-            <div style={{ color: D.muted, fontSize: 9, marginBottom: 5 }}>{p.desc}</div>
-            <div style={{ color: p.color, fontSize: 8, fontWeight: 700, padding: '2px 6px', borderRadius: 20, background: `${p.color}15`, display: 'inline-block' }}>{p.blocs}</div>
-          </div>))}
+          {PROFILES.map(p => (
+            <div key={p.id} className="profile-card" onClick={onAdvertiser} style={{ padding: '12px 16px', borderRadius: 14, background: `${p.color}0c`, border: `1px solid ${p.color}33`, textAlign: 'center', minWidth: isMobile ? 90 : 120 }}>
+              <div style={{ fontSize: 22, marginBottom: 4 }}>{p.icon}</div>
+              <div style={{ color: p.color, fontWeight: 800, fontSize: 11, fontFamily: FF.h, marginBottom: 2 }}>{p.label}</div>
+              <div style={{ color: D.muted, fontSize: 9, marginBottom: 5 }}>{p.desc}</div>
+              <div style={{ color: p.color, fontSize: 8, fontWeight: 700, padding: '2px 6px', borderRadius: 20, background: `${p.color}15`, display: 'inline-block' }}>{p.blocs}</div>
+            </div>
+          ))}
         </div>
         <div style={{ display: 'flex', gap: isMobile ? 16 : 32, justifyContent: 'center', marginBottom: 28, flexWrap: 'wrap' }}>
           {[[stats.occupied.toLocaleString(), 'Blocs actifs', D.rose], [stats.vacant.toLocaleString(), 'Blocs libres', D.mint], ['1 369', 'Total blocs', D.cyan], ['1€', 'Prix départ', D.gold]].map(([v, l, c]) => (
@@ -673,7 +636,7 @@ function LandingPage({ slots, onPublic, onAdvertiser, onWaitlist }) {
   );
 }
 
-// ─── Main App ─────────────────────────────────────────────
+// ─── Main App ──────────────────────────────────────────────
 export default function App() {
   const [view, setView] = useState('landing');
   const [showWaitlist, setShowWaitlist] = useState(false);
@@ -682,7 +645,6 @@ export default function App() {
   const { isMobile } = useScreenSize();
   const handleWaitlist = useCallback(() => setShowWaitlist(true), []);
 
-  // Handle checkout: if Stripe is configured, show CheckoutModal; else show waitlist
   const handleCheckout = useCallback((slot) => {
     if (process.env.NEXT_PUBLIC_STRIPE_ENABLED === 'true') {
       setCheckoutSlot(slot);
@@ -695,7 +657,6 @@ export default function App() {
 
   return (
     <div style={{ display: 'flex', height: '100vh', background: D.bg, fontFamily: FF.b, color: D.txt, overflow: 'hidden', flexDirection: 'column' }}>
-      <style dangerouslySetInnerHTML={{ __html: GLOBAL_CSS }} />
       <BetaBanner />
       {!isFullscreen ? (
         <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: isMobile ? '0 12px' : '0 24px', height: 52, flexShrink: 0, borderBottom: `1px solid ${D.bord}`, background: `${D.s1}e8`, backdropFilter: 'blur(14px)', zIndex: 100 }}>
@@ -719,11 +680,11 @@ export default function App() {
           <button onClick={handleWaitlist} style={{ padding: '4px 10px', borderRadius: 20, fontFamily: FF.b, cursor: 'pointer', background: `${D.violet}18`, border: `1px solid ${D.violet}44`, color: D.violet, fontSize: 10, fontWeight: 700 }}>📬</button>
         </div>
       )}
-      {view === 'landing' && <LandingPage slots={slots} onPublic={() => setView('public')} onAdvertiser={() => setView('advertiser')} onWaitlist={handleWaitlist} />}
-      {view === 'public' && <PublicView slots={slots} isLive={isLive} onWaitlist={handleWaitlist} />}
+      {view === 'landing'    && <LandingPage    slots={slots} onPublic={() => setView('public')} onAdvertiser={() => setView('advertiser')} onWaitlist={handleWaitlist} />}
+      {view === 'public'     && <PublicView     slots={slots} isLive={isLive} onWaitlist={handleWaitlist} />}
       {view === 'advertiser' && <AdvertiserView slots={slots} isLive={isLive} onWaitlist={handleWaitlist} onCheckout={handleCheckout} />}
-      {showWaitlist && <WaitlistModal onClose={() => setShowWaitlist(false)} />}
-      {checkoutSlot && <CheckoutModal slot={checkoutSlot} onClose={() => setCheckoutSlot(null)} />}
+      {showWaitlist  && <WaitlistModal  onClose={() => setShowWaitlist(false)} />}
+      {checkoutSlot  && <CheckoutModal  slot={checkoutSlot} onClose={() => setCheckoutSlot(null)} />}
     </div>
   );
 }

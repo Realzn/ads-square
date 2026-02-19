@@ -1,65 +1,78 @@
-/* Fonts moved to <link> preconnect in layout.js for non-blocking load */
+/* ============================================================
+   ADS-SQUARE — Global Styles (patched — no duplicates)
+   ============================================================ */
 
-/* Ensure text is visible during font load (FOIT prevention) */
-@font-face {
-  font-family: 'Clash Display';
-  font-display: swap;
-}
-@font-face {
-  font-family: 'DM Sans';
-  font-display: swap;
-}
+@font-face { font-family: 'Clash Display'; font-display: swap; }
+@font-face { font-family: 'DM Sans';       font-display: swap; }
 
-body {
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  height: 100%;
+  background: #020609;
+  color: #dde8ff;
   font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
+  overflow: hidden;
 }
 
-*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: rgba(255,255,255,0.03); }
+::-webkit-scrollbar-thumb { background: rgba(0,217,245,0.25); border-radius: 3px; }
 
-::-webkit-scrollbar{width:4px;height:4px;}
-::-webkit-scrollbar-track{background:transparent;}
-::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.09);border-radius:2px;}
+input, textarea, select { color-scheme: dark; }
+input::placeholder, textarea::placeholder { color: rgba(185,205,255,0.22); }
 
-input,textarea,select{color-scheme:dark;}
-input::placeholder,textarea::placeholder{color:rgba(185,205,255,0.22);}
-
-@keyframes blink{
-  0%,100%{opacity:1;box-shadow:0 0 8px #ff4455;}
-  50%{opacity:.1;box-shadow:none;}
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(24px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
-@keyframes rpulse{
-  from{opacity:.2}
-  to{opacity:.6}
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.2; }
 }
-@keyframes zoomPulse{
-  0%{transform:scale(1);box-shadow:0 0 0px rgba(0,217,245,0);}
-  40%{transform:scale(1.55);box-shadow:0 0 22px rgba(0,217,245,.7);}
-  70%{transform:scale(1.35);box-shadow:0 0 14px rgba(0,217,245,.4);}
-  100%{transform:scale(1);box-shadow:0 0 0px rgba(0,217,245,0);}
+@keyframes glowPulse {
+  0%, 100% { box-shadow: 0 0 20px rgba(0,217,245,0.2); }
+  50%       { box-shadow: 0 0 60px rgba(0,217,245,0.5); }
 }
-@keyframes zoomRing{
-  0%{transform:scale(1);opacity:.9;}
-  100%{transform:scale(2.8);opacity:0;}
+@keyframes selectedPulse {
+  0%, 100% { box-shadow: 0 0 0 2px currentColor, 0 0 12px currentColor; }
+  50%       { box-shadow: 0 0 0 4px currentColor, 0 0 28px currentColor, 0 0 60px currentColor; }
 }
-@keyframes floatUp{
-  0%{transform:translateY(0px);opacity:1;}
-  100%{transform:translateY(-32px);opacity:0;}
+@keyframes vacantBreath {
+  0%, 100% { opacity: 0.6; }
+  50%       { opacity: 1; }
 }
-@keyframes promoBanner{
-  0%,100%{background-position:0% 50%;}
-  50%{background-position:100% 50%;}
+@keyframes tierHighlight {
+  0%, 100% { box-shadow: inset 0 0 0 1px currentColor, 0 0 8px currentColor; }
+  50%       { box-shadow: inset 0 0 0 2px currentColor, 0 0 22px currentColor; }
 }
-@keyframes visitorPop{
-  0%{transform:scale(0.85);opacity:0;}
-  100%{transform:scale(1);opacity:1;}
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-8px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
-@keyframes shimmer{
-  0%{background-position:-200% 0;}
-  100%{background-position:200% 0;}
+@keyframes modalIn {
+  from { opacity: 0; transform: scale(0.92) translateY(16px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position:  200% 0; }
 }
 
-@keyframes tenantReveal{
-  0%{opacity:0;transform:scale(.86) translateY(30px);}
-  60%{opacity:1;transform:scale(1.02) translateY(-4px);}
-  100%{opacity:1;transform:scale(1) translateY(0);}
+.block-hover { transition: transform 0.12s, box-shadow 0.12s; cursor: pointer; }
+.block-hover:hover { transform: scale(1.15); z-index: 20; }
+.block-hover:hover .rent-cta { opacity: 1 !important; }
+.rent-cta { opacity: 0; transition: opacity 0.15s; }
+.landing-btn { transition: all 0.25s cubic-bezier(0.34,1.56,0.64,1); }
+.landing-btn:hover  { transform: translateY(-3px) scale(1.03); }
+.landing-btn:active { transform: scale(0.97); }
+.profile-card { transition: all 0.2s cubic-bezier(0.34,1.3,0.64,1); cursor: pointer; }
+.profile-card:hover { transform: translateY(-4px) scale(1.02); }
+.focus-nav { transition: all 0.2s; }
+.focus-nav:hover { transform: scale(1.1); background: rgba(0,217,245,0.2) !important; }
+
+@media (hover: none) and (pointer: coarse) {
+  .block-hover:hover  { transform: none; }
+  .block-hover:active { transform: scale(1.08); }
+  .rent-cta           { opacity: 0.7 !important; }
 }
