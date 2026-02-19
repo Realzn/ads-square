@@ -674,7 +674,7 @@ function TikTokFeed({ slots, isLive }) {
                   </div>
                 </div>
                 <a href={tenant.url} target="_blank" rel="noopener noreferrer" onClick={() => recordClick(slot.x, slot.y, slot.bookingId)} style={{ display: 'block', padding: '10px 14px', borderRadius: 9, background: c, color: U.accentFg, fontWeight: 700, fontSize: 12, fontFamily: F.b, textDecoration: 'none', textAlign: 'center', boxShadow: `0 0 18px ${c}50` }}>{tenant.cta} →</a>
-              </>)}
+              </>): null}
             </div>
 
             {/* Progress dots */}
