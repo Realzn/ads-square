@@ -305,7 +305,7 @@ function CheckoutModal({ slot, onClose }) {
           <div style={{ padding: '8px 12px', borderRadius: 6, background: `${U.err}12`, border: `1px solid ${U.err}30`, color: U.err, fontSize: 12, marginBottom: 14, textAlign: 'center' }}>{error}</div>
         )}
 
-        <button onClick={handleCheckout} disabled={loading} style={{ width: '100%', padding: '13px', borderRadius: 10, fontFamily: F.b, cursor: loading ? 'wait' : 'pointer', background: loading ? U.s2 : U.accent, border: 'none', color: loading ? U.muted : U.accentFg, fontWeight: 700, fontSize: 14, opacity: loading ? 0.6 : 1, transition: 'opacity 0.15s' }}>
+        <button onClick={handleCheckout} disabled={loading} style={{ width: '100%', padding: '13px', borderRadius: 10, fontFamily: F.b, cursor: loading ? 'wait' : 'pointer', background: loading ? U.s2 : U.accent, border: 'none', color: loading ? U.muted : U.accentFg, fontWeight: 700, fontSize: 14, opacity: loading ? 0.6 : 1, transition: 'opacity 0.15s, box-shadow 0.2s', boxShadow: loading ? 'none' : `0 0 22px ${U.accent}50` }}>
           {loading ? 'Redirection vers Stripe…' : `Payer €${totalPrice}`}
         </button>
         <div style={{ marginTop: 10, color: U.muted, fontSize: 11, textAlign: 'center' }}>Paiement sécurisé · Annulation possible</div>
@@ -349,11 +349,18 @@ const BlockCell = memo(({ slot, isSelected, onSelect, onFocus, sz: szProp }) => 
         overflow: 'hidden',
         cursor: 'pointer',
         flexShrink: 0,
-        border: `1px solid ${isSelected ? c : isCornerTen ? c + '60' : occ ? c + '30' : U.border}`,
+        border: `1px solid ${isSelected ? c : isCornerTen ? c + '70' : occ ? c + '40' : U.border}`,
         background: occ ? (tenant?.b || U.s2) : U.s2,
         outline: isSelected ? `2px solid ${c}` : 'none',
         outlineOffset: 1,
-        transition: 'opacity 0.2s, outline 0.1s',
+        boxShadow: isSelected
+          ? `0 0 0 2px ${c}60, 0 0 ${sz * 0.5}px ${c}35`
+          : isCornerTen
+            ? `0 0 ${sz * 0.6}px ${c}28, inset 0 0 ${sz * 0.3}px ${c}08`
+            : occ && sz >= 24
+              ? `0 0 ${sz * 0.35}px ${c}22`
+              : 'none',
+        transition: 'opacity 0.2s, outline 0.1s, box-shadow 0.3s',
       }}
     >
       {occ && <BlockMedia tenant={tenant} tier={tier} sz={sz} />}
@@ -419,7 +426,7 @@ function FocusModal({ slot, allSlots, onClose, onWaitlist, onNavigate }) {
         {occ && tenant?.img && tier !== 'thousand' && (
           <div style={{ position: 'relative', height: isMobile ? 160 : 210, overflow: 'hidden', background: U.s2 }}>
             <img src={tenant.img} alt={tenant.name} style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: 0.7 }} />
-            <div style={{ position: 'absolute', inset: 0, background: `linear-gradient(to top, ${U.s1} 0%, transparent 60%)` }} />
+            <div style={{ position: 'absolute', inset: 0, background: `linear-gradient(to top, ${U.s1} 0%, ${c}08 40%, transparent 60%)` }} />
           </div>
         )}
 
@@ -436,7 +443,7 @@ function FocusModal({ slot, allSlots, onClose, onWaitlist, onNavigate }) {
               </div>
             </div>
             <div style={{ display: 'flex', gap: 10, flexDirection: isMobile ? 'column' : 'row' }}>
-              <a href={tenant.url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} style={{ flex: 1, padding: '12px 20px', borderRadius: 10, background: c, color: U.accentFg, fontWeight: 700, fontSize: 13, fontFamily: F.b, textDecoration: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+              <a href={tenant.url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} style={{ flex: 1, padding: '12px 20px', borderRadius: 10, background: c, color: U.accentFg, fontWeight: 700, fontSize: 13, fontFamily: F.b, textDecoration: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, boxShadow: `0 0 20px ${c}50` }}>
                 {tenant.cta} →
               </a>
               <button onClick={() => { onClose(); onWaitlist(); }} style={{ padding: '12px 18px', borderRadius: 10, fontFamily: F.b, cursor: 'pointer', background: U.faint, border: `1px solid ${U.border2}`, color: U.text, fontWeight: 600, fontSize: 13 }}>
@@ -454,7 +461,7 @@ function FocusModal({ slot, allSlots, onClose, onWaitlist, onNavigate }) {
               {TIER_LABEL[tier]} — €{TIER_PRICE[tier]}/jour<br />
               Ouvert à tous : créateur, freelance, marque.
             </div>
-            <button onClick={() => { onClose(); onWaitlist(); }} style={{ padding: '13px 28px', borderRadius: 10, fontFamily: F.b, cursor: 'pointer', background: U.accent, border: 'none', color: U.accentFg, fontWeight: 700, fontSize: 14, width: isMobile ? '100%' : 'auto' }}>
+            <button onClick={() => { onClose(); onWaitlist(); }} style={{ padding: '13px 28px', borderRadius: 10, fontFamily: F.b, cursor: 'pointer', background: U.accent, border: 'none', color: U.accentFg, fontWeight: 700, fontSize: 14, width: isMobile ? '100%' : 'auto', boxShadow: `0 0 22px ${U.accent}50` }}>
               Réserver ma place →
             </button>
           </div>
@@ -523,7 +530,7 @@ function TikTokFeed({ slots, isLive, onWaitlist }) {
             )}
 
             {/* Block visual */}
-            <div style={{ position: 'relative', zIndex: 1, width: isMobile ? 176 : 232, height: isMobile ? 176 : 232, borderRadius: tier === 'one' ? 24 : 18, background: occ ? (tenant.b || U.s2) : U.s2, border: `1px solid ${c}30`, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'border-color 0.4s' }}>
+            <div style={{ position: 'relative', zIndex: 1, width: isMobile ? 176 : 232, height: isMobile ? 176 : 232, borderRadius: tier === 'one' ? 24 : 18, background: occ ? (tenant.b || U.s2) : U.s2, border: `1px solid ${c}30`, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'border-color 0.4s, box-shadow 0.4s', boxShadow: isActive ? `0 0 48px ${c}30, 0 0 12px ${c}18` : `0 0 16px ${c}08` }}>
               {occ && tenant?.img && <img src={tenant.img} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', opacity: 0.55 }} onError={e => e.target.style.display='none'} />}
               <div style={{ position: 'relative', zIndex: 1, textAlign: 'center', padding: 16 }}>
                 {occ ? (
@@ -552,13 +559,13 @@ function TikTokFeed({ slots, isLive, onWaitlist }) {
                   </div>
                 </div>
                 <div style={{ display: 'flex', gap: 8 }}>
-                  <a href={tenant.url} target="_blank" rel="noopener noreferrer" style={{ flex: 1, padding: '10px 14px', borderRadius: 9, background: c, color: U.accentFg, fontWeight: 700, fontSize: 12, fontFamily: F.b, textDecoration: 'none', textAlign: 'center' }}>{tenant.cta} →</a>
+                  <a href={tenant.url} target="_blank" rel="noopener noreferrer" style={{ flex: 1, padding: '10px 14px', borderRadius: 9, background: c, color: U.accentFg, fontWeight: 700, fontSize: 12, fontFamily: F.b, textDecoration: 'none', textAlign: 'center', boxShadow: `0 0 18px ${c}50` }}>{tenant.cta} →</a>
                   <button onClick={onWaitlist} style={{ padding: '10px 14px', borderRadius: 9, fontFamily: F.b, cursor: 'pointer', background: U.faint, border: `1px solid ${U.border}`, color: U.muted, fontWeight: 600, fontSize: 11 }}>Louer</button>
                 </div>
               </>) : (<>
                 <div style={{ color: U.text, fontWeight: 700, fontSize: 15, fontFamily: F.h, marginBottom: 6, letterSpacing: '-0.02em' }}>Espace disponible</div>
                 <div style={{ color: U.muted, fontSize: 12, lineHeight: 1.6, marginBottom: 14 }}>{TIER_LABEL[tier]} · €{TIER_PRICE[tier]}/jour — visibilité immédiate.</div>
-                <button onClick={onWaitlist} style={{ width: '100%', padding: '11px', borderRadius: 9, fontFamily: F.b, cursor: 'pointer', background: U.accent, border: 'none', color: U.accentFg, fontWeight: 700, fontSize: 13 }}>Réserver ce bloc →</button>
+                <button onClick={onWaitlist} style={{ width: '100%', padding: '11px', borderRadius: 9, fontFamily: F.b, cursor: 'pointer', background: U.accent, border: 'none', color: U.accentFg, fontWeight: 700, fontSize: 13, boxShadow: `0 0 20px ${U.accent}50` }}>Réserver ce bloc →</button>
               </>)}
             </div>
 
@@ -712,7 +719,7 @@ const AnonBlock = memo(({ slot, chosenSlot, activeTier, onChoose, sz: szProp }) 
   );
 
   return (
-    <div onClick={() => onChoose(slot)} style={{ width: sz, height: sz, flexShrink: 0, position: 'relative', borderRadius: r, background: isChosen ? `${c}18` : isTierHighlighted ? `${c}0c` : U.s2, border: `1px solid ${isChosen ? c + '80' : isTierHighlighted ? c + '40' : U.border}`, outline: isChosen ? `2px solid ${c}` : 'none', outlineOffset: 1, cursor: 'pointer', opacity: dimmed ? 0.1 : 1, transition: 'opacity 0.25s, border-color 0.2s, background 0.2s' }}>
+    <div onClick={() => onChoose(slot)} style={{ width: sz, height: sz, flexShrink: 0, position: 'relative', borderRadius: r, background: isChosen ? `${c}18` : isTierHighlighted ? `${c}0c` : U.s2, border: `1px solid ${isChosen ? c + '80' : isTierHighlighted ? c + '40' : U.border}`, outline: isChosen ? `2px solid ${c}` : 'none', outlineOffset: 1, cursor: 'pointer', opacity: dimmed ? 0.1 : 1, boxShadow: isChosen ? `0 0 0 2px ${c}55, 0 0 ${sz * 0.5}px ${c}35` : isTierHighlighted ? `0 0 ${sz * 0.4}px ${c}22` : 'none', transition: 'opacity 0.25s, border-color 0.2s, background 0.2s, box-shadow 0.25s' }}>
       {isChosen && sz >= 18 && (
         <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <svg width={sz * 0.4} height={sz * 0.4} viewBox="0 0 12 12" fill="none">
@@ -777,7 +784,7 @@ function AdvertiserView({ slots, isLive, onWaitlist, onCheckout }) {
                   onMouseEnter={() => setHoveredTier(tier.id)}
                   onMouseLeave={() => setHoveredTier(null)}
                   onClick={() => setSelectedTier(prev => prev === tier.id ? null : tier.id)}
-                  style={{ padding: '10px 12px', borderRadius: 8, background: isActive ? `${c}0d` : U.faint, border: `1px solid ${isActive ? c + '35' : U.border}`, cursor: 'pointer', transition: 'all 0.15s', display: 'flex', alignItems: 'center', gap: 10 }}
+                  style={{ padding: '10px 12px', borderRadius: 8, background: isActive ? `${c}0d` : U.faint, border: `1px solid ${isActive ? c + '50' : U.border}`, cursor: 'pointer', transition: 'all 0.2s', display: 'flex', alignItems: 'center', gap: 10, boxShadow: isActive ? `0 0 16px ${c}18, inset 0 0 20px ${c}06` : 'none' }}
                 >
                   <div style={{ width: 8, height: 8, borderRadius: 2, background: c, flexShrink: 0, opacity: isActive ? 1 : 0.5 }} />
                   <div style={{ flex: 1, minWidth: 0 }}>
@@ -799,7 +806,7 @@ function AdvertiserView({ slots, isLive, onWaitlist, onCheckout }) {
             <div style={{ display: 'inline-block', padding: '2px 7px', borderRadius: 4, background: `${TIER_COLOR[chosenSlot.tier]}15`, border: `1px solid ${TIER_COLOR[chosenSlot.tier]}30`, color: TIER_COLOR[chosenSlot.tier], fontSize: 9, fontWeight: 700, letterSpacing: '0.06em', marginBottom: 10 }}>{TIER_LABEL[chosenSlot.tier]}</div>
             <div style={{ color: U.text, fontWeight: 700, fontSize: 14, fontFamily: F.h, marginBottom: 4 }}>Bloc sélectionné</div>
             <div style={{ color: U.muted, fontSize: 11, marginBottom: 16 }}>Position ({chosenSlot.x}, {chosenSlot.y}) · €{TIER_PRICE[chosenSlot.tier]}/j</div>
-            <button onClick={() => onCheckout(chosenSlot)} style={{ width: '100%', padding: '11px', borderRadius: 8, fontFamily: F.b, cursor: 'pointer', background: U.accent, border: 'none', color: U.accentFg, fontWeight: 700, fontSize: 13 }}>Continuer →</button>
+            <button onClick={() => onCheckout(chosenSlot)} style={{ width: '100%', padding: '11px', borderRadius: 8, fontFamily: F.b, cursor: 'pointer', background: U.accent, border: 'none', color: U.accentFg, fontWeight: 700, fontSize: 13, boxShadow: `0 0 20px ${U.accent}50` }}>Continuer →</button>
           </div>
         ) : (
           <div style={{ padding: '20px', margin: '16px', borderRadius: 10, background: U.faint, border: `1px solid ${U.border}` }}>
@@ -845,7 +852,7 @@ function LandingPage({ slots, onPublic, onAdvertiser, onWaitlist }) {
       <div style={{ position: 'relative', zIndex: 1, maxWidth: 600, width: '100%', textAlign: 'center', animation: 'fadeUp 0.5s ease forwards' }}>
 
         <div style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '5px 14px', borderRadius: 20, marginBottom: 28, background: U.s1, border: `1px solid ${U.border2}`, color: U.muted, fontSize: 11 }}>
-          <div style={{ width: 5, height: 5, borderRadius: '50%', background: U.accent }} />
+          <div style={{ width: 5, height: 5, borderRadius: '50%', background: U.accent, boxShadow: `0 0 6px ${U.accent}` }} />
           <span>Bêta publique — lancement imminent</span>
         </div>
 
@@ -885,7 +892,7 @@ function LandingPage({ slots, onPublic, onAdvertiser, onWaitlist }) {
             onMouseLeave={e => { e.currentTarget.style.background = U.s1; e.currentTarget.style.borderColor = U.border2; }}>
             Choisir mon bloc
           </button>
-          <button onClick={onWaitlist} style={{ padding: isMobile ? '12px 20px' : '14px 26px', borderRadius: 10, background: U.accent, border: 'none', cursor: 'pointer', fontFamily: F.b, color: U.accentFg, fontWeight: 700, fontSize: 14 }}>
+          <button onClick={onWaitlist} style={{ padding: isMobile ? '12px 20px' : '14px 26px', borderRadius: 10, background: U.accent, border: 'none', cursor: 'pointer', fontFamily: F.b, color: U.accentFg, fontWeight: 700, fontSize: 14, boxShadow: `0 0 24px ${U.accent}50, 0 2px 8px rgba(0,0,0,0.4)`, transition: 'box-shadow 0.2s' }}>
             Liste d'attente →
           </button>
         </div>
@@ -929,7 +936,7 @@ export default function App() {
               {isMobile ? label.split(' ')[0] : label}
             </button>
           ))}
-          <button onClick={handleWaitlist} style={{ padding: '6px 14px', borderRadius: 7, fontFamily: F.b, cursor: 'pointer', background: U.accent, border: 'none', color: U.accentFg, fontSize: 12, fontWeight: 700, marginLeft: 4 }}>
+          <button onClick={handleWaitlist} style={{ padding: '6px 14px', borderRadius: 7, fontFamily: F.b, cursor: 'pointer', background: U.accent, border: 'none', color: U.accentFg, fontSize: 12, fontWeight: 700, marginLeft: 4, boxShadow: `0 0 16px ${U.accent}45` }}>
             {isMobile ? 'Attente' : 'Liste d\'attente'}
           </button>
         </nav>
