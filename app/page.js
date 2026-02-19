@@ -80,22 +80,18 @@ function _buildBaseLayout() {
 const _BASE_LAYOUT = _buildBaseLayout();
 
 /**
- * Responsive grid layout — fills the given container exactly at scale=1.
- * k = min(containerW/baseW, containerH/baseH)
- * Returns actual pixel positions + dynamic tier sizes.
- * On mobile (isMobile=true): uses fixed 2x base sizes + scrollable layout.
+ * Responsive grid layout — fills the full WIDTH of the container.
+ * k = containerW / baseW  → grille = 100% largeur, scroll vertical léger si besoin.
+ * Mobile: k fixe × 2 (scrollable).
  */
 function useGridLayout(containerW, containerH, isMobile) {
-  const PAD = isMobile ? 8 : 16;
+  const PAD = isMobile ? 8 : 0;
   const { cw, rh, baseW, baseH } = _BASE_LAYOUT;
 
-  // k: scale factor that fills the container exactly
+  // Fit to width — remplit 100% horizontal, défile légèrement en vertical
   const k = isMobile
-    ? 2 // fixed 2x on mobile (scrollable)
-    : Math.max(0.1, Math.min(
-        (containerW - PAD * 2) / baseW,
-        (containerH - PAD * 2) / baseH
-      ));
+    ? 2
+    : Math.max(0.1, (containerW - PAD * 2) / baseW);
 
   const tierSizes = useMemo(() => ({
     one:       Math.round(BASE_SIZE.one        * k),
@@ -633,11 +629,11 @@ function PublicView({ slots, isLive, onWaitlist }) {
           ref={containerRef}
           style={{
             flex: 1,
-            overflow: isMobile ? 'auto' : 'hidden',
+            overflow: 'auto',
             display: 'flex',
-            alignItems: 'center',
+            alignItems: 'flex-start',
             justifyContent: 'center',
-            padding: isMobile ? 8 : 0,
+            padding: 0,
           }}
         >
           <div style={{ position: 'relative', width: totalGridW, height: totalGridH, flexShrink: 0 }}>
@@ -808,13 +804,13 @@ function AdvertiserView({ slots, isLive, selectedSlot, onWaitlist, onCheckout })
         ref={containerRef}
         style={{
           flex: 1,
-          overflow: isMobile ? 'auto' : 'hidden',
+          overflow: 'auto',
           background: D.bg,
           order: isMobile ? 1 : 0,
           display: 'flex',
-          alignItems: 'center',
+          alignItems: 'flex-start',
           justifyContent: 'center',
-          padding: isMobile ? 8 : 0,
+          padding: 0,
           minHeight: isMobile ? '30vh' : undefined,
         }}
       >
