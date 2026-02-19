@@ -2,5 +2,8 @@ name = "ads-square"
 compatibility_date = "2025-05-05"
 compatibility_flags = ["nodejs_compat"]
 
-main = ".open-next/worker.js"
-assets = { directory = ".open-next/assets", binding = "ASSETS" }
+# ──────────────────────────────────────────────────────────────
+# Cloudflare Pages deployment configuration
+# Le fichier worker.js est copié en _worker.js par le build script
+# ──────────────────────────────────────────────────────────────
+pages_build_output_dir = ".open-next/assets"
