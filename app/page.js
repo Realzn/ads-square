@@ -1,5 +1,5 @@
 'use client';
-import { useState, useMemo, useCallback, useRef, useEffect, memo } from 'react';
+import { useState, useMemo, useCallback, useRef, useEffect, memo, createContext, useContext } from 'react';
 import {
   D, FF, GRID_COLS, GRID_ROWS, CENTER_X, CENTER_Y,
   TIER_SIZE, TIER_COLOR, TIER_LABEL, TIER_PRICE, PROFILES,
@@ -10,6 +10,12 @@ import {
   subscribeToBookings, createCheckoutSession,
   fetchSlotStats, submitBuyoutOffer, recordClick,
 } from '../lib/supabase';
+import { getT } from '../lib/i18n';
+
+// ─── Language context ─────────────────────────────────────────
+const LangContext = createContext('fr');
+function useLang() { return useContext(LangContext); }
+function useT() { const lang = useLang(); return getT(lang); }
 
 // ─── UI Design System (overrides neon D tokens for chrome) ────
 const U = {
@@ -150,14 +156,15 @@ function BrandLogo({ size = 20, onClick }) {
 
 function AnnouncementBar() {
   const [visible, setVisible] = useState(true);
+  const t = useT();
   if (!visible) return null;
   return (
     <div style={{ background: U.s1, borderBottom: `1px solid ${U.border}`, padding: '9px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, fontSize: 12, color: U.muted }}>
-        <span style={{ background: U.accentFg, color: U.accent, fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', padding: '2px 7px', borderRadius: 3 }}>BÊTA</span>
-        <span>Plateforme en développement — réservations bientôt disponibles.</span>
+        <span style={{ background: U.accentFg, color: U.accent, fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', padding: '2px 7px', borderRadius: 3 }}>{t('banner.badge')}</span>
+        <span>{t('banner.text')}</span>
         <button onClick={() => {}} style={{ color: U.accent, background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, padding: 0, fontFamily: F.b }}>
-          Rejoindre la liste d'attente →
+          {t('banner.cta')}
         </button>
       </div>
       <button onClick={() => setVisible(false)} style={{ background: 'none', border: 'none', color: U.muted, cursor: 'pointer', fontSize: 16, padding: '0 2px', lineHeight: 1, flexShrink: 0 }}>×</button>
@@ -205,14 +212,15 @@ function Modal({ onClose, width = 480, children, isMobile }) {
 // ─── Waitlist Modal ────────────────────────────────────────────
 function WaitlistModal({ onClose }) {
   const { isMobile } = useScreenSize();
+  const t = useT();
   return (
     <Modal onClose={onClose} width={520} isMobile={isMobile}>
       <div style={{ padding: isMobile ? '24px 20px 32px' : '40px 40px 44px' }}>
         <div style={{ marginBottom: 24 }}>
-          <div style={{ color: U.muted, fontSize: 11, fontWeight: 600, letterSpacing: '0.06em', marginBottom: 8 }}>ACCÈS ANTICIPÉ</div>
-          <h2 style={{ color: U.text, fontWeight: 700, fontSize: 22, fontFamily: F.h, margin: 0, letterSpacing: '-0.02em' }}>Soyez parmi les premiers</h2>
+          <div style={{ color: U.muted, fontSize: 11, fontWeight: 600, letterSpacing: '0.06em', marginBottom: 8 }}>{t('waitlist.label')}</div>
+          <h2 style={{ color: U.text, fontWeight: 700, fontSize: 22, fontFamily: F.h, margin: 0, letterSpacing: '-0.02em' }}>{t('waitlist.title')}</h2>
           <p style={{ color: U.muted, fontSize: 13, lineHeight: 1.65, marginTop: 10, marginBottom: 0 }}>
-            La plateforme ouvre bientôt. Inscrivez-vous pour être notifié et obtenir un tarif de lancement.
+            {t('waitlist.body')}
           </p>
         </div>
 
@@ -233,7 +241,7 @@ function WaitlistModal({ onClose }) {
             style={{ display: 'block', minHeight: 180 }}
           />
         </div>
-        <div style={{ marginTop: 14, color: U.muted, fontSize: 11, textAlign: 'center' }}>Aucun spam. Désabonnement en un clic.</div>
+        <div style={{ marginTop: 14, color: U.muted, fontSize: 11, textAlign: 'center' }}>{t('waitlist.nospam')}</div>
       </div>
     </Modal>
   );
@@ -242,6 +250,7 @@ function WaitlistModal({ onClose }) {
 // ─── Checkout Modal ────────────────────────────────────────────
 function CheckoutModal({ slot, onClose }) {
   const { isMobile } = useScreenSize();
+  const t = useT();
   const [email, setEmail]   = useState('');
   const [days, setDays]     = useState(30);
   const [loading, setLoading] = useState(false);
@@ -275,7 +284,7 @@ function CheckoutModal({ slot, onClose }) {
         </div>
 
         <div style={{ marginBottom: 18 }}>
-          <div style={{ color: U.muted, fontSize: 10, fontWeight: 600, letterSpacing: '0.07em', marginBottom: 10 }}>DURÉE</div>
+          <div style={{ color: U.muted, fontSize: 10, fontWeight: 600, letterSpacing: '0.07em', marginBottom: 10 }}>{t('checkout.duration')}</div>
           <div style={{ display: 'flex', gap: 8 }}>
             {[7, 30, 90].map(d => (
               <button key={d} onClick={() => setDays(d)} style={{ flex: 1, padding: '10px 8px', borderRadius: 8, cursor: 'pointer', fontFamily: F.b, background: days === d ? `${c}15` : U.faint, border: `1px solid ${days === d ? c + '55' : U.border}`, color: days === d ? U.text : U.muted, fontWeight: days === d ? 600 : 400, fontSize: 13, transition: 'all 0.15s' }}>
@@ -309,7 +318,7 @@ function CheckoutModal({ slot, onClose }) {
         <button onClick={handleCheckout} disabled={loading} style={{ width: '100%', padding: '13px', borderRadius: 10, fontFamily: F.b, cursor: loading ? 'wait' : 'pointer', background: loading ? U.s2 : U.accent, border: 'none', color: loading ? U.muted : U.accentFg, fontWeight: 700, fontSize: 14, opacity: loading ? 0.6 : 1, transition: 'opacity 0.15s, box-shadow 0.2s', boxShadow: loading ? 'none' : `0 0 22px ${U.accent}50` }}>
           {loading ? 'Redirection vers Stripe…' : `Payer €${totalPrice}`}
         </button>
-        <div style={{ marginTop: 10, color: U.muted, fontSize: 11, textAlign: 'center' }}>Paiement sécurisé · Annulation possible</div>
+        <div style={{ marginTop: 10, color: U.muted, fontSize: 11, textAlign: 'center' }}>{t('checkout.secure')}</div>
       </div>
     </Modal>
   );
@@ -379,6 +388,7 @@ BlockCell.displayName = 'BlockCell';
 // ─── Buyout Modal ──────────────────────────────────────────────
 function BuyoutModal({ slot, onClose }) {
   const { isMobile } = useScreenSize();
+  const t = useT();
   const [step, setStep] = useState(1); // 1=form 2=sent
   const [offerEuros, setOfferEuros] = useState('');
   const [email, setEmail] = useState('');
@@ -420,15 +430,15 @@ function BuyoutModal({ slot, onClose }) {
         {step === 1 ? (<>
           <div style={{ marginBottom: 24 }}>
             <div style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 4, background: `${c}15`, border: `1px solid ${c}30`, color: c, fontSize: 9, fontWeight: 700, letterSpacing: '0.06em', marginBottom: 10 }}>{TIER_LABEL[slot.tier]}</div>
-            <h2 style={{ color: U.text, fontWeight: 700, fontSize: 20, fontFamily: F.h, margin: '0 0 6px', letterSpacing: '-0.02em' }}>Faire une offre de rachat</h2>
+            <h2 style={{ color: U.text, fontWeight: 700, fontSize: 20, fontFamily: F.h, margin: '0 0 6px', letterSpacing: '-0.02em' }}>{t('buyout.title')}</h2>
             <p style={{ color: U.muted, fontSize: 13, margin: 0, lineHeight: 1.6 }}>
-              L'occupant actuel recevra votre offre et aura <strong style={{ color: U.text }}>72 heures</strong> pour accepter ou refuser. Aucun débit si refusé.
+{t('buyout.body')} <strong style={{ color: U.text }}>{t('buyout.72h')}</strong> {t('buyout.body2')}
             </p>
           </div>
 
           {/* Offer amount */}
           <div style={{ marginBottom: 16 }}>
-            <div style={{ color: U.muted, fontSize: 10, fontWeight: 600, letterSpacing: '0.07em', marginBottom: 8 }}>VOTRE OFFRE</div>
+            <div style={{ color: U.muted, fontSize: 10, fontWeight: 600, letterSpacing: '0.07em', marginBottom: 8 }}>{t('buyout.amount')}</div>
             <div style={{ position: 'relative' }}>
               <span style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: U.muted, fontSize: 14 }}>€</span>
               <input
@@ -449,13 +459,13 @@ function BuyoutModal({ slot, onClose }) {
           <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexDirection: isMobile ? 'column' : 'row' }}>
             <div style={{ flex: 1 }}>
               <div style={{ color: U.muted, fontSize: 10, fontWeight: 600, letterSpacing: '0.07em', marginBottom: 6 }}>EMAIL</div>
-              <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="vous@email.com"
+              <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder={t('buyout.email.ph')}
                 style={{ width: '100%', padding: '10px 12px', borderRadius: 8, background: U.faint, border: `1px solid ${U.border}`, color: U.text, fontSize: 13, fontFamily: F.b, outline: 'none', boxSizing: 'border-box' }}
                 onFocus={e => e.target.style.borderColor = U.border2} onBlur={e => e.target.style.borderColor = U.border} />
             </div>
             <div style={{ flex: 1 }}>
               <div style={{ color: U.muted, fontSize: 10, fontWeight: 600, letterSpacing: '0.07em', marginBottom: 6 }}>NOM (optionnel)</div>
-              <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Votre marque"
+              <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder={t('buyout.name.ph')}
                 style={{ width: '100%', padding: '10px 12px', borderRadius: 8, background: U.faint, border: `1px solid ${U.border}`, color: U.text, fontSize: 13, fontFamily: F.b, outline: 'none', boxSizing: 'border-box' }}
                 onFocus={e => e.target.style.borderColor = U.border2} onBlur={e => e.target.style.borderColor = U.border} />
             </div>
@@ -465,7 +475,7 @@ function BuyoutModal({ slot, onClose }) {
           <div style={{ marginBottom: 20 }}>
             <div style={{ color: U.muted, fontSize: 10, fontWeight: 600, letterSpacing: '0.07em', marginBottom: 6 }}>MESSAGE POUR L'OCCUPANT (optionnel)</div>
             <textarea value={message} onChange={e => setMessage(e.target.value)}
-              placeholder="Expliquez pourquoi vous voulez ce bloc..."
+              placeholder={t('buyout.message.ph')}
               rows={2}
               style={{ width: '100%', padding: '10px 12px', borderRadius: 8, background: U.faint, border: `1px solid ${U.border}`, color: U.text, fontSize: 13, fontFamily: F.b, outline: 'none', resize: 'vertical', boxSizing: 'border-box', lineHeight: 1.6 }}
               onFocus={e => e.target.style.borderColor = U.border2} onBlur={e => e.target.style.borderColor = U.border} />
@@ -478,7 +488,7 @@ function BuyoutModal({ slot, onClose }) {
           <button onClick={handleSubmit} disabled={loading} style={{ width: '100%', padding: '13px', borderRadius: 10, fontFamily: F.b, cursor: loading ? 'wait' : 'pointer', background: U.accent, border: 'none', color: U.accentFg, fontWeight: 700, fontSize: 14, opacity: loading ? 0.7 : 1, boxShadow: `0 0 22px ${U.accent}45` }}>
             {loading ? 'Envoi…' : 'Envoyer l\'offre →'}
           </button>
-          <p style={{ color: U.muted, fontSize: 11, textAlign: 'center', marginTop: 10, marginBottom: 0 }}>Aucun débit maintenant · Paiement seulement si accepté</p>
+          <p style={{ color: U.muted, fontSize: 11, textAlign: 'center', marginTop: 10, marginBottom: 0 }}>{t('buyout.nodebite')}</p>
         </>) : (
           /* Step 2 — Confirmation */
           <div style={{ textAlign: 'center', padding: '12px 0' }}>
@@ -487,11 +497,11 @@ function BuyoutModal({ slot, onClose }) {
                 <polyline points="4,11 9,16 18,6" stroke={U.accent} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
               </svg>
             </div>
-            <h2 style={{ color: U.text, fontWeight: 700, fontSize: 20, fontFamily: F.h, letterSpacing: '-0.02em', margin: '0 0 10px' }}>Offre envoyée</h2>
+            <h2 style={{ color: U.text, fontWeight: 700, fontSize: 20, fontFamily: F.h, letterSpacing: '-0.02em', margin: '0 0 10px' }}>{t('buyout.sent.title')}</h2>
             <p style={{ color: U.muted, fontSize: 13, lineHeight: 1.7, margin: '0 0 24px' }}>
-              L'occupant a été notifié. Vous recevrez une réponse par email sous <strong style={{ color: U.text }}>72 heures</strong>.<br/>Si l'offre est acceptée, vous serez débité et le bloc vous sera transféré immédiatement.
+{t('buyout.sent.body')} <strong style={{ color: U.text }}>{t('buyout.72h')}</strong>.<br/>{t('buyout.sent.body2')}
             </p>
-            <button onClick={onClose} style={{ padding: '12px 28px', borderRadius: 10, fontFamily: F.b, cursor: 'pointer', background: U.s2, border: `1px solid ${U.border2}`, color: U.text, fontWeight: 600, fontSize: 13 }}>Fermer</button>
+            <button onClick={onClose} style={{ padding: '12px 28px', borderRadius: 10, fontFamily: F.b, cursor: 'pointer', background: U.s2, border: `1px solid ${U.border2}`, color: U.text, fontWeight: 600, fontSize: 13 }}>{t('buyout.close')}</button>
           </div>
         )}
       </div>
@@ -502,6 +512,7 @@ function BuyoutModal({ slot, onClose }) {
 // ─── Focus Modal ───────────────────────────────────────────────
 function FocusModal({ slot, allSlots, onClose, onNavigate, onGoAdvertiser }) {
   const [entered, setEntered] = useState(false);
+  const t = useT();
   const [dir, setDir] = useState(0);
   const { isMobile } = useScreenSize();
   const occupiedSlots = useMemo(() => allSlots.filter(s => s.occ), [allSlots]);
@@ -575,13 +586,13 @@ function FocusModal({ slot, allSlots, onClose, onNavigate, onGoAdvertiser }) {
             <div style={{ width: 56, height: 56, borderRadius: 14, background: `${TIER_COLOR[tier]}10`, border: `1px solid ${TIER_COLOR[tier]}25`, margin: '0 auto 20px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <div style={{ width: 20, height: 20, borderRadius: 4, border: `1.5px solid ${TIER_COLOR[tier]}60`, background: `${TIER_COLOR[tier]}12` }} />
             </div>
-            <div style={{ color: U.text, fontWeight: 700, fontSize: 18, fontFamily: F.h, marginBottom: 8, letterSpacing: '-0.02em' }}>Espace libre</div>
+            <div style={{ color: U.text, fontWeight: 700, fontSize: 18, fontFamily: F.h, marginBottom: 8, letterSpacing: '-0.02em' }}>{t('focus.empty.title')}</div>
             <div style={{ color: U.muted, fontSize: 13, lineHeight: 1.7, marginBottom: 24 }}>
               Ce bloc {TIER_LABEL[tier]} n'est actuellement occupé par personne.<br/>
-              Pour le louer ou faire une offre, rendez-vous dans<br/><span style={{ color: U.text, fontWeight: 600 }}>Mon espace</span>.
+              Pour le louer ou faire une offre, rendez-vous dans<br/><span style={{ color: U.text, fontWeight: 600 }}>{t('nav.myspace')}</span>.
             </div>
             <button onClick={() => { onClose(); onGoAdvertiser(); }} style={{ padding: '11px 24px', borderRadius: 10, fontFamily: F.b, cursor: 'pointer', background: U.faint, border: `1px solid ${U.border2}`, color: U.text, fontWeight: 600, fontSize: 13 }}>
-              Voir Mon espace →
+              {t('focus.empty.cta')}
             </button>
           </div>
         )}
@@ -593,6 +604,7 @@ function FocusModal({ slot, allSlots, onClose, onNavigate, onGoAdvertiser }) {
 // ─── TikTok Feed ───────────────────────────────────────────────
 function TikTokFeed({ slots, isLive }) {
   const feedRef = useRef(null);
+  const t = useT();
   const [currentIdx, setCurrentIdx] = useState(0);
   const { isMobile } = useScreenSize();
 
@@ -614,7 +626,7 @@ function TikTokFeed({ slots, isLive }) {
   }, []);
 
   if (feedSlots.length === 0) return (
-    <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: U.muted, fontSize: 14 }}>Aucun bloc actif</div>
+    <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: U.muted, fontSize: 14 }}>{t('feed.no_slots')}</div>
   );
 
   return (
@@ -656,7 +668,7 @@ function TikTokFeed({ slots, isLive }) {
                 ) : (
                   <>
                     <div style={{ color: `${c}60`, fontSize: 36, fontWeight: 300, lineHeight: 1 }}>+</div>
-                    <div style={{ color: U.muted, fontSize: 10, fontWeight: 600, marginTop: 8, letterSpacing: '0.05em' }}>DISPONIBLE</div>
+                    <div style={{ color: U.muted, fontSize: 10, fontWeight: 600, marginTop: 8, letterSpacing: '0.05em' }}>{t('feed.available')}</div>
                     <div style={{ color: U.muted, fontSize: 9, marginTop: 3, opacity: 0.6 }}>€{TIER_PRICE[tier]}/j</div>
                   </>
                 )}
@@ -674,7 +686,7 @@ function TikTokFeed({ slots, isLive }) {
                   </div>
                 </div>
                 <a href={tenant.url} target="_blank" rel="noopener noreferrer" onClick={() => recordClick(slot.x, slot.y, slot.bookingId)} style={{ display: 'block', padding: '10px 14px', borderRadius: 9, background: c, color: U.accentFg, fontWeight: 700, fontSize: 12, fontFamily: F.b, textDecoration: 'none', textAlign: 'center', boxShadow: `0 0 18px ${c}50` }}>{tenant.cta} →</a>
-              </>): null}
+              </>)}
             </div>
 
             {/* Progress dots */}
@@ -694,6 +706,7 @@ function TikTokFeed({ slots, isLive }) {
 
 // ─── Public View ───────────────────────────────────────────────
 function PublicView({ slots, isLive, onGoAdvertiser }) {
+  const t = useT();
   const containerRef  = useRef(null);
   const [containerW, setContainerW] = useState(typeof window !== 'undefined' ? window.innerWidth : 1920);
   const [containerH, setContainerH] = useState(typeof window !== 'undefined' ? window.innerHeight - 80 : 1000);
@@ -733,13 +746,13 @@ function PublicView({ slots, isLive, onGoAdvertiser }) {
 
   const stats = useMemo(() => ({ occupied: slots.filter(s => s.occ).length, vacant: slots.filter(s => !s.occ).length }), [slots]);
 
-  const tierFilters = [
-    ['all', 'Tous'],
-    ['one', 'Épicentre'],
-    ['ten', 'Prestige'],
-    ['hundred', 'Business'],
-    ['thousand', 'Viral'],
-  ];
+  const tierFilters = useMemo(() => [
+    ['all', t('toolbar.all')],
+    ['one', t('toolbar.epicenter')],
+    ['ten', t('toolbar.prestige')],
+    ['hundred', t('toolbar.business')],
+    ['thousand', t('toolbar.viral')],
+  ], [t]);
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: U.bg }}>
@@ -748,7 +761,7 @@ function PublicView({ slots, isLive, onGoAdvertiser }) {
         {/* View toggle */}
         <div style={{ display: 'flex', background: U.faint, border: `1px solid ${U.border}`, borderRadius: 7, overflow: 'hidden', flexShrink: 0 }}>
           {[['grid','Grille'], ['feed','Feed']].map(([id, label]) => (
-            <button key={id} onClick={() => setFeedMode(id === 'feed')} style={{ padding: '4px 12px', fontFamily: F.b, cursor: 'pointer', fontSize: 11, background: (feedMode ? 'feed' : 'grid') === id ? U.s2 : 'transparent', border: 'none', color: (feedMode ? 'feed' : 'grid') === id ? U.text : U.muted, fontWeight: (feedMode ? 'feed' : 'grid') === id ? 600 : 400, transition: 'all 0.15s' }}>{label}</button>
+            <button key={id} onClick={() => setFeedMode(id === 'feed')} style={{ padding: '4px 12px', fontFamily: F.b, cursor: 'pointer', fontSize: 11, background: (feedMode ? 'feed' : 'grid') === id ? U.s2 : 'transparent', border: 'none', color: (feedMode ? 'feed' : 'grid') === id ? U.text : U.muted, fontWeight: (feedMode ? 'feed' : 'grid') === id ? 600 : 400, transition: 'all 0.15s' }}>{t(id === 'grid' ? 'toolbar.grid' : 'toolbar.feed')}</button>
           ))}
         </div>
 
@@ -763,13 +776,13 @@ function PublicView({ slots, isLive, onGoAdvertiser }) {
           {isLive && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
               <div style={{ width: 5, height: 5, borderRadius: '50%', background: '#4caf50', animation: 'blink 2s infinite' }} />
-              <span style={{ color: U.muted, fontSize: 10, fontWeight: 500 }}>Live</span>
+              <span style={{ color: U.muted, fontSize: 10, fontWeight: 500 }}>{t('toolbar.live')}</span>
             </div>
           )}
           {!isMobile && (
             <>
-              <span style={{ color: U.muted, fontSize: 11 }}><span style={{ color: U.text, fontWeight: 600 }}>{stats.occupied}</span> actifs</span>
-              <span style={{ color: U.muted, fontSize: 11 }}><span style={{ color: U.text, fontWeight: 600 }}>{stats.vacant}</span> libres</span>
+              <span style={{ color: U.muted, fontSize: 11 }}><span style={{ color: U.text, fontWeight: 600 }}>{stats.occupied}</span> {t('toolbar.active')}</span>
+              <span style={{ color: U.muted, fontSize: 11 }}><span style={{ color: U.text, fontWeight: 600 }}>{stats.vacant}</span> {t('toolbar.free')}</span>
             </>
           )}
         </div>
@@ -831,6 +844,7 @@ AnonBlock.displayName = 'AnonBlock';
 
 // ─── Advertiser View ───────────────────────────────────────────
 function AdvertiserView({ slots, isLive, onWaitlist, onCheckout }) {
+  const t = useT();
   const [selectedSlot, setSelectedSlot] = useState(null);
   const [chosenSlot, setChosenSlot]     = useState(null);
   const [hoveredTier, setHoveredTier]   = useState(null);
@@ -871,11 +885,11 @@ function AdvertiserView({ slots, isLive, onWaitlist, onCheckout }) {
   }, [chosenSlot?.id]);
 
   const tiers = [
-    { id: 'one',      label: 'Épicentre',  price: 1000, count: 1,   desc: 'Centre absolu' },
-    { id: 'ten',      label: 'Prestige',   price: 100,  count: 48,  desc: 'Couronne centrale' },
-    { id: 'corner_ten',label:'Corner',     price: 100,  count: 4,   desc: 'Coins stratégiques' },
-    { id: 'hundred',  label: 'Business',   price: 10,   count: 576, desc: 'Zone intermédiaire' },
-    { id: 'thousand', label: 'Viral',      price: 1,    count: 740, desc: 'Périphérie' },
+    { id: 'one',      label: t('adv.tier.epicenter'), price: 1000, count: 1,   desc: t('adv.tier.center') },
+    { id: 'ten',      label: t('adv.tier.prestige'),  price: 100,  count: 48,  desc: t('adv.tier.crown') },
+    { id: 'corner_ten',label:t('adv.tier.corner'),   price: 100,  count: 4,   desc: t('adv.tier.corners') },
+    { id: 'hundred',  label: t('adv.tier.business'), price: 10,   count: 576, desc: t('adv.tier.mid') },
+    { id: 'thousand', label: t('adv.tier.viral'),    price: 1,    count: 740, desc: t('adv.tier.perimeter') },
   ];
 
   return (
@@ -883,7 +897,7 @@ function AdvertiserView({ slots, isLive, onWaitlist, onCheckout }) {
       {/* Sidebar */}
       <div style={{ width: isMobile ? '100%' : 280, flexShrink: 0, background: U.s1, borderRight: isMobile ? 'none' : `1px solid ${U.border}`, borderBottom: isMobile ? `1px solid ${U.border}` : 'none', overflowY: 'auto', display: 'flex', flexDirection: 'column', order: isMobile ? 2 : 0 }}>
         <div style={{ padding: isMobile ? '16px 16px' : '24px 20px', borderBottom: `1px solid ${U.border}` }}>
-          <div style={{ color: U.muted, fontSize: 10, fontWeight: 600, letterSpacing: '0.07em', marginBottom: 14 }}>CHOISIR UN ESPACE</div>
+          <div style={{ color: U.muted, fontSize: 10, fontWeight: 600, letterSpacing: '0.07em', marginBottom: 14 }}>{t('adv.choose')}</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             {tiers.map(tier => {
               const isActive = activeTier === tier.id || (activeTier === 'ten' && tier.id === 'corner_ten');
@@ -901,8 +915,8 @@ function AdvertiserView({ slots, isLive, onWaitlist, onCheckout }) {
                     <div style={{ color: U.muted, fontSize: 10, marginTop: 1 }}>{tier.desc}</div>
                   </div>
                   <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                    <div style={{ color: isActive ? U.text : U.muted, fontWeight: 700, fontSize: 12, fontFamily: F.h }}>€{tier.price}<span style={{ fontSize: 9, fontWeight: 400 }}>/j</span></div>
-                    <div style={{ color: U.muted, fontSize: 9 }}>{tier.count} blocs</div>
+                    <div style={{ color: isActive ? U.text : U.muted, fontWeight: 700, fontSize: 12, fontFamily: F.h }}>€{tier.price}<span style={{ fontSize: 9, fontWeight: 400 }}>{t('adv.tier.perday')}</span></div>
+                    <div style={{ color: U.muted, fontSize: 9 }}>{tier.count} {t('adv.tier.blocks')}</div>
                   </div>
                 </div>
               );
@@ -915,10 +929,10 @@ function AdvertiserView({ slots, isLive, onWaitlist, onCheckout }) {
             {/* Header */}
             <div style={{ padding: '14px 16px 12px', borderBottom: `1px solid ${U.border}` }}>
               <div style={{ display: 'inline-block', padding: '2px 7px', borderRadius: 4, background: `${TIER_COLOR[chosenSlot.tier]}15`, border: `1px solid ${TIER_COLOR[chosenSlot.tier]}30`, color: TIER_COLOR[chosenSlot.tier], fontSize: 9, fontWeight: 700, letterSpacing: '0.06em', marginBottom: 8 }}>
-                {chosenSlot.occ ? 'OCCUPÉ' : TIER_LABEL[chosenSlot.tier]}
+  {chosenSlot.occ ? t('adv.occupied') : TIER_LABEL[chosenSlot.tier]}
               </div>
               <div style={{ color: U.text, fontWeight: 700, fontSize: 13, fontFamily: F.h }}>
-                {chosenSlot.occ ? (chosenSlot.tenant?.name || 'Occupé') : 'Bloc sélectionné'}
+  {chosenSlot.occ ? (chosenSlot.tenant?.name || t('adv.occupied')) : t('adv.selected')}
               </div>
               <div style={{ color: U.muted, fontSize: 11, marginTop: 2 }}>
                 ({chosenSlot.x}, {chosenSlot.y}) · €{TIER_PRICE[chosenSlot.tier]}/j
@@ -928,16 +942,16 @@ function AdvertiserView({ slots, isLive, onWaitlist, onCheckout }) {
             {/* Stats panel — uniquement si le slot est occupé */}
             {chosenSlot.occ && (
               <div style={{ padding: '12px 16px', borderBottom: `1px solid ${U.border}` }}>
-                <div style={{ color: U.muted, fontSize: 9, fontWeight: 600, letterSpacing: '0.07em', marginBottom: 10 }}>STATISTIQUES DU BLOC</div>
+                <div style={{ color: U.muted, fontSize: 9, fontWeight: 600, letterSpacing: '0.07em', marginBottom: 10 }}>{t('adv.stats.title')}</div>
                 {statsLoading ? (
-                  <div style={{ color: U.muted, fontSize: 11, textAlign: 'center', padding: '8px 0' }}>Chargement…</div>
+                  <div style={{ color: U.muted, fontSize: 11, textAlign: 'center', padding: '8px 0' }}>{t('adv.stats.loading')}</div>
                 ) : slotStats ? (
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
                     {[
-                      [slotStats.impressions?.toLocaleString() ?? '—', 'Impressions'],
-                      [slotStats.clicks?.toLocaleString() ?? '—', 'Clics total'],
-                      [slotStats.ctr_pct != null ? `${slotStats.ctr_pct}%` : '—', 'CTR'],
-                      [slotStats.clicks_7d?.toLocaleString() ?? '—', 'Clics 7j'],
+                      [slotStats.impressions?.toLocaleString() ?? '—', t('adv.stats.impr')],
+                      [slotStats.clicks?.toLocaleString() ?? '—', t('adv.stats.clicks')],
+                      [slotStats.ctr_pct != null ? `${slotStats.ctr_pct}%` : '—', t('adv.stats.ctr')],
+                      [slotStats.clicks_7d?.toLocaleString() ?? '—', t('adv.stats.clicks7d')],
                     ].map(([v, l]) => (
                       <div key={l} style={{ padding: '8px 10px', borderRadius: 7, background: U.s2, border: `1px solid ${U.border}` }}>
                         <div style={{ color: U.text, fontWeight: 700, fontSize: 15, fontFamily: F.h }}>{v}</div>
@@ -946,7 +960,7 @@ function AdvertiserView({ slots, isLive, onWaitlist, onCheckout }) {
                     ))}
                   </div>
                 ) : (
-                  <div style={{ color: U.muted, fontSize: 11, textAlign: 'center', padding: '6px 0', fontStyle: 'italic' }}>Stats non disponibles en démo</div>
+                  <div style={{ color: U.muted, fontSize: 11, textAlign: 'center', padding: '6px 0', fontStyle: 'italic' }}>{t('adv.stats.nodemo')}</div>
                 )}
               </div>
             )}
@@ -955,17 +969,17 @@ function AdvertiserView({ slots, isLive, onWaitlist, onCheckout }) {
             <div style={{ padding: '12px 16px' }}>
               {chosenSlot.occ ? (<>
                 <button onClick={() => onCheckout(chosenSlot)} style={{ width: '100%', padding: '11px', borderRadius: 8, fontFamily: F.b, cursor: 'pointer', background: U.accent, border: 'none', color: U.accentFg, fontWeight: 700, fontSize: 13, boxShadow: `0 0 20px ${U.accent}50`, marginBottom: 8 }}>
-                  Faire une offre de rachat →
+                  {t('adv.cta.offer')}
                 </button>
                 <div style={{ color: U.muted, fontSize: 10, textAlign: 'center', lineHeight: 1.5 }}>
-                  L'occupant a 72h pour accepter · Aucun débit si refusé
+                  {t('adv.cta.offer.sub')}
                 </div>
               </>) : (<>
                 <button onClick={() => onCheckout(chosenSlot)} style={{ width: '100%', padding: '11px', borderRadius: 8, fontFamily: F.b, cursor: 'pointer', background: U.accent, border: 'none', color: U.accentFg, fontWeight: 700, fontSize: 13, boxShadow: `0 0 20px ${U.accent}50`, marginBottom: 8 }}>
-                  Louer ce bloc →
+                  {t('adv.cta.rent')}
                 </button>
                 <div style={{ color: U.muted, fontSize: 10, textAlign: 'center' }}>
-                  Disponible immédiatement · À partir de €{TIER_PRICE[chosenSlot.tier]}/jour
+                  {t('adv.cta.rent.sub', TIER_PRICE[chosenSlot.tier])}
                 </div>
               </>)}
             </div>
@@ -973,15 +987,14 @@ function AdvertiserView({ slots, isLive, onWaitlist, onCheckout }) {
         ) : (
           <div style={{ margin: '16px', borderRadius: 10, background: U.faint, border: `1px solid ${U.border}`, padding: '20px' }}>
             <div style={{ color: U.muted, fontSize: 12, lineHeight: 1.7, textAlign: 'center' }}>
-              Survolez un tier pour filtrer la grille.<br/>
-              Cliquez sur un bloc pour voir ses stats et options.
+              {t('adv.empty').split('\n').map((l, i) => <span key={i}>{l}{i === 0 && <br/>}</span>)}
             </div>
           </div>
         )}
 
         <div style={{ padding: '0 20px 20px', marginTop: 'auto' }}>
           <button onClick={onWaitlist} style={{ width: '100%', padding: '11px', borderRadius: 8, fontFamily: F.b, cursor: 'pointer', background: 'transparent', border: `1px solid ${U.border2}`, color: U.muted, fontWeight: 600, fontSize: 12 }}>
-            Rejoindre la liste d'attente
+            {t('adv.waitlist')}
           </button>
         </div>
       </div>
@@ -1003,6 +1016,7 @@ function AdvertiserView({ slots, isLive, onWaitlist, onCheckout }) {
 // ─── Landing Page ──────────────────────────────────────────────
 function LandingPage({ slots, onPublic, onAdvertiser, onWaitlist }) {
   const { isMobile } = useScreenSize();
+  const t = useT();
   const stats = useMemo(() => ({ occupied: slots.filter(s => s.occ).length, vacant: slots.filter(s => !s.occ).length }), [slots]);
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: isMobile ? '32px 20px' : '48px 40px', position: 'relative', overflow: 'hidden', background: U.bg }}>
@@ -1016,25 +1030,25 @@ function LandingPage({ slots, onPublic, onAdvertiser, onWaitlist }) {
 
         <div style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '5px 14px', borderRadius: 20, marginBottom: 28, background: U.s1, border: `1px solid ${U.border2}`, color: U.muted, fontSize: 11 }}>
           <div style={{ width: 5, height: 5, borderRadius: '50%', background: U.accent, boxShadow: `0 0 6px ${U.accent}` }} />
-          <span>Bêta publique — lancement imminent</span>
+          <span>{t('landing.badge')}</span>
         </div>
 
         <h1 style={{ color: U.text, fontWeight: 700, fontSize: isMobile ? 36 : 52, lineHeight: 1.05, fontFamily: F.h, letterSpacing: '-0.03em', margin: '0 0 16px' }}>
-          La grille publicitaire<br />
-          <span style={{ color: U.accent }}>ouverte à tous.</span>
+          {t('landing.title1')}<br />
+          <span style={{ color: U.accent }}>{t('landing.title2')}</span>
         </h1>
 
         <p style={{ color: U.muted, fontSize: isMobile ? 14 : 16, lineHeight: 1.7, maxWidth: 460, margin: '0 auto 36px' }}>
-          1 369 blocs. Créateur, freelance ou grande marque — choisissez votre espace et diffusez votre contenu. Dès 1€/jour.
+{t('landing.sub')}
         </p>
 
         {/* Stats */}
         <div style={{ display: 'flex', gap: isMobile ? 20 : 40, justifyContent: 'center', marginBottom: 40 }}>
           {[
-            [stats.occupied, 'Blocs actifs'],
-            [stats.vacant, 'Blocs libres'],
-            ['1 369', 'Total'],
-            ['1€', 'Dès'],
+[stats.occupied, t('landing.stat.active')],
+            [stats.vacant, t('landing.stat.free')],
+            ['1 369', t('landing.stat.total')],
+            ['1€', t('landing.stat.from')],
           ].map(([v, l]) => (
             <div key={l} style={{ textAlign: 'center' }}>
               <div style={{ color: U.text, fontWeight: 700, fontSize: isMobile ? 20 : 26, fontFamily: F.h, letterSpacing: '-0.02em' }}>{v}</div>
@@ -1048,19 +1062,19 @@ function LandingPage({ slots, onPublic, onAdvertiser, onWaitlist }) {
           <button onClick={onPublic} style={{ padding: isMobile ? '12px 20px' : '14px 26px', borderRadius: 10, background: U.s1, border: `1px solid ${U.border2}`, cursor: 'pointer', fontFamily: F.b, color: U.text, fontWeight: 600, fontSize: 14, transition: 'background 0.15s, border-color 0.15s' }}
             onMouseEnter={e => { e.currentTarget.style.background = U.s2; e.currentTarget.style.borderColor = U.accent + '60'; }}
             onMouseLeave={e => { e.currentTarget.style.background = U.s1; e.currentTarget.style.borderColor = U.border2; }}>
-            Explorer la grille
+            {t('landing.cta.explore')}
           </button>
           <button onClick={onAdvertiser} style={{ padding: isMobile ? '12px 20px' : '14px 26px', borderRadius: 10, background: U.s1, border: `1px solid ${U.border2}`, cursor: 'pointer', fontFamily: F.b, color: U.text, fontWeight: 600, fontSize: 14, transition: 'background 0.15s, border-color 0.15s' }}
             onMouseEnter={e => { e.currentTarget.style.background = U.s2; e.currentTarget.style.borderColor = U.accent + '60'; }}
             onMouseLeave={e => { e.currentTarget.style.background = U.s1; e.currentTarget.style.borderColor = U.border2; }}>
-            Choisir mon bloc
+            {t('landing.cta.choose')}
           </button>
           <button onClick={onWaitlist} style={{ padding: isMobile ? '12px 20px' : '14px 26px', borderRadius: 10, background: U.accent, border: 'none', cursor: 'pointer', fontFamily: F.b, color: U.accentFg, fontWeight: 700, fontSize: 14, boxShadow: `0 0 24px ${U.accent}50, 0 2px 8px rgba(0,0,0,0.4)`, transition: 'box-shadow 0.2s' }}>
-            Liste d'attente →
+            {t('landing.cta.waitlist')}
           </button>
         </div>
 
-        <div style={{ marginTop: 20, color: U.muted, fontSize: 12 }}>Sans budget minimum · Sans agence · Résultat immédiat</div>
+        <div style={{ marginTop: 20, color: U.muted, fontSize: 12 }}>{t('landing.tagline')}</div>
 
         {/* Legal footer links */}
         <div style={{ marginTop: 36, paddingTop: 24, borderTop: `1px solid ${U.border}`, display: 'flex', gap: 16, justifyContent: 'center', flexWrap: 'wrap' }}>
@@ -1079,6 +1093,7 @@ function LandingPage({ slots, onPublic, onAdvertiser, onWaitlist }) {
 
 // ─── Main App ──────────────────────────────────────────────────
 export default function App() {
+  const [lang, setLang]             = useState('fr');
   const [view, setView]             = useState('landing');
   const [showWaitlist, setShowWaitlist] = useState(false);
   const [checkoutSlot, setCheckoutSlot] = useState(null);
@@ -1094,36 +1109,50 @@ export default function App() {
   }, []);
 
   const isGrid = view === 'public' || view === 'advertiser';
+  const t = getT(lang);
 
   return (
-    <div style={{ display: 'flex', height: '100vh', background: U.bg, fontFamily: F.b, color: U.text, overflow: 'hidden', flexDirection: 'column' }}>
-      <AnnouncementBar />
+    <LangContext.Provider value={lang}>
+      <div style={{ display: 'flex', height: '100vh', background: U.bg, fontFamily: F.b, color: U.text, overflow: 'hidden', flexDirection: 'column' }}>
+        <AnnouncementBar />
 
-      {/* Header */}
-      <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: isMobile ? '0 14px' : '0 24px', height: 48, flexShrink: 0, borderBottom: `1px solid ${U.border}`, background: `${U.s1}f0`, backdropFilter: 'blur(14px)', zIndex: 100 }}>
-        <BrandLogo size={isMobile ? 15 : 17} onClick={() => setView('landing')} />
+        {/* Header */}
+        <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: isMobile ? '0 14px' : '0 24px', height: 48, flexShrink: 0, borderBottom: `1px solid ${U.border}`, background: `${U.s1}f0`, backdropFilter: 'blur(14px)', zIndex: 100 }}>
+          <BrandLogo size={isMobile ? 15 : 17} onClick={() => setView('landing')} />
 
-        <nav style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-          {[
-            ['public', 'Explorer'],
-            ['advertiser', 'Mon espace'],
-          ].map(([v, label]) => (
-            <button key={v} onClick={() => setView(v)} style={{ padding: '5px 12px', borderRadius: 7, fontFamily: F.b, cursor: 'pointer', background: view === v ? U.s2 : 'transparent', border: `1px solid ${view === v ? U.border2 : 'transparent'}`, color: view === v ? U.text : U.muted, fontSize: 12, fontWeight: view === v ? 600 : 400, transition: 'all 0.15s' }}>
-              {isMobile ? label.split(' ')[0] : label}
+          <nav style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+            {[
+              ['public',     t('nav.explore')],
+              ['advertiser', t('nav.myspace')],
+            ].map(([v, label]) => (
+              <button key={v} onClick={() => setView(v)} style={{ padding: '5px 12px', borderRadius: 7, fontFamily: F.b, cursor: 'pointer', background: view === v ? U.s2 : 'transparent', border: `1px solid ${view === v ? U.border2 : 'transparent'}`, color: view === v ? U.text : U.muted, fontSize: 12, fontWeight: view === v ? 600 : 400, transition: 'all 0.15s' }}>
+                {label}
+              </button>
+            ))}
+            <button onClick={handleWaitlist} style={{ padding: '6px 14px', borderRadius: 7, fontFamily: F.b, cursor: 'pointer', background: U.accent, border: 'none', color: U.accentFg, fontSize: 12, fontWeight: 700, marginLeft: 4, boxShadow: `0 0 16px ${U.accent}45` }}>
+              {isMobile ? t('nav.waitlist.short') : t('nav.waitlist')}
             </button>
-          ))}
-          <button onClick={handleWaitlist} style={{ padding: '6px 14px', borderRadius: 7, fontFamily: F.b, cursor: 'pointer', background: U.accent, border: 'none', color: U.accentFg, fontSize: 12, fontWeight: 700, marginLeft: 4, boxShadow: `0 0 16px ${U.accent}45` }}>
-            {isMobile ? 'Attente' : 'Liste d\'attente'}
-          </button>
-        </nav>
-      </header>
 
-      {view === 'landing'    && <LandingPage    slots={slots} onPublic={() => setView('public')} onAdvertiser={() => setView('advertiser')} onWaitlist={handleWaitlist} />}
-      {view === 'public'     && <PublicView     slots={slots} isLive={isLive} onGoAdvertiser={() => setView('advertiser')} />}
-      {view === 'advertiser' && <AdvertiserView slots={slots} isLive={isLive} onWaitlist={handleWaitlist} onCheckout={handleCheckout} />}
-      {showWaitlist  && <WaitlistModal  onClose={() => setShowWaitlist(false)} />}
-      {checkoutSlot  && <CheckoutModal  slot={checkoutSlot} onClose={() => setCheckoutSlot(null)} />}
-      {buyoutSlot    && <BuyoutModal    slot={buyoutSlot}   onClose={() => setBuyoutSlot(null)} />}
-    </div>
+            {/* ── Language toggle ── */}
+            <button
+              onClick={() => setLang(l => l === 'fr' ? 'en' : 'fr')}
+              title={lang === 'fr' ? 'Switch to English' : 'Passer en français'}
+              style={{ marginLeft: 4, padding: '4px 9px', borderRadius: 7, fontFamily: F.b, cursor: 'pointer', background: U.faint, border: `1px solid ${U.border2}`, color: U.muted, fontSize: 11, fontWeight: 700, letterSpacing: '0.05em', transition: 'all 0.15s' }}
+              onMouseEnter={e => { e.currentTarget.style.color = U.text; e.currentTarget.style.borderColor = U.border2; }}
+              onMouseLeave={e => { e.currentTarget.style.color = U.muted; e.currentTarget.style.borderColor = U.border; }}
+            >
+              {lang === 'fr' ? 'EN' : 'FR'}
+            </button>
+          </nav>
+        </header>
+
+        {view === 'landing'    && <LandingPage    slots={slots} onPublic={() => setView('public')} onAdvertiser={() => setView('advertiser')} onWaitlist={handleWaitlist} />}
+        {view === 'public'     && <PublicView     slots={slots} isLive={isLive} onGoAdvertiser={() => setView('advertiser')} />}
+        {view === 'advertiser' && <AdvertiserView slots={slots} isLive={isLive} onWaitlist={handleWaitlist} onCheckout={handleCheckout} />}
+        {showWaitlist  && <WaitlistModal  onClose={() => setShowWaitlist(false)} />}
+        {checkoutSlot  && <CheckoutModal  slot={checkoutSlot} onClose={() => setCheckoutSlot(null)} />}
+        {buyoutSlot    && <BuyoutModal    slot={buyoutSlot}   onClose={() => setBuyoutSlot(null)} />}
+      </div>
+    </LangContext.Provider>
   );
 }
