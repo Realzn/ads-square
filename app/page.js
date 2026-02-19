@@ -686,7 +686,7 @@ function TikTokFeed({ slots, isLive }) {
                   </div>
                 </div>
                 <a href={tenant.url} target="_blank" rel="noopener noreferrer" onClick={() => recordClick(slot.x, slot.y, slot.bookingId)} style={{ display: 'block', padding: '10px 14px', borderRadius: 9, background: c, color: U.accentFg, fontWeight: 700, fontSize: 12, fontFamily: F.b, textDecoration: 'none', textAlign: 'center', boxShadow: `0 0 18px ${c}50` }}>{tenant.cta} →</a>
-              </>): null}
+              </>)}
             </div>
 
             {/* Progress dots */}
@@ -1013,6 +1013,163 @@ function AdvertiserView({ slots, isLive, onWaitlist, onCheckout }) {
   );
 }
 
+// ─── Landing Mini-Grid Background ─────────────────────────────
+function LandingGrid({ slots }) {
+  const { isMobile } = useScreenSize();
+  const canvasRef = useRef(null);
+  const frameRef  = useRef(null);
+  const startRef  = useRef(performance.now());
+
+  // pick a fixed set of "lit" slots so they don't change on re-render
+  const litSlots = useMemo(() => {
+    // always include center + corners + a few occupied random
+    const always = slots.filter(s =>
+      (s.tier === 'one') ||
+      (s.tier === 'corner_ten') ||
+      (s.occ && s.tier === 'ten')
+    );
+    const randOcc  = slots.filter(s => s.occ  && s.tier === 'hundred').sort(() => .5 - Math.random()).slice(0, 12);
+    const randVac  = slots.filter(s => !s.occ && s.tier === 'hundred').sort(() => .5 - Math.random()).slice(0, 8);
+    const randVir  = slots.filter(s => s.tier === 'thousand').sort(() => .5 - Math.random()).slice(0, 20);
+    return [...always, ...randOcc, ...randVac, ...randVir];
+  }, [slots.length]);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+
+    const BSZ = isMobile ? 7 : 9;   // block size px
+    const GAP = isMobile ? 1 : 1.5; // gap px
+    const STEP = BSZ + GAP;
+    const COLS = GRID_COLS;
+    const ROWS = GRID_ROWS;
+    const W = COLS * STEP;
+    const H = ROWS * STEP;
+
+    // hi-dpi
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width  = W * dpr;
+    canvas.height = H * dpr;
+    canvas.style.width  = W + 'px';
+    canvas.style.height = H + 'px';
+    ctx.scale(dpr, dpr);
+
+    // Build a lookup: slot id → slot
+    const slotMap = {};
+    slots.forEach(s => { slotMap[`${s.x},${s.y}`] = s; });
+
+    // Phase offset per lit slot (so pulses are staggered)
+    const phases = {};
+    litSlots.forEach((s, i) => { phases[`${s.x},${s.y}`] = (i / litSlots.length) * Math.PI * 2; });
+
+    function draw(now) {
+      const t = (now - startRef.current) / 1000; // seconds
+      ctx.clearRect(0, 0, W, H);
+
+      for (let x = 0; x < COLS; x++) {
+        for (let y = 0; y < ROWS; y++) {
+          const key = `${x},${y}`;
+          const slot = slotMap[key];
+          if (!slot) continue;
+
+          const isLit = phases[key] !== undefined;
+          const c = TIER_COLOR[slot.tier];
+
+          // base opacity: very dim for all blocks
+          let baseAlpha = 0.04;
+          if (slot.tier === 'one')        baseAlpha = 0.22;
+          else if (slot.tier === 'ten' || slot.tier === 'corner_ten') baseAlpha = 0.12;
+          else if (slot.tier === 'hundred') baseAlpha = 0.06;
+
+          let alpha = baseAlpha;
+          let glowR = 0;
+
+          if (isLit) {
+            const phase  = phases[key];
+            const pulse  = 0.5 + 0.5 * Math.sin(t * 0.9 + phase); // 0→1
+            const pulse2 = 0.5 + 0.5 * Math.sin(t * 0.4 + phase + 1.2);
+
+            if (slot.tier === 'one') {
+              alpha  = 0.55 + 0.35 * pulse;
+              glowR  = (BSZ * 3.5 + BSZ * 2 * pulse2);
+            } else if (slot.tier === 'ten' || slot.tier === 'corner_ten') {
+              alpha  = 0.28 + 0.22 * pulse;
+              glowR  = (BSZ * 1.8 + BSZ * 0.8 * pulse2);
+            } else if (slot.tier === 'hundred') {
+              alpha  = 0.12 + 0.14 * pulse;
+              glowR  = (BSZ * 1.2 + BSZ * 0.5 * pulse2);
+            } else {
+              alpha  = 0.06 + 0.07 * pulse;
+              glowR  = (BSZ * 0.7 + BSZ * 0.3 * pulse2);
+            }
+          }
+
+          const px = x * STEP;
+          const py = y * STEP;
+          const r  = slot.tier === 'one' ? 3 : slot.tier === 'ten' || slot.tier === 'corner_ten' ? 2 : 1;
+
+          // glow halo
+          if (glowR > 0) {
+            const grd = ctx.createRadialGradient(px + BSZ/2, py + BSZ/2, 0, px + BSZ/2, py + BSZ/2, glowR);
+            grd.addColorStop(0, hexWithAlpha(c, alpha * 0.55));
+            grd.addColorStop(1, hexWithAlpha(c, 0));
+            ctx.fillStyle = grd;
+            ctx.beginPath();
+            ctx.arc(px + BSZ/2, py + BSZ/2, glowR, 0, Math.PI * 2);
+            ctx.fill();
+          }
+
+          // block fill
+          ctx.fillStyle = hexWithAlpha(c, alpha);
+          roundRect(ctx, px, py, BSZ, BSZ, r);
+          ctx.fill();
+        }
+      }
+
+      frameRef.current = requestAnimationFrame(draw);
+    }
+
+    frameRef.current = requestAnimationFrame(draw);
+    return () => cancelAnimationFrame(frameRef.current);
+  }, [slots, litSlots, isMobile]);
+
+  return (
+    <canvas
+      ref={canvasRef}
+      style={{
+        position: 'absolute',
+        top: '50%', left: '50%',
+        transform: 'translate(-50%, -50%)',
+        pointerEvents: 'none',
+        opacity: 0.55,
+        mixBlendMode: 'screen',
+      }}
+    />
+  );
+}
+
+function hexWithAlpha(hex, alpha) {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+}
+
 // ─── Landing Page ──────────────────────────────────────────────
 function LandingPage({ slots, onPublic, onAdvertiser, onWaitlist }) {
   const { isMobile } = useScreenSize();
@@ -1021,9 +1178,11 @@ function LandingPage({ slots, onPublic, onAdvertiser, onWaitlist }) {
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: isMobile ? '32px 20px' : '48px 40px', position: 'relative', overflow: 'hidden', background: U.bg }}>
 
-      {/* Subtle grid background */}
-      <div style={{ position: 'absolute', inset: 0, overflow: 'hidden', pointerEvents: 'none', opacity: 0.04 }}>
-        <div style={{ position: 'absolute', inset: 0, backgroundImage: `linear-gradient(${U.border} 1px, transparent 1px), linear-gradient(90deg, ${U.border} 1px, transparent 1px)`, backgroundSize: '40px 40px' }} />
+      {/* Animated mini-grid background */}
+      <div style={{ position: 'absolute', inset: 0, overflow: 'hidden', pointerEvents: 'none' }}>
+        <LandingGrid slots={slots} />
+        {/* Radial vignette — centre transparent, bords opaques */}
+        <div style={{ position: 'absolute', inset: 0, background: `radial-gradient(ellipse 55% 55% at 50% 50%, transparent 0%, ${U.bg}cc 60%, ${U.bg} 100%)` }} />
       </div>
 
       <div style={{ position: 'relative', zIndex: 1, maxWidth: 600, width: '100%', textAlign: 'center', animation: 'fadeUp 0.5s ease forwards' }}>
