@@ -31,7 +31,7 @@ export default function R({ children }) {
         <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700;800&display=swap" />
         <link rel="stylesheet" href="https://api.fontshare.com/v2/css?f[]=clash-display@700,800,900&display=swap" />
       </head>
-      <body style={{ margin: 0, overflow: 'hidden' }}>{children}</body>
+      <body style={{ margin: 0 }}>{children}</body>
     </html>
   );
 }

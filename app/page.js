@@ -8,6 +8,7 @@ import {
 import {
   isSupabaseConfigured, fetchActiveSlots,
   subscribeToBookings, createCheckoutSession,
+  fetchSlotStats, submitBuyoutOffer, recordClick,
 } from '../lib/supabase';
 
 // ─── UI Design System (overrides neon D tokens for chrome) ────
@@ -375,8 +376,131 @@ const BlockCell = memo(({ slot, isSelected, onSelect, onFocus, sz: szProp }) => 
 });
 BlockCell.displayName = 'BlockCell';
 
+// ─── Buyout Modal ──────────────────────────────────────────────
+function BuyoutModal({ slot, onClose }) {
+  const { isMobile } = useScreenSize();
+  const [step, setStep] = useState(1); // 1=form 2=sent
+  const [offerEuros, setOfferEuros] = useState('');
+  const [email, setEmail] = useState('');
+  const [name, setName] = useState('');
+  const [message, setMessage] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  const minOffer = slot ? Math.ceil(TIER_PRICE[slot.tier] * 1.5) : 0;
+  const c = slot ? TIER_COLOR[slot.tier] : U.accent;
+
+  const handleSubmit = async () => {
+    if (!email || !email.includes('@')) { setError('Email invalide'); return; }
+    const cents = Math.round(parseFloat(offerEuros) * 100);
+    if (!cents || cents < minOffer * 100) { setError(`Offre minimum : €${minOffer}`); return; }
+    setLoading(true); setError(null);
+    try {
+      await submitBuyoutOffer({
+        slotX: slot.x, slotY: slot.y,
+        bookingId: slot.bookingId,
+        offerCents: cents,
+        buyerEmail: email,
+        buyerName: name,
+        message,
+      });
+      setStep(2);
+    } catch (err) {
+      setError(err.message || 'Erreur lors de l\'envoi');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (!slot) return null;
+
+  return (
+    <Modal onClose={onClose} width={440} isMobile={isMobile}>
+      <div style={{ padding: isMobile ? '24px 20px 32px' : '36px 36px 40px' }}>
+        {step === 1 ? (<>
+          <div style={{ marginBottom: 24 }}>
+            <div style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 4, background: `${c}15`, border: `1px solid ${c}30`, color: c, fontSize: 9, fontWeight: 700, letterSpacing: '0.06em', marginBottom: 10 }}>{TIER_LABEL[slot.tier]}</div>
+            <h2 style={{ color: U.text, fontWeight: 700, fontSize: 20, fontFamily: F.h, margin: '0 0 6px', letterSpacing: '-0.02em' }}>Faire une offre de rachat</h2>
+            <p style={{ color: U.muted, fontSize: 13, margin: 0, lineHeight: 1.6 }}>
+              L'occupant actuel recevra votre offre et aura <strong style={{ color: U.text }}>72 heures</strong> pour accepter ou refuser. Aucun débit si refusé.
+            </p>
+          </div>
+
+          {/* Offer amount */}
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ color: U.muted, fontSize: 10, fontWeight: 600, letterSpacing: '0.07em', marginBottom: 8 }}>VOTRE OFFRE</div>
+            <div style={{ position: 'relative' }}>
+              <span style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: U.muted, fontSize: 14 }}>€</span>
+              <input
+                type="number" min={minOffer} step="1"
+                value={offerEuros} onChange={e => setOfferEuros(e.target.value)}
+                placeholder={`Min. ${minOffer}`}
+                style={{ width: '100%', padding: '11px 14px 11px 28px', borderRadius: 8, background: U.faint, border: `1px solid ${U.border}`, color: U.text, fontSize: 16, fontFamily: F.h, fontWeight: 700, outline: 'none', boxSizing: 'border-box', transition: 'border-color 0.15s' }}
+                onFocus={e => e.target.style.borderColor = c}
+                onBlur={e => e.target.style.borderColor = U.border}
+              />
+            </div>
+            <div style={{ color: U.muted, fontSize: 11, marginTop: 6 }}>
+              Offre minimum : <span style={{ color: U.text }}>€{minOffer}</span> · Commission plateforme : 20%
+            </div>
+          </div>
+
+          {/* Contact */}
+          <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexDirection: isMobile ? 'column' : 'row' }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ color: U.muted, fontSize: 10, fontWeight: 600, letterSpacing: '0.07em', marginBottom: 6 }}>EMAIL</div>
+              <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="vous@email.com"
+                style={{ width: '100%', padding: '10px 12px', borderRadius: 8, background: U.faint, border: `1px solid ${U.border}`, color: U.text, fontSize: 13, fontFamily: F.b, outline: 'none', boxSizing: 'border-box' }}
+                onFocus={e => e.target.style.borderColor = U.border2} onBlur={e => e.target.style.borderColor = U.border} />
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ color: U.muted, fontSize: 10, fontWeight: 600, letterSpacing: '0.07em', marginBottom: 6 }}>NOM (optionnel)</div>
+              <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Votre marque"
+                style={{ width: '100%', padding: '10px 12px', borderRadius: 8, background: U.faint, border: `1px solid ${U.border}`, color: U.text, fontSize: 13, fontFamily: F.b, outline: 'none', boxSizing: 'border-box' }}
+                onFocus={e => e.target.style.borderColor = U.border2} onBlur={e => e.target.style.borderColor = U.border} />
+            </div>
+          </div>
+
+          {/* Message */}
+          <div style={{ marginBottom: 20 }}>
+            <div style={{ color: U.muted, fontSize: 10, fontWeight: 600, letterSpacing: '0.07em', marginBottom: 6 }}>MESSAGE POUR L'OCCUPANT (optionnel)</div>
+            <textarea value={message} onChange={e => setMessage(e.target.value)}
+              placeholder="Expliquez pourquoi vous voulez ce bloc..."
+              rows={2}
+              style={{ width: '100%', padding: '10px 12px', borderRadius: 8, background: U.faint, border: `1px solid ${U.border}`, color: U.text, fontSize: 13, fontFamily: F.b, outline: 'none', resize: 'vertical', boxSizing: 'border-box', lineHeight: 1.6 }}
+              onFocus={e => e.target.style.borderColor = U.border2} onBlur={e => e.target.style.borderColor = U.border} />
+          </div>
+
+          {error && (
+            <div style={{ padding: '8px 12px', borderRadius: 6, background: `${U.err}12`, border: `1px solid ${U.err}30`, color: U.err, fontSize: 12, marginBottom: 14 }}>{error}</div>
+          )}
+
+          <button onClick={handleSubmit} disabled={loading} style={{ width: '100%', padding: '13px', borderRadius: 10, fontFamily: F.b, cursor: loading ? 'wait' : 'pointer', background: U.accent, border: 'none', color: U.accentFg, fontWeight: 700, fontSize: 14, opacity: loading ? 0.7 : 1, boxShadow: `0 0 22px ${U.accent}45` }}>
+            {loading ? 'Envoi…' : 'Envoyer l\'offre →'}
+          </button>
+          <p style={{ color: U.muted, fontSize: 11, textAlign: 'center', marginTop: 10, marginBottom: 0 }}>Aucun débit maintenant · Paiement seulement si accepté</p>
+        </>) : (
+          /* Step 2 — Confirmation */
+          <div style={{ textAlign: 'center', padding: '12px 0' }}>
+            <div style={{ width: 56, height: 56, borderRadius: '50%', background: `${U.accent}15`, border: `1px solid ${U.accent}30`, margin: '0 auto 20px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+                <polyline points="4,11 9,16 18,6" stroke={U.accent} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </div>
+            <h2 style={{ color: U.text, fontWeight: 700, fontSize: 20, fontFamily: F.h, letterSpacing: '-0.02em', margin: '0 0 10px' }}>Offre envoyée</h2>
+            <p style={{ color: U.muted, fontSize: 13, lineHeight: 1.7, margin: '0 0 24px' }}>
+              L'occupant a été notifié. Vous recevrez une réponse par email sous <strong style={{ color: U.text }}>72 heures</strong>.<br/>Si l'offre est acceptée, vous serez débité et le bloc vous sera transféré immédiatement.
+            </p>
+            <button onClick={onClose} style={{ padding: '12px 28px', borderRadius: 10, fontFamily: F.b, cursor: 'pointer', background: U.s2, border: `1px solid ${U.border2}`, color: U.text, fontWeight: 600, fontSize: 13 }}>Fermer</button>
+          </div>
+        )}
+      </div>
+    </Modal>
+  );
+}
+
 // ─── Focus Modal ───────────────────────────────────────────────
-function FocusModal({ slot, allSlots, onClose, onWaitlist, onNavigate }) {
+function FocusModal({ slot, allSlots, onClose, onWaitlist, onBuyout, onNavigate }) {
   const [entered, setEntered] = useState(false);
   const [dir, setDir] = useState(0);
   const { isMobile } = useScreenSize();
@@ -443,11 +567,14 @@ function FocusModal({ slot, allSlots, onClose, onWaitlist, onNavigate }) {
               </div>
             </div>
             <div style={{ display: 'flex', gap: 10, flexDirection: isMobile ? 'column' : 'row' }}>
-              <a href={tenant.url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} style={{ flex: 1, padding: '12px 20px', borderRadius: 10, background: c, color: U.accentFg, fontWeight: 700, fontSize: 13, fontFamily: F.b, textDecoration: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, boxShadow: `0 0 20px ${c}50` }}>
+              <a href={tenant.url} target="_blank" rel="noopener noreferrer" onClick={e => { e.stopPropagation(); recordClick(slot.x, slot.y, slot.bookingId); }} style={{ flex: 1, padding: '12px 20px', borderRadius: 10, background: c, color: U.accentFg, fontWeight: 700, fontSize: 13, fontFamily: F.b, textDecoration: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, boxShadow: `0 0 20px ${c}50` }}>
                 {tenant.cta} →
               </a>
-              <button onClick={() => { onClose(); onWaitlist(); }} style={{ padding: '12px 18px', borderRadius: 10, fontFamily: F.b, cursor: 'pointer', background: U.faint, border: `1px solid ${U.border2}`, color: U.text, fontWeight: 600, fontSize: 13 }}>
-                Louer cet espace →
+              <button onClick={() => { onClose(); onBuyout(slot); }} style={{ padding: '12px 14px', borderRadius: 10, fontFamily: F.b, cursor: 'pointer', background: U.faint, border: `1px solid ${U.border2}`, color: U.muted, fontWeight: 600, fontSize: 12, whiteSpace: 'nowrap' }}>
+                Faire une offre
+              </button>
+              <button onClick={() => { onClose(); onWaitlist(); }} style={{ padding: '12px 14px', borderRadius: 10, fontFamily: F.b, cursor: 'pointer', background: U.faint, border: `1px solid ${U.border2}`, color: U.muted, fontWeight: 600, fontSize: 12, whiteSpace: 'nowrap' }}>
+                Louer ici →
               </button>
             </div>
           </div>
@@ -585,7 +712,7 @@ function TikTokFeed({ slots, isLive, onWaitlist }) {
 }
 
 // ─── Public View ───────────────────────────────────────────────
-function PublicView({ slots, isLive, onWaitlist }) {
+function PublicView({ slots, isLive, onWaitlist, onBuyout }) {
   const containerRef  = useRef(null);
   const [containerW, setContainerW] = useState(typeof window !== 'undefined' ? window.innerWidth : 1920);
   const [containerH, setContainerH] = useState(typeof window !== 'undefined' ? window.innerHeight - 80 : 1000);
@@ -696,7 +823,7 @@ function PublicView({ slots, isLive, onWaitlist }) {
       <div style={{ flex: 1, display: feedMode ? 'flex' : 'none', flexDirection: 'column', overflow: 'hidden' }}>
         <TikTokFeed slots={slots} isLive={isLive} onWaitlist={onWaitlist} />
       </div>
-      {focusSlot && <FocusModal slot={focusSlot} allSlots={slots} onClose={() => setFocusSlot(null)} onWaitlist={onWaitlist} onNavigate={setFocusSlot} />}
+      {focusSlot && <FocusModal slot={focusSlot} allSlots={slots} onClose={() => setFocusSlot(null)} onWaitlist={onWaitlist} onBuyout={onBuyout} onNavigate={setFocusSlot} />}
     </div>
   );
 }
@@ -739,6 +866,8 @@ function AdvertiserView({ slots, isLive, onWaitlist, onCheckout }) {
   const [chosenSlot, setChosenSlot]     = useState(null);
   const [hoveredTier, setHoveredTier]   = useState(null);
   const [selectedTier, setSelectedTier] = useState(null);
+  const [slotStats, setSlotStats]       = useState(null);
+  const [statsLoading, setStatsLoading] = useState(false);
   const containerRef  = useRef(null);
   const [containerW, setContainerW] = useState(typeof window !== 'undefined' ? window.innerWidth : 1920);
   const [containerH, setContainerH] = useState(typeof window !== 'undefined' ? window.innerHeight - 80 : 1000);
@@ -761,6 +890,16 @@ function AdvertiserView({ slots, isLive, onWaitlist, onCheckout }) {
   const handleChoose = useCallback(slot => {
     setChosenSlot(prev => prev?.id === slot.id ? null : slot);
   }, []);
+
+  // Fetch stats when an occupied slot is chosen
+  useEffect(() => {
+    if (!chosenSlot?.occ) { setSlotStats(null); return; }
+    setStatsLoading(true);
+    fetchSlotStats(chosenSlot.x, chosenSlot.y)
+      .then(({ data }) => setSlotStats(data))
+      .catch(() => setSlotStats(null))
+      .finally(() => setStatsLoading(false));
+  }, [chosenSlot?.id]);
 
   const tiers = [
     { id: 'one',      label: 'Épicentre',  price: 1000, count: 1,   desc: 'Centre absolu' },
@@ -803,11 +942,58 @@ function AdvertiserView({ slots, isLive, onWaitlist, onCheckout }) {
         </div>
 
         {chosenSlot ? (
-          <div style={{ padding: '20px', margin: '16px', borderRadius: 10, background: U.faint, border: `1px solid ${TIER_COLOR[chosenSlot.tier]}30` }}>
-            <div style={{ display: 'inline-block', padding: '2px 7px', borderRadius: 4, background: `${TIER_COLOR[chosenSlot.tier]}15`, border: `1px solid ${TIER_COLOR[chosenSlot.tier]}30`, color: TIER_COLOR[chosenSlot.tier], fontSize: 9, fontWeight: 700, letterSpacing: '0.06em', marginBottom: 10 }}>{TIER_LABEL[chosenSlot.tier]}</div>
-            <div style={{ color: U.text, fontWeight: 700, fontSize: 14, fontFamily: F.h, marginBottom: 4 }}>Bloc sélectionné</div>
-            <div style={{ color: U.muted, fontSize: 11, marginBottom: 16 }}>Position ({chosenSlot.x}, {chosenSlot.y}) · €{TIER_PRICE[chosenSlot.tier]}/j</div>
-            <button onClick={() => onCheckout(chosenSlot)} style={{ width: '100%', padding: '11px', borderRadius: 8, fontFamily: F.b, cursor: 'pointer', background: U.accent, border: 'none', color: U.accentFg, fontWeight: 700, fontSize: 13, boxShadow: `0 0 20px ${U.accent}50` }}>Continuer →</button>
+          <div style={{ margin: '16px', borderRadius: 10, background: U.faint, border: `1px solid ${TIER_COLOR[chosenSlot.tier]}25`, overflow: 'hidden' }}>
+            {/* Header */}
+            <div style={{ padding: '14px 16px 12px', borderBottom: `1px solid ${U.border}` }}>
+              <div style={{ display: 'inline-block', padding: '2px 7px', borderRadius: 4, background: `${TIER_COLOR[chosenSlot.tier]}15`, border: `1px solid ${TIER_COLOR[chosenSlot.tier]}30`, color: TIER_COLOR[chosenSlot.tier], fontSize: 9, fontWeight: 700, letterSpacing: '0.06em', marginBottom: 8 }}>
+                {chosenSlot.occ ? 'OCCUPÉ' : TIER_LABEL[chosenSlot.tier]}
+              </div>
+              <div style={{ color: U.text, fontWeight: 700, fontSize: 13, fontFamily: F.h }}>
+                {chosenSlot.occ ? (chosenSlot.tenant?.name || 'Occupé') : 'Bloc sélectionné'}
+              </div>
+              <div style={{ color: U.muted, fontSize: 11, marginTop: 2 }}>
+                ({chosenSlot.x}, {chosenSlot.y}) · €{TIER_PRICE[chosenSlot.tier]}/j
+              </div>
+            </div>
+
+            {/* Stats panel — uniquement si le slot est occupé */}
+            {chosenSlot.occ && (
+              <div style={{ padding: '12px 16px', borderBottom: `1px solid ${U.border}` }}>
+                <div style={{ color: U.muted, fontSize: 9, fontWeight: 600, letterSpacing: '0.07em', marginBottom: 10 }}>STATISTIQUES DU BLOC</div>
+                {statsLoading ? (
+                  <div style={{ color: U.muted, fontSize: 11, textAlign: 'center', padding: '8px 0' }}>Chargement…</div>
+                ) : slotStats ? (
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                    {[
+                      [slotStats.impressions?.toLocaleString() ?? '—', 'Impressions'],
+                      [slotStats.clicks?.toLocaleString() ?? '—', 'Clics total'],
+                      [slotStats.ctr_pct != null ? `${slotStats.ctr_pct}%` : '—', 'CTR'],
+                      [slotStats.clicks_7d?.toLocaleString() ?? '—', 'Clics 7j'],
+                    ].map(([v, l]) => (
+                      <div key={l} style={{ padding: '8px 10px', borderRadius: 7, background: U.s2, border: `1px solid ${U.border}` }}>
+                        <div style={{ color: U.text, fontWeight: 700, fontSize: 15, fontFamily: F.h }}>{v}</div>
+                        <div style={{ color: U.muted, fontSize: 9, marginTop: 2 }}>{l}</div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div style={{ color: U.muted, fontSize: 11, textAlign: 'center', padding: '6px 0', fontStyle: 'italic' }}>Stats non disponibles en démo</div>
+                )}
+              </div>
+            )}
+
+            {/* CTA */}
+            <div style={{ padding: '12px 16px' }}>
+              {chosenSlot.occ ? (
+                <button onClick={() => onCheckout(chosenSlot)} style={{ width: '100%', padding: '11px', borderRadius: 8, fontFamily: F.b, cursor: 'pointer', background: U.accent, border: 'none', color: U.accentFg, fontWeight: 700, fontSize: 13, boxShadow: `0 0 20px ${U.accent}50` }}>
+                  Faire une offre →
+                </button>
+              ) : (
+                <button onClick={() => onCheckout(chosenSlot)} style={{ width: '100%', padding: '11px', borderRadius: 8, fontFamily: F.b, cursor: 'pointer', background: U.accent, border: 'none', color: U.accentFg, fontWeight: 700, fontSize: 13, boxShadow: `0 0 20px ${U.accent}50` }}>
+                  Continuer →
+                </button>
+              )}
+            </div>
           </div>
         ) : (
           <div style={{ padding: '20px', margin: '16px', borderRadius: 10, background: U.faint, border: `1px solid ${U.border}` }}>
@@ -899,6 +1085,17 @@ function LandingPage({ slots, onPublic, onAdvertiser, onWaitlist }) {
         </div>
 
         <div style={{ marginTop: 20, color: U.muted, fontSize: 12 }}>Sans budget minimum · Sans agence · Résultat immédiat</div>
+
+        {/* Legal footer links */}
+        <div style={{ marginTop: 36, paddingTop: 24, borderTop: `1px solid ${U.border}`, display: 'flex', gap: 16, justifyContent: 'center', flexWrap: 'wrap' }}>
+          {[['FAQ', '/faq'], ['CGV', '/cgv'], ['Mentions légales', '/legal'], ['Confidentialité', '/privacy']].map(([label, href]) => (
+            <a key={href} href={href} style={{ color: U.muted, fontSize: 11, textDecoration: 'none', transition: 'color 0.15s' }}
+              onMouseEnter={e => e.currentTarget.style.color = U.text}
+              onMouseLeave={e => e.currentTarget.style.color = U.muted}>
+              {label}
+            </a>
+          ))}
+        </div>
       </div>
     </div>
   );
@@ -909,11 +1106,13 @@ export default function App() {
   const [view, setView]             = useState('landing');
   const [showWaitlist, setShowWaitlist] = useState(false);
   const [checkoutSlot, setCheckoutSlot] = useState(null);
+  const [buyoutSlot, setBuyoutSlot]     = useState(null);
   const { slots, isLive, loading }  = useGridData();
   const { isMobile } = useScreenSize();
   const handleWaitlist = useCallback(() => setShowWaitlist(true), []);
 
   const handleCheckout = useCallback(slot => {
+    if (slot?.occ) { setBuyoutSlot(slot); return; }
     if (process.env.NEXT_PUBLIC_STRIPE_ENABLED === 'true') setCheckoutSlot(slot);
     else setShowWaitlist(true);
   }, []);
@@ -944,10 +1143,11 @@ export default function App() {
       </header>
 
       {view === 'landing'    && <LandingPage    slots={slots} onPublic={() => setView('public')} onAdvertiser={() => setView('advertiser')} onWaitlist={handleWaitlist} />}
-      {view === 'public'     && <PublicView     slots={slots} isLive={isLive} onWaitlist={handleWaitlist} />}
+      {view === 'public'     && <PublicView     slots={slots} isLive={isLive} onWaitlist={handleWaitlist} onBuyout={setBuyoutSlot} />}
       {view === 'advertiser' && <AdvertiserView slots={slots} isLive={isLive} onWaitlist={handleWaitlist} onCheckout={handleCheckout} />}
       {showWaitlist  && <WaitlistModal  onClose={() => setShowWaitlist(false)} />}
       {checkoutSlot  && <CheckoutModal  slot={checkoutSlot} onClose={() => setCheckoutSlot(null)} />}
+      {buyoutSlot    && <BuyoutModal    slot={buyoutSlot}   onClose={() => setBuyoutSlot(null)} />}
     </div>
   );
 }
