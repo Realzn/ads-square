@@ -608,15 +608,20 @@ function PublicView({ slots, isLive, onWaitlist }) {
   const { colOffsets, rowOffsets, totalGridW, totalGridH, tierSizes, k } =
     useGridLayout(containerW, containerH, isMobile);
 
-  // Centre sur ÉPICENTRE au montage
+  // Centre sur ÉPICENTRE au montage ET à chaque retour en mode grille
   const centeredRef = useRef(false);
   useEffect(() => {
+    if (feedMode) { centeredRef.current = false; return; } // reset quand on va en Feed
     if (centeredRef.current || !containerRef.current || containerW === 0) return;
     const el = containerRef.current;
-    el.scrollLeft = colOffsets[CENTER_X] + tierSizes.one / 2 - el.clientWidth / 2;
-    el.scrollTop  = rowOffsets[CENTER_Y] + tierSizes.one / 2 - el.clientHeight / 2;
-    centeredRef.current = true;
-  }, [colOffsets, rowOffsets, tierSizes, containerW]);
+    // Petit délai pour laisser le DOM se monter après le switch Feed→Grille
+    const t = setTimeout(() => {
+      el.scrollLeft = colOffsets[CENTER_X] + tierSizes.one / 2 - el.clientWidth / 2;
+      el.scrollTop  = rowOffsets[CENTER_Y] + tierSizes.one / 2 - el.clientHeight / 2;
+      centeredRef.current = true;
+    }, 16);
+    return () => clearTimeout(t);
+  }, [feedMode, colOffsets, rowOffsets, tierSizes, containerW]);
 
   const filteredSlots = useMemo(() => {
     let s = slots;
