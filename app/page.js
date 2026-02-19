@@ -56,27 +56,74 @@ function useGridData() {
   return { slots, isLive, loading };
 }
 
-function useGridLayout() {
-  const GAP = 2;
-  const colWidths = useMemo(() => {
-    const structural = buildStructuralGrid();
-    return Array.from({ length: GRID_COLS }, (_, x) => {
-      let m = 0;
-      for (let y = 0; y < GRID_ROWS; y++) m = Math.max(m, TIER_SIZE[structural[y * GRID_COLS + x].tier]);
-      return m;
-    });
-  }, []);
-  const rowHeights = useMemo(() => {
-    const structural = buildStructuralGrid();
-    return Array.from({ length: GRID_ROWS }, (_, y) => {
-      let m = 0;
-      for (let x = 0; x < GRID_COLS; x++) m = Math.max(m, TIER_SIZE[structural[y * GRID_COLS + x].tier]);
-      return m;
-    });
-  }, []);
-  const colOffsets = useMemo(() => { const o = [0]; for (let x = 0; x < GRID_COLS - 1; x++) o.push(o[x] + colWidths[x] + GAP); return o; }, [colWidths]);
-  const rowOffsets = useMemo(() => { const o = [0]; for (let y = 0; y < GRID_ROWS - 1; y++) o.push(o[y] + rowHeights[y] + GAP); return o; }, [rowHeights]);
-  return { colOffsets, rowOffsets, totalGridW: colOffsets[GRID_COLS - 1] + colWidths[GRID_COLS - 1], totalGridH: rowOffsets[GRID_ROWS - 1] + rowHeights[GRID_ROWS - 1] };
+// BASE sizes (ratio reference — never rendered directly on desktop)
+const BASE_SIZE = { one: 120, ten: 52, corner_ten: 52, hundred: 26, thousand: 11 };
+const GAP = 2;
+
+// Precompute base col/row structure once
+function _buildBaseLayout() {
+  const structural = buildStructuralGrid();
+  const cw = Array.from({ length: GRID_COLS }, (_, x) => {
+    let m = 0;
+    for (let y = 0; y < GRID_ROWS; y++) m = Math.max(m, BASE_SIZE[structural[y * GRID_COLS + x].tier]);
+    return m;
+  });
+  const rh = Array.from({ length: GRID_ROWS }, (_, y) => {
+    let m = 0;
+    for (let x = 0; x < GRID_COLS; x++) m = Math.max(m, BASE_SIZE[structural[y * GRID_COLS + x].tier]);
+    return m;
+  });
+  const baseW = cw.reduce((a,b)=>a+b,0) + GAP*(GRID_COLS-1);
+  const baseH = rh.reduce((a,b)=>a+b,0) + GAP*(GRID_ROWS-1);
+  return { cw, rh, baseW, baseH };
+}
+const _BASE_LAYOUT = _buildBaseLayout();
+
+/**
+ * Responsive grid layout — fills the given container exactly at scale=1.
+ * k = min(containerW/baseW, containerH/baseH)
+ * Returns actual pixel positions + dynamic tier sizes.
+ * On mobile (isMobile=true): uses fixed 2x base sizes + scrollable layout.
+ */
+function useGridLayout(containerW, containerH, isMobile) {
+  const PAD = isMobile ? 8 : 16;
+  const { cw, rh, baseW, baseH } = _BASE_LAYOUT;
+
+  // k: scale factor that fills the container exactly
+  const k = isMobile
+    ? 2 // fixed 2x on mobile (scrollable)
+    : Math.max(0.1, Math.min(
+        (containerW - PAD * 2) / baseW,
+        (containerH - PAD * 2) / baseH
+      ));
+
+  const tierSizes = useMemo(() => ({
+    one:       Math.round(BASE_SIZE.one        * k),
+    ten:       Math.round(BASE_SIZE.ten        * k),
+    corner_ten:Math.round(BASE_SIZE.corner_ten * k),
+    hundred:   Math.round(BASE_SIZE.hundred    * k),
+    thousand:  Math.max(2, Math.round(BASE_SIZE.thousand  * k)),
+  }), [k]);
+
+  const colWidths  = useMemo(() => cw.map(w => Math.round(w * k)), [k]);
+  const rowHeights = useMemo(() => rh.map(h => Math.round(h * k)), [k]);
+
+  const colOffsets = useMemo(() => {
+    const o = [0];
+    for (let x = 0; x < GRID_COLS - 1; x++) o.push(o[x] + colWidths[x] + GAP);
+    return o;
+  }, [colWidths]);
+
+  const rowOffsets = useMemo(() => {
+    const o = [0];
+    for (let y = 0; y < GRID_ROWS - 1; y++) o.push(o[y] + rowHeights[y] + GAP);
+    return o;
+  }, [rowHeights]);
+
+  const totalGridW = colOffsets[GRID_COLS - 1] + colWidths[GRID_COLS - 1];
+  const totalGridH = rowOffsets[GRID_ROWS - 1] + rowHeights[GRID_ROWS - 1];
+
+  return { colOffsets, rowOffsets, totalGridW, totalGridH, tierSizes, k };
 }
 
 // ─── Small Components ─────────────────────────────────────
@@ -268,10 +315,11 @@ function BlockMedia({ tenant, tier }) {
   return null;
 }
 
-// PATCH 3 : BlockCell mémoïsé pour éviter les re-renders inutiles (1369 blocs)
-const BlockCell = memo(({ slot, isSelected, onSelect, onFocus }) => {
+// BlockCell — reçoit sa taille réelle depuis le layout responsive
+const BlockCell = memo(({ slot, isSelected, onSelect, onFocus, sz }) => {
   const { tier, occ, tenant, hot } = slot;
-  const sz = TIER_SIZE[tier];
+  // sz injected by parent (responsive layout); fallback to TIER_SIZE for TikTok feed
+  if (sz === undefined) sz = TIER_SIZE[tier];
   const isCornerTen = tier === 'corner_ten';
   const color = occ ? tenant.c : TIER_COLOR[tier];
   const bg = occ ? (tenant.b || D.card) : D.s2;
@@ -503,17 +551,16 @@ function TikTokFeed({ slots, isLive, onWaitlist }) {
 // ─── Public View ───────────────────────────────────────────
 function PublicView({ slots, isLive, onWaitlist }) {
   const containerRef = useRef(null);
-  const [containerW, setContainerW] = useState(1200);
-  const [containerH, setContainerH] = useState(800);
+  const [containerW, setContainerW] = useState(typeof window !== 'undefined' ? window.innerWidth : 1920);
+  const [containerH, setContainerH] = useState(typeof window !== 'undefined' ? window.innerHeight - 80 : 1000);
   const [focusSlot, setFocusSlot] = useState(null);
   const [selected, setSelected] = useState(new Set());
   const [filterTier, setFilterTier] = useState('all');
   const [showVacant, setShowVacant] = useState(false);
-  const [zoomLevel, setZoomLevel] = useState(0);
   const [feedMode, setFeedMode] = useState(false);
-  const { colOffsets, rowOffsets, totalGridW, totalGridH } = useGridLayout();
   const { isMobile } = useScreenSize();
 
+  // Measure container to compute exact responsive k
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
@@ -522,16 +569,14 @@ function PublicView({ slots, isLive, onWaitlist }) {
       setContainerH(e[0].contentRect.height);
     });
     obs.observe(el);
+    setContainerW(el.clientWidth);
+    setContainerH(el.clientHeight);
     return () => obs.disconnect();
   }, []);
 
-  // Fit-to-screen: scale uses both W and H so the grid fills 100% of the area
-  const pad = isMobile ? 8 : 16;
-  const baseScale = Math.min(
-    (containerW - pad * 2) / totalGridW,
-    (containerH - pad * 2) / totalGridH
-  );
-  const scale = Math.max(0.05, baseScale * Math.pow(1.25, zoomLevel));
+  // k fills the screen exactly — no CSS scale, blocks are their real computed size
+  const { colOffsets, rowOffsets, totalGridW, totalGridH, tierSizes, k } =
+    useGridLayout(containerW, containerH, isMobile);
 
   const filteredSlots = useMemo(() => {
     let s = slots;
@@ -583,23 +628,39 @@ function PublicView({ slots, isLive, onWaitlist }) {
       {feedMode ? (
         <TikTokFeed slots={slots} isLive={isLive} onWaitlist={onWaitlist} />
       ) : (
-        // Grid view — fit-to-screen with centered layout
-        <div ref={containerRef} style={{ flex: 1, overflow: 'auto', padding: `${pad}px`, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div style={{ position: 'relative', width: totalGridW * scale, height: totalGridH * scale, flexShrink: 0 }}>
-            <div style={{ position: 'absolute', top: 0, left: 0, transform: `scale(${scale})`, transformOrigin: 'top left', width: totalGridW, height: totalGridH }}>
-              {slots.map(slot => (
-                <div key={slot.id} style={{ position: 'absolute', left: colOffsets[slot.x], top: rowOffsets[slot.y], opacity: filteredSlots.has(slot.id) ? 1 : 0.08, transition: 'opacity 0.25s' }}>
-                  <BlockCell slot={slot} isSelected={selected.has(slot.id)} onSelect={toggleSelect} onFocus={setFocusSlot} />
-                </div>
-              ))}
-            </div>
-          </div>
-          {/* Zoom controls */}
-          <div style={{ position: 'absolute', bottom: 16, right: 16, display: 'flex', flexDirection: 'column', gap: 4 }}>
-            {[{ icon: '+', fn: () => setZoomLevel(z => Math.min(z + 1, 6)) }, { icon: '−', fn: () => setZoomLevel(z => Math.max(z - 1, -4)) }].map((z, i) => (
-              <button key={i} onClick={z.fn} style={{ width: 40, height: 40, borderRadius: 12, background: 'rgba(6,12,22,0.92)', backdropFilter: 'blur(12px)', border: `1px solid ${D.bord2}`, color: D.txt, fontSize: 18, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{z.icon}</button>
+        // Grid — blocs à leur taille réelle calculée pour remplir l'écran (k adaptatif)
+        <div
+          ref={containerRef}
+          style={{
+            flex: 1,
+            overflow: isMobile ? 'auto' : 'hidden',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: isMobile ? 8 : 0,
+          }}
+        >
+          <div style={{ position: 'relative', width: totalGridW, height: totalGridH, flexShrink: 0 }}>
+            {slots.map(slot => (
+              <div
+                key={slot.id}
+                style={{
+                  position: 'absolute',
+                  left: colOffsets[slot.x],
+                  top: rowOffsets[slot.y],
+                  opacity: filteredSlots.has(slot.id) ? 1 : 0.08,
+                  transition: 'opacity 0.25s',
+                }}
+              >
+                <BlockCell
+                  slot={slot}
+                  isSelected={selected.has(slot.id)}
+                  onSelect={toggleSelect}
+                  onFocus={setFocusSlot}
+                  sz={tierSizes[slot.tier]}
+                />
+              </div>
             ))}
-            {zoomLevel !== 0 && <button onClick={() => setZoomLevel(0)} title="Fit to screen" style={{ width: 40, height: 40, borderRadius: 12, background: 'rgba(6,12,22,0.92)', backdropFilter: 'blur(12px)', border: `1px solid ${D.bord2}`, color: D.cyan, fontSize: 15, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>⊡</button>}
           </div>
         </div>
       )}
@@ -609,9 +670,9 @@ function PublicView({ slots, isLive, onWaitlist }) {
 }
 
 // ─── PATCH 5 : AnonBlock sorti de AdvertiserView et mémoïsé
-const AnonBlock = memo(({ slot, chosenSlot, activeTier, onChoose }) => {
+const AnonBlock = memo(({ slot, chosenSlot, activeTier, onChoose, sz: szProp }) => {
   const { tier: t, occ } = slot;
-  const sz = TIER_SIZE[t];
+  const sz = szProp !== undefined ? szProp : TIER_SIZE[t];
   const c = TIER_COLOR[t];
   const isChosen = chosenSlot?.id === slot.id;
   const isTierHighlighted = activeTier && (t === activeTier || (activeTier === 'ten' && t === 'corner_ten'));
@@ -646,11 +707,24 @@ function AdvertiserView({ slots, isLive, selectedSlot, onWaitlist, onCheckout })
   const [hoveredTier, setHoveredTier] = useState(null);
   const [selectedTier, setSelectedTier] = useState(null);
   const containerRef = useRef(null);
-  const [containerW, setContainerW] = useState(1200);
-  const { colOffsets, rowOffsets, totalGridW, totalGridH } = useGridLayout();
+  const [containerW, setContainerW] = useState(typeof window !== 'undefined' ? window.innerWidth : 1920);
+  const [containerH, setContainerH] = useState(typeof window !== 'undefined' ? window.innerHeight - 80 : 1000);
   const { isMobile } = useScreenSize();
-  useEffect(() => { const el = containerRef.current; if (!el) return; const obs = new ResizeObserver(e => setContainerW(e[0].contentRect.width)); obs.observe(el); return () => obs.disconnect(); }, []);
-  const scale = Math.min(1, Math.max(0.2, (containerW - 32) / totalGridW));
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const obs = new ResizeObserver(e => {
+      setContainerW(e[0].contentRect.width);
+      setContainerH(e[0].contentRect.height);
+    });
+    obs.observe(el);
+    setContainerW(el.clientWidth);
+    setContainerH(el.clientHeight);
+    return () => obs.disconnect();
+  }, []);
+  // Responsive k — blocs à taille réelle (pas de CSS scale)
+  const { colOffsets, rowOffsets, totalGridW, totalGridH, tierSizes } =
+    useGridLayout(containerW, containerH, isMobile);
   const activeTier = selectedTier || hoveredTier;
   const tierStats = useMemo(() => { const map = {}; for (const t of ['one', 'ten', 'corner_ten', 'hundred', 'thousand']) { const s = slots.filter(sl => sl.tier === t); map[t] = { total: s.length, vacant: s.filter(sl => !sl.occ).length }; } return map; }, [slots]);
 
@@ -730,15 +804,26 @@ function AdvertiserView({ slots, isLive, selectedSlot, onWaitlist, onCheckout })
         </div>
       </div>
 
-      <div ref={containerRef} style={{ flex: 1, overflow: 'auto', padding: 16, background: D.bg, order: isMobile ? 1 : 0, minHeight: isMobile ? '30vh' : undefined }}>
-        <div style={{ position: 'relative', width: totalGridW * scale, height: totalGridH * scale }}>
-          <div style={{ position: 'absolute', top: 0, left: 0, transform: `scale(${scale})`, transformOrigin: 'top left', width: totalGridW, height: totalGridH }}>
-            {slots.map(slot => (
-              <div key={slot.id} style={{ position: 'absolute', left: colOffsets[slot.x], top: rowOffsets[slot.y] }}>
-                <AnonBlock slot={slot} chosenSlot={chosenSlot} activeTier={activeTier} onChoose={handleChoose} />
-              </div>
-            ))}
-          </div>
+      <div
+        ref={containerRef}
+        style={{
+          flex: 1,
+          overflow: isMobile ? 'auto' : 'hidden',
+          background: D.bg,
+          order: isMobile ? 1 : 0,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: isMobile ? 8 : 0,
+          minHeight: isMobile ? '30vh' : undefined,
+        }}
+      >
+        <div style={{ position: 'relative', width: totalGridW, height: totalGridH, flexShrink: 0 }}>
+          {slots.map(slot => (
+            <div key={slot.id} style={{ position: 'absolute', left: colOffsets[slot.x], top: rowOffsets[slot.y] }}>
+              <AnonBlock slot={slot} chosenSlot={chosenSlot} activeTier={activeTier} onChoose={handleChoose} sz={tierSizes[slot.tier]} />
+            </div>
+          ))}
         </div>
       </div>
     </div>
