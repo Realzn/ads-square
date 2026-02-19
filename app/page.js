@@ -500,7 +500,7 @@ function BuyoutModal({ slot, onClose }) {
 }
 
 // ─── Focus Modal ───────────────────────────────────────────────
-function FocusModal({ slot, allSlots, onClose, onWaitlist, onBuyout, onNavigate }) {
+function FocusModal({ slot, allSlots, onClose, onNavigate, onGoAdvertiser }) {
   const [entered, setEntered] = useState(false);
   const [dir, setDir] = useState(0);
   const { isMobile } = useScreenSize();
@@ -566,30 +566,22 @@ function FocusModal({ slot, allSlots, onClose, onWaitlist, onBuyout, onNavigate 
                 <div style={{ color: U.muted, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tenant.slogan}</div>
               </div>
             </div>
-            <div style={{ display: 'flex', gap: 10, flexDirection: isMobile ? 'column' : 'row' }}>
-              <a href={tenant.url} target="_blank" rel="noopener noreferrer" onClick={e => { e.stopPropagation(); recordClick(slot.x, slot.y, slot.bookingId); }} style={{ flex: 1, padding: '12px 20px', borderRadius: 10, background: c, color: U.accentFg, fontWeight: 700, fontSize: 13, fontFamily: F.b, textDecoration: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, boxShadow: `0 0 20px ${c}50` }}>
-                {tenant.cta} →
-              </a>
-              <button onClick={() => { onClose(); onBuyout(slot); }} style={{ padding: '12px 14px', borderRadius: 10, fontFamily: F.b, cursor: 'pointer', background: U.faint, border: `1px solid ${U.border2}`, color: U.muted, fontWeight: 600, fontSize: 12, whiteSpace: 'nowrap' }}>
-                Faire une offre
-              </button>
-              <button onClick={() => { onClose(); onWaitlist(); }} style={{ padding: '12px 14px', borderRadius: 10, fontFamily: F.b, cursor: 'pointer', background: U.faint, border: `1px solid ${U.border2}`, color: U.muted, fontWeight: 600, fontSize: 12, whiteSpace: 'nowrap' }}>
-                Louer ici →
-              </button>
-            </div>
+            <a href={tenant.url} target="_blank" rel="noopener noreferrer" onClick={e => { e.stopPropagation(); recordClick(slot.x, slot.y, slot.bookingId); }} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '13px 20px', borderRadius: 10, background: c, color: U.accentFg, fontWeight: 700, fontSize: 14, fontFamily: F.b, textDecoration: 'none', boxShadow: `0 0 22px ${c}50`, transition: 'opacity 0.15s' }}>
+              {tenant.cta} →
+            </a>
           </div>
         ) : (
           <div style={{ padding: isMobile ? '32px 20px' : '48px 28px', textAlign: 'center' }}>
-            <div style={{ width: 56, height: 56, borderRadius: 14, background: `${TIER_COLOR[tier]}15`, border: `1px solid ${TIER_COLOR[tier]}30`, margin: '0 auto 20px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <div style={{ width: 20, height: 20, borderRadius: 4, border: `2px solid ${TIER_COLOR[tier]}`, background: `${TIER_COLOR[tier]}20` }} />
+            <div style={{ width: 56, height: 56, borderRadius: 14, background: `${TIER_COLOR[tier]}10`, border: `1px solid ${TIER_COLOR[tier]}25`, margin: '0 auto 20px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div style={{ width: 20, height: 20, borderRadius: 4, border: `1.5px solid ${TIER_COLOR[tier]}60`, background: `${TIER_COLOR[tier]}12` }} />
             </div>
-            <div style={{ color: U.text, fontWeight: 700, fontSize: 20, fontFamily: F.h, marginBottom: 8, letterSpacing: '-0.02em' }}>Espace disponible</div>
-            <div style={{ color: U.muted, fontSize: 13, lineHeight: 1.65, marginBottom: 24 }}>
-              {TIER_LABEL[tier]} — €{TIER_PRICE[tier]}/jour<br />
-              Ouvert à tous : créateur, freelance, marque.
+            <div style={{ color: U.text, fontWeight: 700, fontSize: 18, fontFamily: F.h, marginBottom: 8, letterSpacing: '-0.02em' }}>Espace libre</div>
+            <div style={{ color: U.muted, fontSize: 13, lineHeight: 1.7, marginBottom: 24 }}>
+              Ce bloc {TIER_LABEL[tier]} n'est actuellement occupé par personne.<br/>
+              Pour le louer ou faire une offre, rendez-vous dans<br/><span style={{ color: U.text, fontWeight: 600 }}>Mon espace</span>.
             </div>
-            <button onClick={() => { onClose(); onWaitlist(); }} style={{ padding: '13px 28px', borderRadius: 10, fontFamily: F.b, cursor: 'pointer', background: U.accent, border: 'none', color: U.accentFg, fontWeight: 700, fontSize: 14, width: isMobile ? '100%' : 'auto', boxShadow: `0 0 22px ${U.accent}50` }}>
-              Réserver ma place →
+            <button onClick={() => { onClose(); onGoAdvertiser(); }} style={{ padding: '11px 24px', borderRadius: 10, fontFamily: F.b, cursor: 'pointer', background: U.faint, border: `1px solid ${U.border2}`, color: U.text, fontWeight: 600, fontSize: 13 }}>
+              Voir Mon espace →
             </button>
           </div>
         )}
@@ -599,16 +591,12 @@ function FocusModal({ slot, allSlots, onClose, onWaitlist, onBuyout, onNavigate 
 }
 
 // ─── TikTok Feed ───────────────────────────────────────────────
-function TikTokFeed({ slots, isLive, onWaitlist }) {
+function TikTokFeed({ slots, isLive }) {
   const feedRef = useRef(null);
   const [currentIdx, setCurrentIdx] = useState(0);
   const { isMobile } = useScreenSize();
 
-  const feedSlots = useMemo(() => {
-    const occ = slots.filter(s => s.occ);
-    const vacantPremium = slots.filter(s => !s.occ && (s.tier === 'one' || s.tier === 'corner_ten')).slice(0, 4);
-    return [...occ, ...vacantPremium];
-  }, [slots]);
+  const feedSlots = useMemo(() => slots.filter(s => s.occ), [slots]);
 
   useEffect(() => {
     const container = feedRef.current;
@@ -685,14 +673,7 @@ function TikTokFeed({ slots, isLive, onWaitlist }) {
                     <div style={{ color: U.muted, fontSize: 11, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tenant.slogan}</div>
                   </div>
                 </div>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <a href={tenant.url} target="_blank" rel="noopener noreferrer" style={{ flex: 1, padding: '10px 14px', borderRadius: 9, background: c, color: U.accentFg, fontWeight: 700, fontSize: 12, fontFamily: F.b, textDecoration: 'none', textAlign: 'center', boxShadow: `0 0 18px ${c}50` }}>{tenant.cta} →</a>
-                  <button onClick={onWaitlist} style={{ padding: '10px 14px', borderRadius: 9, fontFamily: F.b, cursor: 'pointer', background: U.faint, border: `1px solid ${U.border}`, color: U.muted, fontWeight: 600, fontSize: 11 }}>Louer</button>
-                </div>
-              </>) : (<>
-                <div style={{ color: U.text, fontWeight: 700, fontSize: 15, fontFamily: F.h, marginBottom: 6, letterSpacing: '-0.02em' }}>Espace disponible</div>
-                <div style={{ color: U.muted, fontSize: 12, lineHeight: 1.6, marginBottom: 14 }}>{TIER_LABEL[tier]} · €{TIER_PRICE[tier]}/jour — visibilité immédiate.</div>
-                <button onClick={onWaitlist} style={{ width: '100%', padding: '11px', borderRadius: 9, fontFamily: F.b, cursor: 'pointer', background: U.accent, border: 'none', color: U.accentFg, fontWeight: 700, fontSize: 13, boxShadow: `0 0 20px ${U.accent}50` }}>Réserver ce bloc →</button>
+                <a href={tenant.url} target="_blank" rel="noopener noreferrer" onClick={() => recordClick(slot.x, slot.y, slot.bookingId)} style={{ display: 'block', padding: '10px 14px', borderRadius: 9, background: c, color: U.accentFg, fontWeight: 700, fontSize: 12, fontFamily: F.b, textDecoration: 'none', textAlign: 'center', boxShadow: `0 0 18px ${c}50` }}>{tenant.cta} →</a>
               </>)}
             </div>
 
@@ -712,14 +693,12 @@ function TikTokFeed({ slots, isLive, onWaitlist }) {
 }
 
 // ─── Public View ───────────────────────────────────────────────
-function PublicView({ slots, isLive, onWaitlist, onBuyout }) {
+function PublicView({ slots, isLive, onGoAdvertiser }) {
   const containerRef  = useRef(null);
   const [containerW, setContainerW] = useState(typeof window !== 'undefined' ? window.innerWidth : 1920);
   const [containerH, setContainerH] = useState(typeof window !== 'undefined' ? window.innerHeight - 80 : 1000);
   const [focusSlot, setFocusSlot]   = useState(null);
-  const [selected, setSelected]     = useState(new Set());
   const [filterTier, setFilterTier] = useState('all');
-  const [showVacant, setShowVacant] = useState(false);
   const [feedMode, setFeedMode]     = useState(false);
   const { isMobile } = useScreenSize();
 
@@ -749,14 +728,8 @@ function PublicView({ slots, isLive, onWaitlist, onBuyout }) {
   const filteredSlots = useMemo(() => {
     let s = slots;
     if (filterTier !== 'all') s = s.filter(sl => sl.tier === filterTier || (filterTier === 'ten' && sl.tier === 'corner_ten'));
-    if (showVacant) s = s.filter(sl => !sl.occ);
     return new Set(s.map(sl => sl.id));
-  }, [slots, filterTier, showVacant]);
-
-  const toggleSelect = useCallback(slot => {
-    if (slot.occ) return;
-    setSelected(prev => { const n = new Set(prev); n.has(slot.id) ? n.delete(slot.id) : n.add(slot.id); return n; });
-  }, []);
+  }, [slots, filterTier]);
 
   const stats = useMemo(() => ({ occupied: slots.filter(s => s.occ).length, vacant: slots.filter(s => !s.occ).length }), [slots]);
 
@@ -784,8 +757,6 @@ function PublicView({ slots, isLive, onWaitlist, onBuyout }) {
           {tierFilters.map(([id, label]) => (
             <button key={id} onClick={() => setFilterTier(id)} style={{ padding: '4px 10px', borderRadius: 6, fontFamily: F.b, cursor: 'pointer', fontSize: 11, background: filterTier === id ? U.s2 : 'transparent', border: `1px solid ${filterTier === id ? U.border2 : 'transparent'}`, color: filterTier === id ? U.text : U.muted, fontWeight: filterTier === id ? 600 : 400, transition: 'all 0.15s', whiteSpace: 'nowrap' }}>{label}</button>
           ))}
-          <div style={{ width: 1, height: 16, background: U.border, flexShrink: 0 }} />
-          <button onClick={() => setShowVacant(v => !v)} style={{ padding: '4px 10px', borderRadius: 6, fontFamily: F.b, cursor: 'pointer', fontSize: 11, background: showVacant ? U.s2 : 'transparent', border: `1px solid ${showVacant ? U.border2 : 'transparent'}`, color: showVacant ? U.text : U.muted, transition: 'all 0.15s' }}>Disponibles</button>
         </>}
 
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 16, alignItems: 'center' }}>
@@ -803,11 +774,7 @@ function PublicView({ slots, isLive, onWaitlist, onBuyout }) {
           )}
         </div>
 
-        {selected.size > 0 && !feedMode && (
-          <button onClick={onWaitlist} style={{ padding: '6px 14px', borderRadius: 8, fontFamily: F.b, cursor: 'pointer', background: U.accent, border: 'none', color: U.accentFg, fontWeight: 700, fontSize: 12, flexShrink: 0 }}>
-            Réserver {selected.size} bloc{selected.size > 1 ? 's' : ''} →
-          </button>
-        )}
+
       </div>
 
       {/* Les deux vues restent dans le DOM — display:none évite le remount et préserve containerW */}
@@ -815,15 +782,15 @@ function PublicView({ slots, isLive, onWaitlist, onBuyout }) {
         <div style={{ position: 'relative', width: totalGridW, height: totalGridH, flexShrink: 0 }}>
           {slots.map(slot => (
             <div key={slot.id} style={{ position: 'absolute', left: colOffsets[slot.x], top: rowOffsets[slot.y], opacity: filteredSlots.has(slot.id) ? 1 : 0.06, transition: 'opacity 0.2s' }}>
-              <BlockCell slot={slot} isSelected={selected.has(slot.id)} onSelect={toggleSelect} onFocus={setFocusSlot} sz={tierSizes[slot.tier]} />
+              <BlockCell slot={slot} isSelected={false} onSelect={() => {}} onFocus={setFocusSlot} sz={tierSizes[slot.tier]} />
             </div>
           ))}
         </div>
       </div>
       <div style={{ flex: 1, display: feedMode ? 'flex' : 'none', flexDirection: 'column', overflow: 'hidden' }}>
-        <TikTokFeed slots={slots} isLive={isLive} onWaitlist={onWaitlist} />
+        <TikTokFeed slots={slots} isLive={isLive} />
       </div>
-      {focusSlot && <FocusModal slot={focusSlot} allSlots={slots} onClose={() => setFocusSlot(null)} onWaitlist={onWaitlist} onBuyout={onBuyout} onNavigate={setFocusSlot} />}
+      {focusSlot && <FocusModal slot={focusSlot} allSlots={slots} onClose={() => setFocusSlot(null)} onNavigate={setFocusSlot} onGoAdvertiser={onGoAdvertiser} />}
     </div>
   );
 }
@@ -839,10 +806,12 @@ const AnonBlock = memo(({ slot, chosenSlot, activeTier, onChoose, sz: szProp }) 
   const r = t === 'one' ? Math.round(sz * 0.1) : t === 'ten' || t === 'corner_ten' ? Math.round(sz * 0.09) : t === 'hundred' ? 3 : 2;
 
   if (occ) return (
-    <div style={{ width: sz, height: sz, borderRadius: r, background: U.s2, border: `1px solid ${isTierHighlighted ? c + '40' : U.border}`, position: 'relative', overflow: 'hidden', flexShrink: 0, opacity: dimmed ? 0.1 : 1, transition: 'opacity 0.25s' }}>
-      <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        {sz >= 20 && <div style={{ width: '30%', height: 1, background: `${c}20`, borderRadius: 1 }} />}
-      </div>
+    <div onClick={() => onChoose(slot)} style={{ width: sz, height: sz, borderRadius: r, background: occ ? (slot.tenant?.b || U.s2) : U.s2, border: `1px solid ${isTierHighlighted ? c + '50' : isChosen ? c + '80' : c + '25'}`, position: 'relative', overflow: 'hidden', flexShrink: 0, opacity: dimmed ? 0.1 : 1, cursor: 'pointer', outline: isChosen ? `2px solid ${c}` : 'none', outlineOffset: 1, transition: 'opacity 0.25s, box-shadow 0.25s', boxShadow: isChosen ? `0 0 0 2px ${c}55, 0 0 ${sz * 0.5}px ${c}35` : isTierHighlighted ? `0 0 ${sz * 0.4}px ${c}18` : 'none' }}>
+      {sz >= 12 && slot.tenant && (
+        <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: slot.tenant.b || U.s2 }}>
+          {sz >= 24 && <span style={{ color: slot.tenant.c, fontSize: Math.min(sz * 0.38, 28), fontWeight: 900, fontFamily: F.h, lineHeight: 1 }}>{slot.tenant.l}</span>}
+        </div>
+      )}
     </div>
   );
 
@@ -984,21 +953,28 @@ function AdvertiserView({ slots, isLive, onWaitlist, onCheckout }) {
 
             {/* CTA */}
             <div style={{ padding: '12px 16px' }}>
-              {chosenSlot.occ ? (
-                <button onClick={() => onCheckout(chosenSlot)} style={{ width: '100%', padding: '11px', borderRadius: 8, fontFamily: F.b, cursor: 'pointer', background: U.accent, border: 'none', color: U.accentFg, fontWeight: 700, fontSize: 13, boxShadow: `0 0 20px ${U.accent}50` }}>
-                  Faire une offre →
+              {chosenSlot.occ ? (<>
+                <button onClick={() => onCheckout(chosenSlot)} style={{ width: '100%', padding: '11px', borderRadius: 8, fontFamily: F.b, cursor: 'pointer', background: U.accent, border: 'none', color: U.accentFg, fontWeight: 700, fontSize: 13, boxShadow: `0 0 20px ${U.accent}50`, marginBottom: 8 }}>
+                  Faire une offre de rachat →
                 </button>
-              ) : (
-                <button onClick={() => onCheckout(chosenSlot)} style={{ width: '100%', padding: '11px', borderRadius: 8, fontFamily: F.b, cursor: 'pointer', background: U.accent, border: 'none', color: U.accentFg, fontWeight: 700, fontSize: 13, boxShadow: `0 0 20px ${U.accent}50` }}>
-                  Continuer →
+                <div style={{ color: U.muted, fontSize: 10, textAlign: 'center', lineHeight: 1.5 }}>
+                  L'occupant a 72h pour accepter · Aucun débit si refusé
+                </div>
+              </>) : (<>
+                <button onClick={() => onCheckout(chosenSlot)} style={{ width: '100%', padding: '11px', borderRadius: 8, fontFamily: F.b, cursor: 'pointer', background: U.accent, border: 'none', color: U.accentFg, fontWeight: 700, fontSize: 13, boxShadow: `0 0 20px ${U.accent}50`, marginBottom: 8 }}>
+                  Louer ce bloc →
                 </button>
-              )}
+                <div style={{ color: U.muted, fontSize: 10, textAlign: 'center' }}>
+                  Disponible immédiatement · À partir de €{TIER_PRICE[chosenSlot.tier]}/jour
+                </div>
+              </>)}
             </div>
           </div>
         ) : (
-          <div style={{ padding: '20px', margin: '16px', borderRadius: 10, background: U.faint, border: `1px solid ${U.border}` }}>
-            <div style={{ color: U.muted, fontSize: 12, lineHeight: 1.6, textAlign: 'center' }}>
-              Cliquez sur un bloc disponible dans la grille pour le sélectionner.
+          <div style={{ margin: '16px', borderRadius: 10, background: U.faint, border: `1px solid ${U.border}`, padding: '20px' }}>
+            <div style={{ color: U.muted, fontSize: 12, lineHeight: 1.7, textAlign: 'center' }}>
+              Survolez un tier pour filtrer la grille.<br/>
+              Cliquez sur un bloc pour voir ses stats et options.
             </div>
           </div>
         )}
@@ -1143,7 +1119,7 @@ export default function App() {
       </header>
 
       {view === 'landing'    && <LandingPage    slots={slots} onPublic={() => setView('public')} onAdvertiser={() => setView('advertiser')} onWaitlist={handleWaitlist} />}
-      {view === 'public'     && <PublicView     slots={slots} isLive={isLive} onWaitlist={handleWaitlist} onBuyout={setBuyoutSlot} />}
+      {view === 'public'     && <PublicView     slots={slots} isLive={isLive} onGoAdvertiser={() => setView('advertiser')} />}
       {view === 'advertiser' && <AdvertiserView slots={slots} isLive={isLive} onWaitlist={handleWaitlist} onCheckout={handleCheckout} />}
       {showWaitlist  && <WaitlistModal  onClose={() => setShowWaitlist(false)} />}
       {checkoutSlot  && <CheckoutModal  slot={checkoutSlot} onClose={() => setCheckoutSlot(null)} />}
