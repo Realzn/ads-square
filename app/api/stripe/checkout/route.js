@@ -6,7 +6,7 @@ import Stripe from 'stripe';
 import { createServiceClient } from '../../../../lib/supabase-server';
 import { TIER_PRICE, TIER_LABEL, getTier } from '../../../../lib/grid';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+
 
 export async function POST(request) {
   try {
