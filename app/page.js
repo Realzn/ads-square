@@ -644,8 +644,32 @@ const BlockCell = memo(({ slot, isSelected, onSelect, onFocus, sz: szProp }) => 
   const isCornerTen = tier === 'corner_ten';
   const r = tier === 'one' ? Math.round(sz * 0.1) : tier === 'ten' || isCornerTen ? Math.round(sz * 0.09) : tier === 'hundred' ? 3 : 2;
 
+  // Track impression when occupied block enters viewport (once per session per slot)
+  const ref = useRef(null);
+  useEffect(() => {
+    if (!occ || !tenant?.bookingId) return;
+    const sessionKey = `imp_${tenant.bookingId}`;
+    if (sessionStorage.getItem(sessionKey)) return; // already tracked this session
+    const el = ref.current;
+    if (!el) return;
+    const obs = new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting) {
+        sessionStorage.setItem(sessionKey, '1');
+        fetch('/api/track', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ slotX: slot.x, slotY: slot.y, bookingId: tenant.bookingId, event: 'impression' }),
+        }).catch(() => {});
+        obs.disconnect();
+      }
+    }, { threshold: 0.5 });
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [occ, tenant?.bookingId, slot.x, slot.y]);
+
   return (
     <div
+      ref={ref}
       onClick={() => occ ? onFocus(slot) : onSelect(slot)}
       title={occ ? tenant?.name : `${TIER_LABEL[tier]} — €${TIER_PRICE[tier]}/j`}
       style={{
@@ -818,6 +842,15 @@ function FocusModal({ slot, allSlots, onClose, onNavigate, onGoAdvertiser }) {
   const goPrev  = useCallback(() => { if (!hasPrev) return; setDir(-1); onNavigate(occupiedSlots[curIdx - 1]); setTimeout(() => setDir(0), 250); }, [hasPrev, curIdx, occupiedSlots, onNavigate]);
   const goNext  = useCallback(() => { if (!hasNext) return; setDir(1); onNavigate(occupiedSlots[curIdx + 1]); setTimeout(() => setDir(0), 250); }, [hasNext, curIdx, occupiedSlots, onNavigate]);
   useEffect(() => { const t = requestAnimationFrame(() => setEntered(true)); return () => cancelAnimationFrame(t); }, [slot]);
+  // Record impression on focus modal open — strong engagement signal
+  useEffect(() => {
+    if (!slot?.occ || !slot?.tenant?.bookingId) return;
+    fetch('/api/track', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ slotX: slot.x, slotY: slot.y, bookingId: slot.tenant.bookingId, event: 'impression' }),
+    }).catch(() => {});
+  }, [slot?.id]);
   useEffect(() => {
     const fn = e => { if (e.key === 'Escape') onClose(); if (e.key === 'ArrowLeft') goPrev(); if (e.key === 'ArrowRight') goNext(); };
     window.addEventListener('keydown', fn); return () => window.removeEventListener('keydown', fn);
@@ -1335,7 +1368,6 @@ function AdvertiserView({ slots, isLive, onWaitlist, onCheckout }) {
   const [selectedTier, setSelectedTier] = useState(null);
   const [slotStats, setSlotStats]       = useState(null);
   const [statsLoading, setStatsLoading] = useState(false);
-  const [liveViewers, setLiveViewers]   = useState(null);
 
   // Check if all slots in a tier are occupied (enables buyout offer)
   const tierOccupancy = useMemo(() => {
@@ -1371,16 +1403,13 @@ function AdvertiserView({ slots, isLive, onWaitlist, onCheckout }) {
 
   // Fetch stats when an occupied slot is chosen
   useEffect(() => {
-    if (!chosenSlot?.occ) { setSlotStats(null); setLiveViewers(null); return; }
+    if (!chosenSlot?.occ) { setSlotStats(null); return; }
     setStatsLoading(true);
     fetchSlotStats(chosenSlot.x, chosenSlot.y)
       .then(({ data }) => setSlotStats(data))
       .catch(() => setSlotStats(null))
       .finally(() => setStatsLoading(false));
-    // Simulated live viewers (replace with real presence when available)
-    setLiveViewers(Math.floor(Math.random() * 12) + 2);
-    const iv = setInterval(() => setLiveViewers(v => Math.max(1, v + Math.floor(Math.random()*3)-1)), 8000);
-    return () => clearInterval(iv);
+
   }, [chosenSlot?.id]);
 
   const tiers = [
@@ -1441,13 +1470,7 @@ function AdvertiserView({ slots, isLive, onWaitlist, onCheckout }) {
             {/* Stats panel enrichi — uniquement si le slot est occupé */}
             {chosenSlot.occ && (
               <div style={{ padding: '12px 16px', borderBottom: `1px solid ${U.border}` }}>
-                {/* Live viewers */}
-                {liveViewers && (
-                  <div style={{ display:'flex', alignItems:'center', gap:7, marginBottom:10, padding:'6px 10px', borderRadius:7, background:'#00e8a210', border:'1px solid #00e8a225' }}>
-                    <div style={{ width:7, height:7, borderRadius:'50%', background:'#00e8a2', boxShadow:'0 0 6px #00e8a2', animation:'blink 1.5s infinite' }} />
-                    <span style={{ fontSize:11, color:'#00e8a2', fontWeight:700 }}>{liveViewers} personnes regardent ce bloc</span>
-                  </div>
-                )}
+
                 <div style={{ color: U.muted, fontSize: 9, fontWeight: 600, letterSpacing: '0.07em', marginBottom: 10 }}>{t('adv.stats.title')}</div>
                 {statsLoading ? (
                   <div style={{ color: U.muted, fontSize: 11, textAlign: 'center', padding: '8px 0' }}>{t('adv.stats.loading')}</div>
