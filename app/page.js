@@ -10,6 +10,7 @@ import {
   subscribeToBookings, createCheckoutSession,
   fetchSlotStats, submitBuyoutOffer, recordClick,
 } from '../lib/supabase';
+import { getSession, signOut } from '../lib/supabase-auth';
 import { getT } from '../lib/i18n';
 
 // ─── Language context ─────────────────────────────────────────
@@ -65,13 +66,16 @@ function getSlotTheme(slot) {
 // ─── Hooks ────────────────────────────────────────────────────
 
 function useScreenSize() {
-  const [w, setW] = useState(typeof window !== 'undefined' ? window.innerWidth : 1200);
+  // ✅ Fix hydration mismatch (#418): start with 0 (matches SSR),
+  // then set real window value after mount in useEffect
+  const [w, setW] = useState(0);
   useEffect(() => {
+    setW(window.innerWidth);
     const fn = () => setW(window.innerWidth);
     window.addEventListener('resize', fn);
     return () => window.removeEventListener('resize', fn);
   }, []);
-  return { w, isMobile: w < 768 };
+  return { w, isMobile: w > 0 && w < 768 };
 }
 
 function useGridData() {
@@ -382,21 +386,76 @@ function BoostModal({ onClose }) {
 function CheckoutModal({ slot, onClose }) {
   const { isMobile } = useScreenSize();
   const t = useT();
-  const [email, setEmail]   = useState('');
-  const [days, setDays]     = useState(30);
+  const [step, setStep]       = useState(1); // 1=contenu, 2=paiement
+  const [email, setEmail]     = useState('');
+  const [days, setDays]       = useState(30);
   const [loading, setLoading] = useState(false);
-  const [error, setError]   = useState(null);
+  const [error, setError]     = useState(null);
+  // Contenu du bloc
+  const [category, setCategory] = useState('link');
+  const [blockForm, setBlockForm] = useState({
+    title: '', slogan: '', url: '', cta_text: 'Visiter',
+    image_url: '', primary_color: '', background_color: '#0d1828',
+    social_network: '', music_platform: '', app_store: 'web',
+  });
 
   const tier = slot?.tier;
   const pricePerDay = TIER_PRICE[tier] || 1;
   const totalPrice  = pricePerDay * days;
   const c = TIER_COLOR[tier];
 
+  const CATS = [
+    { id:'video',    label:'Vidéo',       icon:'▶', color:'#e53935', urlLabel:'LIEN VIDÉO',        urlPh:'https://youtube.com/watch?v=…',   showImg:false, showSocial:false, showMusic:false, showApp:false },
+    { id:'image',    label:'Image',        icon:'◻', color:'#8e24aa', urlLabel:'LIEN DESTINATION',  urlPh:'https://votresite.com',           showImg:true,  showSocial:false, showMusic:false, showApp:false },
+    { id:'link',     label:'Lien',         icon:'⌖', color:'#1e88e5', urlLabel:'URL DESTINATION',   urlPh:'https://votresite.com',           showImg:false, showSocial:false, showMusic:false, showApp:false },
+    { id:'social',   label:'Réseaux',      icon:'⊕', color:'#00acc1', urlLabel:'LIEN DU PROFIL',    urlPh:'https://instagram.com/…',         showImg:false, showSocial:true,  showMusic:false, showApp:false },
+    { id:'music',    label:'Musique',      icon:'♪', color:'#1ed760', urlLabel:"LIEN D'ÉCOUTE",     urlPh:'https://open.spotify.com/…',      showImg:false, showSocial:false, showMusic:true,  showApp:false },
+    { id:'app',      label:'App',          icon:'⬡', color:'#43a047', urlLabel:"LIEN DE L'APP",     urlPh:'https://apps.apple.com/…',        showImg:true,  showSocial:false, showMusic:false, showApp:true  },
+    { id:'brand',    label:'Marque',       icon:'⬟', color:'#f0b429', urlLabel:'SITE MARQUE',       urlPh:'https://votremarque.com',         showImg:true,  showSocial:false, showMusic:false, showApp:false },
+    { id:'clothing', label:'Vêtements',    icon:'◎', color:'#f4511e', urlLabel:'LIEN COLLECTION',   urlPh:'https://boutique.com',            showImg:true,  showSocial:false, showMusic:false, showApp:false },
+    { id:'lifestyle',label:'Lifestyle',    icon:'❋', color:'#00bfa5', urlLabel:'LIEN DESTINATION',  urlPh:'https://votrecontenu.com',        showImg:true,  showSocial:false, showMusic:false, showApp:false },
+    { id:'text',     label:'Publication',  icon:'≡', color:'#90a4ae', urlLabel:"LIEN DE L'ARTICLE", urlPh:'https://medium.com/…',            showImg:false, showSocial:false, showMusic:false, showApp:false },
+  ];
+  const SOCIALS = [
+    {id:'instagram',label:'Instagram',color:'#e1306c',e:'📸'},{id:'tiktok',label:'TikTok',color:'#69c9d0',e:'🎵'},
+    {id:'x',label:'X/Twitter',color:'#1d9bf0',e:'✕'},{id:'youtube',label:'YouTube',color:'#ff0000',e:'▶'},
+    {id:'linkedin',label:'LinkedIn',color:'#0a66c2',e:'💼'},{id:'snapchat',label:'Snapchat',color:'#fffc00',e:'👻'},
+    {id:'twitch',label:'Twitch',color:'#9146ff',e:'🎮'},{id:'discord',label:'Discord',color:'#5865f2',e:'💬'},
+  ];
+  const MUSIC_PLATS = [
+    {id:'spotify',label:'Spotify',color:'#1ed760',e:'🎵'},{id:'apple_music',label:'Apple Music',color:'#fc3c44',e:'🍎'},
+    {id:'soundcloud',label:'SoundCloud',color:'#ff5500',e:'☁'},{id:'deezer',label:'Deezer',color:'#a238ff',e:'🎶'},
+    {id:'youtube_music',label:'YT Music',color:'#ff0000',e:'▶'},{id:'bandcamp',label:'Bandcamp',color:'#1da0c3',e:'🎸'},
+  ];
+
+  const cat = CATS.find(c => c.id === category) || CATS[2];
+  const selSocial = SOCIALS.find(s => s.id === blockForm.social_network);
+  const selMusic  = MUSIC_PLATS.find(p => p.id === blockForm.music_platform);
+  const blockColor = blockForm.primary_color || selSocial?.color || selMusic?.color || cat.color;
+
+  const setF = (k,v) => setBlockForm(f => ({...f,[k]:v}));
+
+  const inpStyle = { width:'100%', padding:'10px 13px', borderRadius:8, background:U.faint, border:`1px solid ${U.border}`, color:U.text, fontSize:13, fontFamily:F.b, outline:'none', boxSizing:'border-box', transition:'border-color 0.15s' };
+  const focusInp = e => e.target.style.borderColor = U.border2;
+  const blurInp  = e => e.target.style.borderColor = U.border;
+
   const handleCheckout = async () => {
     if (!email || !email.includes('@')) { setError('Entrez un email valide'); return; }
     setLoading(true); setError(null);
     try {
-      const { url } = await createCheckoutSession({ slotX: slot.x, slotY: slot.y, tier: slot.tier, days, email });
+      const displayName = blockForm.title || email.split('@')[0];
+      const { url } = await createCheckoutSession({
+        slotX: slot.x, slotY: slot.y, tier: slot.tier, days, email,
+        display_name: displayName,
+        slogan: blockForm.slogan,
+        cta_url: blockForm.url,
+        cta_text: blockForm.cta_text || 'Visiter',
+        image_url: blockForm.image_url,
+        primary_color: blockColor,
+        background_color: blockForm.background_color || '#0d1828',
+        content_type: category,
+        badge: cat.label.toUpperCase(),
+      });
       window.location.href = url;
     } catch (err) {
       setError(err.message || 'Erreur lors du paiement');
@@ -405,55 +464,161 @@ function CheckoutModal({ slot, onClose }) {
   };
 
   if (!slot) return null;
+
   return (
-    <Modal onClose={onClose} width={460} isMobile={isMobile}>
-      <div style={{ padding: isMobile ? '24px 20px 32px' : '36px 36px 40px' }}>
-        <div style={{ marginBottom: 24 }}>
-          <div style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 4, background: `${c}18`, border: `1px solid ${c}30`, color: c, fontSize: 10, fontWeight: 700, letterSpacing: '0.05em', marginBottom: 10 }}>{TIER_LABEL[tier]}</div>
-          <h2 style={{ color: U.text, fontWeight: 700, fontSize: 20, fontFamily: F.h, margin: 0, letterSpacing: '-0.02em' }}>Réserver ce bloc</h2>
-          <div style={{ color: U.muted, fontSize: 12, marginTop: 4 }}>Position ({slot.x}, {slot.y}) · €{pricePerDay}/jour</div>
+    <Modal onClose={onClose} width={isMobile ? 360 : 520} isMobile={isMobile}>
+      <div style={{ padding: isMobile ? '20px 16px 28px' : '32px 36px 36px', maxHeight:'90vh', overflowY:'auto' }}>
+
+        {/* Header */}
+        <div style={{ marginBottom:20 }}>
+          <div style={{ display:'inline-block', padding:'2px 8px', borderRadius:4, background:`${c}18`, border:`1px solid ${c}30`, color:c, fontSize:10, fontWeight:700, letterSpacing:'0.05em', marginBottom:8 }}>{TIER_LABEL[tier]}</div>
+          <h2 style={{ color:U.text, fontWeight:700, fontSize:18, fontFamily:F.h, margin:'0 0 4px' }}>Réserver ce bloc</h2>
+          <div style={{ color:U.muted, fontSize:12 }}>Position ({slot.x}, {slot.y}) · €{pricePerDay}/jour</div>
         </div>
 
-        <div style={{ marginBottom: 18 }}>
-          <div style={{ color: U.muted, fontSize: 10, fontWeight: 600, letterSpacing: '0.07em', marginBottom: 10 }}>{t('checkout.duration')}</div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            {[7, 30, 90].map(d => (
-              <button key={d} onClick={() => setDays(d)} style={{ flex: 1, padding: '10px 8px', borderRadius: 8, cursor: 'pointer', fontFamily: F.b, background: days === d ? `${c}15` : U.faint, border: `1px solid ${days === d ? c + '55' : U.border}`, color: days === d ? U.text : U.muted, fontWeight: days === d ? 600 : 400, fontSize: 13, transition: 'all 0.15s' }}>
-                {d}j
-                <div style={{ fontSize: 10, opacity: 0.6, marginTop: 2 }}>€{pricePerDay * d}</div>
+        {/* Durée */}
+        <div style={{ marginBottom:20 }}>
+          <div style={{ color:U.muted, fontSize:10, fontWeight:600, letterSpacing:'0.07em', marginBottom:8 }}>DURÉE</div>
+          <div style={{ display:'flex', gap:8 }}>
+            {[7,30,90].map(d => (
+              <button key={d} onClick={() => setDays(d)} style={{ flex:1, padding:'9px 6px', borderRadius:8, cursor:'pointer', fontFamily:F.b, background:days===d?`${c}15`:U.faint, border:`1px solid ${days===d?c+'55':U.border}`, color:days===d?U.text:U.muted, fontWeight:days===d?600:400, fontSize:12, transition:'all 0.15s' }}>
+                {d}j <div style={{ fontSize:10, opacity:0.6, marginTop:1 }}>€{pricePerDay*d}</div>
               </button>
             ))}
           </div>
         </div>
 
-        <div style={{ marginBottom: 18 }}>
-          <div style={{ color: U.muted, fontSize: 10, fontWeight: 600, letterSpacing: '0.07em', marginBottom: 10 }}>EMAIL</div>
-          <input
-            type="email" value={email} onChange={e => setEmail(e.target.value)}
-            placeholder="votre@email.com"
-            style={{ width: '100%', padding: '11px 14px', borderRadius: 8, background: U.faint, border: `1px solid ${U.border}`, color: U.text, fontSize: 14, fontFamily: F.b, outline: 'none', boxSizing: 'border-box', transition: 'border-color 0.15s' }}
-            onFocus={e => e.target.style.borderColor = U.border2}
-            onBlur={e => e.target.style.borderColor = U.border}
-          />
+        <div style={{ height:1, background:U.border, marginBottom:20 }} />
+
+        {/* ─── CATÉGORIE ─── */}
+        <div style={{ marginBottom:16 }}>
+          <div style={{ color:U.muted, fontSize:10, fontWeight:600, letterSpacing:'0.07em', marginBottom:10 }}>CATÉGORIE DU BLOC</div>
+          <div style={{ display:'flex', flexWrap:'wrap', gap:5 }}>
+            {CATS.map(cat => (
+              <button key={cat.id} onClick={() => { setCategory(cat.id); setF('primary_color',''); }}
+                style={{ padding:'5px 10px', borderRadius:7, border:`1px solid ${category===cat.id?cat.color:U.border}`, background:category===cat.id?cat.color+'15':'transparent', color:category===cat.id?cat.color:U.muted, fontSize:11, fontWeight:category===cat.id?700:400, cursor:'pointer', display:'flex', alignItems:'center', gap:4, transition:'all 0.15s' }}>
+                <span>{cat.icon}</span><span>{cat.label}</span>
+              </button>
+            ))}
+          </div>
         </div>
 
-        <div style={{ padding: '12px 14px', borderRadius: 8, background: U.faint, border: `1px solid ${U.border}`, marginBottom: 18, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <span style={{ color: U.muted, fontSize: 13 }}>{days} jours × €{pricePerDay}</span>
-          <span style={{ color: U.text, fontWeight: 700, fontSize: 18, fontFamily: F.h }}>€{totalPrice}</span>
+        {/* ─── CHAMPS ADAPTATIFS ─── */}
+        <div style={{ display:'flex', flexDirection:'column', gap:12, marginBottom:20 }}>
+
+          <div>
+            <div style={{ color:U.muted, fontSize:10, fontWeight:600, letterSpacing:'0.07em', marginBottom:7 }}>NOM / TITRE</div>
+            <input type="text" value={blockForm.title} maxLength={40}
+              onChange={e => setF('title', e.target.value)}
+              onFocus={focusInp} onBlur={blurInp}
+              placeholder={cat.id==='social'?'Votre pseudo':cat.id==='music'?'Artiste / titre':'Votre nom ou marque'}
+              style={inpStyle} />
+          </div>
+
+          <div>
+            <div style={{ color:U.muted, fontSize:10, fontWeight:600, letterSpacing:'0.07em', marginBottom:7 }}>ACCROCHE</div>
+            <input type="text" value={blockForm.slogan} maxLength={80}
+              onChange={e => setF('slogan', e.target.value)}
+              onFocus={focusInp} onBlur={blurInp}
+              placeholder="Une phrase courte et percutante…"
+              style={inpStyle} />
+          </div>
+
+          {/* Réseau social picker */}
+          {cat.showSocial && (
+            <div>
+              <div style={{ color:U.muted, fontSize:10, fontWeight:600, letterSpacing:'0.07em', marginBottom:7 }}>RÉSEAU</div>
+              <div style={{ display:'flex', flexWrap:'wrap', gap:5 }}>
+                {SOCIALS.map(s => (
+                  <button key={s.id} onClick={() => { setF('social_network',s.id); setF('primary_color',s.color); }}
+                    style={{ padding:'5px 10px', borderRadius:7, border:`1px solid ${blockForm.social_network===s.id?s.color:U.border}`, background:blockForm.social_network===s.id?s.color+'18':'transparent', color:blockForm.social_network===s.id?s.color:U.muted, fontSize:11, fontWeight:600, cursor:'pointer', display:'flex', alignItems:'center', gap:4 }}>
+                    {s.e} {s.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Musique picker */}
+          {cat.showMusic && (
+            <div>
+              <div style={{ color:U.muted, fontSize:10, fontWeight:600, letterSpacing:'0.07em', marginBottom:7 }}>PLATEFORME</div>
+              <div style={{ display:'flex', flexWrap:'wrap', gap:5 }}>
+                {MUSIC_PLATS.map(p => (
+                  <button key={p.id} onClick={() => { setF('music_platform',p.id); setF('primary_color',p.color); }}
+                    style={{ padding:'5px 10px', borderRadius:7, border:`1px solid ${blockForm.music_platform===p.id?p.color:U.border}`, background:blockForm.music_platform===p.id?p.color+'18':'transparent', color:blockForm.music_platform===p.id?p.color:U.muted, fontSize:11, fontWeight:600, cursor:'pointer', display:'flex', alignItems:'center', gap:4 }}>
+                    {p.e} {p.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Image URL */}
+          {cat.showImg && (
+            <div>
+              <div style={{ color:U.muted, fontSize:10, fontWeight:600, letterSpacing:'0.07em', marginBottom:7 }}>IMAGE (URL)</div>
+              <input type="url" value={blockForm.image_url}
+                onChange={e => setF('image_url', e.target.value)}
+                onFocus={focusInp} onBlur={blurInp}
+                placeholder="https://exemple.com/image.jpg"
+                style={inpStyle} />
+            </div>
+          )}
+
+          {/* URL principale */}
+          <div>
+            <div style={{ color:U.muted, fontSize:10, fontWeight:600, letterSpacing:'0.07em', marginBottom:7 }}>{cat.urlLabel}</div>
+            <input type="url" value={blockForm.url}
+              onChange={e => setF('url', e.target.value)}
+              onFocus={focusInp} onBlur={blurInp}
+              placeholder={cat.urlPh}
+              style={inpStyle} />
+          </div>
+
+          {/* Aperçu */}
+          <div style={{ borderRadius:8, background:blockForm.background_color||'#0d1828', border:`1px solid ${blockColor}30`, padding:12, display:'flex', alignItems:'center', gap:10 }}>
+            <div style={{ width:36, height:36, borderRadius:7, flexShrink:0, background:blockForm.image_url?`url(${blockForm.image_url}) center/cover`:`${blockColor}18`, border:`2px solid ${blockColor}50`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:14, color:blockColor, overflow:'hidden' }}>
+              {!blockForm.image_url && (selSocial?.e || selMusic?.e || cat.icon)}
+            </div>
+            <div style={{ flex:1, minWidth:0 }}>
+              <div style={{ fontSize:12, fontWeight:700, color:blockColor }}>{blockForm.title||'Votre titre'}</div>
+              <div style={{ fontSize:10, color:'rgba(255,255,255,0.4)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{blockForm.slogan||'Votre accroche…'}</div>
+            </div>
+            <div style={{ fontSize:9, fontWeight:700, color:blockColor, padding:'2px 7px', background:`${blockColor}15`, borderRadius:4, border:`1px solid ${blockColor}30`, flexShrink:0 }}>{cat.label.toUpperCase()}</div>
+          </div>
+        </div>
+
+        <div style={{ height:1, background:U.border, marginBottom:20 }} />
+
+        {/* EMAIL */}
+        <div style={{ marginBottom:14 }}>
+          <div style={{ color:U.muted, fontSize:10, fontWeight:600, letterSpacing:'0.07em', marginBottom:7 }}>EMAIL</div>
+          <input type="email" value={email} onChange={e => setEmail(e.target.value)}
+            placeholder="votre@email.com"
+            style={inpStyle}
+            onFocus={focusInp} onBlur={blurInp} />
+        </div>
+
+        {/* Récap prix */}
+        <div style={{ padding:'11px 14px', borderRadius:8, background:U.faint, border:`1px solid ${U.border}`, marginBottom:16, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+          <span style={{ color:U.muted, fontSize:13 }}>{days} jours × €{pricePerDay}</span>
+          <span style={{ color:U.text, fontWeight:700, fontSize:18, fontFamily:F.h }}>€{totalPrice}</span>
         </div>
 
         {error && (
-          <div style={{ padding: '8px 12px', borderRadius: 6, background: `${U.err}12`, border: `1px solid ${U.err}30`, color: U.err, fontSize: 12, marginBottom: 14, textAlign: 'center' }}>{error}</div>
+          <div style={{ padding:'8px 12px', borderRadius:6, background:`${U.err}12`, border:`1px solid ${U.err}30`, color:U.err, fontSize:12, marginBottom:12, textAlign:'center' }}>{error}</div>
         )}
 
-        <button onClick={handleCheckout} disabled={loading} style={{ width: '100%', padding: '13px', borderRadius: 10, fontFamily: F.b, cursor: loading ? 'wait' : 'pointer', background: loading ? U.s2 : U.accent, border: 'none', color: loading ? U.muted : U.accentFg, fontWeight: 700, fontSize: 14, opacity: loading ? 0.6 : 1, transition: 'opacity 0.15s, box-shadow 0.2s', boxShadow: loading ? 'none' : `0 0 22px ${U.accent}50` }}>
+        <button onClick={handleCheckout} disabled={loading} style={{ width:'100%', padding:'13px', borderRadius:10, fontFamily:F.b, cursor:loading?'wait':'pointer', background:loading?U.s2:U.accent, border:'none', color:loading?U.muted:U.accentFg, fontWeight:700, fontSize:14, opacity:loading?0.6:1, transition:'opacity 0.15s, box-shadow 0.2s', boxShadow:loading?'none':`0 0 22px ${U.accent}50` }}>
           {loading ? 'Redirection vers Stripe…' : `Payer €${totalPrice}`}
         </button>
-        <div style={{ marginTop: 10, color: U.muted, fontSize: 11, textAlign: 'center' }}>{t('checkout.secure')}</div>
+        <div style={{ marginTop:10, color:U.muted, fontSize:11, textAlign:'center' }}>{t('checkout.secure')}</div>
       </div>
     </Modal>
   );
 }
+
 
 // ─── Block rendering ───────────────────────────────────────────
 
@@ -720,7 +885,7 @@ function FocusModal({ slot, allSlots, onClose, onNavigate, onGoAdvertiser }) {
             <div style={{ color: U.text, fontWeight: 700, fontSize: 18, fontFamily: F.h, marginBottom: 8, letterSpacing: '-0.02em' }}>{t('focus.empty.title')}</div>
             <div style={{ color: U.muted, fontSize: 13, lineHeight: 1.7, marginBottom: 24 }}>
               Ce bloc {TIER_LABEL[tier]} n'est actuellement occupé par personne.<br/>
-              Pour le louer ou faire une offre, rendez-vous dans<br/><span style={{ color: U.text, fontWeight: 600 }}>{t('nav.myspace')}</span>.
+              Pour le louer ou faire une offre, rendez-vous dans<br/><span style={{ color: U.text, fontWeight: 600 }}>{t('nav.reserve')}</span>.
             </div>
             <button onClick={() => { onClose(); onGoAdvertiser(); }} style={{ padding: '11px 24px', borderRadius: 10, fontFamily: F.b, cursor: 'pointer', background: U.faint, border: `1px solid ${U.border2}`, color: U.text, fontWeight: 600, fontSize: 13 }}>
               {t('focus.empty.cta')}
@@ -880,8 +1045,8 @@ function BoostTicker({ slots, onBoost }) {
 function PublicView({ slots, isLive, onGoAdvertiser }) {
   const t = useT();
   const containerRef  = useRef(null);
-  const [containerW, setContainerW] = useState(typeof window !== 'undefined' ? window.innerWidth : 1920);
-  const [containerH, setContainerH] = useState(typeof window !== 'undefined' ? window.innerHeight - 80 : 1000);
+  const [containerW, setContainerW] = useState(0); // ✅ Fix hydration: init 0, set real in ResizeObserver
+  const [containerH, setContainerH] = useState(0);
   const [focusSlot, setFocusSlot]   = useState(null);
   const [filterTier, setFilterTier] = useState('all');
   const [filterTheme, setFilterTheme] = useState('all');
@@ -1058,8 +1223,8 @@ function AdvertiserView({ slots, isLive, onWaitlist, onCheckout }) {
   const [slotStats, setSlotStats]       = useState(null);
   const [statsLoading, setStatsLoading] = useState(false);
   const containerRef  = useRef(null);
-  const [containerW, setContainerW] = useState(typeof window !== 'undefined' ? window.innerWidth : 1920);
-  const [containerH, setContainerH] = useState(typeof window !== 'undefined' ? window.innerHeight - 80 : 1000);
+  const [containerW, setContainerW] = useState(0); // ✅ Fix hydration: init 0, set real in ResizeObserver
+  const [containerH, setContainerH] = useState(0);
   const { isMobile } = useScreenSize();
 
   useEffect(() => {
@@ -1224,11 +1389,12 @@ function LandingGrid({ slots }) {
   const { isMobile } = useScreenSize();
   const canvasRef = useRef(null);
   const frameRef  = useRef(null);
-  const startRef  = useRef(performance.now());
+  const startRef  = useRef(0); // ✅ set in useEffect to avoid SSR mismatch
 
-  // pick a fixed set of "lit" slots so they don't change on re-render
-  const litSlots = useMemo(() => {
-    // always include center + corners + a few occupied random
+  // ✅ Fix hydration: Math.random() in useMemo causes server/client mismatch.
+  // Use useState + useEffect so random selection only runs client-side.
+  const [litSlots, setLitSlots] = useState([]);
+  useEffect(() => {
     const always = slots.filter(s =>
       (s.tier === 'one') ||
       (s.tier === 'corner_ten') ||
@@ -1237,7 +1403,7 @@ function LandingGrid({ slots }) {
     const randOcc  = slots.filter(s => s.occ  && s.tier === 'hundred').sort(() => .5 - Math.random()).slice(0, 12);
     const randVac  = slots.filter(s => !s.occ && s.tier === 'hundred').sort(() => .5 - Math.random()).slice(0, 8);
     const randVir  = slots.filter(s => s.tier === 'thousand').sort(() => .5 - Math.random()).slice(0, 20);
-    return [...always, ...randOcc, ...randVac, ...randVir];
+    setLitSlots([...always, ...randOcc, ...randVac, ...randVir]);
   }, [slots.length]);
 
   useEffect(() => {
@@ -1464,9 +1630,20 @@ export default function App() {
   const [checkoutSlot, setCheckoutSlot] = useState(null);
   const [buyoutSlot, setBuyoutSlot]     = useState(null);
   const [showBoost, setShowBoost]       = useState(false);
+  const [authUser, setAuthUser]         = useState(null);
   const { slots, isLive, loading }  = useGridData();
   const { isMobile } = useScreenSize();
   const handleWaitlist = useCallback(() => setShowWaitlist(true), []);
+
+  // Charger la session auth au montage
+  useEffect(() => {
+    getSession().then(s => setAuthUser(s?.user || null));
+  }, []);
+
+  const handleSignOut = useCallback(async () => {
+    await signOut();
+    setAuthUser(null);
+  }, []);
 
  const handleCheckout = useCallback(slot => {
   if (slot?.occ) {
@@ -1496,7 +1673,7 @@ export default function App() {
           <nav style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
             {[
               ['public',     t('nav.explore'),  '◈'],
-              ['advertiser', t('nav.myspace'),  '◉'],
+              ['advertiser', t('nav.reserve'),  '⊞'],
             ].map(([v, label, icon]) => (
               <button key={v} onClick={() => setView(v)} style={{ padding: isMobile ? '5px 7px' : '5px 12px', borderRadius: 7, fontFamily: F.b, cursor: 'pointer', background: view === v ? U.s2 : 'transparent', border: `1px solid ${view === v ? U.border2 : 'transparent'}`, color: view === v ? U.text : U.muted, fontSize: isMobile ? 11 : 12, fontWeight: view === v ? 600 : 400, transition: 'all 0.15s', whiteSpace: 'nowrap' }}>
                 {isMobile ? (view === v ? label : icon) : label}
@@ -1505,6 +1682,38 @@ export default function App() {
             <button onClick={handleWaitlist} style={{ padding: isMobile ? '5px 8px' : '6px 14px', borderRadius: 7, fontFamily: F.b, cursor: 'pointer', background: U.accent, border: 'none', color: U.accentFg, fontSize: isMobile ? 10 : 12, fontWeight: 700, marginLeft: 2, boxShadow: `0 0 16px ${U.accent}45`, whiteSpace: 'nowrap' }}>
               {isMobile ? t('nav.waitlist.short') : t('nav.waitlist')}
             </button>
+
+            {/* ── Auth icons ── */}
+            {authUser ? (
+              <>
+                {/* Icône profil → dashboard */}
+                <a href="/dashboard" title="Mon dashboard"
+                  style={{ width: 30, height: 30, borderRadius: '50%', background: 'rgba(212,168,75,0.15)', border: `1.5px solid ${U.accent}`, display: 'flex', alignItems: 'center', justifyContent: 'center', textDecoration: 'none', flexShrink: 0, cursor: 'pointer', transition: 'all 0.15s' }}
+                  onMouseEnter={e => { e.currentTarget.style.background = 'rgba(212,168,75,0.3)'; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = 'rgba(212,168,75,0.15)'; }}
+                >
+                  <span style={{ fontSize: 14 }}>👤</span>
+                </a>
+                {/* Déconnexion */}
+                {!isMobile && (
+                  <button onClick={handleSignOut} title="Se déconnecter"
+                    style={{ width: 30, height: 30, borderRadius: '50%', background: U.faint, border: `1px solid ${U.border2}`, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0, transition: 'all 0.15s' }}
+                    onMouseEnter={e => { e.currentTarget.style.borderColor = U.err; e.currentTarget.style.color = U.err; }}
+                    onMouseLeave={e => { e.currentTarget.style.borderColor = U.border2; e.currentTarget.style.color = U.muted; }}
+                  >
+                    <span style={{ fontSize: 13, color: U.muted }}>⏻</span>
+                  </button>
+                )}
+              </>
+            ) : (
+              <a href="/dashboard/login" title="Se connecter"
+                style={{ width: 30, height: 30, borderRadius: '50%', background: U.faint, border: `1px solid ${U.border2}`, display: 'flex', alignItems: 'center', justifyContent: 'center', textDecoration: 'none', flexShrink: 0, cursor: 'pointer', transition: 'all 0.15s' }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.3)'; e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = U.border2; e.currentTarget.style.background = U.faint; }}
+              >
+                <span style={{ fontSize: 14 }}>🔑</span>
+              </a>
+            )}
 
             {/* ── Language toggle ── */}
             <button

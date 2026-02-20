@@ -5,15 +5,19 @@ import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { createServiceClient } from '../../../../lib/supabase-server';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
-  apiVersion: '2023-10-16',
-});
-
-const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+// ✅ No module-level Stripe init — process.env not available at load time in CF Workers
 
 export const dynamic = 'force-dynamic';
 
 export async function POST(request) {
+  // ✅ Lazy init inside the handler — env vars are available here
+ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
+  apiVersion: '2023-10-16',
+  httpClient: Stripe.createFetchHttpClient(),
+});
+
+  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+
   let event;
 
   try {

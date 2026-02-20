@@ -8,13 +8,19 @@ import { TIER_PRICE, TIER_LABEL, getTier } from '../../../../lib/grid';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
   apiVersion: '2023-10-16',
+  httpClient: Stripe.createFetchHttpClient(),
 });
 
 
 
 export async function POST(request) {
   try {
-    const { slotX, slotY, tier, days = 30, email } = await request.json();
+    const {
+      slotX, slotY, tier, days = 30, email,
+      // Contenu du bloc (optionnel au checkout, éditable plus tard)
+      display_name, slogan, cta_url, cta_text, image_url,
+      primary_color, background_color, content_type, badge,
+    } = await request.json();
 
     // Validate input
     if (slotX == null || slotY == null || !email) {
@@ -114,6 +120,7 @@ export async function POST(request) {
     }
 
     // Create pending booking
+    const finalName = display_name || email.split('@')[0];
     await supabase.from('bookings').insert([{
       slot_x: slotX,
       slot_y: slotY,
@@ -123,8 +130,16 @@ export async function POST(request) {
       end_date: endDate,
       stripe_session_id: session.id,
       amount_cents: totalCents,
-      display_name: email.split('@')[0],
-      logo_initials: email.substring(0, 2).toUpperCase(),
+      display_name: finalName,
+      slogan: slogan || '',
+      logo_initials: finalName.substring(0, 2).toUpperCase(),
+      cta_url: cta_url || '',
+      cta_text: cta_text || 'Visiter',
+      image_url: image_url || '',
+      primary_color: primary_color || '#00d9f5',
+      background_color: background_color || '#0d1828',
+      content_type: content_type || 'link',
+      badge: badge || 'CRÉATEUR',
     }]);
 
     return NextResponse.json({ url: session.url, sessionId: session.id });
