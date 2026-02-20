@@ -37,6 +37,31 @@ const F = {
   b: "'DM Sans','Inter',sans-serif",
 };
 
+// ─── Theme categories ─────────────────────────────────────────
+const THEMES = [
+  { id: 'all',      label: 'Tous',         icon: '◈', color: null },
+  { id: 'video',    label: 'Vidéo',        icon: '▶', color: '#e53935', match: (t,n)   => t === 'video' },
+  { id: 'image',    label: 'Image',        icon: '◻', color: '#8e24aa', match: (t,n)   => t === 'image' },
+  { id: 'link',     label: 'Liens',        icon: '⌖', color: '#1e88e5', match: (t,n)   => t === 'link' },
+  { id: 'social',   label: 'Réseaux',      icon: '⊕', color: '#00acc1', match: (t,n)   => ['snapchat','instagram','tiktok','x.com','twitter','facebook','linkedin','meta'].some(s => n?.toLowerCase().includes(s)) },
+  { id: 'music',    label: 'Musique',      icon: '♪', color: '#1ed760', match: (t,n)   => ['spotify','music','apple music','deezer','soundcloud','artiste','artist'].some(s => n?.toLowerCase().includes(s)) },
+  { id: 'app',      label: 'App',          icon: '⬡', color: '#43a047', match: (t,n,u) => t === 'app' || ['play.google','apps.apple'].some(s => u?.includes(s)) },
+  { id: 'brand',    label: 'Marque',       icon: '⬟', color: '#f0b429', match: (t,n)   => t === 'brand' },
+  { id: 'clothing', label: 'Vêtements',    icon: '◎', color: '#f4511e', match: (t,n)   => ['nike','adidas','mode','fashion','vetement','clothing','wear','zara','uniqlo'].some(s => n?.toLowerCase().includes(s)) },
+  { id: 'lifestyle',label: 'Lifestyle',    icon: '❋', color: '#00bfa5', match: (t,n)   => ['airbnb','lifestyle','travel','voyage','food','wellness','yoga','sport'].some(s => n?.toLowerCase().includes(s)) },
+  { id: 'publish',  label: 'Publications', icon: '≡', color: '#90a4ae', match: (t,n)   => t === 'text' },
+];
+
+function getSlotTheme(slot) {
+  if (!slot.occ || !slot.tenant) return null;
+  const { t, name, url } = slot.tenant;
+  for (const th of THEMES) {
+    if (th.id === 'all') continue;
+    if (th.match?.(t, name, url)) return th;
+  }
+  return null;
+}
+
 // ─── Hooks ────────────────────────────────────────────────────
 
 function useScreenSize() {
@@ -105,7 +130,7 @@ const _BASE_LAYOUT = _buildBaseLayout();
 
 function useGridLayout(containerW, containerH, isMobile) {
   const { cw, rh, baseW } = _BASE_LAYOUT;
-  const k = isMobile ? 2 : Math.max(0.1, containerW / baseW);
+  const k = containerW > 0 ? Math.max(0.08, containerW / baseW) : (isMobile ? 0.18 : 1);
 
   const tierSizes = useMemo(() => ({
     one:        Math.round(BASE_SIZE.one        * k),
@@ -156,14 +181,15 @@ function BrandLogo({ size = 20, onClick }) {
 
 function AnnouncementBar() {
   const [visible, setVisible] = useState(true);
+  const { isMobile } = useScreenSize();
   const t = useT();
   if (!visible) return null;
   return (
-    <div style={{ background: U.s1, borderBottom: `1px solid ${U.border}`, padding: '9px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, fontSize: 12, color: U.muted }}>
-        <span style={{ background: U.accentFg, color: U.accent, fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', padding: '2px 7px', borderRadius: 3 }}>{t('banner.badge')}</span>
-        <span>{t('banner.text')}</span>
-        <button onClick={() => {}} style={{ color: U.accent, background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, padding: 0, fontFamily: F.b }}>
+    <div style={{ background: U.s1, borderBottom: `1px solid ${U.border}`, padding: isMobile ? '6px 12px' : '9px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0, minHeight: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 8 : 12, fontSize: isMobile ? 11 : 12, color: U.muted, overflow: 'hidden' }}>
+        <span style={{ background: U.accentFg, color: U.accent, fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', padding: '2px 7px', borderRadius: 3, flexShrink: 0 }}>{t('banner.badge')}</span>
+        {!isMobile && <span>{t('banner.text')}</span>}
+        <button onClick={() => {}} style={{ color: U.accent, background: 'none', border: 'none', cursor: 'pointer', fontSize: isMobile ? 11 : 12, padding: 0, fontFamily: F.b, whiteSpace: 'nowrap' }}>
           {t('banner.cta')}
         </button>
       </div>
@@ -248,6 +274,111 @@ function WaitlistModal({ onClose }) {
 }
 
 // ─── Checkout Modal ────────────────────────────────────────────
+
+// ─── Boost Modal (1€/h spotlight) ─────────────────────────────
+function BoostModal({ onClose }) {
+  const { isMobile } = useScreenSize();
+  const t = useT();
+  const [hours, setHours] = useState(3);
+  const [email, setEmail] = useState('');
+  const [url, setUrl] = useState('');
+  const [name, setName] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [sent, setSent] = useState(false);
+
+  const total = hours;
+
+  const handleSubmit = async () => {
+    if (!email || !email.includes('@')) { setError('Email invalide'); return; }
+    if (!url || !url.startsWith('http')) { setError('URL invalide (ex: https://monsite.com)'); return; }
+    if (!name.trim()) { setError('Nom requis'); return; }
+    setLoading(true); setError(null);
+    try {
+      await fetch('/api/offers/submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'boost', hours, email, url, name, totalCents: total * 100 }),
+      });
+      setSent(true);
+    } catch {
+      setError('Erreur réseau, réessayez.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Modal onClose={onClose} width={460} isMobile={isMobile}>
+      <div style={{ padding: isMobile ? '24px 20px 32px' : '36px 36px 40px' }}>
+        {!sent ? (<>
+          {/* Header */}
+          <div style={{ marginBottom: 24 }}>
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '3px 10px', borderRadius: 4, background: `${U.accent}18`, border: `1px solid ${U.accent}40`, color: U.accent, fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', marginBottom: 12 }}>
+              ⚡ BOOST SPOTLIGHT
+            </div>
+            <h2 style={{ color: U.text, fontWeight: 700, fontSize: 20, fontFamily: F.h, margin: '0 0 6px', letterSpacing: '-0.02em' }}>Mettre votre bloc en avant</h2>
+            <p style={{ color: U.muted, fontSize: 13, margin: 0, lineHeight: 1.6 }}>Votre marque défile dans la <strong style={{ color: U.text }}>barre de diffusion</strong> en haut de l'Explorer, visible par tous les visiteurs. <strong style={{ color: U.text }}>1€/heure</strong>, sans engagement.</p>
+          </div>
+
+          {/* Duration picker */}
+          <div style={{ marginBottom: 18 }}>
+            <div style={{ color: U.muted, fontSize: 10, fontWeight: 600, letterSpacing: '0.07em', marginBottom: 10 }}>DURÉE</div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              {[1, 3, 6, 12, 24].map(h => (
+                <button key={h} onClick={() => setHours(h)} style={{ flex: 1, padding: '9px 4px', borderRadius: 8, cursor: 'pointer', fontFamily: F.b, background: hours === h ? `${U.accent}15` : U.faint, border: `1px solid ${hours === h ? U.accent + '55' : U.border}`, color: hours === h ? U.accent : U.muted, fontWeight: hours === h ? 700 : 400, fontSize: 12, transition: 'all 0.15s' }}>
+                  {h}h
+                  <div style={{ fontSize: 10, opacity: 0.7, marginTop: 2 }}>€{h}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Fields */}
+          {[
+            ['Votre nom / marque', name, setName, 'text', 'Nike, StartupXYZ…'],
+            ['URL de destination', url, setUrl, 'url', 'https://monsite.com'],
+            ['Email de contact', email, setEmail, 'email', 'vous@email.com'],
+          ].map(([label, val, setter, type, ph]) => (
+            <div key={label} style={{ marginBottom: 14 }}>
+              <div style={{ color: U.muted, fontSize: 10, fontWeight: 600, letterSpacing: '0.07em', marginBottom: 8 }}>{label.toUpperCase()}</div>
+              <input
+                type={type} value={val} onChange={e => setter(e.target.value)}
+                placeholder={ph}
+                style={{ width: '100%', padding: '11px 14px', borderRadius: 8, background: U.faint, border: `1px solid ${U.border}`, color: U.text, fontSize: 13, fontFamily: F.b, outline: 'none', boxSizing: 'border-box', transition: 'border-color 0.15s' }}
+                onFocus={e => e.target.style.borderColor = U.border2}
+                onBlur={e => e.target.style.borderColor = U.border}
+              />
+            </div>
+          ))}
+
+          {/* Summary */}
+          <div style={{ padding: '12px 14px', borderRadius: 8, background: `${U.accent}08`, border: `1px solid ${U.accent}25`, marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ color: U.muted, fontSize: 13 }}>{hours}h × 1€/h</span>
+            <span style={{ color: U.accent, fontWeight: 700, fontSize: 20, fontFamily: F.h }}>€{total}</span>
+          </div>
+
+          {error && (
+            <div style={{ padding: '8px 12px', borderRadius: 6, background: `${U.err}12`, border: `1px solid ${U.err}30`, color: U.err, fontSize: 12, marginBottom: 14, textAlign: 'center' }}>{error}</div>
+          )}
+
+          <button onClick={handleSubmit} disabled={loading} style={{ width: '100%', padding: '13px', borderRadius: 10, fontFamily: F.b, cursor: loading ? 'wait' : 'pointer', background: U.accent, border: 'none', color: U.accentFg, fontWeight: 700, fontSize: 14, opacity: loading ? 0.7 : 1, boxShadow: `0 0 22px ${U.accent}45`, transition: 'opacity 0.15s' }}>
+            {loading ? 'Envoi…' : `Lancer le boost — €${total}`}
+          </button>
+          <div style={{ marginTop: 10, color: U.muted, fontSize: 11, textAlign: 'center' }}>Paiement sécurisé · Activation sous 1h · Annulation libre</div>
+        </>) : (
+          <div style={{ textAlign: 'center', padding: '20px 0' }}>
+            <div style={{ fontSize: 40, marginBottom: 16 }}>⚡</div>
+            <h2 style={{ color: U.text, fontFamily: F.h, fontSize: 22, margin: '0 0 10px', letterSpacing: '-0.02em' }}>Boost reçu !</h2>
+            <p style={{ color: U.muted, fontSize: 13, lineHeight: 1.7, margin: '0 0 24px' }}>Votre demande a été transmise.<br />Vous recevrez les instructions de paiement par email sous peu.</p>
+            <button onClick={onClose} style={{ padding: '11px 28px', borderRadius: 10, fontFamily: F.b, cursor: 'pointer', background: U.accent, border: 'none', color: U.accentFg, fontWeight: 700, fontSize: 14 }}>Fermer</button>
+          </div>
+        )}
+      </div>
+    </Modal>
+  );
+}
+
 function CheckoutModal({ slot, onClose }) {
   const { isMobile } = useScreenSize();
   const t = useT();
@@ -688,7 +819,7 @@ function TikTokFeed({ slots, isLive }) {
                 <a href={tenant.url} target="_blank" rel="noopener noreferrer" onClick={() => recordClick(slot.x, slot.y, slot.bookingId)} style={{ display: 'block', padding: '10px 14px', borderRadius: 9, background: c, color: U.accentFg, fontWeight: 700, fontSize: 12, fontFamily: F.b, textDecoration: 'none', textAlign: 'center', boxShadow: `0 0 18px ${c}50` }}>
                   {tenant.cta}{' ->'}
                 </a>
-              </>)}
+              </>) : null}
             </div>
 
             {/* Progress dots */}
@@ -707,6 +838,45 @@ function TikTokFeed({ slots, isLive }) {
 }
 
 // ─── Public View ───────────────────────────────────────────────
+// ─── Boost Ticker (scrolling banner of boosted slots) ──────────
+function BoostTicker({ slots, onBoost }) {
+  const boosted = slots.filter(s => s.occ && s.tenant);
+  if (boosted.length === 0) return null;
+  // Duplicate list for seamless loop
+  const items = [...boosted, ...boosted];
+  return (
+    <div style={{ borderBottom: `1px solid ${U.accent}25`, background: `${U.accent}08`, flexShrink: 0, overflow: 'hidden', height: 30, display: 'flex', alignItems: 'center', position: 'relative' }}>
+      {/* Left label */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '0 10px 0 12px', flexShrink: 0, borderRight: `1px solid ${U.accent}30`, height: '100%', background: `${U.accent}10`, zIndex: 2 }}>
+        <span style={{ fontSize: 9 }}>⚡</span>
+        <span style={{ color: U.accent, fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', whiteSpace: 'nowrap' }}>BOOST</span>
+      </div>
+      {/* Scrolling track */}
+      <div style={{ flex: 1, overflow: 'hidden', position: 'relative', maskImage: 'linear-gradient(to right, transparent 0%, black 3%, black 97%, transparent 100%)', WebkitMaskImage: 'linear-gradient(to right, transparent 0%, black 3%, black 97%, transparent 100%)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 0, animation: 'tickerScroll 40s linear infinite', width: 'max-content', willChange: 'transform' }}>
+          {items.map((slot, i) => {
+            const theme = getSlotTheme(slot);
+            const c = theme?.color || slot.tenant.c || U.accent;
+            return (
+              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '0 18px', borderRight: `1px solid ${U.border}`, height: 30, cursor: 'pointer', flexShrink: 0 }}
+                onClick={() => window.open(slot.tenant.url, '_blank')}>
+                <span style={{ width: 16, height: 16, borderRadius: 4, background: `${c}22`, border: `1px solid ${c}50`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 8, fontWeight: 900, color: c, fontFamily: 'monospace', flexShrink: 0 }}>{slot.tenant.l?.charAt(0)}</span>
+                <span style={{ color: 'rgba(255,255,255,0.7)', fontSize: 10, fontWeight: 600, whiteSpace: 'nowrap' }}>{slot.tenant.name}</span>
+                {theme && <span style={{ color: c, fontSize: 8, opacity: 0.7 }}>{theme.icon}</span>}
+                <span style={{ color: 'rgba(255,255,255,0.28)', fontSize: 9, whiteSpace: 'nowrap' }}>{slot.tenant.cta}</span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+      {/* Right CTA */}
+      <button onClick={onBoost} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '0 12px', height: '100%', background: `${U.accent}15`, border: 'none', borderLeft: `1px solid ${U.accent}30`, cursor: 'pointer', flexShrink: 0, color: U.accent, fontSize: 9, fontWeight: 700, fontFamily: 'inherit', letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>
+        + Ajouter ici
+      </button>
+    </div>
+  );
+}
+
 function PublicView({ slots, isLive, onGoAdvertiser }) {
   const t = useT();
   const containerRef  = useRef(null);
@@ -714,6 +884,7 @@ function PublicView({ slots, isLive, onGoAdvertiser }) {
   const [containerH, setContainerH] = useState(typeof window !== 'undefined' ? window.innerHeight - 80 : 1000);
   const [focusSlot, setFocusSlot]   = useState(null);
   const [filterTier, setFilterTier] = useState('all');
+  const [filterTheme, setFilterTheme] = useState('all');
   const [feedMode, setFeedMode]     = useState(false);
   const { isMobile } = useScreenSize();
 
@@ -743,8 +914,12 @@ function PublicView({ slots, isLive, onGoAdvertiser }) {
   const filteredSlots = useMemo(() => {
     let s = slots;
     if (filterTier !== 'all') s = s.filter(sl => sl.tier === filterTier || (filterTier === 'ten' && sl.tier === 'corner_ten'));
+    if (filterTheme !== 'all') {
+      const theme = THEMES.find(t => t.id === filterTheme);
+      if (theme) s = s.filter(sl => sl.occ && theme.match?.(sl.tenant?.t, sl.tenant?.name, sl.tenant?.url));
+    }
     return new Set(s.map(sl => sl.id));
-  }, [slots, filterTier]);
+  }, [slots, filterTier, filterTheme]);
 
   const stats = useMemo(() => ({ occupied: slots.filter(s => s.occ).length, vacant: slots.filter(s => !s.occ).length }), [slots]);
 
@@ -758,46 +933,75 @@ function PublicView({ slots, isLive, onGoAdvertiser }) {
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: U.bg }}>
-      {/* Toolbar */}
-      <div style={{ height: 44, padding: '0 16px', borderBottom: `1px solid ${U.border}`, background: U.s1, display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-        {/* View toggle */}
-        <div style={{ display: 'flex', background: U.faint, border: `1px solid ${U.border}`, borderRadius: 7, overflow: 'hidden', flexShrink: 0 }}>
-          {[['grid','Grille'], ['feed','Feed']].map(([id, label]) => (
-            <button key={id} onClick={() => setFeedMode(id === 'feed')} style={{ padding: '4px 12px', fontFamily: F.b, cursor: 'pointer', fontSize: 11, background: (feedMode ? 'feed' : 'grid') === id ? U.s2 : 'transparent', border: 'none', color: (feedMode ? 'feed' : 'grid') === id ? U.text : U.muted, fontWeight: (feedMode ? 'feed' : 'grid') === id ? 600 : 400, transition: 'all 0.15s' }}>{t(id === 'grid' ? 'toolbar.grid' : 'toolbar.feed')}</button>
-          ))}
+      {/* ── Row 1: View toggle + Tier filters + Live stats ── */}
+      <div style={{ borderBottom: `1px solid ${U.border}`, background: `${U.s1}f5`, backdropFilter: 'blur(12px)', flexShrink: 0, overflowX: 'auto', overflowY: 'hidden', WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 14px', height: 40, minWidth: 'max-content' }}>
+          {/* View toggle */}
+          <div style={{ display: 'flex', background: U.faint, border: `1px solid ${U.border}`, borderRadius: 7, overflow: 'hidden', flexShrink: 0 }}>
+            {[['grid','Grille'], ['feed','Feed']].map(([id, label]) => (
+              <button key={id} onClick={() => setFeedMode(id === 'feed')} style={{ padding: '4px 11px', fontFamily: F.b, cursor: 'pointer', fontSize: 11, background: (feedMode ? 'feed' : 'grid') === id ? U.s2 : 'transparent', border: 'none', color: (feedMode ? 'feed' : 'grid') === id ? U.text : U.muted, fontWeight: (feedMode ? 'feed' : 'grid') === id ? 600 : 400, transition: 'all 0.15s', whiteSpace: 'nowrap' }}>{t(id === 'grid' ? 'toolbar.grid' : 'toolbar.feed')}</button>
+            ))}
+          </div>
+
+          {!feedMode && <>
+            <div style={{ width: 1, height: 16, background: U.border, flexShrink: 0 }} />
+            {tierFilters.map(([id, label]) => (
+              <button key={id} onClick={() => setFilterTier(id)} style={{ padding: '4px 9px', borderRadius: 6, fontFamily: F.b, cursor: 'pointer', fontSize: 11, background: filterTier === id ? U.s2 : 'transparent', border: `1px solid ${filterTier === id ? U.border2 : 'transparent'}`, color: filterTier === id ? U.text : U.muted, fontWeight: filterTier === id ? 600 : 400, transition: 'all 0.15s', whiteSpace: 'nowrap' }}>{label}</button>
+            ))}
+          </>}
+
+          <div style={{ marginLeft: 'auto', display: 'flex', gap: 10, alignItems: 'center', paddingLeft: 12, flexShrink: 0 }}>
+            {isLive && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                <div style={{ width: 5, height: 5, borderRadius: '50%', background: '#4caf50', animation: 'blink 2s infinite' }} />
+                <span style={{ color: U.muted, fontSize: 10, fontWeight: 500 }}>{t('toolbar.live')}</span>
+              </div>
+            )}
+            {!isMobile && (
+              <>
+                <span style={{ color: U.muted, fontSize: 11 }}><span style={{ color: U.text, fontWeight: 600 }}>{stats.occupied}</span> {t('toolbar.active')}</span>
+                <span style={{ color: U.muted, fontSize: 11 }}><span style={{ color: U.text, fontWeight: 600 }}>{stats.vacant}</span> {t('toolbar.free')}</span>
+              </>
+            )}
+          </div>
         </div>
-
-        {!feedMode && <>
-          <div style={{ width: 1, height: 16, background: U.border, flexShrink: 0 }} />
-          {tierFilters.map(([id, label]) => (
-            <button key={id} onClick={() => setFilterTier(id)} style={{ padding: '4px 10px', borderRadius: 6, fontFamily: F.b, cursor: 'pointer', fontSize: 11, background: filterTier === id ? U.s2 : 'transparent', border: `1px solid ${filterTier === id ? U.border2 : 'transparent'}`, color: filterTier === id ? U.text : U.muted, fontWeight: filterTier === id ? 600 : 400, transition: 'all 0.15s', whiteSpace: 'nowrap' }}>{label}</button>
-          ))}
-        </>}
-
-        <div style={{ marginLeft: 'auto', display: 'flex', gap: 16, alignItems: 'center' }}>
-          {isLive && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-              <div style={{ width: 5, height: 5, borderRadius: '50%', background: '#4caf50', animation: 'blink 2s infinite' }} />
-              <span style={{ color: U.muted, fontSize: 10, fontWeight: 500 }}>{t('toolbar.live')}</span>
-            </div>
-          )}
-          {!isMobile && (
-            <>
-              <span style={{ color: U.muted, fontSize: 11 }}><span style={{ color: U.text, fontWeight: 600 }}>{stats.occupied}</span> {t('toolbar.active')}</span>
-              <span style={{ color: U.muted, fontSize: 11 }}><span style={{ color: U.text, fontWeight: 600 }}>{stats.vacant}</span> {t('toolbar.free')}</span>
-            </>
-          )}
-        </div>
-
-
       </div>
 
+      {/* ── Row 2: Theme filters (grid only) ── */}
+      {!feedMode && (
+        <div style={{ borderBottom: `1px solid ${U.border}`, background: U.bg, flexShrink: 0, overflowX: 'auto', overflowY: 'hidden', WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '0 14px', height: 36, minWidth: 'max-content' }}>
+            {THEMES.map(th => {
+              const active = filterTheme === th.id;
+              const col = th.color || U.muted;
+              return (
+                <button key={th.id} onClick={() => setFilterTheme(th.id)} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '3px 9px', borderRadius: 20, fontFamily: F.b, cursor: 'pointer', fontSize: 10, fontWeight: active ? 700 : 400, whiteSpace: 'nowrap', transition: 'all 0.15s', background: active ? `${col}22` : 'transparent', border: `1px solid ${active ? col + '66' : 'transparent'}`, color: active ? col : U.muted }}>
+                  <span style={{ fontSize: 9 }}>{th.icon}</span>
+                  {th.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ── Boost ticker ── */}
+      <BoostTicker slots={slots} onBoost={onGoAdvertiser} />
+
       {/* Les deux vues restent dans le DOM — display:none évite le remount et préserve containerW */}
-      <div style={{ flex: 1, display: feedMode ? 'none' : 'flex', overflow: 'auto', alignItems: 'flex-start', justifyContent: 'center' }} ref={containerRef}>
+      <div style={{ flex: 1, display: feedMode ? 'none' : 'flex', overflow: 'auto', alignItems: 'flex-start', justifyContent: 'center', minHeight: 0 }} ref={containerRef}>
         <div style={{ position: 'relative', width: totalGridW, height: totalGridH, flexShrink: 0 }}>
           {slots.map(slot => (
             <div key={slot.id} style={{ position: 'absolute', left: colOffsets[slot.x], top: rowOffsets[slot.y], opacity: filteredSlots.has(slot.id) ? 1 : 0.06, transition: 'opacity 0.2s' }}>
-              <BlockCell slot={slot} isSelected={false} onSelect={() => {}} onFocus={setFocusSlot} sz={tierSizes[slot.tier]} />
+              {/* Theme glow overlay */}
+              {(() => {
+                const th = filterTheme !== 'all' ? getSlotTheme(slot) : null;
+                const isMatch = th && filteredSlots.has(slot.id) && slot.occ;
+                return (<>
+                  <BlockCell slot={slot} isSelected={false} onSelect={() => {}} onFocus={setFocusSlot} sz={tierSizes[slot.tier]} />
+                  {isMatch && th.color && <div style={{ position: 'absolute', inset: 0, borderRadius: 4, boxShadow: `0 0 0 2px ${th.color}80, 0 0 14px ${th.color}40`, pointerEvents: 'none', zIndex: 5 }} />}
+                </>);
+              })()}
             </div>
           ))}
         </div>
@@ -895,9 +1099,9 @@ function AdvertiserView({ slots, isLive, onWaitlist, onCheckout }) {
   ];
 
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: isMobile ? 'column' : 'row', overflow: 'hidden', background: U.bg }}>
+    <div style={{ flex: 1, display: 'flex', flexDirection: isMobile ? 'column' : 'row', overflow: 'hidden', background: U.bg, minHeight: 0 }}>
       {/* Sidebar */}
-      <div style={{ width: isMobile ? '100%' : 280, flexShrink: 0, background: U.s1, borderRight: isMobile ? 'none' : `1px solid ${U.border}`, borderBottom: isMobile ? `1px solid ${U.border}` : 'none', overflowY: 'auto', display: 'flex', flexDirection: 'column', order: isMobile ? 2 : 0 }}>
+      <div style={{ width: isMobile ? '100%' : 280, flexShrink: 0, background: U.s1, borderRight: isMobile ? 'none' : `1px solid ${U.border}`, borderBottom: isMobile ? `1px solid ${U.border}` : 'none', overflowY: 'auto', display: 'flex', flexDirection: 'column', order: isMobile ? 2 : 0, maxHeight: isMobile ? '55vh' : undefined, minHeight: 0 }}>
         <div style={{ padding: isMobile ? '16px 16px' : '24px 20px', borderBottom: `1px solid ${U.border}` }}>
           <div style={{ color: U.muted, fontSize: 10, fontWeight: 600, letterSpacing: '0.07em', marginBottom: 14 }}>{t('adv.choose')}</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -1002,7 +1206,7 @@ function AdvertiserView({ slots, isLive, onWaitlist, onCheckout }) {
       </div>
 
       {/* Grid */}
-      <div ref={containerRef} style={{ flex: 1, overflow: 'auto', background: U.bg, order: isMobile ? 1 : 0, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', minHeight: isMobile ? '40vh' : undefined }}>
+      <div ref={containerRef} style={{ flex: 1, overflow: 'auto', background: U.bg, order: isMobile ? 1 : 0, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', minHeight: 0, maxHeight: isMobile ? '45vh' : undefined }}>
         <div style={{ position: 'relative', width: totalGridW, height: totalGridH, flexShrink: 0 }}>
           {slots.map(slot => (
             <div key={slot.id} style={{ position: 'absolute', left: colOffsets[slot.x], top: rowOffsets[slot.y] }}>
@@ -1178,7 +1382,7 @@ function LandingPage({ slots, onPublic, onAdvertiser, onWaitlist }) {
   const t = useT();
   const stats = useMemo(() => ({ occupied: slots.filter(s => s.occ).length, vacant: slots.filter(s => !s.occ).length }), [slots]);
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: isMobile ? '32px 20px' : '48px 40px', position: 'relative', overflow: 'hidden', background: U.bg }}>
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: isMobile ? 'flex-start' : 'center', padding: isMobile ? '32px 20px 48px' : '48px 40px', position: 'relative', overflowY: 'auto', overflowX: 'hidden', background: U.bg }}>
 
       {/* Animated mini-grid background */}
       <div style={{ position: 'absolute', inset: 0, overflow: 'hidden', pointerEvents: 'none' }}>
@@ -1259,6 +1463,7 @@ export default function App() {
   const [showWaitlist, setShowWaitlist] = useState(false);
   const [checkoutSlot, setCheckoutSlot] = useState(null);
   const [buyoutSlot, setBuyoutSlot]     = useState(null);
+  const [showBoost, setShowBoost]       = useState(false);
   const { slots, isLive, loading }  = useGridData();
   const { isMobile } = useScreenSize();
   const handleWaitlist = useCallback(() => setShowWaitlist(true), []);
@@ -1274,23 +1479,23 @@ export default function App() {
 
   return (
     <LangContext.Provider value={lang}>
-      <div style={{ display: 'flex', height: '100vh', background: U.bg, fontFamily: F.b, color: U.text, overflow: 'hidden', flexDirection: 'column' }}>
+      <div style={{ display: 'flex', height: '100vh', background: U.bg, fontFamily: F.b, color: U.text, flexDirection: 'column', overflow: view === 'landing' ? 'auto' : 'hidden' }}>
         <AnnouncementBar />
 
         {/* Header */}
-        <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: isMobile ? '0 14px' : '0 24px', height: 48, flexShrink: 0, borderBottom: `1px solid ${U.border}`, background: `${U.s1}f0`, backdropFilter: 'blur(14px)', zIndex: 100 }}>
+        <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: isMobile ? '0 12px' : '0 24px', height: 48, flexShrink: 0, borderBottom: `1px solid ${U.border}`, background: `${U.s1}f0`, backdropFilter: 'blur(14px)', zIndex: 100, gap: 8 }}>
           <BrandLogo size={isMobile ? 15 : 17} onClick={() => setView('landing')} />
 
           <nav style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
             {[
-              ['public',     t('nav.explore')],
-              ['advertiser', t('nav.myspace')],
-            ].map(([v, label]) => (
-              <button key={v} onClick={() => setView(v)} style={{ padding: '5px 12px', borderRadius: 7, fontFamily: F.b, cursor: 'pointer', background: view === v ? U.s2 : 'transparent', border: `1px solid ${view === v ? U.border2 : 'transparent'}`, color: view === v ? U.text : U.muted, fontSize: 12, fontWeight: view === v ? 600 : 400, transition: 'all 0.15s' }}>
-                {label}
+              ['public',     t('nav.explore'),  '◈'],
+              ['advertiser', t('nav.myspace'),  '◉'],
+            ].map(([v, label, icon]) => (
+              <button key={v} onClick={() => setView(v)} style={{ padding: isMobile ? '5px 7px' : '5px 12px', borderRadius: 7, fontFamily: F.b, cursor: 'pointer', background: view === v ? U.s2 : 'transparent', border: `1px solid ${view === v ? U.border2 : 'transparent'}`, color: view === v ? U.text : U.muted, fontSize: isMobile ? 11 : 12, fontWeight: view === v ? 600 : 400, transition: 'all 0.15s', whiteSpace: 'nowrap' }}>
+                {isMobile ? (view === v ? label : icon) : label}
               </button>
             ))}
-            <button onClick={handleWaitlist} style={{ padding: '6px 14px', borderRadius: 7, fontFamily: F.b, cursor: 'pointer', background: U.accent, border: 'none', color: U.accentFg, fontSize: 12, fontWeight: 700, marginLeft: 4, boxShadow: `0 0 16px ${U.accent}45` }}>
+            <button onClick={handleWaitlist} style={{ padding: isMobile ? '5px 8px' : '6px 14px', borderRadius: 7, fontFamily: F.b, cursor: 'pointer', background: U.accent, border: 'none', color: U.accentFg, fontSize: isMobile ? 10 : 12, fontWeight: 700, marginLeft: 2, boxShadow: `0 0 16px ${U.accent}45`, whiteSpace: 'nowrap' }}>
               {isMobile ? t('nav.waitlist.short') : t('nav.waitlist')}
             </button>
 
@@ -1298,9 +1503,9 @@ export default function App() {
             <button
               onClick={() => setLang(l => l === 'fr' ? 'en' : 'fr')}
               title={lang === 'fr' ? 'Switch to English' : 'Passer en français'}
-              style={{ marginLeft: 4, padding: '4px 9px', borderRadius: 7, fontFamily: F.b, cursor: 'pointer', background: U.faint, border: `1px solid ${U.border2}`, color: U.muted, fontSize: 11, fontWeight: 700, letterSpacing: '0.05em', transition: 'all 0.15s' }}
-              onMouseEnter={e => { e.currentTarget.style.color = U.text; e.currentTarget.style.borderColor = U.border2; }}
-              onMouseLeave={e => { e.currentTarget.style.color = U.muted; e.currentTarget.style.borderColor = U.border; }}
+              style={{ marginLeft: isMobile ? 2 : 4, padding: isMobile ? '4px 7px' : '4px 9px', borderRadius: 7, fontFamily: F.b, cursor: 'pointer', background: U.faint, border: `1px solid ${U.border2}`, color: U.muted, fontSize: isMobile ? 10 : 11, fontWeight: 700, letterSpacing: '0.05em', transition: 'all 0.15s', flexShrink: 0 }}
+              onMouseEnter={e => { e.currentTarget.style.color = U.text; }}
+              onMouseLeave={e => { e.currentTarget.style.color = U.muted; }}
             >
               {lang === 'fr' ? 'EN' : 'FR'}
             </button>
@@ -1308,11 +1513,12 @@ export default function App() {
         </header>
 
         {view === 'landing'    && <LandingPage    slots={slots} onPublic={() => setView('public')} onAdvertiser={() => setView('advertiser')} onWaitlist={handleWaitlist} />}
-        {view === 'public'     && <PublicView     slots={slots} isLive={isLive} onGoAdvertiser={() => setView('advertiser')} />}
+        {view === 'public'     && <PublicView     slots={slots} isLive={isLive} onGoAdvertiser={() => setShowBoost(true)} />}
         {view === 'advertiser' && <AdvertiserView slots={slots} isLive={isLive} onWaitlist={handleWaitlist} onCheckout={handleCheckout} />}
         {showWaitlist  && <WaitlistModal  onClose={() => setShowWaitlist(false)} />}
         {checkoutSlot  && <CheckoutModal  slot={checkoutSlot} onClose={() => setCheckoutSlot(null)} />}
         {buyoutSlot    && <BuyoutModal    slot={buyoutSlot}   onClose={() => setBuyoutSlot(null)} />}
+        {showBoost     && <BoostModal     onClose={() => setShowBoost(false)} />}
       </div>
     </LangContext.Provider>
   );

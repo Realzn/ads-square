@@ -76,3 +76,8 @@ input::placeholder, textarea::placeholder { color: rgba(185,205,255,0.22); }
   .block-hover:active { transform: scale(1.08); }
   .rent-cta           { opacity: 0.7 !important; }
 }
+
+@keyframes tickerScroll {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}

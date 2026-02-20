@@ -17,10 +17,10 @@ export function PageShell({ children, title, subtitle }) {
   const [lang, setLang] = useState('fr');
 
   return (
-    <div style={{ minHeight: '100vh', background: U.bg, fontFamily: F.b, color: U.text }}>
+    <div style={{ minHeight: '100vh', background: U.bg, fontFamily: F.b, color: U.text, overflowX: 'hidden' }}>
       {/* Header */}
       <header style={{ borderBottom: `1px solid ${U.border}`, background: U.s1, position: 'sticky', top: 0, zIndex: 100, backdropFilter: 'blur(14px)' }}>
-        <div style={{ maxWidth: 800, margin: '0 auto', padding: '0 24px', height: 52, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ maxWidth: 800, margin: '0 auto', padding: '0 16px', height: 52, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
           <a href="/" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 8 }}>
             <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
               <rect x="1" y="1" width="9" height="9" rx="2" stroke={U.accent} strokeWidth="1.5"/>
@@ -47,23 +47,23 @@ export function PageShell({ children, title, subtitle }) {
       </header>
 
       {/* Hero */}
-      <div style={{ borderBottom: `1px solid ${U.border}`, padding: '48px 24px 40px' }}>
+      <div style={{ borderBottom: `1px solid ${U.border}`, padding: 'clamp(24px,5vw,48px) 16px clamp(20px,4vw,40px)' }}>
         <div style={{ maxWidth: 800, margin: '0 auto' }}>
-          <h1 style={{ fontFamily: F.h, fontSize: 36, fontWeight: 700, letterSpacing: '-0.03em', margin: '0 0 10px', color: U.text }}>{title}</h1>
+          <h1 style={{ fontFamily: F.h, fontSize: 'clamp(22px,5vw,36px)', fontWeight: 700, letterSpacing: '-0.03em', margin: '0 0 10px', color: U.text }}>{title}</h1>
           {subtitle && <p style={{ color: U.muted, fontSize: 14, margin: 0, lineHeight: 1.6 }}>{subtitle}</p>}
         </div>
       </div>
 
       {/* Content */}
-      <div style={{ maxWidth: 800, margin: '0 auto', padding: '48px 24px 80px' }}>
+      <div style={{ maxWidth: 800, margin: '0 auto', padding: 'clamp(24px,5vw,48px) 16px clamp(40px,8vw,80px)' }}>
         {children}
       </div>
 
       {/* Footer */}
       <footer style={{ borderTop: `1px solid ${U.border}`, padding: '28px 24px' }}>
-        <div style={{ maxWidth: 800, margin: '0 auto', display: 'flex', gap: 20, flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ maxWidth: 800, margin: '0 auto', display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', textAlign: 'center' }}>
           <span style={{ color: U.muted, fontSize: 12 }}>© 2026 ADS-SQUARE · LE91-ARENA SAS</span>
-          <div style={{ display: 'flex', gap: 20 }}>
+          <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', justifyContent: 'center' }}>
             {[['/', lang === 'fr' ? 'Accueil' : 'Home'], ['/legal', lang === 'fr' ? 'Mentions légales' : 'Legal'], ['/cgv', 'CGV'], ['/privacy', lang === 'fr' ? 'Confidentialité' : 'Privacy'], ['/faq', 'FAQ']].map(([href, label]) => (
               <a key={href} href={href} style={{ color: U.muted, fontSize: 12, textDecoration: 'none' }}>{label}</a>
             ))}
@@ -83,3 +83,15 @@ export function Section({ title, children }) {
   );
 }
 
+
+export function P({ children }) {
+  return <p style={{ margin: '0 0 14px', color: 'rgba(255,255,255,0.65)', fontSize: 14, lineHeight: 1.8 }}>{children}</p>;
+}
+
+export function Highlight({ children }) {
+  return <span style={{ color: U.text, fontWeight: 600 }}>{children}</span>;
+}
+
+export function Tag({ children, color }) {
+  return <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 4, background: `${color || U.accent}15`, border: `1px solid ${color || U.accent}30`, color: color || U.accent, fontSize: 11, fontWeight: 700, letterSpacing: '0.04em', marginRight: 6 }}>{children}</span>;
+}
