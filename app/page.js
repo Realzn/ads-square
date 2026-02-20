@@ -1468,11 +1468,18 @@ export default function App() {
   const { isMobile } = useScreenSize();
   const handleWaitlist = useCallback(() => setShowWaitlist(true), []);
 
-  const handleCheckout = useCallback(slot => {
-    if (slot?.occ) { setBuyoutSlot(slot); return; }
-    if (process.env.NEXT_PUBLIC_STRIPE_ENABLED === 'true') setCheckoutSlot(slot);
-    else setShowWaitlist(true);
-  }, []);
+ const handleCheckout = useCallback(slot => {
+  if (slot?.occ) {
+    setBuyoutSlot(slot);
+    return;
+  }
+
+  if (slot) {
+    setCheckoutSlot(slot);
+  } else {
+    setShowWaitlist(true);
+  }
+}, []);
 
   const isGrid = view === 'public' || view === 'advertiser';
   const t = getT(lang);
