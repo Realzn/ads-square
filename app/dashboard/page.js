@@ -927,16 +927,16 @@ function TabOffres({ bookings, userId, showToast }) {
     if (!bookings?.length) { setLoading(false); return; }
     const ids = bookings.map(b => b.id);
     // Fetch pending offers on all my bookings
-    import('@/lib/supabase').then(({ supabase }) => {
-      supabase
-        .from('slot_offers')
-        .select('*')
-        .in('target_booking_id', ids)
-        .in('status', ['pending'])
-        .gt('expires_at', new Date().toISOString())
-        .order('created_at', { ascending: false })
-        .then(({ data }) => { setOffers(data || []); setLoading(false); });
-    });
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    if (!url || !key) { setLoading(false); return; }
+    const idsStr = ids.map(id => `"${id}"`).join(',');
+    fetch(`${url}/rest/v1/slot_offers?select=*&target_booking_id=in.(${ids.join(',')})&status=in.(pending)&expires_at=gt.${encodeURIComponent(new Date().toISOString())}&order=created_at.desc`, {
+      headers: { 'apikey': key, 'Authorization': `Bearer ${key}` }
+    }).then(r => r.json()).then(data => {
+      setOffers(Array.isArray(data) ? data : []);
+      setLoading(false);
+    }).catch(() => setLoading(false));
   }, [bookings]);
 
   const handleRespond = async (offerId, action) => {
