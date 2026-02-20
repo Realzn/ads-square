@@ -636,8 +636,114 @@ function BlockMedia({ tenant, tier }) {
   );
 }
 
+// ─── LiveMiniBadge — badge permanent sur gros blocs occupés ──────
+function LiveMiniBadge({ slot, sz }) {
+  const [stats, setStats] = useState(statsCache[slot.id] || null);
+
+  useEffect(() => {
+    if (!slot.occ || !slot.tenant?.bookingId) return;
+    if (statsCache[slot.id]) { setStats(statsCache[slot.id]); return; }
+    fetchSlotStats(slot.x, slot.y).then(({ data }) => {
+      if (data) { statsCache[slot.id] = data; setStats(data); }
+    }).catch(() => {});
+  }, [slot.id]);
+
+  if (!stats || stats.impressions_7d === 0) return null;
+  const c = slot.tenant?.c || TIER_COLOR[slot.tier];
+  const v = stats.impressions_7d >= 1000
+    ? `${(stats.impressions_7d / 1000).toFixed(1)}k`
+    : stats.impressions_7d?.toString() ?? '0';
+
+  return (
+    <div style={{
+      position: 'absolute', bottom: 3, right: 3,
+      display: 'flex', alignItems: 'center', gap: 3,
+      padding: sz >= 80 ? '2px 5px' : '1px 4px',
+      borderRadius: 4, zIndex: 8, pointerEvents: 'none',
+      background: 'rgba(0,0,0,0.72)', backdropFilter: 'blur(4px)',
+      border: `1px solid ${c}30`,
+    }}>
+      <div style={{ width: 4, height: 4, borderRadius: '50%', background: '#00e8a2', flexShrink: 0 }} />
+      <span style={{ color: 'rgba(255,255,255,0.85)', fontSize: sz >= 80 ? 8 : 7, fontWeight: 700, lineHeight: 1 }}>
+        {v}
+      </span>
+    </div>
+  );
+}
+
+// ─── HoverStatsTooltip — badge stats au survol des blocs occupés ─
+const statsCache = {}; // cache module-level pour éviter les re-fetch
+
+function HoverStatsBadge({ slot, sz }) {
+  const [stats, setStats] = useState(statsCache[slot.id] || null);
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    if (!slot.occ || !slot.tenant?.bookingId) return;
+    if (statsCache[slot.id]) { setStats(statsCache[slot.id]); return; }
+    // Fetch une seule fois au premier hover
+    if (!visible) return;
+    fetchSlotStats(slot.x, slot.y).then(({ data }) => {
+      if (data) { statsCache[slot.id] = data; setStats(data); }
+    }).catch(() => {});
+  }, [visible, slot.id]);
+
+  if (!slot.occ || sz < 24) return null;
+  const c = slot.tenant?.c || TIER_COLOR[slot.tier];
+  const hasData = stats && (stats.impressions_7d > 0 || stats.clicks_7d > 0);
+
+  return (
+    <div
+      onMouseEnter={() => setVisible(true)}
+      onMouseLeave={() => setVisible(false)}
+      style={{ position:'absolute', inset:0, zIndex:10 }}
+    >
+      {visible && hasData && (
+        <div style={{
+          position:'absolute', bottom:'calc(100% + 6px)', left:'50%', transform:'translateX(-50%)',
+          background: U.s1, border:`1px solid ${c}40`, borderRadius:8, padding:'7px 10px',
+          whiteSpace:'nowrap', pointerEvents:'none', zIndex:200,
+          boxShadow:`0 4px 20px rgba(0,0,0,0.7), 0 0 0 1px ${c}20`,
+          minWidth: 110,
+        }}>
+          <div style={{ display:'flex', gap:10, justifyContent:'center' }}>
+            <div style={{ textAlign:'center' }}>
+              <div style={{ color:c, fontWeight:800, fontSize:13, fontFamily:F.h, lineHeight:1 }}>
+                {stats.impressions_7d?.toLocaleString('fr-FR') ?? '0'}
+              </div>
+              <div style={{ color:'rgba(255,255,255,0.4)', fontSize:8, marginTop:2 }}>vues / 7j</div>
+            </div>
+            <div style={{ width:1, background:'rgba(255,255,255,0.08)' }} />
+            <div style={{ textAlign:'center' }}>
+              <div style={{ color:c, fontWeight:800, fontSize:13, fontFamily:F.h, lineHeight:1 }}>
+                {stats.clicks_7d?.toLocaleString('fr-FR') ?? '0'}
+              </div>
+              <div style={{ color:'rgba(255,255,255,0.4)', fontSize:8, marginTop:2 }}>clics / 7j</div>
+            </div>
+            {stats.ctr_pct > 0 && (
+              <>
+                <div style={{ width:1, background:'rgba(255,255,255,0.08)' }} />
+                <div style={{ textAlign:'center' }}>
+                  <div style={{ color:'#00e8a2', fontWeight:800, fontSize:13, fontFamily:F.h, lineHeight:1 }}>
+                    {stats.ctr_pct}%
+                  </div>
+                  <div style={{ color:'rgba(255,255,255,0.4)', fontSize:8, marginTop:2 }}>CTR</div>
+                </div>
+              </>
+            )}
+          </div>
+          {/* Flèche en bas */}
+          <div style={{ position:'absolute', bottom:-5, left:'50%', transform:'translateX(-50%)',
+            width:8, height:8, background:U.s1, border:`1px solid ${c}30`,
+            borderTop:'none', borderLeft:'none', transform:'translateX(-50%) rotate(45deg)' }} />
+        </div>
+      )}
+    </div>
+  );
+}
+
 // BlockCell — mémoïsé, reçoit sa taille via sz prop
-const BlockCell = memo(({ slot, isSelected, onSelect, onFocus, sz: szProp }) => {
+const BlockCell = memo(({ slot, isSelected, onSelect, onFocus, sz: szProp, showStats }) => {
   const { tier, occ, tenant, hot } = slot;
   let sz = szProp !== undefined ? szProp : TIER_SIZE[tier];
   const c = TIER_COLOR[tier];
@@ -700,6 +806,9 @@ const BlockCell = memo(({ slot, isSelected, onSelect, onFocus, sz: szProp }) => 
         </div>
       )}
       {occ && hot && <div style={{ position: 'absolute', top: 2, right: 2, width: 4, height: 4, borderRadius: '50%', background: '#ff4455', animation: 'blink 1.5s infinite' }} />}
+      {showStats && occ && <HoverStatsBadge slot={slot} sz={sz} />}
+      {/* Mini badge permanent sur gros blocs */}
+      {showStats && occ && sz >= 40 && <LiveMiniBadge slot={slot} sz={sz} />}
     </div>
   );
 });
@@ -835,6 +944,13 @@ function FocusModal({ slot, allSlots, onClose, onNavigate, onGoAdvertiser }) {
   const t = useT();
   const [dir, setDir] = useState(0);
   const { isMobile } = useScreenSize();
+  const [publicStats, setPublicStats] = useState(null);
+
+  // Fetch real stats for public display
+  useEffect(() => {
+    if (!slot?.occ) { setPublicStats(null); return; }
+    fetchSlotStats(slot.x, slot.y).then(({ data }) => setPublicStats(data)).catch(() => {});
+  }, [slot?.id]);
   const occupiedSlots = useMemo(() => allSlots.filter(s => s.occ), [allSlots]);
   const curIdx  = occupiedSlots.findIndex(s => s.id === slot?.id);
   const hasPrev = curIdx > 0;
@@ -952,6 +1068,25 @@ function FocusModal({ slot, allSlots, onClose, onNavigate, onGoAdvertiser }) {
             {tenant.badge && (
               <div style={{ marginBottom:14, padding:'6px 12px', borderRadius:7, background:`${c}10`, border:`1px solid ${c}20`, display:'inline-flex', alignItems:'center', gap:6, fontSize:11, color:c, fontWeight:700 }}>
                 ✦ {tenant.badge}
+              </div>
+            )}
+
+            {/* Stats publiques — crédibilité et preuve sociale */}
+            {publicStats && (publicStats.impressions > 0 || publicStats.clicks > 0) && (
+              <div style={{ margin:'16px 0', padding:'12px 14px', borderRadius:10, background:`${c}08`, border:`1px solid ${c}18`, display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:8 }}>
+                {[
+                  [publicStats.impressions_7d?.toLocaleString('fr-FR') ?? '0', 'vues / 7j'],
+                  [publicStats.clicks_7d?.toLocaleString('fr-FR')    ?? '0', 'clics / 7j'],
+                  [publicStats.ctr_pct != null ? `${publicStats.ctr_pct}%` : '—', 'CTR'],
+                ].map(([v, l]) => (
+                  <div key={l} style={{ textAlign:'center', padding:'6px 0' }}>
+                    <div style={{ color:c, fontWeight:800, fontSize:18, fontFamily:F.h, lineHeight:1 }}>{v}</div>
+                    <div style={{ color:'rgba(255,255,255,0.4)', fontSize:9, marginTop:3, fontWeight:600 }}>{l}</div>
+                  </div>
+                ))}
+                <div style={{ gridColumn:'1/-1', borderTop:`1px solid ${c}15`, marginTop:4, paddingTop:8, textAlign:'center' }}>
+                  <span style={{ fontSize:9, color:'rgba(255,255,255,0.3)', letterSpacing:'0.05em' }}>DONNÉES RÉELLES · MIS À JOUR EN TEMPS RÉEL</span>
+                </div>
               </div>
             )}
 
@@ -1309,7 +1444,7 @@ function PublicView({ slots, isLive, onGoAdvertiser, authUser, userBookings }) {
                 const th = filterTheme !== 'all' ? getSlotTheme(slot) : null;
                 const isMatch = th && filteredSlots.has(slot.id) && slot.occ;
                 return (<>
-                  <BlockCell slot={slot} isSelected={false} onSelect={() => {}} onFocus={setFocusSlot} sz={tierSizes[slot.tier]} />
+                  <BlockCell slot={slot} isSelected={false} onSelect={() => {}} onFocus={setFocusSlot} sz={tierSizes[slot.tier]} showStats={true} />
                   {isMatch && th.color && <div style={{ position: 'absolute', inset: 0, borderRadius: 4, boxShadow: `0 0 0 2px ${th.color}80, 0 0 14px ${th.color}40`, pointerEvents: 'none', zIndex: 5 }} />}
                 </>);
               })()}
@@ -1368,6 +1503,7 @@ function AdvertiserView({ slots, isLive, onWaitlist, onCheckout }) {
   const [selectedTier, setSelectedTier] = useState(null);
   const [slotStats, setSlotStats]       = useState(null);
   const [statsLoading, setStatsLoading] = useState(false);
+  const [neighborStats, setNeighborStats] = useState(null); // stats zone pour slots libres
 
   // Check if all slots in a tier are occupied (enables buyout offer)
   const tierOccupancy = useMemo(() => {
@@ -1401,16 +1537,39 @@ function AdvertiserView({ slots, isLive, onWaitlist, onCheckout }) {
     setChosenSlot(prev => prev?.id === slot.id ? null : slot);
   }, []);
 
-  // Fetch stats when an occupied slot is chosen
+  // Fetch stats when slot is chosen
   useEffect(() => {
-    if (!chosenSlot?.occ) { setSlotStats(null); return; }
-    setStatsLoading(true);
-    fetchSlotStats(chosenSlot.x, chosenSlot.y)
-      .then(({ data }) => setSlotStats(data))
-      .catch(() => setSlotStats(null))
-      .finally(() => setStatsLoading(false));
+    if (!chosenSlot) { setSlotStats(null); setNeighborStats(null); return; }
 
-  }, [chosenSlot?.id]);
+    if (chosenSlot.occ) {
+      // Slot occupé — stats directes
+      setStatsLoading(true);
+      setNeighborStats(null);
+      fetchSlotStats(chosenSlot.x, chosenSlot.y)
+        .then(({ data }) => setSlotStats(data))
+        .catch(() => setSlotStats(null))
+        .finally(() => setStatsLoading(false));
+    } else {
+      // Slot libre — stats des voisins occupés du même tier
+      setSlotStats(null);
+      const neighbors = slots.filter(s =>
+        s.occ && s.tier === chosenSlot.tier && s.id !== chosenSlot.id
+      ).slice(0, 3);
+      if (!neighbors.length) { setNeighborStats(null); return; }
+      Promise.all(neighbors.map(s => fetchSlotStats(s.x, s.y)))
+        .then(results => {
+          const valid = results.map(r => r.data).filter(Boolean);
+          if (!valid.length) { setNeighborStats(null); return; }
+          const avg = {
+            impressions_7d: Math.round(valid.reduce((a,b) => a + (b.impressions_7d||0), 0) / valid.length),
+            clicks_7d:      Math.round(valid.reduce((a,b) => a + (b.clicks_7d||0), 0) / valid.length),
+            ctr_pct:        +(valid.reduce((a,b) => a + (b.ctr_pct||0), 0) / valid.length).toFixed(1),
+          };
+          setNeighborStats({ ...avg, sampleSize: valid.length });
+        })
+        .catch(() => setNeighborStats(null));
+    }
+  }, [chosenSlot?.id, slots]);
 
   const tiers = [
     { id: 'one',      label: t('adv.tier.epicenter'), price: 1000, count: 1,   desc: t('adv.tier.center') },
@@ -1541,6 +1700,29 @@ function AdvertiserView({ slots, isLive, onWaitlist, onCheckout }) {
                   </>
                 );
               })() : (<>
+                {/* Stats zone voisine — preuve de trafic pour slots libres */}
+                {neighborStats && (neighborStats.impressions_7d > 0 || neighborStats.clicks_7d > 0) && (
+                  <div style={{ marginBottom:12, padding:'10px 12px', borderRadius:9, background:`${U.accent}08`, border:`1px solid ${U.accent}20` }}>
+                    <div style={{ fontSize:9, color:U.muted, fontWeight:700, letterSpacing:'0.07em', marginBottom:8 }}>
+                      TRAFIC DES BLOCS VOISINS ({neighborStats.sampleSize} blocs analysés)
+                    </div>
+                    <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:5 }}>
+                      {[
+                        [neighborStats.impressions_7d?.toLocaleString('fr-FR') ?? '0', 'vues / 7j'],
+                        [neighborStats.clicks_7d?.toLocaleString('fr-FR') ?? '0', 'clics / 7j'],
+                        [`${neighborStats.ctr_pct ?? 0}%`, 'CTR moy.'],
+                      ].map(([v, l]) => (
+                        <div key={l} style={{ textAlign:'center', padding:'7px 4px', borderRadius:6, background:U.s2, border:`1px solid ${U.border}` }}>
+                          <div style={{ color:U.accent, fontWeight:800, fontSize:14, fontFamily:F.h }}>{v}</div>
+                          <div style={{ color:U.muted, fontSize:8, marginTop:2 }}>{l}</div>
+                        </div>
+                      ))}
+                    </div>
+                    <div style={{ marginTop:7, fontSize:9, color:'rgba(255,255,255,0.22)', textAlign:'center' }}>
+                      Performances réelles · blocs {TIER_LABEL[chosenSlot.tier]} actifs
+                    </div>
+                  </div>
+                )}
                 <button onClick={() => onCheckout(chosenSlot)} style={{ width: '100%', padding: '11px', borderRadius: 8, fontFamily: F.b, cursor: 'pointer', background: U.accent, border: 'none', color: U.accentFg, fontWeight: 700, fontSize: 13, boxShadow: `0 0 20px ${U.accent}50`, marginBottom: 8 }}>
                   {t('adv.cta.rent')}
                 </button>
@@ -1742,6 +1924,25 @@ function LandingPage({ slots, onPublic, onAdvertiser, onWaitlist }) {
   const { isMobile } = useScreenSize();
   const t = useT();
   const stats = useMemo(() => ({ occupied: slots.filter(s => s.occ).length, vacant: slots.filter(s => !s.occ).length }), [slots]);
+  const [platformStats, setPlatformStats] = useState(null);
+
+  useEffect(() => {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    if (!url || !key) return;
+    // Total impressions + clics toutes campagnes
+    fetch(`${url}/rest/v1/slot_clicks?select=event_type`, {
+      headers: { 'apikey': key, 'Authorization': `Bearer ${key}` }
+    })
+      .then(r => r.json())
+      .then(rows => {
+        if (!Array.isArray(rows)) return;
+        const impressions = rows.filter(r => r.event_type === 'impression').length;
+        const clicks      = rows.filter(r => r.event_type === 'click').length;
+        setPlatformStats({ impressions, clicks });
+      })
+      .catch(() => {});
+  }, []);
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: isMobile ? 'flex-start' : 'center', padding: isMobile ? '32px 20px 48px' : '48px 40px', position: 'relative', overflowY: 'auto', overflowX: 'hidden', background: U.bg }}>
 
@@ -1768,17 +1969,21 @@ function LandingPage({ slots, onPublic, onAdvertiser, onWaitlist }) {
 {t('landing.sub')}
         </p>
 
-        {/* Stats */}
-        <div style={{ display: 'flex', gap: isMobile ? 20 : 40, justifyContent: 'center', marginBottom: 40 }}>
+        {/* Stats live plateforme */}
+        <div style={{ display: 'flex', gap: isMobile ? 16 : 36, justifyContent: 'center', marginBottom: 40, flexWrap: 'wrap' }}>
           {[
-[stats.occupied, t('landing.stat.active')],
-            [stats.vacant, t('landing.stat.free')],
-            ['1 369', t('landing.stat.total')],
-            ['1€', t('landing.stat.from')],
-          ].map(([v, l]) => (
-            <div key={l} style={{ textAlign: 'center' }}>
-              <div style={{ color: U.text, fontWeight: 700, fontSize: isMobile ? 20 : 26, fontFamily: F.h, letterSpacing: '-0.02em' }}>{v}</div>
-              <div style={{ color: U.muted, fontSize: 11, marginTop: 3 }}>{l}</div>
+            [stats.occupied,                                                              t('landing.stat.active'),  false],
+            [stats.vacant,                                                                t('landing.stat.free'),    false],
+            [platformStats ? platformStats.impressions.toLocaleString('fr-FR') : '—',    'vues totales',             true],
+            [platformStats ? platformStats.clicks.toLocaleString('fr-FR')      : '—',    'clics générés',            true],
+            ['1€',                                                                        t('landing.stat.from'),    false],
+          ].map(([v, l, live]) => (
+            <div key={l} style={{ textAlign: 'center', minWidth: 60 }}>
+              <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:5 }}>
+                {live && <div style={{ width:5, height:5, borderRadius:'50%', background:'#00e8a2', boxShadow:'0 0 6px #00e8a2', flexShrink:0 }} />}
+                <div style={{ color: live ? '#00e8a2' : U.text, fontWeight: 700, fontSize: isMobile ? 18 : 24, fontFamily: F.h, letterSpacing: '-0.02em' }}>{v}</div>
+              </div>
+              <div style={{ color: U.muted, fontSize: 10, marginTop: 3 }}>{l}</div>
             </div>
           ))}
         </div>
