@@ -916,6 +916,114 @@ function TabPaiements({ bookings }) {
 }
 
 // ─── DASHBOARD PRINCIPAL ──────────────────────────────────────
+
+// ─── TAB : Offres reçues ─────────────────────────────────────
+function TabOffres({ bookings, userId, showToast }) {
+  const [offers, setOffers]     = useState([]);
+  const [loading, setLoading]   = useState(true);
+  const [responding, setResp]   = useState(null); // offerId being processed
+
+  useEffect(() => {
+    if (!bookings?.length) { setLoading(false); return; }
+    const ids = bookings.map(b => b.id);
+    // Fetch pending offers on all my bookings
+    import('@/lib/supabase').then(({ supabase }) => {
+      supabase
+        .from('slot_offers')
+        .select('*')
+        .in('target_booking_id', ids)
+        .in('status', ['pending'])
+        .gt('expires_at', new Date().toISOString())
+        .order('created_at', { ascending: false })
+        .then(({ data }) => { setOffers(data || []); setLoading(false); });
+    });
+  }, [bookings]);
+
+  const handleRespond = async (offerId, action) => {
+    setResp(offerId);
+    try {
+      const res = await fetch('/api/offers/respond', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ offerId, action, userId }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Erreur');
+      showToast(action === 'accept' ? '✅ Offre acceptée !' : '❌ Offre refusée', action === 'accept' ? 'success' : 'info');
+      setOffers(prev => prev.filter(o => o.id !== offerId));
+    } catch (err) {
+      showToast('Erreur : ' + err.message, 'error');
+    } finally {
+      setResp(null);
+    }
+  };
+
+  if (loading) return <div style={{ color: U.muted, padding: 32, textAlign:'center' }}>Chargement…</div>;
+
+  if (!offers.length) return (
+    <div style={{ textAlign:'center', padding:'48px 20px' }}>
+      <div style={{ fontSize: 40, marginBottom: 16 }}>💬</div>
+      <div style={{ color: U.text, fontWeight: 700, fontSize: 18, marginBottom: 8 }}>Aucune offre en attente</div>
+      <div style={{ color: U.muted, fontSize: 13 }}>Les offres de rachat sur vos blocs apparaîtront ici.</div>
+    </div>
+  );
+
+  return (
+    <div>
+      <div style={{ fontWeight: 700, fontSize: 18, color: U.text, marginBottom: 6 }}>Offres reçues</div>
+      <div style={{ color: U.muted, fontSize: 12, marginBottom: 24 }}>{offers.length} offre{offers.length > 1 ? 's' : ''} en attente · Expire sous 72h</div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        {offers.map(o => {
+          const booking = bookings?.find(b => b.id === o.target_booking_id);
+          const euros   = (o.offer_amount_cents / 100).toLocaleString('fr-FR', { style:'currency', currency:'EUR' });
+          const hoursLeft = Math.max(0, Math.round((new Date(o.expires_at) - new Date()) / 3600000));
+          const isProc = responding === o.id;
+          return (
+            <div key={o.id} style={{ borderRadius: 12, background: U.s1, border: `1px solid ${U.border2}`, overflow: 'hidden' }}>
+              {/* Header */}
+              <div style={{ padding: '14px 18px', borderBottom: `1px solid ${U.border}`, display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+                <div>
+                  <div style={{ color: U.text, fontWeight: 700, fontSize: 15 }}>{o.buyer_name || o.buyer_email}</div>
+                  <div style={{ color: U.muted, fontSize: 11, marginTop: 2 }}>
+                    {o.buyer_email} · Bloc ({o.slot_x},{o.slot_y})
+                    {booking && <span style={{ color: U.accent }}> · {booking.display_name || ''}</span>}
+                  </div>
+                </div>
+                <div style={{ textAlign:'right' }}>
+                  <div style={{ color: U.accent, fontWeight: 800, fontSize: 22 }}>{euros}</div>
+                  <div style={{ color: hoursLeft < 12 ? '#e53535' : U.muted, fontSize: 10 }}>⏱ {hoursLeft}h restantes</div>
+                </div>
+              </div>
+              {/* Message */}
+              {o.message && (
+                <div style={{ padding: '10px 18px', background: U.faint, borderBottom: `1px solid ${U.border}` }}>
+                  <div style={{ fontSize: 10, color: U.muted, fontWeight: 600, marginBottom: 4 }}>MESSAGE</div>
+                  <div style={{ fontSize: 13, color: U.text, lineHeight: 1.6, fontStyle:'italic' }}>"{o.message}"</div>
+                </div>
+              )}
+              {/* Actions */}
+              <div style={{ padding: '12px 18px', display:'flex', gap: 10 }}>
+                <button
+                  disabled={isProc}
+                  onClick={() => handleRespond(o.id, 'accept')}
+                  style={{ flex:1, padding:'10px', borderRadius:8, border:'none', background: isProc ? U.s2 : U.accent, color: isProc ? U.muted : U.accentFg, fontWeight:700, fontSize:13, cursor: isProc ? 'wait' : 'pointer', boxShadow: isProc ? 'none' : `0 0 18px ${U.accent}40` }}>
+                  {isProc ? '…' : '✅ Accepter'}
+                </button>
+                <button
+                  disabled={isProc}
+                  onClick={() => handleRespond(o.id, 'reject')}
+                  style={{ flex:1, padding:'10px', borderRadius:8, border:`1px solid ${U.border2}`, background:'transparent', color: U.muted, fontWeight:600, fontSize:13, cursor: isProc ? 'wait' : 'pointer' }}>
+                  ❌ Refuser
+                </button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export default function DashboardPage() {
   const router = useRouter();
   const [session, setSession]         = useState(null);
@@ -960,6 +1068,7 @@ export default function DashboardPage() {
     { id: 'blocs',     label: 'Mes blocs',    icon: '◻' },
     { id: 'edit',      label: 'Contenu',       icon: '✏' },
     { id: 'analytics', label: 'Analytics',     icon: '📊' },
+    { id: 'offres',    label: 'Offres reçues', icon: '💬' },
     { id: 'profil',    label: 'Profil',        icon: '👤' },
     { id: 'paiements', label: 'Paiements',     icon: '💳' },
   ];
@@ -1072,6 +1181,9 @@ export default function DashboardPage() {
           )}
           {activeTab === 'profil' && (
             <TabProfil advertiser={advertiser} onSaved={loadData} showToast={showToast} />
+          )}
+          {activeTab === 'offres' && (
+            <TabOffres bookings={bookings} userId={session?.user?.id} showToast={showToast} />
           )}
           {activeTab === 'paiements' && (
             <TabPaiements bookings={bookings} />

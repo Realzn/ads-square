@@ -865,14 +865,63 @@ function FocusModal({ slot, allSlots, onClose, onNavigate, onGoAdvertiser }) {
           <div style={{ padding: isMobile ? '16px 20px 28px' : '24px 28px 32px' }}>
             <div style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 4, background: `${TIER_COLOR[tier]}15`, border: `1px solid ${TIER_COLOR[tier]}30`, color: TIER_COLOR[tier], fontSize: 9, fontWeight: 700, letterSpacing: '0.06em', marginBottom: 14 }}>{TIER_LABEL[tier]} · €{TIER_PRICE[tier]}/j</div>
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14, marginBottom: 18 }}>
-              <div style={{ width: 52, height: 52, borderRadius: 12, flexShrink: 0, background: `${c}18`, border: `1px solid ${c}30`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, fontWeight: 900, color: c, fontFamily: F.h }}>
-                {tenant.l}
+              <div style={{ width: 52, height: 52, borderRadius: 12, flexShrink: 0, background: tenant.img ? `url(${tenant.img}) center/cover` : `${c}18`, border: `1px solid ${c}30`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, fontWeight: 900, color: c, fontFamily: F.h, overflow:'hidden' }}>
+                {!tenant.img && tenant.l}
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ color: U.text, fontWeight: 700, fontSize: 19, fontFamily: F.h, marginBottom: 3, letterSpacing: '-0.02em' }}>{tenant.name}</div>
-                <div style={{ color: U.muted, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tenant.slogan}</div>
+                <div style={{ color: U.muted, fontSize: 13, lineHeight: 1.5 }}>{tenant.slogan}</div>
               </div>
             </div>
+
+            {/* Réseaux sociaux / plateforme si renseignés */}
+            {(tenant.social || tenant.music) && (() => {
+              const SOCIAL_META = {
+                instagram: { label:'Instagram', icon:'📸', color:'#e1306c', prefix:'https://instagram.com/' },
+                tiktok:    { label:'TikTok',    icon:'🎵', color:'#00f2ea', prefix:'https://tiktok.com/@' },
+                youtube:   { label:'YouTube',   icon:'▶',  color:'#ff0000', prefix:'https://youtube.com/@' },
+                twitter:   { label:'X / Twitter',icon:'✕', color:'#1da1f2', prefix:'https://x.com/' },
+                linkedin:  { label:'LinkedIn',  icon:'in', color:'#0077b5', prefix:'https://linkedin.com/in/' },
+                facebook:  { label:'Facebook',  icon:'f',  color:'#1877f2', prefix:'https://facebook.com/' },
+                snapchat:  { label:'Snapchat',  icon:'👻', color:'#fffc00', prefix:'https://snapchat.com/add/' },
+                meta:      { label:'Threads',   icon:'@',  color:'#fff',    prefix:'https://threads.net/@' },
+              };
+              const MUSIC_META = {
+                spotify:    { label:'Spotify',      icon:'♪', color:'#1ed760', prefix:'https://open.spotify.com/' },
+                apple:      { label:'Apple Music',  icon:'♫', color:'#fa57c1', prefix:'https://music.apple.com/' },
+                soundcloud: { label:'SoundCloud',   icon:'☁', color:'#ff5500', prefix:'https://soundcloud.com/' },
+                deezer:     { label:'Deezer',       icon:'≋', color:'#00c7f2', prefix:'https://deezer.com/' },
+              };
+              const socialMeta = SOCIAL_META[tenant.social];
+              const musicMeta  = MUSIC_META[tenant.music];
+              return (
+                <div style={{ display:'flex', gap:8, marginBottom:16, flexWrap:'wrap' }}>
+                  {socialMeta && (
+                    <a href={tenant.url?.includes(socialMeta.prefix?.split('//')[1]?.split('/')[0]) ? tenant.url : tenant.url}
+                       target="_blank" rel="noopener noreferrer"
+                       onClick={e => { e.stopPropagation(); recordClick(slot.x, slot.y, slot.bookingId); }}
+                       style={{ display:'flex', alignItems:'center', gap:6, padding:'7px 12px', borderRadius:8, background:`${socialMeta.color}15`, border:`1px solid ${socialMeta.color}40`, color:socialMeta.color, textDecoration:'none', fontSize:12, fontWeight:700 }}>
+                      <span style={{ fontSize:14 }}>{socialMeta.icon}</span> {socialMeta.label}
+                    </a>
+                  )}
+                  {musicMeta && (
+                    <a href={tenant.url} target="_blank" rel="noopener noreferrer"
+                       onClick={e => { e.stopPropagation(); recordClick(slot.x, slot.y, slot.bookingId); }}
+                       style={{ display:'flex', alignItems:'center', gap:6, padding:'7px 12px', borderRadius:8, background:`${musicMeta.color}15`, border:`1px solid ${musicMeta.color}40`, color:musicMeta.color, textDecoration:'none', fontSize:12, fontWeight:700 }}>
+                      <span style={{ fontSize:14 }}>{musicMeta.icon}</span> {musicMeta.label}
+                    </a>
+                  )}
+                </div>
+              );
+            })()}
+
+            {/* Badge promo */}
+            {tenant.badge && (
+              <div style={{ marginBottom:14, padding:'6px 12px', borderRadius:7, background:`${c}10`, border:`1px solid ${c}20`, display:'inline-flex', alignItems:'center', gap:6, fontSize:11, color:c, fontWeight:700 }}>
+                ✦ {tenant.badge}
+              </div>
+            )}
+
             <a href={tenant.url} target="_blank" rel="noopener noreferrer" onClick={e => { e.stopPropagation(); recordClick(slot.x, slot.y, slot.bookingId); }} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '13px 20px', borderRadius: 10, background: c, color: U.accentFg, fontWeight: 700, fontSize: 14, fontFamily: F.b, textDecoration: 'none', boxShadow: `0 0 22px ${c}50`, transition: 'opacity 0.15s' }}>
               {tenant.cta} →
             </a>
@@ -1222,6 +1271,17 @@ function AdvertiserView({ slots, isLive, onWaitlist, onCheckout }) {
   const [selectedTier, setSelectedTier] = useState(null);
   const [slotStats, setSlotStats]       = useState(null);
   const [statsLoading, setStatsLoading] = useState(false);
+  const [liveViewers, setLiveViewers]   = useState(null);
+
+  // Check if all slots in a tier are occupied (enables buyout offer)
+  const tierOccupancy = useMemo(() => {
+    const counts = { one: 0, ten: 0, corner_ten: 0, hundred: 0, thousand: 0 };
+    const total   = { one: 1, ten: 48, corner_ten: 4, hundred: 576, thousand: 740 };
+    slots.forEach(s => { if (s.occ && counts[s.tier] !== undefined) counts[s.tier]++; });
+    const full = {};
+    Object.keys(counts).forEach(k => full[k] = counts[k] >= total[k]);
+    return full;
+  }, [slots]);
   const containerRef  = useRef(null);
   const [containerW, setContainerW] = useState(0); // ✅ Fix hydration: init 0, set real in ResizeObserver
   const [containerH, setContainerH] = useState(0);
@@ -1247,12 +1307,16 @@ function AdvertiserView({ slots, isLive, onWaitlist, onCheckout }) {
 
   // Fetch stats when an occupied slot is chosen
   useEffect(() => {
-    if (!chosenSlot?.occ) { setSlotStats(null); return; }
+    if (!chosenSlot?.occ) { setSlotStats(null); setLiveViewers(null); return; }
     setStatsLoading(true);
     fetchSlotStats(chosenSlot.x, chosenSlot.y)
       .then(({ data }) => setSlotStats(data))
       .catch(() => setSlotStats(null))
       .finally(() => setStatsLoading(false));
+    // Simulated live viewers (replace with real presence when available)
+    setLiveViewers(Math.floor(Math.random() * 12) + 2);
+    const iv = setInterval(() => setLiveViewers(v => Math.max(1, v + Math.floor(Math.random()*3)-1)), 8000);
+    return () => clearInterval(iv);
   }, [chosenSlot?.id]);
 
   const tiers = [
@@ -1310,25 +1374,46 @@ function AdvertiserView({ slots, isLive, onWaitlist, onCheckout }) {
               </div>
             </div>
 
-            {/* Stats panel — uniquement si le slot est occupé */}
+            {/* Stats panel enrichi — uniquement si le slot est occupé */}
             {chosenSlot.occ && (
               <div style={{ padding: '12px 16px', borderBottom: `1px solid ${U.border}` }}>
+                {/* Live viewers */}
+                {liveViewers && (
+                  <div style={{ display:'flex', alignItems:'center', gap:7, marginBottom:10, padding:'6px 10px', borderRadius:7, background:'#00e8a210', border:'1px solid #00e8a225' }}>
+                    <div style={{ width:7, height:7, borderRadius:'50%', background:'#00e8a2', boxShadow:'0 0 6px #00e8a2', animation:'blink 1.5s infinite' }} />
+                    <span style={{ fontSize:11, color:'#00e8a2', fontWeight:700 }}>{liveViewers} personnes regardent ce bloc</span>
+                  </div>
+                )}
                 <div style={{ color: U.muted, fontSize: 9, fontWeight: 600, letterSpacing: '0.07em', marginBottom: 10 }}>{t('adv.stats.title')}</div>
                 {statsLoading ? (
                   <div style={{ color: U.muted, fontSize: 11, textAlign: 'center', padding: '8px 0' }}>{t('adv.stats.loading')}</div>
                 ) : slotStats ? (
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                    {[
-                      [slotStats.impressions?.toLocaleString() ?? '—', t('adv.stats.impr')],
-                      [slotStats.clicks?.toLocaleString() ?? '—', t('adv.stats.clicks')],
-                      [slotStats.ctr_pct != null ? `${slotStats.ctr_pct}%` : '—', t('adv.stats.ctr')],
-                      [slotStats.clicks_7d?.toLocaleString() ?? '—', t('adv.stats.clicks7d')],
-                    ].map(([v, l]) => (
-                      <div key={l} style={{ padding: '8px 10px', borderRadius: 7, background: U.s2, border: `1px solid ${U.border}` }}>
-                        <div style={{ color: U.text, fontWeight: 700, fontSize: 15, fontFamily: F.h }}>{v}</div>
-                        <div style={{ color: U.muted, fontSize: 9, marginTop: 2 }}>{l}</div>
+                  <div style={{ display: 'flex', flexDirection:'column', gap: 6 }}>
+                    {/* Ligne impressions globales */}
+                    <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:6 }}>
+                      <div style={{ padding:'8px 10px', borderRadius:7, background:U.s2, border:`1px solid ${U.border}` }}>
+                        <div style={{ color:U.text, fontWeight:700, fontSize:15, fontFamily:F.h }}>{slotStats.impressions?.toLocaleString() ?? '—'}</div>
+                        <div style={{ color:U.muted, fontSize:9, marginTop:2 }}>Vues totales</div>
                       </div>
-                    ))}
+                      <div style={{ padding:'8px 10px', borderRadius:7, background:U.s2, border:`1px solid ${U.border}` }}>
+                        <div style={{ color:U.text, fontWeight:700, fontSize:15, fontFamily:F.h }}>{slotStats.ctr_pct != null ? `${slotStats.ctr_pct}%` : '—'}</div>
+                        <div style={{ color:U.muted, fontSize:9, marginTop:2 }}>CTR</div>
+                      </div>
+                    </div>
+                    {/* Clics par période */}
+                    <div style={{ fontSize:9, color:U.muted, fontWeight:600, letterSpacing:'0.07em', marginTop:4 }}>CLICS PAR PÉRIODE</div>
+                    <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:6 }}>
+                      {[
+                        [slotStats.clicks_today?.toLocaleString() ?? '0', "Aujourd'hui"],
+                        [slotStats.clicks_7d?.toLocaleString()    ?? '0', '7 jours'],
+                        [slotStats.clicks_30d?.toLocaleString()   ?? '0', '30 jours'],
+                      ].map(([v, l]) => (
+                        <div key={l} style={{ padding:'8px 6px', borderRadius:7, background:U.s2, border:`1px solid ${U.border}`, textAlign:'center' }}>
+                          <div style={{ color:U.accent, fontWeight:700, fontSize:14, fontFamily:F.h }}>{v}</div>
+                          <div style={{ color:U.muted, fontSize:9, marginTop:2 }}>{l}</div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 ) : (
                   <div style={{ color: U.muted, fontSize: 11, textAlign: 'center', padding: '6px 0', fontStyle: 'italic' }}>{t('adv.stats.nodemo')}</div>
@@ -1338,14 +1423,37 @@ function AdvertiserView({ slots, isLive, onWaitlist, onCheckout }) {
 
             {/* CTA */}
             <div style={{ padding: '12px 16px' }}>
-              {chosenSlot.occ ? (<>
-                <button onClick={() => onCheckout(chosenSlot)} style={{ width: '100%', padding: '11px', borderRadius: 8, fontFamily: F.b, cursor: 'pointer', background: U.accent, border: 'none', color: U.accentFg, fontWeight: 700, fontSize: 13, boxShadow: `0 0 20px ${U.accent}50`, marginBottom: 8 }}>
-                  {t('adv.cta.offer')}
-                </button>
-                <div style={{ color: U.muted, fontSize: 10, textAlign: 'center', lineHeight: 1.5 }}>
-                  {t('adv.cta.offer.sub')}
-                </div>
-              </>) : (<>
+              {chosenSlot.occ ? (() => {
+                const tierIsFull = tierOccupancy[chosenSlot.tier];
+                return (
+                  <>
+                    {/* Indicateur tier complet */}
+                    {!tierIsFull && (
+                      <div style={{ marginBottom:10, padding:'7px 10px', borderRadius:7, background:'#f0b42912', border:'1px solid #f0b42925', fontSize:10, color:'#f0b429', lineHeight:1.5 }}>
+                        ⚠️ Des blocs <strong>{TIER_LABEL[chosenSlot.tier]}</strong> sont encore libres — l'offre de rachat sera disponible quand ce tier sera complet.
+                      </div>
+                    )}
+                    <button
+                      onClick={() => tierIsFull ? onCheckout(chosenSlot) : null}
+                      disabled={!tierIsFull}
+                      style={{ width:'100%', padding:'11px', borderRadius:8, fontFamily:F.b,
+                        cursor: tierIsFull ? 'pointer' : 'not-allowed',
+                        background: tierIsFull ? U.accent : 'transparent',
+                        border: tierIsFull ? 'none' : `1px solid ${U.border2}`,
+                        color: tierIsFull ? U.accentFg : U.muted,
+                        fontWeight:700, fontSize:13,
+                        boxShadow: tierIsFull ? `0 0 20px ${U.accent}50` : 'none',
+                        opacity: tierIsFull ? 1 : 0.45,
+                        filter: tierIsFull ? 'none' : 'blur(0.3px)',
+                        marginBottom:8, transition:'all 0.2s' }}>
+                      {t('adv.cta.offer')}
+                    </button>
+                    <div style={{ color: U.muted, fontSize: 10, textAlign: 'center', lineHeight: 1.5 }}>
+                      {tierIsFull ? t('adv.cta.offer.sub') : `Disponible quand les ${['one','ten','corner_ten'].includes(chosenSlot.tier) ? TIER_LABEL[chosenSlot.tier] : 'blocs de ce tier'} sont tous occupés`}
+                    </div>
+                  </>
+                );
+              })() : (<>
                 <button onClick={() => onCheckout(chosenSlot)} style={{ width: '100%', padding: '11px', borderRadius: 8, fontFamily: F.b, cursor: 'pointer', background: U.accent, border: 'none', color: U.accentFg, fontWeight: 700, fontSize: 13, boxShadow: `0 0 20px ${U.accent}50`, marginBottom: 8 }}>
                   {t('adv.cta.rent')}
                 </button>
