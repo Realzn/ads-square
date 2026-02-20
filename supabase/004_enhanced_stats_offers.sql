@@ -96,3 +96,59 @@ CREATE VIEW active_slots AS
   WHERE b.status = 'active'
   AND b.start_date <= current_date
   AND b.end_date >= current_date;
+
+-- 6. Colonne is_boosted dans bookings
+-- ============================================================
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS is_boosted boolean DEFAULT false;
+
+-- Mettre à jour active_slots avec is_boosted
+DROP VIEW IF EXISTS active_slots CASCADE;
+
+CREATE VIEW active_slots AS
+  SELECT
+    b.id AS booking_id,
+    b.slot_x AS x,
+    b.slot_y AS y,
+    b.tier,
+    b.status,
+    b.start_date,
+    b.end_date,
+    b.display_name,
+    b.slogan,
+    b.logo_initials,
+    b.primary_color,
+    b.background_color,
+    b.cta_text,
+    b.cta_url,
+    b.image_url,
+    b.badge,
+    b.content_type,
+    b.social_network,
+    b.music_platform,
+    b.is_boosted,
+    b.advertiser_id,
+    true AS is_occupied
+  FROM bookings b
+  WHERE b.status = 'active'
+  AND b.start_date <= current_date
+  AND b.end_date >= current_date;
+
+-- Recréer dashboard_bookings et received_offers
+CREATE VIEW dashboard_bookings AS
+  SELECT
+    b.*,
+    a.email,
+    a.display_name AS advertiser_name,
+    a.stripe_customer_id,
+    a.user_id AS auth_user_id
+  FROM bookings b
+  LEFT JOIN advertisers a ON b.advertiser_id = a.id;
+
+CREATE VIEW received_offers AS
+SELECT
+  so.*,
+  b.advertiser_id AS owner_advertiser_id
+FROM slot_offers so
+JOIN bookings b ON b.id = so.target_booking_id
+WHERE so.status = 'pending'
+  AND so.expires_at > now();

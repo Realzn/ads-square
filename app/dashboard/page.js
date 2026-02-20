@@ -100,6 +100,48 @@ function StatusBadge({ status }) {
 }
 
 // ─── TAB : Mes Blocs ─────────────────────────────────────────
+// ─── Boost Toggle ────────────────────────────────────────────
+function BoostToggle({ booking, onToggled }) {
+  const [loading, setLoading] = useState(false);
+  const [boosted, setBoosted] = useState(!!booking.is_boosted);
+
+  const handleToggle = async (e) => {
+    e.stopPropagation();
+    setLoading(true);
+    try {
+      const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+      const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+      await fetch(`${url}/rest/v1/bookings?id=eq.${booking.id}`, {
+        method: 'PATCH',
+        headers: { 'apikey': key, 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+        body: JSON.stringify({ is_boosted: !boosted }),
+      });
+      setBoosted(b => !b);
+      if (onToggled) onToggled(booking);
+    } catch(err) { /* silent */ }
+    finally { setLoading(false); }
+  };
+
+  return (
+    <button
+      onClick={handleToggle}
+      disabled={loading}
+      title={boosted ? 'Désactiver le boost ticker' : 'Apparaître dans la barre boost'}
+      style={{
+        display: 'flex', alignItems: 'center', gap: 5,
+        padding: '4px 9px', borderRadius: 6, fontSize: 10, fontWeight: 700,
+        cursor: loading ? 'wait' : 'pointer',
+        border: `1px solid ${boosted ? '#f0b42940' : '#ffffff18'}`,
+        background: boosted ? '#f0b42912' : 'transparent',
+        color: boosted ? '#f0b429' : 'rgba(255,255,255,0.3)',
+        transition: 'all 0.2s',
+      }}>
+      <span style={{ fontSize: 11 }}>⚡</span>
+      {loading ? '…' : boosted ? 'Boosté' : 'Booster'}
+    </button>
+  );
+}
+
 function TabMesBlocs({ bookings, onSelect, selectedId }) {
   const active  = bookings.filter(b => b.status === 'active');
   const others  = bookings.filter(b => b.status !== 'active');
@@ -147,9 +189,12 @@ function TabMesBlocs({ bookings, onSelect, selectedId }) {
 
         {/* Stats rapides */}
         {b.status === 'active' && (
-          <div style={{ textAlign: 'right', flexShrink: 0 }}>
-            <div style={{ fontSize: 15, fontWeight: 700, color: U.text }}>{b.clicks}</div>
-            <div style={{ fontSize: 11, color: U.muted }}>clics</div>
+          <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-end', gap:6, flexShrink:0 }}>
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ fontSize: 15, fontWeight: 700, color: U.text }}>{b.clicks}</div>
+              <div style={{ fontSize: 11, color: U.muted }}>clics</div>
+            </div>
+            <BoostToggle booking={b} onToggled={onSelect} />
           </div>
         )}
       </div>
