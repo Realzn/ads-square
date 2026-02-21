@@ -57,17 +57,20 @@ export async function POST(request) {
     }
 
     // Check slot availability in Supabase (client already initialized above)
-    const startDate = new Date().toISOString().split('T')[0];
-    const endDate = new Date(Date.now() + days * 86400000).toISOString().split('T')[0];
+    // Dates placeholder — seront remplacées par les timestamps exacts
+    // au moment de la confirmation paiement (webhook checkout.session.completed)
+    const now      = new Date();
+    const startDate = now.toISOString().split('T')[0];
+    const endDate   = new Date(now.getTime() + days * 86400000).toISOString().split('T')[0];
 
+    // Vérifier conflits sur expires_at si disponible, sinon end_date
     const { data: conflicts } = await supabase
       .from('bookings')
       .select('id')
       .eq('slot_x', slotX)
       .eq('slot_y', slotY)
       .in('status', ['active', 'pending'])
-      .lt('start_date', endDate)
-      .gt('end_date', startDate);
+      .or(`expires_at.gt.${now.toISOString()},and(expires_at.is.null,end_date.gte.${startDate})`);
 
     if (conflicts && conflicts.length > 0) {
       return NextResponse.json(

@@ -228,13 +228,24 @@ export async function POST(request) {
       case 'extend_booking': {
         const { bookingId, extraDays } = body;
         const { data: booking } = await supabase
-          .from('bookings').select('end_date').eq('id', bookingId).single();
-        const newEnd = new Date(booking.end_date);
-        newEnd.setDate(newEnd.getDate() + parseInt(extraDays));
+          .from('bookings').select('end_date, expires_at').eq('id', bookingId).single();
+
+        const extraMs = parseInt(extraDays) * 86400 * 1000;
+
+        // Prolonger expires_at si disponible (précis à la seconde), sinon end_date
+        let updatePayload = { updated_at: new Date().toISOString() };
+        if (booking.expires_at) {
+          const newExpires = new Date(new Date(booking.expires_at).getTime() + extraMs);
+          updatePayload.expires_at = newExpires.toISOString();
+          updatePayload.end_date   = newExpires.toISOString().split('T')[0];
+        } else {
+          const newEnd = new Date(booking.end_date);
+          newEnd.setDate(newEnd.getDate() + parseInt(extraDays));
+          updatePayload.end_date = newEnd.toISOString().split('T')[0];
+        }
+
         const { error } = await supabase
-          .from('bookings')
-          .update({ end_date: newEnd.toISOString().split('T')[0], updated_at: new Date().toISOString() })
-          .eq('id', bookingId);
+          .from('bookings').update(updatePayload).eq('id', bookingId);
         if (error) return NextResponse.json({ error: error.message }, { status: 500 });
         await log('booking', bookingId, { extra_days: extraDays });
         return NextResponse.json({ ok: true });

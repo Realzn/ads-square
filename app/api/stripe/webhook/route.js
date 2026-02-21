@@ -45,12 +45,22 @@ export async function POST(request) {
 
       console.log(`[Webhook] Payment success for slot (${slot_x},${slot_y})`);
 
-      // Activate the pending booking
+      // Calculer les timestamps exacts au moment de la confirmation paiement
+      const paidAt   = new Date();                                          // maintenant, à la seconde
+      const daysNum  = parseInt(days || '30', 10);
+      const expiresAt = new Date(paidAt.getTime() + daysNum * 86400 * 1000); // +N×24h exactement
+
+      // Activate the pending booking avec timestamps précis
       const { data, error } = await supabase
         .from('bookings')
         .update({
-          status: 'active',
-          stripe_payment_id: session.payment_intent,
+          status:             'active',
+          stripe_payment_id:  session.payment_intent,
+          starts_at:          paidAt.toISOString(),        // heure exacte de paiement
+          expires_at:         expiresAt.toISOString(),     // heure exacte d'expiration
+          // Mettre aussi start_date / end_date pour rétrocompatibilité
+          start_date:         paidAt.toISOString().split('T')[0],
+          end_date:           expiresAt.toISOString().split('T')[0],
         })
         .eq('stripe_session_id', session.id)
         .eq('status', 'pending')
