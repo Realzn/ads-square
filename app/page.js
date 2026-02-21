@@ -2376,25 +2376,109 @@ function PublicView({ slots, isLive, onGoAdvertiser, onWaitlist, authUser, userB
       <div style={{ flex: 1, display: feedMode ? 'none' : 'flex', overflow: 'auto', alignItems: 'flex-start', justifyContent: 'center', minHeight: 0 }} ref={containerRef}>
         <div style={{ position: 'relative', width: totalGridW, height: totalGridH, flexShrink: 0 }}>
           {slots.map(slot => {
-            const inFilter = filteredSlots.has(slot.id);
-            const available = isTierAvailable(slot.tier);
-            // Quand un filtre est actif : blocs hors-filtre → 0.06 (dimming fort)
-            // Quand aucun filtre : blocs indisponibles gardent leur opacité naturelle (0.45 via BlockCell)
-            const wrapperOpacity = filterTier !== 'all' || filterTheme !== 'all'
-              ? (inFilter ? 1 : 0.06)
-              : 1;
+            const inFilter  = filteredSlots.has(slot.id);
+            const isFiltering = filterTier !== 'all' || filterTheme !== 'all';
+
+            // ── Couleur néon selon le filtre actif ──────────────
+            // Tier → couleur du tier, Theme → couleur du thème
+            let neonColor = null;
+            if (isFiltering && inFilter) {
+              if (filterTier !== 'all') {
+                neonColor = TIER_COLOR[slot.tier];
+              } else if (filterTheme !== 'all') {
+                const th = THEMES.find(t => t.id === filterTheme);
+                neonColor = th?.color || TIER_COLOR[slot.tier];
+              }
+            }
+
+            // sz du bloc pour calibrer l'intensité du glow
+            const sz = tierSizes[slot.tier] || 10;
+
+            // Opacité : hors filtre = très dim, dans filtre = pleine lumière
+            const wrapperOpacity = isFiltering ? (inFilter ? 1 : 0.05) : 1;
+
             return (
-            <div key={slot.id} style={{ position: 'absolute', left: colOffsets[slot.x], top: rowOffsets[slot.y], opacity: wrapperOpacity, transition: 'opacity 0.2s' }}>
-              {/* Theme glow overlay */}
-              {(() => {
-                const th = filterTheme !== 'all' ? getSlotTheme(slot) : null;
-                const isMatch = th && filteredSlots.has(slot.id) && slot.occ;
-                return (<>
-                  <BlockCell slot={slot} isSelected={false} onSelect={() => {}} onFocus={setFocusSlot} sz={tierSizes[slot.tier]} showStats={true} />
-                  {isMatch && th.color && <div style={{ position: 'absolute', inset: 0, borderRadius: 4, boxShadow: `0 0 0 2px ${th.color}80, 0 0 14px ${th.color}40`, pointerEvents: 'none', zIndex: 5 }} />}
-                </>);
-              })()}
-            </div>
+              <div
+                key={slot.id}
+                style={{
+                  position: 'absolute',
+                  left: colOffsets[slot.x],
+                  top: rowOffsets[slot.y],
+                  opacity: wrapperOpacity,
+                  transition: 'opacity 0.25s ease, transform 0.2s ease',
+                  // Légère montée des blocs en filtre pour sensation de "sélection"
+                  transform: isFiltering && inFilter ? 'scale(1.04)' : 'scale(1)',
+                  zIndex: isFiltering && inFilter ? 2 : 1,
+                }}
+              >
+                <BlockCell slot={slot} isSelected={false} onSelect={() => {}} onFocus={setFocusSlot} sz={tierSizes[slot.tier]} showStats={true} />
+
+                {/* ── Néon overlay multi-couches ── */}
+                {neonColor && (() => {
+                  const isLargeBlock = sz >= 40;
+                  const isMedium     = sz >= 20 && sz < 40;
+                  return (
+                    <>
+                      {/* Couche 1 — bordure néon nette */}
+                      <div style={{
+                        position: 'absolute', inset: 0, borderRadius: 'inherit',
+                        boxShadow: `inset 0 0 0 ${isLargeBlock ? 2 : 1}px ${neonColor}`,
+                        pointerEvents: 'none', zIndex: 6,
+                      }} />
+
+                      {/* Couche 2 — halo externe proche */}
+                      <div style={{
+                        position: 'absolute',
+                        inset: isLargeBlock ? -3 : -2,
+                        borderRadius: 'inherit',
+                        boxShadow: `0 0 ${isLargeBlock ? 10 : 6}px ${isLargeBlock ? 4 : 2}px ${neonColor}70`,
+                        pointerEvents: 'none', zIndex: 5,
+                        animation: 'neonPulse 2.2s ease-in-out infinite',
+                      }} />
+
+                      {/* Couche 3 — glow diffus large (gros blocs seulement) */}
+                      {isLargeBlock && (
+                        <div style={{
+                          position: 'absolute',
+                          inset: -8,
+                          borderRadius: 'inherit',
+                          boxShadow: `0 0 28px 8px ${neonColor}35`,
+                          pointerEvents: 'none', zIndex: 4,
+                          animation: 'neonPulse 2.2s ease-in-out infinite',
+                          animationDelay: '0.4s',
+                        }} />
+                      )}
+
+                      {/* Couche 4 — teinte colorée sur le fond du bloc (blocs vides/indisponibles) */}
+                      {!slot.occ && (
+                        <div style={{
+                          position: 'absolute', inset: 0, borderRadius: 'inherit',
+                          background: `${neonColor}12`,
+                          pointerEvents: 'none', zIndex: 3,
+                        }} />
+                      )}
+
+                      {/* Couche 5 — étiquette tier sur les gros blocs libres/indisponibles */}
+                      {!slot.occ && sz >= 48 && (
+                        <div style={{
+                          position: 'absolute', bottom: 4, left: '50%',
+                          transform: 'translateX(-50%)',
+                          fontSize: Math.max(7, sz * 0.1),
+                          fontWeight: 800,
+                          color: neonColor,
+                          fontFamily: F.h,
+                          letterSpacing: '0.04em',
+                          textShadow: `0 0 8px ${neonColor}`,
+                          pointerEvents: 'none', zIndex: 7,
+                          whiteSpace: 'nowrap',
+                        }}>
+                          {TIER_LABEL[slot.tier]}
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
+              </div>
             );
           })}
         </div>

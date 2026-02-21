@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
+import { sendOfferNotification } from '../../../../lib/emails';
 
 export async function POST(req) {
   try {
@@ -18,7 +19,7 @@ export async function POST(req) {
     // Verify the target booking is still active
     const { data: booking, error: bookingErr } = await supabase
       .from('bookings')
-      .select('id, status, end_date')
+      .select('id, status, end_date, tier, advertiser_id')
       .eq('id', bookingId)
       .eq('status', 'active')
       .maybeSingle();
@@ -62,8 +63,32 @@ export async function POST(req) {
       return NextResponse.json({ error: 'Failed to submit offer' }, { status: 500 });
     }
 
-    // TODO: send notification email to current occupant
-    // await sendOfferNotificationEmail({ booking, offer, buyerEmail, buyerName, offerCents });
+    // ── Notifier l'occupant actuel par email ──
+    // On récupère son email depuis la table advertisers
+    try {
+      const { data: advertiser } = await supabase
+        .from('advertisers')
+        .select('email, display_name')
+        .eq('id', booking.advertiser_id)
+        .maybeSingle();
+
+      if (advertiser?.email) {
+        await sendOfferNotification({
+          to:             advertiser.email,
+          occupantName:   advertiser.display_name || advertiser.email.split('@')[0],
+          tier:           booking.tier,
+          slotX:          slotX,
+          slotY:          slotY,
+          buyerName:      buyerName,
+          offerCents:     offerCents,
+          message:        message,
+          offerExpiresAt: offer.expires_at,
+        });
+      }
+    } catch (emailErr) {
+      // Email failure non-bloquant — l'offre est quand même enregistrée
+      console.error('[Offers] Email send failed:', emailErr.message);
+    }
 
     return NextResponse.json({
       ok: true,

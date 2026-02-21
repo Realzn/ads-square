@@ -4,6 +4,7 @@
 import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { createServiceClient } from '../../../../lib/supabase-server';
+import { sendPaymentConfirmation } from '../../../../lib/emails';
 
 // ✅ No module-level Stripe init — process.env not available at load time in CF Workers
 
@@ -76,6 +77,19 @@ export async function POST(request) {
         console.error('[Webhook] Existing bookings for session:', existing);
       } else {
         console.log(`[Webhook] Booking ${data.id} activated for slot (${slot_x},${slot_y})`);
+
+        // ── Email de confirmation de paiement ──
+        await sendPaymentConfirmation({
+          to:           email,
+          displayName:  data.display_name || email.split('@')[0],
+          tier:         data.tier || tier,
+          slotX:        parseInt(slot_x),
+          slotY:        parseInt(slot_y),
+          days:         daysNum,
+          amountCents:  session.amount_total || 0,
+          startsAt:     paidAt.toISOString(),
+          expiresAt:    expiresAt.toISOString(),
+        });
       }
 
       // Update Stripe customer ID on advertiser
