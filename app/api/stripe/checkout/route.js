@@ -39,16 +39,24 @@ export async function POST(request) {
       );
     }
 
-    // Vérifier que le tier est ouvert à la location
-    if (!isTierAvailable(realTier)) {
+    // Vérifier la disponibilité depuis la DB (tier_config) — priorité sur le fichier statique
+    const supabase = createServiceClient();
+    const { data: tierCfg } = await supabase
+      .from('tier_config')
+      .select('available')
+      .eq('tier', realTier)
+      .maybeSingle();
+
+    // Fallback sur la config statique si la table n'existe pas encore
+    const tierAvailable = tierCfg ? tierCfg.available : isTierAvailable(realTier);
+    if (!tierAvailable) {
       return NextResponse.json(
         { error: `Les blocs ${TIER_LABEL[realTier]} arrivent prochainement. Restez connecté !` },
         { status: 403 }
       );
     }
 
-    // Check slot availability in Supabase
-    const supabase = createServiceClient();
+    // Check slot availability in Supabase (client already initialized above)
     const startDate = new Date().toISOString().split('T')[0];
     const endDate = new Date(Date.now() + days * 86400000).toISOString().split('T')[0];
 
