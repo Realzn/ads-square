@@ -2121,7 +2121,7 @@ function BoostTicker({ slots, authUser, userBookings, onBoost, onGoAdvertiser })
     '⚡ Boostez votre bloc pour apparaître ici et obtenir une visibilité maximale',
     '🚀 Votre marque vue par tous les visiteurs en temps réel',
     '✦ Réservez un bloc ADS-SQUARE et activez le boost pour rejoindre cette barre',
-    '💡 Les annonceurs boostés obtiennent 3× plus de clics',
+    '💡 Les annonceurs boostés attirent davantage de regards sur leur marque',
   ];
 
   return (
@@ -3133,19 +3133,32 @@ export default function App() {
 
   // Charger la session auth + bookings utilisateur au montage
   useEffect(() => {
-    getSession().then(s => {
+    getSession().then(async s => {
       const user = s?.user || null;
       setAuthUser(user);
       if (user) {
-        // Fetch user's active bookings via Supabase REST
+        // Récupérer l'advertiser lié à cet auth_user pour avoir son vrai UUID
         const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
         const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
         if (url && key) {
-          fetch(`${url}/rest/v1/bookings?advertiser_id=eq.${user.id}&status=in.(active,pending)&select=id,slot_x,slot_y,status,is_boosted`, {
-            headers: { 'apikey': key, 'Authorization': `Bearer ${key}` }
-          }).then(r => r.json()).then(data => {
-            if (Array.isArray(data)) setUserBookings(data);
-          }).catch(() => {});
+          try {
+            // 1. Trouver l'advertiser_id réel via auth_user_id
+            const advRes = await fetch(
+              `${url}/rest/v1/advertisers?auth_user_id=eq.${user.id}&select=id`,
+              { headers: { 'apikey': key, 'Authorization': `Bearer ${key}` } }
+            );
+            const advData = await advRes.json();
+            const advertiserId = Array.isArray(advData) && advData[0]?.id;
+            if (advertiserId) {
+              // 2. Charger les bookings avec l'advertiser_id correct
+              const bkRes = await fetch(
+                `${url}/rest/v1/bookings?advertiser_id=eq.${advertiserId}&status=in.(active,pending)&select=id,slot_x,slot_y,status,is_boosted`,
+                { headers: { 'apikey': key, 'Authorization': `Bearer ${key}` } }
+              );
+              const bkData = await bkRes.json();
+              if (Array.isArray(bkData)) setUserBookings(bkData);
+            }
+          } catch(e) { /* silent */ }
         }
       }
     });
