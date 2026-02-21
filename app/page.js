@@ -734,9 +734,9 @@ function HoverStatsBadge({ slot, sz }) {
             )}
           </div>
           {/* Flèche en bas */}
-          <div style={{ position:'absolute', bottom:-5, left:'50%', transform:'translateX(-50%)',
+          <div style={{ position:'absolute', bottom:-5, left:'50%', transform:'translateX(-50%) rotate(45deg)',
             width:8, height:8, background:U.s1, border:`1px solid ${c}30`,
-            borderTop:'none', borderLeft:'none', transform:'translateX(-50%) rotate(45deg)' }} />
+            borderTop:'none', borderLeft:'none' }} />
         </div>
       )}
     </div>
@@ -2293,10 +2293,14 @@ function PublicView({ slots, isLive, onGoAdvertiser, onWaitlist, authUser, userB
 
   const filteredSlots = useMemo(() => {
     let s = slots;
+    // Tier filter: inclut TOUS les slots du tier (occupés, libres ET indisponibles)
+    // pour un dimming uniforme identique à la vue annonceur.
     if (filterTier !== 'all') s = s.filter(sl => sl.tier === filterTier || (filterTier === 'ten' && sl.tier === 'corner_ten'));
+    // Theme filter: ne dimme que les blocs occupés qui ne matchent pas;
+    // les blocs vides/indisponibles du tier restent à pleine opacité.
     if (filterTheme !== 'all') {
       const theme = THEMES.find(t => t.id === filterTheme);
-      if (theme) s = s.filter(sl => sl.occ && theme.match?.(sl.tenant?.t, sl.tenant?.name, sl.tenant?.url));
+      if (theme) s = s.filter(sl => !sl.occ || theme.match?.(sl.tenant?.t, sl.tenant?.name, sl.tenant?.url));
     }
     return new Set(s.map(sl => sl.id));
   }, [slots, filterTier, filterTheme]);
@@ -2371,8 +2375,16 @@ function PublicView({ slots, isLive, onGoAdvertiser, onWaitlist, authUser, userB
       {/* Les deux vues restent dans le DOM — display:none évite le remount et préserve containerW */}
       <div style={{ flex: 1, display: feedMode ? 'none' : 'flex', overflow: 'auto', alignItems: 'flex-start', justifyContent: 'center', minHeight: 0 }} ref={containerRef}>
         <div style={{ position: 'relative', width: totalGridW, height: totalGridH, flexShrink: 0 }}>
-          {slots.map(slot => (
-            <div key={slot.id} style={{ position: 'absolute', left: colOffsets[slot.x], top: rowOffsets[slot.y], opacity: filteredSlots.has(slot.id) ? 1 : 0.06, transition: 'opacity 0.2s' }}>
+          {slots.map(slot => {
+            const inFilter = filteredSlots.has(slot.id);
+            const available = isTierAvailable(slot.tier);
+            // Quand un filtre est actif : blocs hors-filtre → 0.06 (dimming fort)
+            // Quand aucun filtre : blocs indisponibles gardent leur opacité naturelle (0.45 via BlockCell)
+            const wrapperOpacity = filterTier !== 'all' || filterTheme !== 'all'
+              ? (inFilter ? 1 : 0.06)
+              : 1;
+            return (
+            <div key={slot.id} style={{ position: 'absolute', left: colOffsets[slot.x], top: rowOffsets[slot.y], opacity: wrapperOpacity, transition: 'opacity 0.2s' }}>
               {/* Theme glow overlay */}
               {(() => {
                 const th = filterTheme !== 'all' ? getSlotTheme(slot) : null;
@@ -2383,7 +2395,8 @@ function PublicView({ slots, isLive, onGoAdvertiser, onWaitlist, authUser, userB
                 </>);
               })()}
             </div>
-          ))}
+            );
+          })}
         </div>
       </div>
       <div style={{ flex: 1, display: feedMode ? 'flex' : 'none', flexDirection: 'column', overflow: 'hidden' }}>
@@ -2428,11 +2441,10 @@ const AnonBlock = memo(({ slot, chosenSlot, activeTier, onChoose, sz: szProp }) 
   const c  = TIER_COLOR[t];
   const isChosen = chosenSlot?.id === slot.id;
   const isTierHighlighted = activeTier && (t === activeTier || (activeTier === 'ten' && t === 'corner_ten'));
-  const dimmed = activeTier && !isTierHighlighted;
   const r = t === 'one' ? Math.round(sz * 0.1) : t === 'ten' || t === 'corner_ten' ? Math.round(sz * 0.09) : t === 'hundred' ? 3 : 2;
 
   if (occ) return (
-    <div onClick={() => onChoose(slot)} style={{ width: sz, height: sz, borderRadius: r, background: occ ? (slot.tenant?.b || U.s2) : U.s2, border: `1px solid ${isTierHighlighted ? c + '50' : isChosen ? c + '80' : c + '25'}`, position: 'relative', overflow: 'hidden', flexShrink: 0, opacity: dimmed ? 0.1 : 1, cursor: 'pointer', outline: isChosen ? `2px solid ${c}` : 'none', outlineOffset: 1, transition: 'opacity 0.25s, box-shadow 0.25s', boxShadow: isChosen ? `0 0 0 2px ${c}55, 0 0 ${sz * 0.5}px ${c}35` : isTierHighlighted ? `0 0 ${sz * 0.4}px ${c}18` : 'none' }}>
+    <div onClick={() => onChoose(slot)} style={{ width: sz, height: sz, borderRadius: r, background: slot.tenant?.b || U.s2, border: `1px solid ${isTierHighlighted ? c + '50' : isChosen ? c + '80' : c + '25'}`, position: 'relative', overflow: 'hidden', flexShrink: 0, cursor: 'pointer', outline: isChosen ? `2px solid ${c}` : 'none', outlineOffset: 1, transition: 'box-shadow 0.25s', boxShadow: isChosen ? `0 0 0 2px ${c}55, 0 0 ${sz * 0.5}px ${c}35` : isTierHighlighted ? `0 0 ${sz * 0.4}px ${c}18` : 'none' }}>
       {sz >= 12 && slot.tenant && (
         <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: slot.tenant.b || U.s2 }}>
           {sz >= 24 && <span style={{ color: slot.tenant.c, fontSize: Math.min(sz * 0.38, 28), fontWeight: 900, fontFamily: F.h, lineHeight: 1 }}>{slot.tenant.l}</span>}
@@ -2442,7 +2454,7 @@ const AnonBlock = memo(({ slot, chosenSlot, activeTier, onChoose, sz: szProp }) 
   );
 
   return (
-    <div onClick={() => onChoose(slot)} style={{ width: sz, height: sz, flexShrink: 0, position: 'relative', borderRadius: r, background: isChosen ? `${c}18` : isTierHighlighted ? `${c}0c` : U.s2, border: `1px solid ${isChosen ? c + '80' : isTierHighlighted ? c + '40' : U.border}`, outline: isChosen ? `2px solid ${c}` : 'none', outlineOffset: 1, cursor: 'pointer', opacity: dimmed ? 0.1 : 1, boxShadow: isChosen ? `0 0 0 2px ${c}55, 0 0 ${sz * 0.5}px ${c}35` : isTierHighlighted ? `0 0 ${sz * 0.4}px ${c}22` : 'none', transition: 'opacity 0.25s, border-color 0.2s, background 0.2s, box-shadow 0.25s' }}>
+    <div onClick={() => onChoose(slot)} style={{ width: sz, height: sz, flexShrink: 0, position: 'relative', borderRadius: r, background: isChosen ? `${c}18` : isTierHighlighted ? `${c}0c` : U.s2, border: `1px solid ${isChosen ? c + '80' : isTierHighlighted ? c + '40' : U.border}`, outline: isChosen ? `2px solid ${c}` : 'none', outlineOffset: 1, cursor: 'pointer', boxShadow: isChosen ? `0 0 0 2px ${c}55, 0 0 ${sz * 0.5}px ${c}35` : isTierHighlighted ? `0 0 ${sz * 0.4}px ${c}22` : 'none', transition: 'border-color 0.2s, background 0.2s, box-shadow 0.25s' }}>
       {isChosen && sz >= 18 && (
         <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <svg width={sz * 0.4} height={sz * 0.4} viewBox="0 0 12 12" fill="none">
@@ -2746,11 +2758,14 @@ function AdvertiserView({ slots, isLive, onWaitlist, onCheckout }) {
       {/* Grid */}
       <div ref={containerRef} style={{ flex: 1, overflow: 'auto', background: U.bg, order: isMobile ? 1 : 0, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', minHeight: 0, maxHeight: isMobile ? '45vh' : undefined }}>
         <div style={{ position: 'relative', width: totalGridW, height: totalGridH, flexShrink: 0 }}>
-          {slots.map(slot => (
-            <div key={slot.id} style={{ position: 'absolute', left: colOffsets[slot.x], top: rowOffsets[slot.y] }}>
-              <AnonBlock slot={slot} chosenSlot={chosenSlot} activeTier={activeTier} onChoose={handleChoose} sz={tierSizes[slot.tier]} />
-            </div>
-          ))}
+          {slots.map(slot => {
+            const tierMatch = !activeTier || slot.tier === activeTier || (activeTier === 'ten' && slot.tier === 'corner_ten');
+            return (
+              <div key={slot.id} style={{ position: 'absolute', left: colOffsets[slot.x], top: rowOffsets[slot.y], opacity: tierMatch ? 1 : 0.06, transition: 'opacity 0.2s' }}>
+                <AnonBlock slot={slot} chosenSlot={chosenSlot} activeTier={activeTier} onChoose={handleChoose} sz={tierSizes[slot.tier]} />
+              </div>
+            );
+          })}
         </div>
       </div>
     </div>

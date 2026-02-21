@@ -33,7 +33,7 @@ function FAQItem({ q, children }) {
 function FAQSection({ title, children }) {
   return (
     <div style={{ marginBottom: 48 }}>
-      <h2 style={{ fontFamily: F.h, fontSize: 16, fontWeight: 700, color: U.accent, letterSpacing: '0.06em', margin: '0 0 4px', textTransform: 'uppercase', fontSize: 11 }}>{title}</h2>
+      <h2 style={{ fontFamily: F.h, fontSize: 11, fontWeight: 700, color: U.accent, letterSpacing: '0.06em', margin: '0 0 4px', textTransform: 'uppercase' }}>{title}</h2>
       <h3 style={{ fontFamily: F.h, fontSize: 22, fontWeight: 700, letterSpacing: '-0.02em', color: U.text, margin: '0 0 24px' }}></h3>
       <div style={{ border: `1px solid ${U.border}`, borderRadius: 12, padding: '0 20px', background: U.s1 }}>
         {children}
