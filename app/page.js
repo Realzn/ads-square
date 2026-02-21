@@ -1314,20 +1314,28 @@ function AdvertiserProfileModal({ advertiserId, slots, onClose, onOpenSlot }) {
             marginBottom: 22,
             flexWrap: 'wrap',
           }}>
-            {/* Liens sociaux */}
+            {/* Réseaux sociaux du profil annonceur */}
             {[
-              socialMeta && tenant.social && {
-                href: `${socialMeta.prefix}${tenant.social.replace('@', '')}`,
-                label: `@${tenant.social.replace('@', '')}`,
-                icon: socialMeta.icon,
-                color: socialMeta.color,
-              },
-              musicMeta && tenant.music && {
-                href: `${musicMeta.prefix}${tenant.music.replace('@', '')}`,
-                label: musicMeta.label,
-                icon: musicMeta.icon,
-                color: musicMeta.color,
-              },
+              tenant.instagramUrl && { href: tenant.instagramUrl, label: 'Instagram', icon: '📸', color: '#e1306c' },
+              tenant.tiktokUrl    && { href: tenant.tiktokUrl,    label: 'TikTok',    icon: '🎵', color: '#00f2ea' },
+              tenant.twitterUrl   && { href: tenant.twitterUrl,   label: 'X',         icon: '𝕏',  color: '#e7e9ea' },
+              tenant.youtubeUrl   && { href: tenant.youtubeUrl,   label: 'YouTube',   icon: '▶',  color: '#ff0000' },
+              tenant.linkedinUrl  && { href: tenant.linkedinUrl,  label: 'LinkedIn',  icon: 'in', color: '#0077b5' },
+              // Fallback : réseau lié au bloc (ancien comportement)
+              !tenant.instagramUrl && !tenant.tiktokUrl && !tenant.twitterUrl && !tenant.youtubeUrl && !tenant.linkedinUrl
+                && socialMeta && tenant.social && {
+                  href: `${socialMeta.prefix}${tenant.social.replace('@', '')}`,
+                  label: `@${tenant.social.replace('@', '')}`,
+                  icon: socialMeta.icon,
+                  color: socialMeta.color,
+                },
+              !tenant.instagramUrl && !tenant.tiktokUrl && !tenant.twitterUrl && !tenant.youtubeUrl && !tenant.linkedinUrl
+                && musicMeta && tenant.music && {
+                  href: `${musicMeta.prefix}${tenant.music.replace('@', '')}`,
+                  label: musicMeta.label,
+                  icon: musicMeta.icon,
+                  color: musicMeta.color,
+                },
             ].filter(Boolean).map((link, i) => (
               <a
                 key={i}
