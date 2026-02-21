@@ -84,3 +84,8 @@ input::placeholder, textarea::placeholder { color: rgba(185,205,255,0.22); }
   0%   { transform: translateX(0); }
   100% { transform: translateX(-50%); }
 }
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}

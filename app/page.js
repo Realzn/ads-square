@@ -1312,6 +1312,142 @@ function TikTokFeed({ slots, isLive }) {
   );
 }
 
+
+// ─── FeedInvitePanel ───────────────────────────────────────────
+// Apparaît en deux cas :
+//   1. Inactivité > 60s sur la grille
+//   2. Toutes les 3min même avec activité (invitation douce, disparaît en 8s)
+function FeedInvitePanel({ slots, onSwitchToFeed, onDismiss }) {
+  const [entered, setEntered] = useState(false);
+  const occupiedSlots = useMemo(() => slots.filter(s => s.occ).slice(0, 3), [slots]);
+
+  useEffect(() => {
+    const t = requestAnimationFrame(() => setEntered(true));
+    return () => cancelAnimationFrame(t);
+  }, []);
+
+  const c = U.accent;
+
+  return (
+    <div
+      style={{
+        position: 'fixed',
+        right: entered ? 0 : -320,
+        top: '50%',
+        transform: 'translateY(-50%)',
+        zIndex: 500,
+        transition: 'right 0.45s cubic-bezier(0.34,1.2,0.64,1)',
+        width: 280,
+      }}
+    >
+      <div style={{
+        background: U.s1,
+        border: `1px solid ${U.border2}`,
+        borderRight: 'none',
+        borderRadius: '16px 0 0 16px',
+        boxShadow: '-8px 0 40px rgba(0,0,0,0.6), -2px 0 0 ' + c + '30',
+        overflow: 'hidden',
+      }}>
+        {/* Bande accent en haut */}
+        <div style={{ height: 3, background: `linear-gradient(90deg, transparent, ${c}, ${c}90)` }} />
+
+        <div style={{ padding: '18px 18px 16px' }}>
+          {/* Header */}
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 14 }}>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 4 }}>
+                <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#00e8a2', boxShadow: '0 0 6px #00e8a2', animation: 'blink 1.5s infinite' }} />
+                <span style={{ fontSize: 9, fontWeight: 700, color: '#00e8a2', letterSpacing: '0.1em' }}>DÉCOUVERTE</span>
+              </div>
+              <div style={{ color: U.text, fontWeight: 800, fontSize: 15, fontFamily: F.h, lineHeight: 1.2, letterSpacing: '-0.01em' }}>
+                Explorez les blocs
+              </div>
+              <div style={{ color: U.text, fontWeight: 800, fontSize: 15, fontFamily: F.h, lineHeight: 1.2, letterSpacing: '-0.01em' }}>
+                en mode <span style={{ color: c }}>Feed</span>
+              </div>
+            </div>
+            <button
+              onClick={onDismiss}
+              style={{ width: 24, height: 24, borderRadius: '50%', background: U.faint, border: `1px solid ${U.border}`, color: U.muted, cursor: 'pointer', fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 2 }}
+            >×</button>
+          </div>
+
+          {/* Preview de 3 blocs */}
+          {occupiedSlots.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 14 }}>
+              {occupiedSlots.map((slot, i) => {
+                const c2 = slot.tenant?.c || TIER_COLOR[slot.tier];
+                return (
+                  <div key={slot.id} style={{
+                    display: 'flex', alignItems: 'center', gap: 10,
+                    padding: '8px 10px', borderRadius: 10,
+                    background: `${c2}08`, border: `1px solid ${c2}20`,
+                    animation: `fadeUp 0.4s ease ${i * 0.08}s both`,
+                  }}>
+                    {/* Miniature colorée */}
+                    <div style={{
+                      width: 34, height: 34, borderRadius: 8, flexShrink: 0,
+                      background: slot.tenant?.img
+                        ? `url(${slot.tenant.img}) center/cover`
+                        : `${c2}20`,
+                      border: `1.5px solid ${c2}40`,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      overflow: 'hidden',
+                    }}>
+                      {!slot.tenant?.img && (
+                        <span style={{ color: c2, fontWeight: 900, fontSize: 13, fontFamily: F.h }}>
+                          {slot.tenant?.l || slot.tenant?.name?.charAt(0) || '?'}
+                        </span>
+                      )}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ color: U.text, fontWeight: 700, fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {slot.tenant?.name || 'Annonceur'}
+                      </div>
+                      <div style={{ color: U.muted, fontSize: 10, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {slot.tenant?.slogan || TIER_LABEL[slot.tier]}
+                      </div>
+                    </div>
+                    <div style={{ width: 6, height: 6, borderRadius: '50%', background: c2, flexShrink: 0, opacity: 0.6 }} />
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Description */}
+          <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11, lineHeight: 1.6, marginBottom: 14 }}>
+            Naviguez bloc par bloc, découvrez les offres et inspirations des annonceurs actifs.
+          </div>
+
+          {/* CTA */}
+          <button
+            onClick={onSwitchToFeed}
+            style={{
+              width: '100%', padding: '10px',
+              borderRadius: 10, fontFamily: F.b,
+              cursor: 'pointer', fontWeight: 700, fontSize: 13,
+              background: c, border: 'none', color: U.accentFg,
+              boxShadow: `0 0 20px ${c}40`,
+              transition: 'opacity 0.15s',
+            }}
+          >
+            Ouvrir le Feed →
+          </button>
+
+          {/* Skip */}
+          <button
+            onClick={onDismiss}
+            style={{ width: '100%', marginTop: 7, padding: '6px', background: 'none', border: 'none', color: 'rgba(255,255,255,0.25)', fontSize: 10, cursor: 'pointer', fontFamily: F.b }}
+          >
+            Continuer à explorer la grille
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Public View ───────────────────────────────────────────────
 // ─── Boost Ticker (scrolling banner of boosted slots only) ──────
 function BoostTicker({ slots, authUser, userBookings, onBoost, onGoAdvertiser }) {
@@ -1419,13 +1555,76 @@ function BoostTicker({ slots, authUser, userBookings, onBoost, onGoAdvertiser })
 function PublicView({ slots, isLive, onGoAdvertiser, authUser, userBookings }) {
   const t = useT();
   const containerRef  = useRef(null);
-  const [containerW, setContainerW] = useState(0); // ✅ Fix hydration: init 0, set real in ResizeObserver
+  const [containerW, setContainerW] = useState(0);
   const [containerH, setContainerH] = useState(0);
   const [focusSlot, setFocusSlot]   = useState(null);
   const [filterTier, setFilterTier] = useState('all');
   const [filterTheme, setFilterTheme] = useState('all');
   const [feedMode, setFeedMode]     = useState(false);
+  const [showFeedInvite, setShowFeedInvite] = useState(false);
   const { isMobile } = useScreenSize();
+
+  // ── Logique d'invitation au Feed ──────────────────────────────
+  const INACTIVITY_MS  = 60_000;  // 60s sans interaction → panneau
+  const PERIODIC_MS    = 180_000; // 3min même avec activité → rappel
+  const inactivityTimer = useRef(null);
+  const periodicTimer   = useRef(null);
+  const dismissedRef    = useRef(false); // évite le re-show immédiat après dismiss
+
+  const showInvite = () => {
+    if (feedMode) return; // pas en mode Feed, inutile
+    setShowFeedInvite(true);
+  };
+
+  const resetInactivityTimer = () => {
+    clearTimeout(inactivityTimer.current);
+    if (dismissedRef.current) return; // l'user a fermé, on respecte
+    inactivityTimer.current = setTimeout(showInvite, INACTIVITY_MS);
+  };
+
+  useEffect(() => {
+    if (feedMode) {
+      // En mode feed — on annule tout
+      setShowFeedInvite(false);
+      clearTimeout(inactivityTimer.current);
+      clearTimeout(periodicTimer.current);
+      return;
+    }
+
+    // Inactivité : reset au moindre mouvement souris / tactile / scroll
+    const events = ['mousemove', 'mousedown', 'touchstart', 'touchmove', 'scroll', 'keydown'];
+    const onActivity = () => { if (!dismissedRef.current) resetInactivityTimer(); };
+    events.forEach(e => window.addEventListener(e, onActivity, { passive: true }));
+    resetInactivityTimer();
+
+    // Invitation périodique — toutes les 3min, même avec activité
+    // 8s de visibilité puis disparaît automatiquement (non intrusif)
+    periodicTimer.current = setInterval(() => {
+      if (feedMode || dismissedRef.current) return;
+      setShowFeedInvite(true);
+      // Auto-dismiss après 8s si l'user ne fait rien
+      setTimeout(() => setShowFeedInvite(v => v ? false : v), 8_000);
+    }, PERIODIC_MS);
+
+    return () => {
+      events.forEach(e => window.removeEventListener(e, onActivity));
+      clearTimeout(inactivityTimer.current);
+      clearInterval(periodicTimer.current);
+    };
+  }, [feedMode]);
+
+  const handleDismissInvite = () => {
+    setShowFeedInvite(false);
+    dismissedRef.current = true;
+    // Réactiver après 5min pour ne pas être trop insistant
+    setTimeout(() => { dismissedRef.current = false; resetInactivityTimer(); }, 300_000);
+  };
+
+  const handleSwitchToFeed = () => {
+    setShowFeedInvite(false);
+    setFeedMode(true);
+    dismissedRef.current = false;
+  };
 
   useEffect(() => {
     const el = containerRef.current;
@@ -1549,6 +1748,15 @@ function PublicView({ slots, isLive, onGoAdvertiser, authUser, userBookings }) {
         <TikTokFeed slots={slots} isLive={isLive} />
       </div>
       {focusSlot && <FocusModal slot={focusSlot} allSlots={slots} onClose={() => setFocusSlot(null)} onNavigate={setFocusSlot} onGoAdvertiser={onGoAdvertiser} />}
+
+      {/* ── Feed Invite Panel ── */}
+      {showFeedInvite && !feedMode && (
+        <FeedInvitePanel
+          slots={slots}
+          onSwitchToFeed={handleSwitchToFeed}
+          onDismiss={handleDismissInvite}
+        />
+      )}
     </div>
   );
 }
