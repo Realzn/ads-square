@@ -2380,22 +2380,14 @@ function PublicView({ slots, isLive, onGoAdvertiser, onWaitlist, authUser, userB
             const isFiltering = filterTier !== 'all' || filterTheme !== 'all';
 
             // ── Couleur néon selon le filtre actif ──────────────
-            // Tier  → s'allume sur tous les blocs du tier sélectionné
-            // Theme → s'allume UNIQUEMENT sur les blocs dont la catégorie
-            //         correspond exactement au thème choisi (pas les vides)
+            // Tier → couleur du tier, Theme → couleur du thème
             let neonColor = null;
             if (isFiltering && inFilter) {
               if (filterTier !== 'all') {
-                // Filtre tier : néon sur tous les blocs du tier
                 neonColor = TIER_COLOR[slot.tier];
               } else if (filterTheme !== 'all') {
-                // Filtre catégorie : néon uniquement si le slot matche réellement
-                const slotTheme = getSlotTheme(slot);
-                const activeTheme = THEMES.find(t => t.id === filterTheme);
-                if (slotTheme?.id === filterTheme) {
-                  neonColor = activeTheme?.color || TIER_COLOR[slot.tier];
-                }
-                // Les blocs vides/indisponibles dans le filtre : pas de néon
+                const th = THEMES.find(t => t.id === filterTheme);
+                neonColor = th?.color || TIER_COLOR[slot.tier];
               }
             }
 
@@ -2534,7 +2526,6 @@ const AnonBlock = memo(({ slot, chosenSlot, activeTier, onChoose, sz: szProp }) 
   const isChosen = chosenSlot?.id === slot.id;
   const isTierHighlighted = activeTier && (t === activeTier || (activeTier === 'ten' && t === 'corner_ten'));
   const r = t === 'one' ? Math.round(sz * 0.1) : t === 'ten' || t === 'corner_ten' ? Math.round(sz * 0.09) : t === 'hundred' ? 3 : 2;
-  const available = isTierAvailable(t);
 
   if (occ) return (
     <div onClick={() => onChoose(slot)} style={{ width: sz, height: sz, borderRadius: r, background: slot.tenant?.b || U.s2, border: `1px solid ${isTierHighlighted ? c + '50' : isChosen ? c + '80' : c + '25'}`, position: 'relative', overflow: 'hidden', flexShrink: 0, cursor: 'pointer', outline: isChosen ? `2px solid ${c}` : 'none', outlineOffset: 1, transition: 'box-shadow 0.25s', boxShadow: isChosen ? `0 0 0 2px ${c}55, 0 0 ${sz * 0.5}px ${c}35` : isTierHighlighted ? `0 0 ${sz * 0.4}px ${c}18` : 'none' }}>
@@ -2546,97 +2537,6 @@ const AnonBlock = memo(({ slot, chosenSlot, activeTier, onChoose, sz: szProp }) 
     </div>
   );
 
-  // ── Bloc indisponible ──────────────────────────────────────────
-  if (!available) {
-    return (
-      <div
-        onClick={() => onChoose(slot)}
-        style={{
-          width: sz, height: sz, flexShrink: 0, position: 'relative', borderRadius: r,
-          background: isChosen ? `${c}14` : `${c}06`,
-          border: `1px solid ${isChosen ? c + '55' : c + '18'}`,
-          outline: isChosen ? `2px solid ${c}60` : 'none',
-          outlineOffset: 1,
-          cursor: 'pointer',
-          opacity: 0.75,
-          overflow: 'hidden',
-          transition: 'border-color 0.2s, background 0.2s',
-        }}
-      >
-        {/* Hachures diagonales discrètes */}
-        <div style={{
-          position: 'absolute', inset: 0,
-          background: `repeating-linear-gradient(45deg, ${c}06 0px, ${c}06 1px, transparent 1px, transparent 7px)`,
-          borderRadius: r,
-        }} />
-
-        {/* Cadenas — blocs >= 20px */}
-        {sz >= 20 && (
-          <div style={{
-            position: 'absolute', inset: 0,
-            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-            gap: Math.max(2, sz * 0.05),
-          }}>
-            <span style={{ fontSize: Math.max(7, sz * 0.22), lineHeight: 1, opacity: 0.55 }}>🔒</span>
-
-            {/* "Disponible prochainement" — blocs >= 52px */}
-            {sz >= 52 && (
-              <div style={{
-                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, marginTop: 2,
-              }}>
-                <div style={{
-                  fontSize: Math.max(5, sz * 0.075),
-                  fontWeight: 800,
-                  color: `${c}90`,
-                  letterSpacing: '0.05em',
-                  fontFamily: F.h,
-                  textAlign: 'center',
-                  lineHeight: 1.2,
-                }}>
-                  DISPONIBLE
-                </div>
-                <div style={{
-                  fontSize: Math.max(5, sz * 0.07),
-                  fontWeight: 700,
-                  color: `${c}60`,
-                  letterSpacing: '0.04em',
-                  fontFamily: F.h,
-                  textAlign: 'center',
-                  lineHeight: 1.2,
-                }}>
-                  PROCHAINEMENT
-                </div>
-              </div>
-            )}
-
-            {/* Version courte pour blocs moyens 32–51px */}
-            {sz >= 32 && sz < 52 && (
-              <div style={{
-                fontSize: Math.max(5, sz * 0.09),
-                fontWeight: 800,
-                color: `${c}70`,
-                letterSpacing: '0.05em',
-                fontFamily: F.h,
-                textAlign: 'center',
-                lineHeight: 1.2,
-              }}>
-                BIENTÔT
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Trait simple pour très petits blocs < 20px */}
-        {sz < 20 && sz >= 10 && (
-          <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <div style={{ width: '50%', height: 1, background: `${c}40`, borderRadius: 1 }} />
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  // ── Bloc libre disponible ──────────────────────────────────────
   return (
     <div onClick={() => onChoose(slot)} style={{ width: sz, height: sz, flexShrink: 0, position: 'relative', borderRadius: r, background: isChosen ? `${c}18` : isTierHighlighted ? `${c}0c` : U.s2, border: `1px solid ${isChosen ? c + '80' : isTierHighlighted ? c + '40' : U.border}`, outline: isChosen ? `2px solid ${c}` : 'none', outlineOffset: 1, cursor: 'pointer', boxShadow: isChosen ? `0 0 0 2px ${c}55, 0 0 ${sz * 0.5}px ${c}35` : isTierHighlighted ? `0 0 ${sz * 0.4}px ${c}22` : 'none', transition: 'border-color 0.2s, background 0.2s, box-shadow 0.25s' }}>
       {isChosen && sz >= 18 && (
@@ -2988,8 +2888,16 @@ function LandingGrid({ slots }) {
     const STEP = BSZ + GAP;
     const COLS = GRID_COLS;
     const ROWS = GRID_ROWS;
-    const W = COLS * STEP;
-    const H = ROWS * STEP;
+
+    // Taille canvas = taille de la fenêtre entière
+    const W = window.innerWidth;
+    const H = window.innerHeight;
+
+    // Offset pour centrer la grille dans la fenêtre
+    const gridW = COLS * STEP;
+    const gridH = ROWS * STEP;
+    const offsetX = (W - gridW) / 2;
+    const offsetY = (H - gridH) / 2;
 
     // hi-dpi
     const dpr = window.devicePixelRatio || 1;
@@ -3049,8 +2957,8 @@ function LandingGrid({ slots }) {
             }
           }
 
-          const px = x * STEP;
-          const py = y * STEP;
+          const px = offsetX + x * STEP;
+          const py = offsetY + y * STEP;
           const r  = slot.tier === 'one' ? 3 : slot.tier === 'ten' || slot.tier === 'corner_ten' ? 2 : 1;
 
           // glow halo
@@ -3083,8 +2991,7 @@ function LandingGrid({ slots }) {
       ref={canvasRef}
       style={{
         position: 'absolute',
-        top: '50%', left: '50%',
-        transform: 'translate(-50%, -50%)',
+        top: 0, left: 0,
         pointerEvents: 'none',
         opacity: 0.55,
         mixBlendMode: 'screen',
