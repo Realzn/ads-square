@@ -354,7 +354,7 @@ function WaitlistModal({ onClose }) {
               transition: 'all 0.15s',
             }}
           >
-            {loading ? 'Inscription…' : 'Rejoindre la liste d'attente →'}
+            {loading ? 'Inscription…' : "Rejoindre la liste d'attente →"}
           </button>
           <div style={{ marginTop: 12, color: U.muted, fontSize: 11, textAlign: 'center' }}>
             {t('waitlist.nospam')}
