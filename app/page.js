@@ -3028,7 +3028,7 @@ function roundRect(ctx, x, y, w, h, r) {
 }
 
 // ─── Landing Page ──────────────────────────────────────────────
-function LandingPage({ slots, onPublic, onAdvertiser, onWaitlist }) {
+function LandingPage({ slots, onPublic, onAdvertiser, onWaitlist, dailyVisitors }) {
   const { isMobile } = useScreenSize();
   const t = useT();
   const stats = useMemo(() => ({ occupied: slots.filter(s => s.occ).length, vacant: slots.filter(s => !s.occ).length }), [slots]);
@@ -3038,6 +3038,7 @@ function LandingPage({ slots, onPublic, onAdvertiser, onWaitlist }) {
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
     if (!url || !key) return;
+
     // Total impressions + clics toutes campagnes
     fetch(`${url}/rest/v1/slot_clicks?select=event_type`, {
       headers: { 'apikey': key, 'Authorization': `Bearer ${key}` }
@@ -3078,7 +3079,22 @@ function LandingPage({ slots, onPublic, onAdvertiser, onWaitlist }) {
         </p>
 
         {/* Stats live plateforme */}
-        <div style={{ display: 'flex', gap: isMobile ? 16 : 36, justifyContent: 'center', marginBottom: 40, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: isMobile ? 16 : 36, justifyContent: 'center', marginBottom: 40, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+
+          {/* Visiteurs aujourd'hui — preuve sociale temps réel */}
+          <div style={{ textAlign: 'center', minWidth: 60 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}>
+              <div style={{ width: 5, height: 5, borderRadius: '50%', background: '#60a5fa', boxShadow: '0 0 6px #60a5fa', flexShrink: 0, animation: 'blink 2s infinite' }} />
+              <div style={{ color: '#60a5fa', fontWeight: 700, fontSize: isMobile ? 18 : 24, fontFamily: F.h, letterSpacing: '-0.02em' }}>
+                {dailyVisitors !== null ? dailyVisitors.toLocaleString('fr-FR') : '—'}
+              </div>
+            </div>
+            <div style={{ color: U.muted, fontSize: 10, marginTop: 3 }}>visiteurs aujourd'hui</div>
+          </div>
+
+          {/* Séparateur vertical */}
+          {!isMobile && <div style={{ width: 1, height: 32, background: U.border, alignSelf: 'center' }} />}
+
           {[
             [stats.occupied,                                                              t('landing.stat.active'),  false],
             [stats.vacant,                                                                t('landing.stat.free'),    false],
@@ -3140,6 +3156,7 @@ export default function App() {
   const [showBoost, setShowBoost]       = useState(false);
   const [authUser, setAuthUser]         = useState(null);
   const [userBookings, setUserBookings]  = useState([]);
+  const [dailyVisitors, setDailyVisitors] = useState(null);
   const { slots, isLive, loading }  = useGridData();
   const { isMobile } = useScreenSize();
   const handleWaitlist = useCallback(() => setShowWaitlist(true), []);
@@ -3162,6 +3179,26 @@ export default function App() {
         }
       }
     });
+  }, []);
+
+  // Fetch visiteurs journaliers — remonte au niveau App pour être dispo dans la navbar
+  useEffect(() => {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    if (!url || !key) return;
+    const today = new Date().toISOString().slice(0, 10);
+    fetch(`${url}/rest/v1/slot_clicks?select=visitor_id,created_at&created_at=gte.${today}T00:00:00Z&event_type=eq.impression`, {
+      headers: { 'apikey': key, 'Authorization': `Bearer ${key}` }
+    })
+      .then(r => r.json())
+      .then(rows => {
+        if (!Array.isArray(rows)) return;
+        const unique = rows.some(r => r.visitor_id)
+          ? new Set(rows.map(r => r.visitor_id).filter(Boolean)).size
+          : rows.length;
+        setDailyVisitors(unique);
+      })
+      .catch(() => {});
   }, []);
 
   const handleSignOut = useCallback(async () => {
@@ -3193,6 +3230,31 @@ export default function App() {
         {/* Header */}
         <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: isMobile ? '0 12px' : '0 24px', height: 48, flexShrink: 0, borderBottom: `1px solid ${U.border}`, background: `${U.s1}f0`, backdropFilter: 'blur(14px)', zIndex: 100, gap: 8 }}>
           <BrandLogo size={isMobile ? 15 : 17} onClick={() => setView('landing')} />
+
+          {/* ── Compteur visiteurs journaliers ── */}
+          {!isMobile && (
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 6,
+              padding: '4px 10px', borderRadius: 20,
+              background: 'rgba(96,165,250,0.08)',
+              border: '1px solid rgba(96,165,250,0.18)',
+              marginLeft: 8,
+            }}>
+              <div style={{
+                width: 5, height: 5, borderRadius: '50%',
+                background: '#60a5fa',
+                boxShadow: '0 0 5px #60a5fa',
+                animation: 'blink 2s infinite',
+                flexShrink: 0,
+              }} />
+              <span style={{ color: '#60a5fa', fontWeight: 700, fontSize: 11, fontFamily: F.h, letterSpacing: '-0.01em', lineHeight: 1 }}>
+                {dailyVisitors !== null ? dailyVisitors.toLocaleString('fr-FR') : '—'}
+              </span>
+              <span style={{ color: 'rgba(96,165,250,0.5)', fontSize: 10, fontWeight: 500, whiteSpace: 'nowrap' }}>
+                visiteurs / jour
+              </span>
+            </div>
+          )}
 
           <nav style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
             {[
@@ -3252,7 +3314,7 @@ export default function App() {
           </nav>
         </header>
 
-        {view === 'landing'    && <LandingPage    slots={slots} onPublic={() => setView('public')} onAdvertiser={() => setView('advertiser')} onWaitlist={handleWaitlist} />}
+        {view === 'landing'    && <LandingPage    slots={slots} onPublic={() => setView('public')} onAdvertiser={() => setView('advertiser')} onWaitlist={handleWaitlist} dailyVisitors={dailyVisitors} />}
         {view === 'public'     && <PublicView     slots={slots} isLive={isLive} onGoAdvertiser={() => setShowBoost(true)} onWaitlist={handleWaitlist} authUser={authUser} userBookings={userBookings} />}
         {view === 'advertiser' && <AdvertiserView slots={slots} isLive={isLive} onWaitlist={handleWaitlist} onCheckout={handleCheckout} />}
         {showWaitlist  && <WaitlistModal  onClose={() => setShowWaitlist(false)} />}
