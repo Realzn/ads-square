@@ -347,6 +347,7 @@ function TabEditBloc({ booking, onSaved, showToast }) {
     setForm({
       display_name:    booking.display_name || '',
       slogan:          booking.slogan || '',
+      description:     booking.description || '',
       cta_url:         booking.cta_url || '',
       cta_text:        booking.cta_text || 'Visiter',
       primary_color:   booking.primary_color || '',
@@ -389,6 +390,7 @@ function TabEditBloc({ booking, onSaved, showToast }) {
         content_type:     category,
         display_name:     form.display_name,
         slogan:           form.slogan,
+        description:      form.description,
         cta_url:          form.cta_url,
         cta_text:         form.cta_text,
         image_url:        form.image_url,
@@ -471,6 +473,48 @@ function TabEditBloc({ booking, onSaved, showToast }) {
                 'Votre accroche en une phrase…'
               }
               style={iStyle(focused==='sl')} />
+          </Field>
+
+          {/* ── Description libre ── */}
+          <Field label="DESCRIPTION">
+            <div style={{ position: 'relative' }}>
+              <textarea
+                value={form.description || ''}
+                disabled={!canEdit}
+                maxLength={500}
+                rows={4}
+                onChange={e => set('description', e.target.value)}
+                onFocus={() => setFocused('desc')} onBlur={() => setFocused('')}
+                placeholder={
+                  cat.id === 'video'  ? "Raconte ce que tu crées, pourquoi tu le crées, à qui ça s'adresse…" :
+                  cat.id === 'social' ? "Qui tu es, ce que tu partages, pourquoi te suivre…" :
+                  cat.id === 'music'  ? "Ton univers musical, ton parcours, ce que tu prépares…" :
+                  cat.id === 'brand'  ? "L'histoire de ta marque, ta mission, ce qui te différencie…" :
+                  "Raconte ton histoire, ton projet, ce qui va donner envie de cliquer…"
+                }
+                style={{
+                  ...iStyle(focused === 'desc'),
+                  resize: 'vertical',
+                  lineHeight: 1.6,
+                  minHeight: 90,
+                  paddingBottom: 24,
+                  fontFamily: "'DM Sans',sans-serif",
+                }}
+              />
+              <div style={{
+                position: 'absolute', bottom: 8, right: 10,
+                fontSize: 10,
+                color: (form.description?.length || 0) > 450 ? '#ff6b6b' : 'rgba(255,255,255,0.22)',
+                fontFamily: 'monospace',
+                pointerEvents: 'none',
+                transition: 'color 0.2s',
+              }}>
+                {form.description?.length || 0}/500
+              </div>
+            </div>
+            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', marginTop: 5, lineHeight: 1.5 }}>
+              Affiché dans ton <strong style={{ color: 'rgba(255,255,255,0.5)' }}>profil</strong> — raconte ton histoire ou incite au clic.
+            </div>
           </Field>
 
           {/* Réseau social picker */}

@@ -993,13 +993,13 @@ function BuyoutModal({ slot, onClose }) {
 // description, et système de like.
 function AdvertiserProfileModal({ advertiserId, slots, onClose, onOpenSlot }) {
   const { isMobile } = useScreenSize();
-  const [entered, setEntered] = useState(false);
-  const [liked, setLiked] = useState(false);
+  const [entered, setEntered]   = useState(false);
+  const [liked,   setLiked]     = useState(false);
   const [likeCount, setLikeCount] = useState(0);
-  const [likeAnim, setLikeAnim] = useState(false);
+  const [likeAnim,  setLikeAnim]  = useState(false);
   const [totalStats, setTotalStats] = useState(null);
+  const [scrolled, setScrolled] = useState(false);
 
-  // Tous les blocs de cet annonceur
   const advertiserSlots = useMemo(() =>
     slots.filter(s => s.occ && s.tenant?.advertiserId === advertiserId),
     [slots, advertiserId]
@@ -1011,47 +1011,40 @@ function AdvertiserProfileModal({ advertiserId, slots, onClose, onOpenSlot }) {
 
   const c = tenant.c || U.accent;
 
-  // Animation d'entrée
+  // Animation entrée
   useEffect(() => {
-    const t = requestAnimationFrame(() => setEntered(true));
-    return () => cancelAnimationFrame(t);
+    const id = requestAnimationFrame(() => setEntered(true));
+    return () => cancelAnimationFrame(id);
   }, []);
 
-  // Keyboard
+  // Escape
   useEffect(() => {
     const fn = e => { if (e.key === 'Escape') onClose(); };
     window.addEventListener('keydown', fn);
     return () => window.removeEventListener('keydown', fn);
   }, [onClose]);
 
-  // Like — stocké en localStorage, clé par advertiserId
+  // Like — localStorage
   useEffect(() => {
-    const likeKey  = `like_adv_${advertiserId}`;
-    const countKey = `likes_count_${advertiserId}`;
-    const isLiked  = localStorage.getItem(likeKey) === '1';
-    const count    = parseInt(localStorage.getItem(countKey) || '0', 10);
-    setLiked(isLiked);
-    setLikeCount(count);
+    setLiked(localStorage.getItem(`like_adv_${advertiserId}`) === '1');
+    setLikeCount(parseInt(localStorage.getItem(`likes_count_${advertiserId}`) || '0', 10));
   }, [advertiserId]);
 
   const handleLike = e => {
     e.stopPropagation();
-    const likeKey  = `like_adv_${advertiserId}`;
-    const countKey = `likes_count_${advertiserId}`;
-    const newLiked = !liked;
-    const newCount = likeCount + (newLiked ? 1 : -1);
-    localStorage.setItem(likeKey,  newLiked ? '1' : '0');
-    localStorage.setItem(countKey, String(Math.max(0, newCount)));
-    setLiked(newLiked);
-    setLikeCount(Math.max(0, newCount));
-    if (newLiked) { setLikeAnim(true); setTimeout(() => setLikeAnim(false), 600); }
+    const nl = !liked;
+    const nc = Math.max(0, likeCount + (nl ? 1 : -1));
+    localStorage.setItem(`like_adv_${advertiserId}`, nl ? '1' : '0');
+    localStorage.setItem(`likes_count_${advertiserId}`, String(nc));
+    setLiked(nl); setLikeCount(nc);
+    if (nl) { setLikeAnim(true); setTimeout(() => setLikeAnim(false), 700); }
   };
 
-  // Fetch stats agrégées de tous ses blocs
+  // Stats agrégées
   useEffect(() => {
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-    if (!url || !key || advertiserSlots.length === 0) return;
+    if (!url || !key) return;
     const ids = advertiserSlots.map(s => s.tenant.bookingId).filter(Boolean);
     if (!ids.length) return;
     fetch(`${url}/rest/v1/booking_stats?booking_id=in.(${ids.join(',')})&select=clicks,impressions,ctr_pct,clicks_7d,impressions_7d`, {
@@ -1060,245 +1053,455 @@ function AdvertiserProfileModal({ advertiserId, slots, onClose, onOpenSlot }) {
       .then(r => r.json())
       .then(rows => {
         if (!Array.isArray(rows)) return;
-        const total = rows.reduce((acc, r) => ({
-          clicks:       acc.clicks       + (r.clicks || 0),
-          impressions:  acc.impressions  + (r.impressions || 0),
-          clicks_7d:    acc.clicks_7d    + (r.clicks_7d || 0),
+        const agg = rows.reduce((acc, r) => ({
+          clicks: acc.clicks + (r.clicks || 0),
+          impressions: acc.impressions + (r.impressions || 0),
+          clicks_7d: acc.clicks_7d + (r.clicks_7d || 0),
           impressions_7d: acc.impressions_7d + (r.impressions_7d || 0),
         }), { clicks: 0, impressions: 0, clicks_7d: 0, impressions_7d: 0 });
-        const ctr = total.impressions > 0
-          ? Math.round((total.clicks / total.impressions) * 1000) / 10
-          : 0;
-        setTotalStats({ ...total, ctr_pct: ctr });
-      })
-      .catch(() => {});
+        setTotalStats({ ...agg, ctr_pct: agg.impressions > 0 ? Math.round(agg.clicks / agg.impressions * 1000) / 10 : 0 });
+      }).catch(() => {});
   }, [advertiserId]);
 
+  // Métadonnées réseaux
   const SOCIAL_META = {
-    instagram: { label:'Instagram', icon:'📸', color:'#e1306c', prefix:'https://instagram.com/' },
-    tiktok:    { label:'TikTok',    icon:'🎵', color:'#00f2ea', prefix:'https://tiktok.com/@' },
-    youtube:   { label:'YouTube',   icon:'▶',  color:'#ff0000', prefix:'https://youtube.com/@' },
-    twitter:   { label:'X / Twitter',icon:'𝕏', color:'#e7e9ea', prefix:'https://x.com/' },
-    linkedin:  { label:'LinkedIn',  icon:'in', color:'#0077b5', prefix:'https://linkedin.com/in/' },
-    facebook:  { label:'Facebook',  icon:'f',  color:'#1877f2', prefix:'https://facebook.com/' },
-    snapchat:  { label:'Snapchat',  icon:'👻', color:'#fffc00', prefix:'https://snapchat.com/add/' },
-    meta:      { label:'Threads',   icon:'@',  color:'#fff',    prefix:'https://threads.net/@' },
+    instagram: { label: 'Instagram', icon: '📸', color: '#e1306c', prefix: 'https://instagram.com/' },
+    tiktok:    { label: 'TikTok',    icon: '🎵', color: '#00f2ea', prefix: 'https://tiktok.com/@' },
+    youtube:   { label: 'YouTube',   icon: '▶',  color: '#ff0000', prefix: 'https://youtube.com/@' },
+    twitter:   { label: 'Twitter / X', icon: '𝕏', color: '#e7e9ea', prefix: 'https://x.com/' },
+    linkedin:  { label: 'LinkedIn',  icon: 'in', color: '#0077b5', prefix: 'https://linkedin.com/in/' },
+    facebook:  { label: 'Facebook',  icon: 'f',  color: '#1877f2', prefix: 'https://facebook.com/' },
+    snapchat:  { label: 'Snapchat',  icon: '👻', color: '#fffc00', prefix: 'https://snapchat.com/add/' },
+    meta:      { label: 'Threads',   icon: '@',  color: '#fff',    prefix: 'https://threads.net/@' },
   };
   const MUSIC_META = {
-    spotify:     { label:'Spotify',     icon:'♫', color:'#1ed760', prefix:'https://open.spotify.com/artist/' },
-    apple_music: { label:'Apple Music', icon:'♪', color:'#fc3c44', prefix:'https://music.apple.com/' },
-    soundcloud:  { label:'SoundCloud',  icon:'☁', color:'#ff5500', prefix:'https://soundcloud.com/' },
-    deezer:      { label:'Deezer',      icon:'♬', color:'#00c7f2', prefix:'https://deezer.com/artist/' },
+    spotify:     { label: 'Spotify',     icon: '♫', color: '#1ed760', prefix: 'https://open.spotify.com/artist/' },
+    apple_music: { label: 'Apple Music', icon: '♪', color: '#fc3c44', prefix: 'https://music.apple.com/' },
+    soundcloud:  { label: 'SoundCloud',  icon: '☁', color: '#ff5500', prefix: 'https://soundcloud.com/' },
+    deezer:      { label: 'Deezer',      icon: '♬', color: '#00c7f2', prefix: 'https://deezer.com/artist/' },
   };
-
   const socialMeta = SOCIAL_META[tenant.social];
   const musicMeta  = MUSIC_META[tenant.music];
+
+  const BADGE_LABELS = { 'CRÉATEUR': 'Créateur·ice', 'FREELANCE': 'Auto-entrepreneur', 'MARQUE': 'Marque' };
+  const profileLabel = BADGE_LABELS[tenant.badge] || tenant.badge || '';
+
+  // Couleur de texte sur fond coloré (lisibilité)
+  const isDark = (hex) => {
+    const r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16);
+    return (0.299*r + 0.587*g + 0.114*b) < 128;
+  };
+  const ctaBg = c;
+  const ctaFg = isDark(c.slice(0,7)) ? '#fff' : '#000';
+
+  const px = isMobile ? 20 : 28;
 
   return (
     <div
       onClick={onClose}
       style={{
         position: 'fixed', inset: 0, zIndex: 1100,
-        background: 'rgba(0,0,0,0.88)', backdropFilter: 'blur(20px)',
-        display: 'flex', alignItems: isMobile ? 'flex-end' : 'center', justifyContent: 'center',
-        opacity: entered ? 1 : 0, transition: 'opacity 0.25s ease',
+        display: 'flex',
+        alignItems: isMobile ? 'flex-end' : 'center',
+        justifyContent: 'center',
+        opacity: entered ? 1 : 0,
+        transition: 'opacity 0.3s ease',
+        // Fond : flou + teinte couleur de l'auteur
+        background: `rgba(4,4,6,0.92)`,
+        backdropFilter: 'blur(24px) saturate(1.4)',
       }}
     >
+      {/* Halo ambiant derrière la carte */}
+      <div style={{
+        position: 'fixed',
+        width: 700, height: 700,
+        borderRadius: '50%',
+        background: `radial-gradient(circle, ${c}14 0%, transparent 65%)`,
+        top: '50%', left: '50%',
+        transform: 'translate(-50%, -50%)',
+        pointerEvents: 'none',
+      }} />
+
+      {/* Carte principale */}
       <div
         onClick={e => e.stopPropagation()}
+        onScroll={e => setScrolled(e.currentTarget.scrollTop > 10)}
         style={{
-          width: isMobile ? '100vw' : 'min(96vw,560px)',
-          background: U.s1,
-          border: `1px solid ${U.border2}`,
-          borderRadius: isMobile ? '24px 24px 0 0' : 20,
-          overflow: 'hidden', overflowY: 'auto',
-          maxHeight: isMobile ? '92vh' : '88vh',
-          transform: entered ? 'translateY(0) scale(1)' : 'translateY(20px) scale(0.96)',
-          transition: 'transform 0.3s cubic-bezier(0.22,1,0.36,1)',
-          boxShadow: `0 40px 100px rgba(0,0,0,0.7), 0 0 0 1px ${c}20, 0 0 60px ${c}10`,
+          position: 'relative', zIndex: 1,
+          width: isMobile ? '100vw' : 'min(96vw, 440px)',
+          background: '#0a0a0d',
+          border: `1px solid ${c}22`,
+          borderRadius: isMobile ? '26px 26px 0 0' : 22,
+          overflow: 'hidden',
+          maxHeight: isMobile ? '93vh' : '92vh',
+          overflowY: 'auto',
+          transform: entered
+            ? 'translateY(0) scale(1)'
+            : isMobile ? 'translateY(48px)' : 'translateY(20px) scale(0.96)',
+          transition: 'transform 0.42s cubic-bezier(0.22, 1, 0.36, 1)',
+          boxShadow: `
+            0 0 0 1px ${c}18,
+            0 40px 90px rgba(0,0,0,0.85),
+            0 0 120px ${c}10
+          `,
         }}
       >
-        {isMobile && (
-          <div style={{ display:'flex', justifyContent:'center', padding:'12px 0 0' }}>
-            <div style={{ width:40, height:3, borderRadius:2, background:U.border2 }} />
-          </div>
-        )}
-
-        {/* ── Hero banner ── */}
-        <div style={{ position:'relative', height: isMobile ? 140 : 180, background:`linear-gradient(135deg, ${c}18 0%, ${U.s2} 100%)`, overflow:'hidden', flexShrink:0 }}>
-          {/* Motif grille en fond */}
-          <svg style={{ position:'absolute', inset:0, width:'100%', height:'100%', opacity:0.07 }}>
-            <defs>
-              <pattern id="pg" width="24" height="24" patternUnits="userSpaceOnUse">
-                <path d="M 24 0 L 0 0 0 24" fill="none" stroke={c} strokeWidth="0.5"/>
-              </pattern>
-            </defs>
-            <rect width="100%" height="100%" fill="url(#pg)" />
-          </svg>
-
-          {/* Image de couverture si dispo */}
-          {tenant.img && (
-            <img src={tenant.img} alt="" style={{ position:'absolute', inset:0, width:'100%', height:'100%', objectFit:'cover', opacity:0.25 }} />
+        {/* ═══ PORTRAIT — zone haute, centrée sur l'auteur ═══ */}
+        <div style={{
+          position: 'relative',
+          height: isMobile ? 340 : 380,
+          overflow: 'hidden',
+          flexShrink: 0,
+        }}>
+          {/* Fond : photo ou dégradé couleur */}
+          {tenant.img ? (
+            <img
+              src={tenant.img} alt=""
+              style={{
+                position: 'absolute', inset: 0,
+                width: '100%', height: '100%',
+                objectFit: 'cover',
+                filter: 'brightness(0.55) saturate(1.15)',
+                transform: 'scale(1.02)',
+              }}
+            />
+          ) : (
+            // Pas de photo — fond vivant généré depuis la couleur
+            <div style={{
+              position: 'absolute', inset: 0,
+              background: `
+                radial-gradient(ellipse 120% 100% at 60% 0%, ${c}28 0%, transparent 55%),
+                radial-gradient(ellipse 80% 80% at 0% 100%, ${c}14 0%, transparent 60%),
+                linear-gradient(160deg, #0f0f14 0%, #07070a 100%)
+              `,
+            }}>
+              {/* Initiales monumentales */}
+              <div style={{
+                position: 'absolute',
+                top: '50%', left: '50%',
+                transform: 'translate(-50%, -58%)',
+                fontSize: isMobile ? 110 : 130,
+                fontWeight: 900,
+                fontFamily: F.h,
+                color: c,
+                opacity: 0.18,
+                letterSpacing: '-0.05em',
+                lineHeight: 1,
+                userSelect: 'none',
+              }}>{tenant.l}</div>
+            </div>
           )}
 
-          {/* Gradient bas */}
-          <div style={{ position:'absolute', bottom:0, left:0, right:0, height:80, background:`linear-gradient(to top, ${U.s1}, transparent)` }} />
+          {/* Vignette : dégradé vers le bas pour lisibilité du texte */}
+          <div style={{
+            position: 'absolute', inset: 0,
+            background: `
+              linear-gradient(to top,
+                #0a0a0d 0%,
+                rgba(10,10,13,0.75) 35%,
+                rgba(10,10,13,0.15) 70%,
+                transparent 100%
+              )
+            `,
+          }} />
 
-          {/* Badge tier + close */}
-          <div style={{ position:'absolute', top:14, left:16, display:'flex', alignItems:'center', gap:7 }}>
-            <div style={{ padding:'3px 9px', borderRadius:5, background:`${TIER_COLOR[mainSlot.tier]}20`, border:`1px solid ${TIER_COLOR[mainSlot.tier]}40`, color:TIER_COLOR[mainSlot.tier], fontSize:9, fontWeight:800, letterSpacing:'0.07em' }}>
-              {TIER_LABEL[mainSlot.tier]}
+          {/* Lueur couleur en haut à droite — atmosphère */}
+          <div style={{
+            position: 'absolute', top: -60, right: -60,
+            width: 240, height: 240,
+            borderRadius: '50%',
+            background: `${c}16`,
+            filter: 'blur(50px)',
+            pointerEvents: 'none',
+          }} />
+
+          {/* ── Barre du haut : badge type + close ── */}
+          <div style={{
+            position: 'absolute', top: isMobile ? 18 : 16,
+            left: 0, right: 0,
+            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+            padding: `0 ${px}px`,
+          }}>
+            {/* Handle mobile */}
+            {isMobile ? (
+              <div style={{
+                position: 'absolute', top: -10, left: '50%', transform: 'translateX(-50%)',
+                width: 38, height: 4, borderRadius: 2,
+                background: 'rgba(255,255,255,0.18)',
+              }} />
+            ) : null}
+
+            {/* Badge profil : qui est cette personne */}
+            {profileLabel ? (
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: 5,
+                padding: '5px 11px', borderRadius: 20,
+                background: 'rgba(0,0,0,0.52)',
+                backdropFilter: 'blur(10px)',
+                border: `1px solid ${c}30`,
+                fontSize: 10, fontWeight: 700,
+                color: c, letterSpacing: '0.05em',
+                marginTop: isMobile ? 12 : 0,
+              }}>
+                ✦ {profileLabel}
+              </div>
+            ) : <div />}
+
+            {/* Close */}
+            <button onClick={onClose} style={{
+              width: 30, height: 30, borderRadius: '50%',
+              background: 'rgba(0,0,0,0.55)',
+              backdropFilter: 'blur(8px)',
+              border: `1px solid rgba(255,255,255,0.12)`,
+              color: 'rgba(255,255,255,0.65)',
+              cursor: 'pointer', fontSize: 16,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              marginTop: isMobile ? 12 : 0,
+            }}>×</button>
+          </div>
+
+          {/* ── Identité superposée sur la photo ── */}
+          <div style={{
+            position: 'absolute', bottom: 0, left: 0, right: 0,
+            padding: `0 ${px}px ${isMobile ? 22 : 26}px`,
+          }}>
+            {/* Nom — la vraie star de ce profil */}
+            <div style={{
+              fontSize: isMobile ? 30 : 34,
+              fontWeight: 900,
+              fontFamily: F.h,
+              color: '#fff',
+              letterSpacing: '-0.025em',
+              lineHeight: 1.1,
+              textShadow: '0 2px 24px rgba(0,0,0,0.7)',
+              marginBottom: 8,
+            }}>
+              {tenant.name}
             </div>
-            {advertiserSlots.length > 1 && (
-              <div style={{ padding:'3px 9px', borderRadius:5, background:`${U.accent}15`, border:`1px solid ${U.accent}30`, color:U.accent, fontSize:9, fontWeight:700 }}>
-                {advertiserSlots.length} blocs
+
+            {/* Slogan — citation personnelle, pas un tagline produit */}
+            {tenant.slogan && (
+              <div style={{
+                display: 'flex', alignItems: 'flex-start', gap: 7,
+              }}>
+                <span style={{
+                  fontSize: 18, lineHeight: 1,
+                  color: c, opacity: 0.8,
+                  fontFamily: 'Georgia, serif',
+                  marginTop: 1, flexShrink: 0,
+                }}>"</span>
+                <span style={{
+                  color: 'rgba(255,255,255,0.72)',
+                  fontSize: 13, lineHeight: 1.55,
+                  fontStyle: 'italic',
+                  maxWidth: 320,
+                }}>
+                  {tenant.slogan}
+                </span>
               </div>
             )}
           </div>
-          <button onClick={onClose} style={{ position:'absolute', top:12, right:12, width:30, height:30, borderRadius:'50%', background:'rgba(0,0,0,0.5)', border:`1px solid ${U.border}`, color:U.muted, cursor:'pointer', fontSize:15, display:'flex', alignItems:'center', justifyContent:'center' }}>×</button>
         </div>
 
-        {/* ── Avatar + nom + like ── */}
-        <div style={{ padding:'0 isMobile ? 18px : 24px', marginTop:-34, position:'relative', paddingLeft: isMobile?18:24, paddingRight: isMobile?18:24 }}>
-          <div style={{ display:'flex', alignItems:'flex-end', justifyContent:'space-between', marginBottom:12 }}>
-            {/* Avatar */}
-            <div style={{
-              width:68, height:68, borderRadius:16, border:`3px solid ${U.s1}`,
-              background: tenant.img ? `url(${tenant.img}) center/cover` : `${c}20`,
-              display:'flex', alignItems:'center', justifyContent:'center',
-              fontSize:26, fontWeight:900, color:c, fontFamily:F.h,
-              boxShadow:`0 0 0 1px ${c}40, 0 8px 24px rgba(0,0,0,0.4)`,
-              overflow:'hidden', flexShrink:0,
-            }}>
-              {!tenant.img && tenant.l}
-            </div>
+        {/* ═══ CORPS — infos personnelles ═══ */}
+        <div style={{ padding: `20px ${px}px ${isMobile ? 36 : 28}px` }}>
 
-            {/* Like button */}
+          {/* ── Réseaux + Like — "comment me trouver" ── */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            marginBottom: 22,
+            flexWrap: 'wrap',
+          }}>
+            {/* Liens sociaux */}
+            {[
+              socialMeta && tenant.social && {
+                href: `${socialMeta.prefix}${tenant.social.replace('@', '')}`,
+                label: `@${tenant.social.replace('@', '')}`,
+                icon: socialMeta.icon,
+                color: socialMeta.color,
+              },
+              musicMeta && tenant.music && {
+                href: `${musicMeta.prefix}${tenant.music.replace('@', '')}`,
+                label: musicMeta.label,
+                icon: musicMeta.icon,
+                color: musicMeta.color,
+              },
+            ].filter(Boolean).map((link, i) => (
+              <a
+                key={i}
+                href={link.href}
+                target="_blank" rel="noopener noreferrer"
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 6,
+                  padding: '7px 14px', borderRadius: 30,
+                  background: `${link.color}12`,
+                  border: `1px solid ${link.color}28`,
+                  color: link.color,
+                  fontSize: 12, fontWeight: 700,
+                  textDecoration: 'none',
+                  transition: 'background 0.18s, border-color 0.18s',
+                  letterSpacing: '0.01em',
+                }}
+                onMouseEnter={e => {
+                  e.currentTarget.style.background = `${link.color}22`;
+                  e.currentTarget.style.borderColor = `${link.color}50`;
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.background = `${link.color}12`;
+                  e.currentTarget.style.borderColor = `${link.color}28`;
+                }}
+              >
+                <span style={{ fontSize: 14 }}>{link.icon}</span>
+                <span>{link.label}</span>
+              </a>
+            ))}
+
+            {/* Spacer */}
+            <div style={{ flex: 1 }} />
+
+            {/* Like — geste affectif */}
             <button
               onClick={handleLike}
               style={{
-                display:'flex', alignItems:'center', gap:6, padding:'8px 16px',
-                borderRadius:30, cursor:'pointer', fontFamily:F.b, fontWeight:700, fontSize:13,
-                background: liked ? `${c}20` : U.faint,
-                border: `1.5px solid ${liked ? c + '60' : U.border2}`,
-                color: liked ? c : U.muted,
-                transition:'all 0.2s',
-                transform: likeAnim ? 'scale(1.15)' : 'scale(1)',
+                display: 'flex', alignItems: 'center', gap: 5,
+                padding: '7px 14px', borderRadius: 30,
+                cursor: 'pointer', fontFamily: F.b, fontSize: 13,
+                background: liked ? `${c}18` : 'rgba(255,255,255,0.04)',
+                border: `1.5px solid ${liked ? c + '45' : 'rgba(255,255,255,0.09)'}`,
+                color: liked ? c : 'rgba(255,255,255,0.35)',
+                transition: 'all 0.22s',
+                transform: likeAnim ? 'scale(1.1)' : 'scale(1)',
+                flexShrink: 0,
               }}
             >
-              <span style={{ fontSize:16, transition:'transform 0.3s', transform: likeAnim ? 'scale(1.3)' : 'scale(1)', display:'inline-block' }}>
+              <span style={{
+                fontSize: 16,
+                display: 'inline-block',
+                transition: 'transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)',
+                transform: likeAnim ? 'scale(1.5)' : 'scale(1)',
+              }}>
                 {liked ? '♥' : '♡'}
               </span>
-              <span>{liked ? 'Aimé' : 'Aimer'}</span>
               {likeCount > 0 && (
-                <span style={{ padding:'1px 6px', borderRadius:10, background:`${c}25`, color:c, fontSize:10 }}>
-                  {likeCount}
-                </span>
+                <span style={{ fontSize: 11 }}>{likeCount}</span>
               )}
             </button>
           </div>
 
-          {/* Nom + slogan */}
-          <div style={{ marginBottom:14 }}>
-            <div style={{ color:U.text, fontWeight:800, fontSize:22, fontFamily:F.h, letterSpacing:'-0.02em', marginBottom:4 }}>
-              {tenant.name}
-            </div>
-            {tenant.slogan && (
-              <div style={{ color:U.muted, fontSize:14, lineHeight:1.6 }}>{tenant.slogan}</div>
-            )}
-          </div>
+          {/* Séparateur fin coloré */}
+          <div style={{
+            height: 1,
+            background: `linear-gradient(90deg, ${c}30 0%, ${c}08 60%, transparent 100%)`,
+            marginBottom: 24,
+          }} />
 
-          {/* ── Réseaux sociaux ── */}
-          {(socialMeta || musicMeta) && (
-            <div style={{ display:'flex', flexWrap:'wrap', gap:8, marginBottom:18 }}>
-              {socialMeta && tenant.social && (
-                <a
-                  href={`${socialMeta.prefix}${tenant.social.replace('@','')}`}
-                  target="_blank" rel="noopener noreferrer"
-                  style={{ display:'flex', alignItems:'center', gap:6, padding:'6px 12px', borderRadius:20, background:`${socialMeta.color}15`, border:`1px solid ${socialMeta.color}35`, color:socialMeta.color, fontSize:12, fontWeight:700, textDecoration:'none', transition:'all 0.15s' }}
-                >
-                  <span>{socialMeta.icon}</span>
-                  <span>@{tenant.social.replace('@','')}</span>
-                </a>
-              )}
-              {musicMeta && tenant.music && (
-                <a
-                  href={`${musicMeta.prefix}${tenant.music.replace('@','')}`}
-                  target="_blank" rel="noopener noreferrer"
-                  style={{ display:'flex', alignItems:'center', gap:6, padding:'6px 12px', borderRadius:20, background:`${musicMeta.color}15`, border:`1px solid ${musicMeta.color}35`, color:musicMeta.color, fontSize:12, fontWeight:700, textDecoration:'none', transition:'all 0.15s' }}
-                >
-                  <span>{musicMeta.icon}</span>
-                  <span>{musicMeta.label}</span>
-                </a>
-              )}
-              {tenant.url && tenant.url !== '#' && (
-                <a
-                  href={tenant.url}
-                  target="_blank" rel="noopener noreferrer"
-                  style={{ display:'flex', alignItems:'center', gap:6, padding:'6px 12px', borderRadius:20, background:`${c}15`, border:`1px solid ${c}35`, color:c, fontSize:12, fontWeight:700, textDecoration:'none' }}
-                >
-                  <span>↗</span>
-                  <span>{tenant.cta || 'Visiter'}</span>
-                </a>
-              )}
+          {/* ── Description — l'histoire de l'auteur ── */}
+          {tenant.description && (
+            <div style={{ marginBottom: 24 }}>
+              <p style={{
+                color: 'rgba(255,255,255,0.62)',
+                fontSize: 13.5,
+                lineHeight: 1.75,
+                margin: 0,
+                whiteSpace: 'pre-line',
+                // Limiter à 6 lignes sur mobile avec fade si trop long
+              }}>
+                {tenant.description}
+              </p>
             </div>
           )}
 
-          {/* ── Stats agrégées ── */}
-          {totalStats && (totalStats.impressions > 0 || totalStats.clicks > 0) && (
-            <div style={{ display:'grid', gridTemplateColumns:'repeat(3, 1fr)', gap:8, marginBottom:20 }}>
-              {[
-                [totalStats.impressions_7d?.toLocaleString('fr-FR') ?? '0', 'vues / 7j', c],
-                [totalStats.clicks_7d?.toLocaleString('fr-FR') ?? '0',      'clics / 7j', '#00e8a2'],
-                [`${totalStats.ctr_pct ?? 0}%`, 'CTR', '#00d9f5'],
-              ].map(([v, l, col]) => (
-                <div key={l} style={{ padding:'10px 8px', borderRadius:10, background:`${col}08`, border:`1px solid ${col}18`, textAlign:'center' }}>
-                  <div style={{ color:col, fontWeight:800, fontSize:18, fontFamily:F.h, lineHeight:1 }}>{v}</div>
-                  <div style={{ color:'rgba(255,255,255,0.35)', fontSize:9, marginTop:4, fontWeight:600 }}>{l}</div>
-                </div>
-              ))}
-              <div style={{ gridColumn:'1/-1', textAlign:'center', fontSize:9, color:'rgba(255,255,255,0.2)', marginTop:-4 }}>
-                DONNÉES RÉELLES · MIS À JOUR EN TEMPS RÉEL
-              </div>
-            </div>
-          )}
-
-          {/* ── Ses blocs sur la grille ── */}
+          {/* ── Sur la grille — ses blocs vus comme des "posts" ── */}
           {advertiserSlots.length > 0 && (
-            <div style={{ marginBottom:20 }}>
-              <div style={{ fontSize:10, fontWeight:700, color:U.muted, letterSpacing:'0.08em', marginBottom:10 }}>
-                {advertiserSlots.length > 1 ? `SES ${advertiserSlots.length} BLOCS` : 'SON BLOC'}
+            <div style={{ marginBottom: 24 }}>
+              <div style={{
+                fontSize: 9, fontWeight: 700,
+                color: 'rgba(255,255,255,0.28)',
+                letterSpacing: '0.14em',
+                textTransform: 'uppercase',
+                marginBottom: 12,
+                display: 'flex', alignItems: 'center', gap: 10,
+              }}>
+                <div style={{ width: 14, height: 1, background: c, opacity: 0.45 }} />
+                {advertiserSlots.length > 1
+                  ? `${advertiserSlots.length} espaces sur la grille`
+                  : 'Son espace sur la grille'}
+                <div style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.06)' }} />
               </div>
-              <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
-                {advertiserSlots.map(s => {
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {advertiserSlots.map((s, idx) => {
                   const sc = s.tenant?.c || TIER_COLOR[s.tier];
                   return (
                     <button
                       key={s.id}
-                      onClick={() => { onClose(); setTimeout(() => onOpenSlot(s), 50); }}
+                      onClick={() => { onClose(); setTimeout(() => onOpenSlot(s), 60); }}
                       style={{
-                        display:'flex', alignItems:'center', gap:12,
-                        padding:'10px 12px', borderRadius:12,
-                        background:`${sc}08`, border:`1px solid ${sc}20`,
-                        cursor:'pointer', fontFamily:F.b, textAlign:'left',
-                        transition:'background 0.15s, border-color 0.15s',
+                        display: 'flex', alignItems: 'center', gap: 14,
+                        padding: '11px 14px', borderRadius: 14,
+                        background: idx === 0 ? `${sc}0e` : 'rgba(255,255,255,0.025)',
+                        border: `1px solid ${idx === 0 ? sc + '28' : 'rgba(255,255,255,0.06)'}`,
+                        cursor: 'pointer', fontFamily: F.b, textAlign: 'left',
+                        transition: 'all 0.18s',
                       }}
-                      onMouseEnter={e => { e.currentTarget.style.background=`${sc}15`; e.currentTarget.style.borderColor=`${sc}40`; }}
-                      onMouseLeave={e => { e.currentTarget.style.background=`${sc}08`; e.currentTarget.style.borderColor=`${sc}20`; }}
+                      onMouseEnter={e => {
+                        e.currentTarget.style.background = `${sc}18`;
+                        e.currentTarget.style.borderColor = `${sc}45`;
+                      }}
+                      onMouseLeave={e => {
+                        e.currentTarget.style.background = idx === 0 ? `${sc}0e` : 'rgba(255,255,255,0.025)';
+                        e.currentTarget.style.borderColor = idx === 0 ? `${sc}28` : 'rgba(255,255,255,0.06)';
+                      }}
                     >
-                      {/* Mini aperçu bloc */}
-                      <div style={{ width:40, height:40, borderRadius:9, flexShrink:0, background:s.tenant?.img?`url(${s.tenant.img}) center/cover`:`${sc}20`, border:`1.5px solid ${sc}40`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:14, fontWeight:900, color:sc, overflow:'hidden' }}>
+                      {/* Vignette du bloc */}
+                      <div style={{
+                        width: 46, height: 46, borderRadius: 11,
+                        flexShrink: 0,
+                        background: s.tenant?.img
+                          ? `url(${s.tenant.img}) center/cover`
+                          : `linear-gradient(140deg, ${sc}30, ${sc}10)`,
+                        border: `1.5px solid ${sc}35`,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: 17, fontWeight: 900, color: sc,
+                        overflow: 'hidden',
+                      }}>
                         {!s.tenant?.img && (s.tenant?.l || '?')}
                       </div>
-                      <div style={{ flex:1, minWidth:0 }}>
-                        <div style={{ color:U.text, fontWeight:700, fontSize:12, marginBottom:2 }}>
-                          Bloc {TIER_LABEL[s.tier]} · ({s.x},{s.y})
+
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        {/* Tier badge mini */}
+                        <div style={{
+                          display: 'inline-flex', alignItems: 'center',
+                          gap: 5, marginBottom: 3,
+                        }}>
+                          <div style={{
+                            fontSize: 8, fontWeight: 800,
+                            color: sc, letterSpacing: '0.07em',
+                            padding: '1px 5px', borderRadius: 3,
+                            background: `${sc}15`,
+                          }}>
+                            {TIER_LABEL[s.tier]}
+                          </div>
+                          <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.22)' }}>
+                            pos. {s.x},{s.y}
+                          </div>
                         </div>
-                        <div style={{ color:U.muted, fontSize:11, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                        <div style={{
+                          color: 'rgba(255,255,255,0.5)',
+                          fontSize: 11, lineHeight: 1.4,
+                          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                        }}>
                           {s.tenant?.slogan || s.tenant?.cta || 'Voir le bloc'}
                         </div>
                       </div>
-                      <div style={{ color:sc, fontSize:11, fontWeight:600, flexShrink:0 }}>Voir →</div>
+
+                      <div style={{
+                        color: sc, fontSize: 18,
+                        opacity: 0.5, flexShrink: 0,
+                        lineHeight: 1,
+                      }}>›</div>
                     </button>
                   );
                 })}
@@ -1306,19 +1509,73 @@ function AdvertiserProfileModal({ advertiserId, slots, onClose, onOpenSlot }) {
             </div>
           )}
 
-          {/* ── CTA principal ── */}
+          {/* ── Reach — présence discrète, pas mise en avant ── */}
+          {totalStats && totalStats.impressions_7d > 0 && (
+            <div style={{
+              marginBottom: 24,
+              padding: '12px 16px',
+              borderRadius: 12,
+              background: 'rgba(255,255,255,0.025)',
+              border: '1px solid rgba(255,255,255,0.06)',
+              display: 'flex', justifyContent: 'space-around', gap: 8,
+            }}>
+              {[
+                { v: (totalStats.impressions_7d || 0).toLocaleString('fr-FR'), l: 'vues / 7j' },
+                { v: (totalStats.clicks_7d || 0).toLocaleString('fr-FR'),      l: 'visites' },
+                { v: `${totalStats.ctr_pct ?? 0}%`,                             l: 'engagement' },
+              ].map(({ v, l }) => (
+                <div key={l} style={{ textAlign: 'center' }}>
+                  <div style={{
+                    fontSize: 16, fontWeight: 800,
+                    color: 'rgba(255,255,255,0.7)',
+                    fontFamily: F.h, lineHeight: 1,
+                    marginBottom: 4,
+                  }}>{v}</div>
+                  <div style={{
+                    fontSize: 9,
+                    color: 'rgba(255,255,255,0.25)',
+                    letterSpacing: '0.06em',
+                    textTransform: 'uppercase',
+                  }}>{l}</div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* ── CTA — invitation, pas conversion ── */}
           {tenant.url && tenant.url !== '#' && (
             <a
               href={tenant.url}
               target="_blank" rel="noopener noreferrer"
               onClick={() => recordClick(mainSlot.x, mainSlot.y, tenant.bookingId)}
-              style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:8, width:'100%', padding:'13px', borderRadius:12, background:c, color:U.accentFg, fontWeight:700, fontSize:14, fontFamily:F.b, textDecoration:'none', boxShadow:`0 0 24px ${c}45`, marginBottom:8 }}
+              style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
+                width: '100%', padding: '14px 20px',
+                borderRadius: 14,
+                background: `linear-gradient(135deg, ${ctaBg} 0%, ${ctaBg}cc 100%)`,
+                color: ctaFg,
+                fontWeight: 800, fontSize: 14, fontFamily: F.b,
+                textDecoration: 'none',
+                letterSpacing: '0.01em',
+                boxShadow: `0 4px 28px ${ctaBg}38`,
+                transition: 'transform 0.18s, box-shadow 0.18s',
+              }}
+              onMouseEnter={e => {
+                e.currentTarget.style.transform = 'translateY(-1px)';
+                e.currentTarget.style.boxShadow = `0 8px 36px ${ctaBg}55`;
+              }}
+              onMouseLeave={e => {
+                e.currentTarget.style.transform = 'translateY(0)';
+                e.currentTarget.style.boxShadow = `0 4px 28px ${ctaBg}38`;
+              }}
             >
-              {tenant.cta || 'Visiter le site'} →
+              {tenant.cta || 'Découvrir son univers'}
+              <span style={{ fontSize: 17, lineHeight: 1 }}>→</span>
             </a>
           )}
 
-          <div style={{ height: isMobile ? 24 : 8 }} />
+          {/* Espace respiration bas */}
+          <div style={{ height: isMobile ? 8 : 2 }} />
         </div>
       </div>
     </div>
@@ -1463,6 +1720,35 @@ function FocusModal({ slot, allSlots, onClose, onNavigate, onGoAdvertiser, onVie
             {tenant.badge && (
               <div style={{ marginBottom:14, padding:'6px 12px', borderRadius:7, background:`${c}10`, border:`1px solid ${c}20`, display:'inline-flex', alignItems:'center', gap:6, fontSize:11, color:c, fontWeight:700 }}>
                 ✦ {tenant.badge}
+              </div>
+            )}
+
+            {/* Description — histoire ou incitation au clic */}
+            {tenant.description && (
+              <div style={{
+                marginBottom: 16,
+                padding: '12px 14px',
+                borderRadius: 10,
+                background: `${c}06`,
+                border: `1px solid ${c}14`,
+                position: 'relative',
+              }}>
+                {/* Barre colorée gauche */}
+                <div style={{
+                  position: 'absolute', left: 0, top: 10, bottom: 10,
+                  width: 2, borderRadius: 2,
+                  background: `linear-gradient(to bottom, ${c}60, ${c}10)`,
+                }} />
+                <p style={{
+                  margin: 0,
+                  paddingLeft: 10,
+                  color: 'rgba(255,255,255,0.65)',
+                  fontSize: 13,
+                  lineHeight: 1.7,
+                  whiteSpace: 'pre-line',
+                }}>
+                  {tenant.description}
+                </p>
               </div>
             )}
 
