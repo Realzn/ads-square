@@ -244,35 +244,152 @@ function Modal({ onClose, width = 480, children, isMobile }) {
 function WaitlistModal({ onClose }) {
   const { isMobile } = useScreenSize();
   const t = useT();
+  const [email, setEmail]     = useState('');
+  const [profile, setProfile] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [done, setDone]       = useState(false);
+  const [already, setAlready] = useState(false);
+  const [error, setError]     = useState(null);
+
+  const handleSubmit = async () => {
+    if (!email || !email.includes('@')) { setError('Entrez un email valide'); return; }
+    setLoading(true); setError(null);
+    try {
+      const res  = await fetch('/api/waitlist', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim(), profile }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setError(data.error || 'Erreur serveur'); return; }
+      if (data.already) setAlready(true);
+      setDone(true);
+    } catch {
+      setError('Erreur réseau, réessayez.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const inpStyle = {
+    width: '100%', padding: '12px 14px', borderRadius: 9,
+    background: U.faint, border: `1px solid ${U.border}`,
+    color: U.text, fontSize: 14, fontFamily: F.b, outline: 'none',
+    boxSizing: 'border-box', transition: 'border-color 0.15s',
+  };
+
   return (
-    <Modal onClose={onClose} width={520} isMobile={isMobile}>
-      <div style={{ padding: isMobile ? '24px 20px 32px' : '40px 40px 44px' }}>
-        <div style={{ marginBottom: 24 }}>
-          <div style={{ color: U.muted, fontSize: 11, fontWeight: 600, letterSpacing: '0.06em', marginBottom: 8 }}>{t('waitlist.label')}</div>
-          <h2 style={{ color: U.text, fontWeight: 700, fontSize: 22, fontFamily: F.h, margin: 0, letterSpacing: '-0.02em' }}>{t('waitlist.title')}</h2>
-          <p style={{ color: U.muted, fontSize: 13, lineHeight: 1.65, marginTop: 10, marginBottom: 0 }}>
-            {t('waitlist.body')}
-          </p>
-        </div>
+    <Modal onClose={onClose} width={480} isMobile={isMobile}>
+      <div style={{ padding: isMobile ? '28px 20px 36px' : '40px 40px 44px' }}>
 
-        <div style={{ display: 'flex', gap: 8, marginBottom: 24, flexWrap: 'wrap' }}>
-          {PROFILES.map(p => (
-            <div key={p.id} style={{ flex: 1, minWidth: 80, padding: '10px 10px', borderRadius: 8, background: U.faint, border: `1px solid ${U.border}`, textAlign: 'center' }}>
-              <div style={{ color: U.text, fontSize: 10, fontWeight: 700, marginBottom: 2 }}>{p.label}</div>
-              <div style={{ color: U.muted, fontSize: 9 }}>{p.blocs}</div>
+        {!done ? (<>
+          {/* ── Header ── */}
+          <div style={{ marginBottom: 24 }}>
+            <div style={{ color: U.accent, fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', marginBottom: 8 }}>ACCÈS PRIORITAIRE</div>
+            <h2 style={{ color: U.text, fontWeight: 800, fontSize: 22, fontFamily: F.h, margin: '0 0 10px', letterSpacing: '-0.02em' }}>
+              {t('waitlist.title')}
+            </h2>
+            <p style={{ color: U.muted, fontSize: 13, lineHeight: 1.65, margin: 0 }}>
+              {t('waitlist.body')}
+            </p>
+          </div>
+
+          {/* ── Profil ── */}
+          <div style={{ marginBottom: 18 }}>
+            <div style={{ color: U.muted, fontSize: 10, fontWeight: 600, letterSpacing: '0.07em', marginBottom: 10 }}>VOUS ÊTES</div>
+            <div style={{ display: 'flex', gap: 7 }}>
+              {PROFILES.map(p => {
+                const active = profile === p.id;
+                const col    = p.color || U.accent;
+                return (
+                  <button key={p.id}
+                    onClick={() => setProfile(p.id)}
+                    style={{
+                      flex: 1, padding: '9px 6px', borderRadius: 9, cursor: 'pointer',
+                      fontFamily: F.b, textAlign: 'center', transition: 'all 0.15s',
+                      background: active ? `${col}15` : U.faint,
+                      border: `1px solid ${active ? col + '50' : U.border}`,
+                      color: active ? col : U.muted,
+                    }}
+                  >
+                    <div style={{ fontSize: 16, marginBottom: 3 }}>{p.icon || '◈'}</div>
+                    <div style={{ fontSize: 10, fontWeight: active ? 700 : 500 }}>{p.label}</div>
+                  </button>
+                );
+              })}
             </div>
-          ))}
-        </div>
+          </div>
 
-        <div style={{ borderRadius: 10, overflow: 'hidden', background: U.faint, border: `1px solid ${U.border}` }}>
-          <iframe
-            src="https://tally.so/embed/WONo8v?alignLeft=1&hideTitle=1&transparentBackground=1&dynamicHeight=1"
-            width="100%" height="220" frameBorder="0" marginHeight="0" marginWidth="0"
-            title="Liste d'attente ADS-SQUARE"
-            style={{ display: 'block', minHeight: 180 }}
-          />
-        </div>
-        <div style={{ marginTop: 14, color: U.muted, fontSize: 11, textAlign: 'center' }}>{t('waitlist.nospam')}</div>
+          {/* ── Email ── */}
+          <div style={{ marginBottom: 10 }}>
+            <div style={{ color: U.muted, fontSize: 10, fontWeight: 600, letterSpacing: '0.07em', marginBottom: 8 }}>EMAIL</div>
+            <input
+              type="email" value={email}
+              onChange={e => setEmail(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleSubmit()}
+              placeholder="votre@email.com"
+              style={inpStyle}
+              onFocus={e => e.target.style.borderColor = U.border2}
+              onBlur={e => e.target.style.borderColor = U.border}
+            />
+          </div>
+
+          {error && (
+            <div style={{ padding: '8px 12px', borderRadius: 6, background: `${U.err}12`, border: `1px solid ${U.err}30`, color: U.err, fontSize: 12, marginBottom: 10, textAlign: 'center' }}>
+              {error}
+            </div>
+          )}
+
+          <button
+            onClick={handleSubmit} disabled={loading}
+            style={{
+              width: '100%', padding: '13px', marginTop: 6,
+              borderRadius: 10, fontFamily: F.b,
+              cursor: loading ? 'wait' : 'pointer',
+              background: loading ? U.s2 : U.accent,
+              border: 'none', color: loading ? U.muted : U.accentFg,
+              fontWeight: 700, fontSize: 14,
+              opacity: loading ? 0.7 : 1,
+              boxShadow: loading ? 'none' : `0 0 22px ${U.accent}45`,
+              transition: 'all 0.15s',
+            }}
+          >
+            {loading ? 'Inscription…' : 'Rejoindre la liste d'attente →'}
+          </button>
+          <div style={{ marginTop: 12, color: U.muted, fontSize: 11, textAlign: 'center' }}>
+            {t('waitlist.nospam')}
+          </div>
+
+        </>) : (
+          /* ── État success ── */
+          <div style={{ textAlign: 'center', padding: '12px 0 4px' }}>
+            <div style={{ fontSize: 44, marginBottom: 14, animation: 'fadeIn 0.4s ease' }}>
+              {already ? '👋' : '✦'}
+            </div>
+            <h2 style={{ color: U.text, fontFamily: F.h, fontSize: 22, margin: '0 0 12px', fontWeight: 800, letterSpacing: '-0.02em' }}>
+              {already ? 'Vous êtes déjà inscrit !' : 'Vous êtes sur la liste !'}
+            </h2>
+            <p style={{ color: U.muted, fontSize: 13, lineHeight: 1.7, margin: '0 0 10px' }}>
+              {already
+                ? <>L'adresse <strong style={{ color: U.text }}>{email}</strong> est déjà enregistrée.<br />Vous serez notifié dès l'ouverture.</>
+                : <>Confirmation envoyée à <strong style={{ color: U.text }}>{email}</strong>.<br />Nous vous contacterons dès que votre accès est disponible.</>
+              }
+            </p>
+            {/* Badges tier dispo */}
+            <div style={{ display: 'flex', gap: 6, justifyContent: 'center', margin: '20px 0' }}>
+              {[['VIRAL','#00e8a2'],['BUSINESS','#00d9f5'],['PRESTIGE','#ff4d8f'],['ÉPICENTRE','#f0b429']].map(([l,c]) => (
+                <div key={l} style={{ padding: '3px 9px', borderRadius: 4, background: `${c}15`, border: `1px solid ${c}30`, color: c, fontSize: 9, fontWeight: 800, letterSpacing: '0.06em' }}>{l}</div>
+              ))}
+            </div>
+            <button
+              onClick={onClose}
+              style={{ padding: '11px 32px', borderRadius: 10, fontFamily: F.b, cursor: 'pointer', background: U.accent, border: 'none', color: U.accentFg, fontWeight: 700, fontSize: 14, boxShadow: `0 0 18px ${U.accent}40` }}
+            >
+              Explorer la grille
+            </button>
+          </div>
+        )}
+
       </div>
     </Modal>
   );
