@@ -3028,7 +3028,7 @@ function roundRect(ctx, x, y, w, h, r) {
 }
 
 // ─── Landing Page ──────────────────────────────────────────────
-function LandingPage({ slots, onPublic, onAdvertiser, onWaitlist, dailyVisitors }) {
+function LandingPage({ slots, onPublic, onAdvertiser, onWaitlist }) {
   const { isMobile } = useScreenSize();
   const t = useT();
   const stats = useMemo(() => ({ occupied: slots.filter(s => s.occ).length, vacant: slots.filter(s => !s.occ).length }), [slots]);
@@ -3079,22 +3079,7 @@ function LandingPage({ slots, onPublic, onAdvertiser, onWaitlist, dailyVisitors 
         </p>
 
         {/* Stats live plateforme */}
-        <div style={{ display: 'flex', gap: isMobile ? 16 : 36, justifyContent: 'center', marginBottom: 40, flexWrap: 'wrap', alignItems: 'flex-start' }}>
-
-          {/* Visiteurs aujourd'hui — preuve sociale temps réel */}
-          <div style={{ textAlign: 'center', minWidth: 60 }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}>
-              <div style={{ width: 5, height: 5, borderRadius: '50%', background: '#60a5fa', boxShadow: '0 0 6px #60a5fa', flexShrink: 0, animation: 'blink 2s infinite' }} />
-              <div style={{ color: '#60a5fa', fontWeight: 700, fontSize: isMobile ? 18 : 24, fontFamily: F.h, letterSpacing: '-0.02em' }}>
-                {dailyVisitors !== null ? dailyVisitors.toLocaleString('fr-FR') : '—'}
-              </div>
-            </div>
-            <div style={{ color: U.muted, fontSize: 10, marginTop: 3 }}>visiteurs aujourd'hui</div>
-          </div>
-
-          {/* Séparateur vertical */}
-          {!isMobile && <div style={{ width: 1, height: 32, background: U.border, alignSelf: 'center' }} />}
-
+        <div style={{ display: 'flex', gap: isMobile ? 16 : 36, justifyContent: 'center', marginBottom: 40, flexWrap: 'wrap' }}>
           {[
             [stats.occupied,                                                              t('landing.stat.active'),  false],
             [stats.vacant,                                                                t('landing.stat.free'),    false],
@@ -3314,7 +3299,7 @@ export default function App() {
           </nav>
         </header>
 
-        {view === 'landing'    && <LandingPage    slots={slots} onPublic={() => setView('public')} onAdvertiser={() => setView('advertiser')} onWaitlist={handleWaitlist} dailyVisitors={dailyVisitors} />}
+        {view === 'landing'    && <LandingPage    slots={slots} onPublic={() => setView('public')} onAdvertiser={() => setView('advertiser')} onWaitlist={handleWaitlist} />}
         {view === 'public'     && <PublicView     slots={slots} isLive={isLive} onGoAdvertiser={() => setShowBoost(true)} onWaitlist={handleWaitlist} authUser={authUser} userBookings={userBookings} />}
         {view === 'advertiser' && <AdvertiserView slots={slots} isLive={isLive} onWaitlist={handleWaitlist} onCheckout={handleCheckout} />}
         {showWaitlist  && <WaitlistModal  onClose={() => setShowWaitlist(false)} />}
