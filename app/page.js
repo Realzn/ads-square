@@ -1590,7 +1590,7 @@ function AdvertiserProfileModal({ advertiserId, slots, onClose, onOpenSlot }) {
   );
 }
 
-function FocusModal({ slot, allSlots, onClose, onNavigate, onGoAdvertiser, onViewProfile }) {
+function FocusModal({ slot, allSlots, onClose, onNavigate, onGoAdvertiser, onViewProfile, onWaitlist }) {
   const [entered, setEntered] = useState(false);
   const t = useT();
   const [dir, setDir] = useState(0);
@@ -1836,7 +1836,7 @@ function FocusModal({ slot, allSlots, onClose, onNavigate, onGoAdvertiser, onVie
                   Réserver ce bloc →
                 </button>
               ) : (
-                <button onClick={() => { onClose(); onGoAdvertiser(); }} style={{ display: 'block', width: '100%', padding: '12px', borderRadius: 10, fontFamily: F.b, cursor: 'pointer', background: `${c}15`, border: `1.5px solid ${c}40`, color: c, fontWeight: 700, fontSize: 13 }}>
+                <button onClick={() => { onClose(); onWaitlist(); }} style={{ display: 'block', width: '100%', padding: '12px', borderRadius: 10, fontFamily: F.b, cursor: 'pointer', background: `${c}15`, border: `1.5px solid ${c}40`, color: c, fontWeight: 700, fontSize: 13 }}>
                   ✉ Me prévenir à l'ouverture
                 </button>
               )}
@@ -2193,7 +2193,7 @@ function BoostTicker({ slots, authUser, userBookings, onBoost, onGoAdvertiser })
   );
 }
 
-function PublicView({ slots, isLive, onGoAdvertiser, authUser, userBookings }) {
+function PublicView({ slots, isLive, onGoAdvertiser, onWaitlist, authUser, userBookings }) {
   const t = useT();
   const containerRef  = useRef(null);
   const [containerW, setContainerW] = useState(0);
@@ -2395,6 +2395,7 @@ function PublicView({ slots, isLive, onGoAdvertiser, authUser, userBookings }) {
         onClose={() => setFocusSlot(null)}
         onNavigate={setFocusSlot}
         onGoAdvertiser={onGoAdvertiser}
+        onWaitlist={onWaitlist}
         onViewProfile={(advId) => { setFocusSlot(null); setTimeout(() => setProfileAdvertiserId(advId), 50); }}
       />}
 
@@ -3140,7 +3141,7 @@ export default function App() {
         </header>
 
         {view === 'landing'    && <LandingPage    slots={slots} onPublic={() => setView('public')} onAdvertiser={() => setView('advertiser')} onWaitlist={handleWaitlist} />}
-        {view === 'public'     && <PublicView     slots={slots} isLive={isLive} onGoAdvertiser={() => setShowBoost(true)} authUser={authUser} userBookings={userBookings} />}
+        {view === 'public'     && <PublicView     slots={slots} isLive={isLive} onGoAdvertiser={() => setShowBoost(true)} onWaitlist={handleWaitlist} authUser={authUser} userBookings={userBookings} />}
         {view === 'advertiser' && <AdvertiserView slots={slots} isLive={isLive} onWaitlist={handleWaitlist} onCheckout={handleCheckout} />}
         {showWaitlist  && <WaitlistModal  onClose={() => setShowWaitlist(false)} />}
         {checkoutSlot  && <CheckoutModal  slot={checkoutSlot} onClose={() => setCheckoutSlot(null)} />}

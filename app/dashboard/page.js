@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
   getSession, signOut, getAdvertiserProfile, getDashboardBookings,
-  updateBookingContent, updateAdvertiserProfile, uploadBlockImage,
+  updateBookingContent, updateAdvertiserProfile, uploadBlockImage, toggleBookingBoost,
 } from '../../lib/supabase-auth';
 import { TIER_LABEL, TIER_PRICE, TIER_COLOR } from '../../lib/grid';
 
@@ -109,17 +109,13 @@ function BoostToggle({ booking, onToggled }) {
     e.stopPropagation();
     setLoading(true);
     try {
-      const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-      const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-      await fetch(`${url}/rest/v1/bookings?id=eq.${booking.id}`, {
-        method: 'PATCH',
-        headers: { 'apikey': key, 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
-        body: JSON.stringify({ is_boosted: !boosted }),
-      });
-      setBoosted(b => !b);
+      const next = !boosted;
+      await toggleBookingBoost(booking.id, next);
+      setBoosted(next);
       if (onToggled) onToggled(booking);
-    } catch(err) { /* silent */ }
-    finally { setLoading(false); }
+    } catch(err) {
+      console.error('Boost toggle failed:', err.message);
+    } finally { setLoading(false); }
   };
 
   return (
