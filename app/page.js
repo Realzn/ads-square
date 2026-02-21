@@ -1590,6 +1590,43 @@ function AdvertiserProfileModal({ advertiserId, slots, onClose, onOpenSlot }) {
   );
 }
 
+
+// ─── ShareBlocButton ───────────────────────────────────────────
+function ShareBlocButton({ x, y, name, slogan }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleShare = async () => {
+    const url = `${typeof window !== 'undefined' ? window.location.origin : 'https://ads-square.com'}/bloc/${x}-${y}`;
+    if (navigator?.share) {
+      try {
+        await navigator.share({ title: name ? `${name} sur ADS-SQUARE` : 'Bloc ADS-SQUARE', text: slogan || name || '', url });
+        return;
+      } catch { /* user cancelled */ }
+    }
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+    } catch { /* silent */ }
+  };
+
+  return (
+    <button
+      onClick={e => { e.stopPropagation(); handleShare(); }}
+      style={{
+        width: '100%', padding: '10px', borderRadius: 9,
+        background: 'transparent', border: `1px solid ${U.border2}`,
+        color: copied ? '#00e8a2' : U.muted,
+        fontFamily: F.b, fontSize: 12, fontWeight: 600, cursor: 'pointer',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
+        transition: 'color 0.2s',
+      }}
+    >
+      {copied ? <><span>✓</span> Lien copié !</> : <><span style={{ fontSize: 14 }}>⎘</span> Partager ce bloc</>}
+    </button>
+  );
+}
+
 function FocusModal({ slot, allSlots, onClose, onNavigate, onGoAdvertiser, onViewProfile, onWaitlist }) {
   const [entered, setEntered] = useState(false);
   const t = useT();
@@ -1779,9 +1816,11 @@ function FocusModal({ slot, allSlots, onClose, onNavigate, onGoAdvertiser, onVie
               </div>
             )}
 
-            <a href={tenant.url} target="_blank" rel="noopener noreferrer" onClick={e => { e.stopPropagation(); recordClick(slot.x, slot.y, slot.bookingId); }} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '13px 20px', borderRadius: 10, background: c, color: U.accentFg, fontWeight: 700, fontSize: 14, fontFamily: F.b, textDecoration: 'none', boxShadow: `0 0 22px ${c}50`, transition: 'opacity 0.15s' }}>
+            <a href={tenant.url} target="_blank" rel="noopener noreferrer" onClick={e => { e.stopPropagation(); recordClick(slot.x, slot.y, slot.bookingId); }} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '13px 20px', borderRadius: 10, background: c, color: U.accentFg, fontWeight: 700, fontSize: 14, fontFamily: F.b, textDecoration: 'none', boxShadow: `0 0 22px ${c}50`, transition: 'opacity 0.15s', marginBottom: 10 }}>
               {tenant.cta} →
             </a>
+            {/* ── Bouton partager ── */}
+            <ShareBlocButton x={slot.x} y={slot.y} name={tenant.name} slogan={tenant.slogan} />
           </div>
         ) : (() => {
           const isAvail = isTierAvailable(tier);
