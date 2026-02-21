@@ -281,29 +281,28 @@ function WaitlistModal({ onClose }) {
 // ─── Checkout Modal ────────────────────────────────────────────
 
 // ─── Boost Modal (1€/h spotlight) ─────────────────────────────
-function BoostModal({ onClose }) {
+function BoostModal({ onClose, authUser }) {
   const { isMobile } = useScreenSize();
   const t = useT();
   const [hours, setHours] = useState(3);
-  const [email, setEmail] = useState('');
   const [url, setUrl] = useState('');
   const [name, setName] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [sent, setSent] = useState(false);
 
+  const email = authUser?.email || '';
   const total = hours;
 
   const handleSubmit = async () => {
-    if (!email || !email.includes('@')) { setError('Email invalide'); return; }
     if (!url || !url.startsWith('http')) { setError('URL invalide (ex: https://monsite.com)'); return; }
-    if (!name.trim()) { setError('Nom requis'); return; }
+    if (!name.trim()) { setError('Nom / marque requis'); return; }
     setLoading(true); setError(null);
     try {
-      await fetch('/api/offers/submit', {
+      await fetch('/api/boost/request', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: 'boost', hours, email, url, name, totalCents: total * 100 }),
+        body: JSON.stringify({ hours, email, url, name, totalCents: total * 100 }),
       });
       setSent(true);
     } catch {
@@ -340,10 +339,14 @@ function BoostModal({ onClose }) {
           </div>
 
           {/* Fields */}
+          {/* Email auto depuis la session — affiché en lecture seule */}
+          <div style={{ marginBottom: 14, padding: '10px 14px', borderRadius: 8, background: U.faint, border: `1px solid ${U.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span style={{ color: U.muted, fontSize: 11, fontWeight: 600, letterSpacing: '0.06em' }}>COMPTE</span>
+            <span style={{ color: U.text, fontSize: 12 }}>{email}</span>
+          </div>
           {[
             ['Votre nom / marque', name, setName, 'text', 'Nike, StartupXYZ…'],
             ['URL de destination', url, setUrl, 'url', 'https://monsite.com'],
-            ['Email de contact', email, setEmail, 'email', 'vous@email.com'],
           ].map(([label, val, setter, type, ph]) => (
             <div key={label} style={{ marginBottom: 14 }}>
               <div style={{ color: U.muted, fontSize: 10, fontWeight: 600, letterSpacing: '0.07em', marginBottom: 8 }}>{label.toUpperCase()}</div>
@@ -2092,29 +2095,21 @@ function FeedInvitePanel({ slots, onSwitchToFeed, onDismiss }) {
 // ─── Public View ───────────────────────────────────────────────
 // ─── Boost Ticker (scrolling banner of boosted slots only) ──────
 function BoostTicker({ slots, authUser, userBookings, onBoost, onGoAdvertiser }) {
-  const [showTickerToast, setShowTickerToast] = useState(false);
-
   // Only show slots explicitly boosted
   const boosted = slots.filter(s => s.occ && s.tenant && s.tenant.boosted);
 
-  // Determine CTA state
-  const hasActiveBooking = userBookings && userBookings.length > 0;
+  // Logique simplifiée : non connecté → login, connecté → boost direct
   const isLoggedIn = !!authUser;
 
   const handleCTA = () => {
-    if (!isLoggedIn || !hasActiveBooking) {
-      setShowTickerToast(true);
-      setTimeout(() => setShowTickerToast(false), 4000);
+    if (!isLoggedIn) {
+      window.location.href = '/dashboard/login?redirect=boost';
     } else {
       onBoost();
     }
   };
 
-  const ctaLabel = !isLoggedIn
-    ? '⚡ Booster mon bloc'
-    : !hasActiveBooking
-    ? '⚡ Booster mon bloc'
-    : '⚡ Booster votre bloc';
+  const ctaLabel = '⚡ Booster ma visibilité';
 
   // Empty state message items
   const emptyItems = [
@@ -2126,28 +2121,7 @@ function BoostTicker({ slots, authUser, userBookings, onBoost, onGoAdvertiser })
 
   return (
     <div style={{ borderBottom: `1px solid ${U.accent}25`, background: `${U.accent}08`, flexShrink: 0, overflow: 'hidden', height: 30, display: 'flex', alignItems: 'center', position: 'relative' }}>
-      {/* Tooltip toast */}
-      {showTickerToast && (
-        <div style={{ position: 'absolute', bottom: 36, right: 12, zIndex: 100, background: U.s1, border: `1px solid ${U.accent}40`, borderRadius: 10, padding: '10px 14px', boxShadow: '0 8px 32px rgba(0,0,0,0.5)', maxWidth: 260, animation: 'fadeIn 0.2s ease' }}>
-          {!isLoggedIn ? (
-            <>
-              <div style={{ color: U.text, fontWeight: 700, fontSize: 12, marginBottom: 4 }}>Vous n'avez pas encore de bloc</div>
-              <div style={{ color: U.muted, fontSize: 11, lineHeight: 1.5, marginBottom: 8 }}>Réservez un bloc ADS-SQUARE pour profiter d'un boost de visibilité et apparaître ici.</div>
-              <button onClick={() => { setShowTickerToast(false); onGoAdvertiser(); }} style={{ padding: '6px 12px', borderRadius: 7, background: U.accent, border: 'none', color: U.accentFg, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
-                Voir les blocs disponibles →
-              </button>
-            </>
-          ) : (
-            <>
-              <div style={{ color: U.text, fontWeight: 700, fontSize: 12, marginBottom: 4 }}>Aucun bloc actif</div>
-              <div style={{ color: U.muted, fontSize: 11, lineHeight: 1.5, marginBottom: 8 }}>Le boost est disponible une fois que vous avez réservé et activé un bloc.</div>
-              <button onClick={() => { setShowTickerToast(false); onGoAdvertiser(); }} style={{ padding: '6px 12px', borderRadius: 7, background: U.accent, border: 'none', color: U.accentFg, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
-                Réserver un bloc →
-              </button>
-            </>
-          )}
-        </div>
-      )}
+
 
       {/* Left label */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '0 10px 0 12px', flexShrink: 0, borderRight: `1px solid ${U.accent}30`, height: '100%', background: `${U.accent}10`, zIndex: 2 }}>
@@ -3258,7 +3232,7 @@ export default function App() {
         {showWaitlist  && <WaitlistModal  onClose={() => setShowWaitlist(false)} />}
         {checkoutSlot  && <CheckoutModal  slot={checkoutSlot} onClose={() => setCheckoutSlot(null)} />}
         {buyoutSlot    && <BuyoutModal    slot={buyoutSlot}   onClose={() => setBuyoutSlot(null)} />}
-        {showBoost     && <BoostModal     onClose={() => setShowBoost(false)} />}
+        {showBoost     && <BoostModal     onClose={() => setShowBoost(false)} authUser={authUser} />}
       </div>
     </LangContext.Provider>
   );
