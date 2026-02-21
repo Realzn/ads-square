@@ -2294,13 +2294,12 @@ function PublicView({ slots, isLive, onGoAdvertiser, onWaitlist, authUser, userB
   const filteredSlots = useMemo(() => {
     let s = slots;
     // Tier filter: inclut TOUS les slots du tier (occupés, libres ET indisponibles)
-    // pour un dimming uniforme identique à la vue annonceur.
     if (filterTier !== 'all') s = s.filter(sl => sl.tier === filterTier || (filterTier === 'ten' && sl.tier === 'corner_ten'));
-    // Theme filter: ne dimme que les blocs occupés qui ne matchent pas;
-    // les blocs vides/indisponibles du tier restent à pleine opacité.
+    // Theme filter: UNIQUEMENT les blocs occupés qui matchent le thème.
+    // Les blocs vides et les blocs d'autres thèmes sont tous dimés.
     if (filterTheme !== 'all') {
       const theme = THEMES.find(t => t.id === filterTheme);
-      if (theme) s = s.filter(sl => !sl.occ || theme.match?.(sl.tenant?.t, sl.tenant?.name, sl.tenant?.url));
+      if (theme) s = s.filter(sl => sl.occ && theme.match?.(sl.tenant?.t, sl.tenant?.name, sl.tenant?.url));
     }
     return new Set(s.map(sl => sl.id));
   }, [slots, filterTier, filterTheme]);
