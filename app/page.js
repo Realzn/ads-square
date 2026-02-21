@@ -1745,105 +1745,72 @@ function AdvertiserView({ slots, isLive, onWaitlist, onCheckout }) {
                     </div>
                   </>
                 );
-              })() : (<>
-                {/* Stats zone voisine — preuve de trafic pour slots libres */}
-                {neighborStats && (neighborStats.impressions_7d > 0 || neighborStats.clicks_7d > 0) && (
-                  <div style={{ marginBottom:12, padding:'10px 12px', borderRadius:9, background:`${U.accent}08`, border:`1px solid ${U.accent}20` }}>
-                    <div style={{ fontSize:9, color:U.muted, fontWeight:700, letterSpacing:'0.07em', marginBottom:8 }}>
-                      TRAFIC DES BLOCS VOISINS ({neighborStats.sampleSize} blocs analysés)
-                    </div>
-                    <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:5 }}>
-                      {[
-                        [neighborStats.impressions_7d?.toLocaleString('fr-FR') ?? '0', 'vues / 7j'],
-                        [neighborStats.clicks_7d?.toLocaleString('fr-FR') ?? '0', 'clics / 7j'],
-                        [`${neighborStats.ctr_pct ?? 0}%`, 'CTR moy.'],
-                      ].map(([v, l]) => (
-                        <div key={l} style={{ textAlign:'center', padding:'7px 4px', borderRadius:6, background:U.s2, border:`1px solid ${U.border}` }}>
-                          <div style={{ color:U.accent, fontWeight:800, fontSize:14, fontFamily:F.h }}>{v}</div>
-                          <div style={{ color:U.muted, fontSize:8, marginTop:2 }}>{l}</div>
-                        </div>
-                      ))}
-                    </div>
-                    <div style={{ marginTop:7, fontSize:9, color:'rgba(255,255,255,0.22)', textAlign:'center' }}>
-                      Performances réelles · blocs {TIER_LABEL[chosenSlot.tier]} actifs
-                    </div>
-                  </div>
-                )}
-                <button onClick={() => onCheckout(chosenSlot)} style={{ width: '100%', padding: '11px', borderRadius: 8, fontFamily: F.b, cursor: 'pointer', background: U.accent, border: 'none', color: U.accentFg, fontWeight: 700, fontSize: 13, boxShadow: `0 0 20px ${U.accent}50`, marginBottom: 8 }}>
-                  {t('adv.cta.rent')}
-                </button>
-                <div style={{ color: U.muted, fontSize: 10, textAlign: 'center' }}>
-                  {t('adv.cta.rent.sub', TIER_PRICE[chosenSlot.tier])}
-                </div>
-              </>);
-            })()}
-            {/* Bloc "Prochainement" pour les tiers non encore ouverts */}
-            {!chosenSlot.occ && !isTierAvailable(chosenSlot.tier) && (() => {
-              const c = TIER_COLOR[chosenSlot.tier];
-              return (
-                <div style={{ padding: '16px 0' }}>
-                  {/* Badge prochainement */}
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, marginBottom: 20 }}>
-                    <div style={{
-                      width: 48, height: 48, borderRadius: 14,
-                      background: `${c}12`, border: `1.5px solid ${c}40`,
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      fontSize: 22,
-                    }}>🔒</div>
-                    <div style={{ textAlign: 'center' }}>
-                      <div style={{ color: c, fontWeight: 800, fontSize: 14, fontFamily: F.h, letterSpacing: '0.04em', marginBottom: 4 }}>
-                        PROCHAINEMENT
+              })() : (
+                isTierAvailable(chosenSlot.tier) ? (<>
+                  {/* Stats zone voisine — preuve de trafic pour slots libres */}
+                  {neighborStats && (neighborStats.impressions_7d > 0 || neighborStats.clicks_7d > 0) && (
+                    <div style={{ marginBottom:12, padding:'10px 12px', borderRadius:9, background:`${U.accent}08`, border:`1px solid ${U.accent}20` }}>
+                      <div style={{ fontSize:9, color:U.muted, fontWeight:700, letterSpacing:'0.07em', marginBottom:8 }}>
+                        TRAFIC DES BLOCS VOISINS ({neighborStats.sampleSize} blocs analysés)
                       </div>
-                      <div style={{ color: U.muted, fontSize: 11, lineHeight: 1.6 }}>
-                        Les blocs <strong style={{ color: U.text }}>{TIER_LABEL[chosenSlot.tier]}</strong> ouvrent en phase 2.<br />
-                        Réservez votre place en avant-première.
+                      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:5 }}>
+                        {[
+                          [neighborStats.impressions_7d?.toLocaleString('fr-FR') ?? '0', 'vues / 7j'],
+                          [neighborStats.clicks_7d?.toLocaleString('fr-FR') ?? '0', 'clics / 7j'],
+                          [`${neighborStats.ctr_pct ?? 0}%`, 'CTR moy.'],
+                        ].map(([v, l]) => (
+                          <div key={l} style={{ textAlign:'center', padding:'7px 4px', borderRadius:6, background:U.s2, border:`1px solid ${U.border}` }}>
+                            <div style={{ color:U.accent, fontWeight:800, fontSize:14, fontFamily:F.h }}>{v}</div>
+                            <div style={{ color:U.muted, fontSize:8, marginTop:2 }}>{l}</div>
+                          </div>
+                        ))}
+                      </div>
+                      <div style={{ marginTop:7, fontSize:9, color:'rgba(255,255,255,0.22)', textAlign:'center' }}>
+                        Performances réelles · blocs {TIER_LABEL[chosenSlot.tier]} actifs
                       </div>
                     </div>
-                  </div>
-
-                  {/* Infos du tier */}
-                  <div style={{
-                    display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8,
-                    marginBottom: 16,
-                  }}>
-                    {[
-                      ['Prix', `€${TIER_PRICE[chosenSlot.tier]}/j`],
-                      ['Tier', TIER_LABEL[chosenSlot.tier]],
-                      ['Position', `(${chosenSlot.x}, ${chosenSlot.y})`],
-                      ['Lancement', 'Phase 2'],
-                    ].map(([label, val]) => (
-                      <div key={label} style={{
-                        padding: '8px 12px', borderRadius: 8,
-                        background: `${c}08`, border: `1px solid ${c}20`,
-                        textAlign: 'center',
-                      }}>
-                        <div style={{ color: U.muted, fontSize: 9, fontWeight: 700, letterSpacing: '0.06em', marginBottom: 3 }}>{label}</div>
-                        <div style={{ color: U.text, fontWeight: 700, fontSize: 13, fontFamily: F.h }}>{val}</div>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* CTA liste d'attente */}
-                  <button
-                    onClick={onWaitlist}
-                    style={{
-                      width: '100%', padding: '12px',
-                      borderRadius: 8, fontFamily: F.b,
-                      cursor: 'pointer',
-                      background: `${c}18`,
-                      border: `1.5px solid ${c}50`,
-                      color: c, fontWeight: 700, fontSize: 13,
-                      transition: 'all 0.2s',
-                    }}
-                  >
-                    ✉ Me prévenir à l'ouverture
+                  )}
+                  <button onClick={() => onCheckout(chosenSlot)} style={{ width: '100%', padding: '11px', borderRadius: 8, fontFamily: F.b, cursor: 'pointer', background: U.accent, border: 'none', color: U.accentFg, fontWeight: 700, fontSize: 13, boxShadow: `0 0 20px ${U.accent}50`, marginBottom: 8 }}>
+                    {t('adv.cta.rent')}
                   </button>
-                  <div style={{ color: U.muted, fontSize: 10, textAlign: 'center', marginTop: 8 }}>
-                    Accès prioritaire garanti aux premiers inscrits
+                  <div style={{ color: U.muted, fontSize: 10, textAlign: 'center' }}>
+                    {t('adv.cta.rent.sub', TIER_PRICE[chosenSlot.tier])}
                   </div>
-                </div>
-              );
-            })()}
+                </>) : (() => {
+                  const c = TIER_COLOR[chosenSlot.tier];
+                  return (
+                    <div style={{ padding: '16px 0' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, marginBottom: 20 }}>
+                        <div style={{ width: 48, height: 48, borderRadius: 14, background: `${c}12`, border: `1.5px solid ${c}40`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22 }}>🔒</div>
+                        <div style={{ textAlign: 'center' }}>
+                          <div style={{ color: c, fontWeight: 800, fontSize: 14, fontFamily: F.h, letterSpacing: '0.04em', marginBottom: 4 }}>PROCHAINEMENT</div>
+                          <div style={{ color: U.muted, fontSize: 11, lineHeight: 1.6 }}>
+                            Les blocs <strong style={{ color: U.text }}>{TIER_LABEL[chosenSlot.tier]}</strong> ouvrent en phase 2.<br />
+                            Réservez votre place en avant-première.
+                          </div>
+                        </div>
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 16 }}>
+                        {[
+                          ['Prix', `€${TIER_PRICE[chosenSlot.tier]}/j`],
+                          ['Tier', TIER_LABEL[chosenSlot.tier]],
+                          ['Position', `(${chosenSlot.x}, ${chosenSlot.y})`],
+                          ['Lancement', 'Phase 2'],
+                        ].map(([label, val]) => (
+                          <div key={label} style={{ padding: '8px 12px', borderRadius: 8, background: `${c}08`, border: `1px solid ${c}20`, textAlign: 'center' }}>
+                            <div style={{ color: U.muted, fontSize: 9, fontWeight: 700, letterSpacing: '0.06em', marginBottom: 3 }}>{label}</div>
+                            <div style={{ color: U.text, fontWeight: 700, fontSize: 13, fontFamily: F.h }}>{val}</div>
+                          </div>
+                        ))}
+                      </div>
+                      <button onClick={onWaitlist} style={{ width: '100%', padding: '12px', borderRadius: 8, fontFamily: F.b, cursor: 'pointer', background: `${c}18`, border: `1.5px solid ${c}50`, color: c, fontWeight: 700, fontSize: 13 }}>
+                        ✉ Me prévenir à l'ouverture
+                      </button>
+                      <div style={{ color: U.muted, fontSize: 10, textAlign: 'center', marginTop: 8 }}>Accès prioritaire garanti aux premiers inscrits</div>
+                    </div>
+                  );
+                })()
+              )}
             </div>
           </div>
         ) : (
