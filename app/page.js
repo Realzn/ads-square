@@ -987,7 +987,345 @@ function BuyoutModal({ slot, onClose }) {
 }
 
 // ─── Focus Modal ───────────────────────────────────────────────
-function FocusModal({ slot, allSlots, onClose, onNavigate, onGoAdvertiser }) {
+
+// ─── AdvertiserProfileModal ────────────────────────────────────
+// Profil complet d'un annonceur : tous ses blocs, stats, réseaux,
+// description, et système de like.
+function AdvertiserProfileModal({ advertiserId, slots, onClose, onOpenSlot }) {
+  const { isMobile } = useScreenSize();
+  const [entered, setEntered] = useState(false);
+  const [liked, setLiked] = useState(false);
+  const [likeCount, setLikeCount] = useState(0);
+  const [likeAnim, setLikeAnim] = useState(false);
+  const [totalStats, setTotalStats] = useState(null);
+
+  // Tous les blocs de cet annonceur
+  const advertiserSlots = useMemo(() =>
+    slots.filter(s => s.occ && s.tenant?.advertiserId === advertiserId),
+    [slots, advertiserId]
+  );
+
+  const mainSlot = advertiserSlots[0];
+  const tenant   = mainSlot?.tenant;
+  if (!tenant) { onClose(); return null; }
+
+  const c = tenant.c || U.accent;
+
+  // Animation d'entrée
+  useEffect(() => {
+    const t = requestAnimationFrame(() => setEntered(true));
+    return () => cancelAnimationFrame(t);
+  }, []);
+
+  // Keyboard
+  useEffect(() => {
+    const fn = e => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', fn);
+    return () => window.removeEventListener('keydown', fn);
+  }, [onClose]);
+
+  // Like — stocké en localStorage, clé par advertiserId
+  useEffect(() => {
+    const likeKey  = `like_adv_${advertiserId}`;
+    const countKey = `likes_count_${advertiserId}`;
+    const isLiked  = localStorage.getItem(likeKey) === '1';
+    const count    = parseInt(localStorage.getItem(countKey) || '0', 10);
+    setLiked(isLiked);
+    setLikeCount(count);
+  }, [advertiserId]);
+
+  const handleLike = e => {
+    e.stopPropagation();
+    const likeKey  = `like_adv_${advertiserId}`;
+    const countKey = `likes_count_${advertiserId}`;
+    const newLiked = !liked;
+    const newCount = likeCount + (newLiked ? 1 : -1);
+    localStorage.setItem(likeKey,  newLiked ? '1' : '0');
+    localStorage.setItem(countKey, String(Math.max(0, newCount)));
+    setLiked(newLiked);
+    setLikeCount(Math.max(0, newCount));
+    if (newLiked) { setLikeAnim(true); setTimeout(() => setLikeAnim(false), 600); }
+  };
+
+  // Fetch stats agrégées de tous ses blocs
+  useEffect(() => {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    if (!url || !key || advertiserSlots.length === 0) return;
+    const ids = advertiserSlots.map(s => s.tenant.bookingId).filter(Boolean);
+    if (!ids.length) return;
+    fetch(`${url}/rest/v1/booking_stats?booking_id=in.(${ids.join(',')})&select=clicks,impressions,ctr_pct,clicks_7d,impressions_7d`, {
+      headers: { apikey: key, Authorization: `Bearer ${key}` },
+    })
+      .then(r => r.json())
+      .then(rows => {
+        if (!Array.isArray(rows)) return;
+        const total = rows.reduce((acc, r) => ({
+          clicks:       acc.clicks       + (r.clicks || 0),
+          impressions:  acc.impressions  + (r.impressions || 0),
+          clicks_7d:    acc.clicks_7d    + (r.clicks_7d || 0),
+          impressions_7d: acc.impressions_7d + (r.impressions_7d || 0),
+        }), { clicks: 0, impressions: 0, clicks_7d: 0, impressions_7d: 0 });
+        const ctr = total.impressions > 0
+          ? Math.round((total.clicks / total.impressions) * 1000) / 10
+          : 0;
+        setTotalStats({ ...total, ctr_pct: ctr });
+      })
+      .catch(() => {});
+  }, [advertiserId]);
+
+  const SOCIAL_META = {
+    instagram: { label:'Instagram', icon:'📸', color:'#e1306c', prefix:'https://instagram.com/' },
+    tiktok:    { label:'TikTok',    icon:'🎵', color:'#00f2ea', prefix:'https://tiktok.com/@' },
+    youtube:   { label:'YouTube',   icon:'▶',  color:'#ff0000', prefix:'https://youtube.com/@' },
+    twitter:   { label:'X / Twitter',icon:'𝕏', color:'#e7e9ea', prefix:'https://x.com/' },
+    linkedin:  { label:'LinkedIn',  icon:'in', color:'#0077b5', prefix:'https://linkedin.com/in/' },
+    facebook:  { label:'Facebook',  icon:'f',  color:'#1877f2', prefix:'https://facebook.com/' },
+    snapchat:  { label:'Snapchat',  icon:'👻', color:'#fffc00', prefix:'https://snapchat.com/add/' },
+    meta:      { label:'Threads',   icon:'@',  color:'#fff',    prefix:'https://threads.net/@' },
+  };
+  const MUSIC_META = {
+    spotify:     { label:'Spotify',     icon:'♫', color:'#1ed760', prefix:'https://open.spotify.com/artist/' },
+    apple_music: { label:'Apple Music', icon:'♪', color:'#fc3c44', prefix:'https://music.apple.com/' },
+    soundcloud:  { label:'SoundCloud',  icon:'☁', color:'#ff5500', prefix:'https://soundcloud.com/' },
+    deezer:      { label:'Deezer',      icon:'♬', color:'#00c7f2', prefix:'https://deezer.com/artist/' },
+  };
+
+  const socialMeta = SOCIAL_META[tenant.social];
+  const musicMeta  = MUSIC_META[tenant.music];
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: 'fixed', inset: 0, zIndex: 1100,
+        background: 'rgba(0,0,0,0.88)', backdropFilter: 'blur(20px)',
+        display: 'flex', alignItems: isMobile ? 'flex-end' : 'center', justifyContent: 'center',
+        opacity: entered ? 1 : 0, transition: 'opacity 0.25s ease',
+      }}
+    >
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{
+          width: isMobile ? '100vw' : 'min(96vw,560px)',
+          background: U.s1,
+          border: `1px solid ${U.border2}`,
+          borderRadius: isMobile ? '24px 24px 0 0' : 20,
+          overflow: 'hidden', overflowY: 'auto',
+          maxHeight: isMobile ? '92vh' : '88vh',
+          transform: entered ? 'translateY(0) scale(1)' : 'translateY(20px) scale(0.96)',
+          transition: 'transform 0.3s cubic-bezier(0.22,1,0.36,1)',
+          boxShadow: `0 40px 100px rgba(0,0,0,0.7), 0 0 0 1px ${c}20, 0 0 60px ${c}10`,
+        }}
+      >
+        {isMobile && (
+          <div style={{ display:'flex', justifyContent:'center', padding:'12px 0 0' }}>
+            <div style={{ width:40, height:3, borderRadius:2, background:U.border2 }} />
+          </div>
+        )}
+
+        {/* ── Hero banner ── */}
+        <div style={{ position:'relative', height: isMobile ? 140 : 180, background:`linear-gradient(135deg, ${c}18 0%, ${U.s2} 100%)`, overflow:'hidden', flexShrink:0 }}>
+          {/* Motif grille en fond */}
+          <svg style={{ position:'absolute', inset:0, width:'100%', height:'100%', opacity:0.07 }}>
+            <defs>
+              <pattern id="pg" width="24" height="24" patternUnits="userSpaceOnUse">
+                <path d="M 24 0 L 0 0 0 24" fill="none" stroke={c} strokeWidth="0.5"/>
+              </pattern>
+            </defs>
+            <rect width="100%" height="100%" fill="url(#pg)" />
+          </svg>
+
+          {/* Image de couverture si dispo */}
+          {tenant.img && (
+            <img src={tenant.img} alt="" style={{ position:'absolute', inset:0, width:'100%', height:'100%', objectFit:'cover', opacity:0.25 }} />
+          )}
+
+          {/* Gradient bas */}
+          <div style={{ position:'absolute', bottom:0, left:0, right:0, height:80, background:`linear-gradient(to top, ${U.s1}, transparent)` }} />
+
+          {/* Badge tier + close */}
+          <div style={{ position:'absolute', top:14, left:16, display:'flex', alignItems:'center', gap:7 }}>
+            <div style={{ padding:'3px 9px', borderRadius:5, background:`${TIER_COLOR[mainSlot.tier]}20`, border:`1px solid ${TIER_COLOR[mainSlot.tier]}40`, color:TIER_COLOR[mainSlot.tier], fontSize:9, fontWeight:800, letterSpacing:'0.07em' }}>
+              {TIER_LABEL[mainSlot.tier]}
+            </div>
+            {advertiserSlots.length > 1 && (
+              <div style={{ padding:'3px 9px', borderRadius:5, background:`${U.accent}15`, border:`1px solid ${U.accent}30`, color:U.accent, fontSize:9, fontWeight:700 }}>
+                {advertiserSlots.length} blocs
+              </div>
+            )}
+          </div>
+          <button onClick={onClose} style={{ position:'absolute', top:12, right:12, width:30, height:30, borderRadius:'50%', background:'rgba(0,0,0,0.5)', border:`1px solid ${U.border}`, color:U.muted, cursor:'pointer', fontSize:15, display:'flex', alignItems:'center', justifyContent:'center' }}>×</button>
+        </div>
+
+        {/* ── Avatar + nom + like ── */}
+        <div style={{ padding:'0 isMobile ? 18px : 24px', marginTop:-34, position:'relative', paddingLeft: isMobile?18:24, paddingRight: isMobile?18:24 }}>
+          <div style={{ display:'flex', alignItems:'flex-end', justifyContent:'space-between', marginBottom:12 }}>
+            {/* Avatar */}
+            <div style={{
+              width:68, height:68, borderRadius:16, border:`3px solid ${U.s1}`,
+              background: tenant.img ? `url(${tenant.img}) center/cover` : `${c}20`,
+              display:'flex', alignItems:'center', justifyContent:'center',
+              fontSize:26, fontWeight:900, color:c, fontFamily:F.h,
+              boxShadow:`0 0 0 1px ${c}40, 0 8px 24px rgba(0,0,0,0.4)`,
+              overflow:'hidden', flexShrink:0,
+            }}>
+              {!tenant.img && tenant.l}
+            </div>
+
+            {/* Like button */}
+            <button
+              onClick={handleLike}
+              style={{
+                display:'flex', alignItems:'center', gap:6, padding:'8px 16px',
+                borderRadius:30, cursor:'pointer', fontFamily:F.b, fontWeight:700, fontSize:13,
+                background: liked ? `${c}20` : U.faint,
+                border: `1.5px solid ${liked ? c + '60' : U.border2}`,
+                color: liked ? c : U.muted,
+                transition:'all 0.2s',
+                transform: likeAnim ? 'scale(1.15)' : 'scale(1)',
+              }}
+            >
+              <span style={{ fontSize:16, transition:'transform 0.3s', transform: likeAnim ? 'scale(1.3)' : 'scale(1)', display:'inline-block' }}>
+                {liked ? '♥' : '♡'}
+              </span>
+              <span>{liked ? 'Aimé' : 'Aimer'}</span>
+              {likeCount > 0 && (
+                <span style={{ padding:'1px 6px', borderRadius:10, background:`${c}25`, color:c, fontSize:10 }}>
+                  {likeCount}
+                </span>
+              )}
+            </button>
+          </div>
+
+          {/* Nom + slogan */}
+          <div style={{ marginBottom:14 }}>
+            <div style={{ color:U.text, fontWeight:800, fontSize:22, fontFamily:F.h, letterSpacing:'-0.02em', marginBottom:4 }}>
+              {tenant.name}
+            </div>
+            {tenant.slogan && (
+              <div style={{ color:U.muted, fontSize:14, lineHeight:1.6 }}>{tenant.slogan}</div>
+            )}
+          </div>
+
+          {/* ── Réseaux sociaux ── */}
+          {(socialMeta || musicMeta) && (
+            <div style={{ display:'flex', flexWrap:'wrap', gap:8, marginBottom:18 }}>
+              {socialMeta && tenant.social && (
+                <a
+                  href={`${socialMeta.prefix}${tenant.social.replace('@','')}`}
+                  target="_blank" rel="noopener noreferrer"
+                  style={{ display:'flex', alignItems:'center', gap:6, padding:'6px 12px', borderRadius:20, background:`${socialMeta.color}15`, border:`1px solid ${socialMeta.color}35`, color:socialMeta.color, fontSize:12, fontWeight:700, textDecoration:'none', transition:'all 0.15s' }}
+                >
+                  <span>{socialMeta.icon}</span>
+                  <span>@{tenant.social.replace('@','')}</span>
+                </a>
+              )}
+              {musicMeta && tenant.music && (
+                <a
+                  href={`${musicMeta.prefix}${tenant.music.replace('@','')}`}
+                  target="_blank" rel="noopener noreferrer"
+                  style={{ display:'flex', alignItems:'center', gap:6, padding:'6px 12px', borderRadius:20, background:`${musicMeta.color}15`, border:`1px solid ${musicMeta.color}35`, color:musicMeta.color, fontSize:12, fontWeight:700, textDecoration:'none', transition:'all 0.15s' }}
+                >
+                  <span>{musicMeta.icon}</span>
+                  <span>{musicMeta.label}</span>
+                </a>
+              )}
+              {tenant.url && tenant.url !== '#' && (
+                <a
+                  href={tenant.url}
+                  target="_blank" rel="noopener noreferrer"
+                  style={{ display:'flex', alignItems:'center', gap:6, padding:'6px 12px', borderRadius:20, background:`${c}15`, border:`1px solid ${c}35`, color:c, fontSize:12, fontWeight:700, textDecoration:'none' }}
+                >
+                  <span>↗</span>
+                  <span>{tenant.cta || 'Visiter'}</span>
+                </a>
+              )}
+            </div>
+          )}
+
+          {/* ── Stats agrégées ── */}
+          {totalStats && (totalStats.impressions > 0 || totalStats.clicks > 0) && (
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(3, 1fr)', gap:8, marginBottom:20 }}>
+              {[
+                [totalStats.impressions_7d?.toLocaleString('fr-FR') ?? '0', 'vues / 7j', c],
+                [totalStats.clicks_7d?.toLocaleString('fr-FR') ?? '0',      'clics / 7j', '#00e8a2'],
+                [`${totalStats.ctr_pct ?? 0}%`, 'CTR', '#00d9f5'],
+              ].map(([v, l, col]) => (
+                <div key={l} style={{ padding:'10px 8px', borderRadius:10, background:`${col}08`, border:`1px solid ${col}18`, textAlign:'center' }}>
+                  <div style={{ color:col, fontWeight:800, fontSize:18, fontFamily:F.h, lineHeight:1 }}>{v}</div>
+                  <div style={{ color:'rgba(255,255,255,0.35)', fontSize:9, marginTop:4, fontWeight:600 }}>{l}</div>
+                </div>
+              ))}
+              <div style={{ gridColumn:'1/-1', textAlign:'center', fontSize:9, color:'rgba(255,255,255,0.2)', marginTop:-4 }}>
+                DONNÉES RÉELLES · MIS À JOUR EN TEMPS RÉEL
+              </div>
+            </div>
+          )}
+
+          {/* ── Ses blocs sur la grille ── */}
+          {advertiserSlots.length > 0 && (
+            <div style={{ marginBottom:20 }}>
+              <div style={{ fontSize:10, fontWeight:700, color:U.muted, letterSpacing:'0.08em', marginBottom:10 }}>
+                {advertiserSlots.length > 1 ? `SES ${advertiserSlots.length} BLOCS` : 'SON BLOC'}
+              </div>
+              <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+                {advertiserSlots.map(s => {
+                  const sc = s.tenant?.c || TIER_COLOR[s.tier];
+                  return (
+                    <button
+                      key={s.id}
+                      onClick={() => { onClose(); setTimeout(() => onOpenSlot(s), 50); }}
+                      style={{
+                        display:'flex', alignItems:'center', gap:12,
+                        padding:'10px 12px', borderRadius:12,
+                        background:`${sc}08`, border:`1px solid ${sc}20`,
+                        cursor:'pointer', fontFamily:F.b, textAlign:'left',
+                        transition:'background 0.15s, border-color 0.15s',
+                      }}
+                      onMouseEnter={e => { e.currentTarget.style.background=`${sc}15`; e.currentTarget.style.borderColor=`${sc}40`; }}
+                      onMouseLeave={e => { e.currentTarget.style.background=`${sc}08`; e.currentTarget.style.borderColor=`${sc}20`; }}
+                    >
+                      {/* Mini aperçu bloc */}
+                      <div style={{ width:40, height:40, borderRadius:9, flexShrink:0, background:s.tenant?.img?`url(${s.tenant.img}) center/cover`:`${sc}20`, border:`1.5px solid ${sc}40`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:14, fontWeight:900, color:sc, overflow:'hidden' }}>
+                        {!s.tenant?.img && (s.tenant?.l || '?')}
+                      </div>
+                      <div style={{ flex:1, minWidth:0 }}>
+                        <div style={{ color:U.text, fontWeight:700, fontSize:12, marginBottom:2 }}>
+                          Bloc {TIER_LABEL[s.tier]} · ({s.x},{s.y})
+                        </div>
+                        <div style={{ color:U.muted, fontSize:11, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                          {s.tenant?.slogan || s.tenant?.cta || 'Voir le bloc'}
+                        </div>
+                      </div>
+                      <div style={{ color:sc, fontSize:11, fontWeight:600, flexShrink:0 }}>Voir →</div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* ── CTA principal ── */}
+          {tenant.url && tenant.url !== '#' && (
+            <a
+              href={tenant.url}
+              target="_blank" rel="noopener noreferrer"
+              onClick={() => recordClick(mainSlot.x, mainSlot.y, tenant.bookingId)}
+              style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:8, width:'100%', padding:'13px', borderRadius:12, background:c, color:U.accentFg, fontWeight:700, fontSize:14, fontFamily:F.b, textDecoration:'none', boxShadow:`0 0 24px ${c}45`, marginBottom:8 }}
+            >
+              {tenant.cta || 'Visiter le site'} →
+            </a>
+          )}
+
+          <div style={{ height: isMobile ? 24 : 8 }} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function FocusModal({ slot, allSlots, onClose, onNavigate, onGoAdvertiser, onViewProfile }) {
   const [entered, setEntered] = useState(false);
   const t = useT();
   const [dir, setDir] = useState(0);
@@ -1066,7 +1404,16 @@ function FocusModal({ slot, allSlots, onClose, onNavigate, onGoAdvertiser }) {
                 {!tenant.img && tenant.l}
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ color: U.text, fontWeight: 700, fontSize: 19, fontFamily: F.h, marginBottom: 3, letterSpacing: '-0.02em' }}>{tenant.name}</div>
+                <button
+                  onClick={() => onViewProfile && onViewProfile(tenant.advertiserId)}
+                  style={{ background:'none', border:'none', cursor:'pointer', padding:0, textAlign:'left', display:'block' }}
+                  title="Voir le profil de l'annonceur"
+                >
+                  <div style={{ display:'flex', alignItems:'center', gap:7, marginBottom:3 }}>
+                    <div style={{ color: U.text, fontWeight: 700, fontSize: 19, fontFamily: F.h, letterSpacing: '-0.02em' }}>{tenant.name}</div>
+                    <div style={{ color:c, fontSize:11, opacity:0.7, flexShrink:0 }}>↗ profil</div>
+                  </div>
+                </button>
                 <div style={{ color: U.muted, fontSize: 13, lineHeight: 1.5 }}>{tenant.slogan}</div>
               </div>
             </div>
@@ -1562,6 +1909,7 @@ function PublicView({ slots, isLive, onGoAdvertiser, authUser, userBookings }) {
   const [filterTheme, setFilterTheme] = useState('all');
   const [feedMode, setFeedMode]     = useState(false);
   const [showFeedInvite, setShowFeedInvite] = useState(false);
+  const [profileAdvertiserId, setProfileAdvertiserId] = useState(null);
   const { isMobile } = useScreenSize();
 
   // ── Logique d'invitation au Feed ──────────────────────────────
@@ -1747,7 +2095,14 @@ function PublicView({ slots, isLive, onGoAdvertiser, authUser, userBookings }) {
       <div style={{ flex: 1, display: feedMode ? 'flex' : 'none', flexDirection: 'column', overflow: 'hidden' }}>
         <TikTokFeed slots={slots} isLive={isLive} />
       </div>
-      {focusSlot && <FocusModal slot={focusSlot} allSlots={slots} onClose={() => setFocusSlot(null)} onNavigate={setFocusSlot} onGoAdvertiser={onGoAdvertiser} />}
+      {focusSlot && <FocusModal
+        slot={focusSlot}
+        allSlots={slots}
+        onClose={() => setFocusSlot(null)}
+        onNavigate={setFocusSlot}
+        onGoAdvertiser={onGoAdvertiser}
+        onViewProfile={(advId) => { setFocusSlot(null); setTimeout(() => setProfileAdvertiserId(advId), 50); }}
+      />}
 
       {/* ── Feed Invite Panel ── */}
       {showFeedInvite && !feedMode && (
@@ -1755,6 +2110,16 @@ function PublicView({ slots, isLive, onGoAdvertiser, authUser, userBookings }) {
           slots={slots}
           onSwitchToFeed={handleSwitchToFeed}
           onDismiss={handleDismissInvite}
+        />
+      )}
+
+      {/* ── Advertiser Profile Modal ── */}
+      {profileAdvertiserId && (
+        <AdvertiserProfileModal
+          advertiserId={profileAdvertiserId}
+          slots={slots}
+          onClose={() => setProfileAdvertiserId(null)}
+          onOpenSlot={(slot) => setFocusSlot(slot)}
         />
       )}
     </div>
