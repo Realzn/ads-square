@@ -40,27 +40,19 @@ const F = {
 };
 
 // ─── Theme categories ─────────────────────────────────────────
-// Static base — match fns only, no labels
-const THEMES_BASE = [
-  { id: 'all',      labelKey: 'theme.all',       icon: '◈', color: null },
-  { id: 'video',    labelKey: 'theme.video',      icon: '▶', color: '#e53935', match: (t,n)   => t === 'video' },
-  { id: 'image',    labelKey: 'theme.image',      icon: '◻', color: '#8e24aa', match: (t,n)   => t === 'image' },
-  { id: 'link',     labelKey: 'theme.link',       icon: '⌖', color: '#1e88e5', match: (t,n)   => t === 'link' },
-  { id: 'social',   labelKey: 'theme.social',     icon: '⊕', color: '#00acc1', match: (t,n)   => ['snapchat','instagram','tiktok','x.com','twitter','facebook','linkedin','meta'].some(s => n?.toLowerCase().includes(s)) },
-  { id: 'music',    labelKey: 'theme.music',      icon: '♪', color: '#1ed760', match: (t,n)   => ['spotify','music','apple music','deezer','soundcloud','artiste','artist'].some(s => n?.toLowerCase().includes(s)) },
-  { id: 'app',      labelKey: 'theme.app',        icon: '⬡', color: '#43a047', match: (t,n,u) => t === 'app' || ['play.google','apps.apple'].some(s => u?.includes(s)) },
-  { id: 'brand',    labelKey: 'theme.brand',      icon: '⬟', color: '#f0b429', match: (t,n)   => t === 'brand' },
-  { id: 'clothing', labelKey: 'theme.clothing',   icon: '◎', color: '#f4511e', match: (t,n)   => ['nike','adidas','mode','fashion','vetement','clothing','wear','zara','uniqlo'].some(s => n?.toLowerCase().includes(s)) },
-  { id: 'lifestyle',labelKey: 'theme.lifestyle',  icon: '❋', color: '#00bfa5', match: (t,n)   => ['airbnb','lifestyle','travel','voyage','food','wellness','yoga','sport'].some(s => n?.toLowerCase().includes(s)) },
-  { id: 'publish',  labelKey: 'theme.publish',    icon: '≡', color: '#90a4ae', match: (t,n)   => t === 'text' },
+const THEMES = [
+  { id: 'all',      label: 'Tous',         icon: '◈', color: null },
+  { id: 'video',    label: 'Vidéo',        icon: '▶', color: '#e53935', match: (t,n)   => t === 'video' },
+  { id: 'image',    label: 'Image',        icon: '◻', color: '#8e24aa', match: (t,n)   => t === 'image' },
+  { id: 'link',     label: 'Liens',        icon: '⌖', color: '#1e88e5', match: (t,n)   => t === 'link' },
+  { id: 'social',   label: 'Réseaux',      icon: '⊕', color: '#00acc1', match: (t,n)   => ['snapchat','instagram','tiktok','x.com','twitter','facebook','linkedin','meta'].some(s => n?.toLowerCase().includes(s)) },
+  { id: 'music',    label: 'Musique',      icon: '♪', color: '#1ed760', match: (t,n)   => ['spotify','music','apple music','deezer','soundcloud','artiste','artist'].some(s => n?.toLowerCase().includes(s)) },
+  { id: 'app',      label: 'App',          icon: '⬡', color: '#43a047', match: (t,n,u) => t === 'app' || ['play.google','apps.apple'].some(s => u?.includes(s)) },
+  { id: 'brand',    label: 'Marque',       icon: '⬟', color: '#f0b429', match: (t,n)   => t === 'brand' },
+  { id: 'clothing', label: 'Vêtements',    icon: '◎', color: '#f4511e', match: (t,n)   => ['nike','adidas','mode','fashion','vetement','clothing','wear','zara','uniqlo'].some(s => n?.toLowerCase().includes(s)) },
+  { id: 'lifestyle',label: 'Lifestyle',    icon: '❋', color: '#00bfa5', match: (t,n)   => ['airbnb','lifestyle','travel','voyage','food','wellness','yoga','sport'].some(s => n?.toLowerCase().includes(s)) },
+  { id: 'publish',  label: 'Publications', icon: '≡', color: '#90a4ae', match: (t,n)   => t === 'text' },
 ];
-// Static alias for matching logic (uses THEMES_BASE, labels not needed)
-const THEMES = THEMES_BASE;
-// Hook: returns THEMES with translated labels
-function useThemes() {
-  const t = useT();
-  return useMemo(() => THEMES_BASE.map(th => ({ ...th, label: t(th.labelKey) })), [t]);
-}
 
 function getSlotTheme(slot) {
   if (!slot.occ || !slot.tenant) return null;
@@ -303,9 +295,9 @@ function BoostModal({ onClose }) {
   const total = hours;
 
   const handleSubmit = async () => {
-    if (!email || !email.includes('@')) { setError(t('boost.err.email')); return; }
-    if (!url || !url.startsWith('http')) { setError(t('boost.err.url')); return; }
-    if (!name.trim()) { setError(t('boost.err.name')); return; }
+    if (!email || !email.includes('@')) { setError('Email invalide'); return; }
+    if (!url || !url.startsWith('http')) { setError('URL invalide (ex: https://monsite.com)'); return; }
+    if (!name.trim()) { setError('Nom requis'); return; }
     setLoading(true); setError(null);
     try {
       await fetch('/api/offers/submit', {
@@ -315,7 +307,7 @@ function BoostModal({ onClose }) {
       });
       setSent(true);
     } catch {
-      setError(t('boost.err.net'));
+      setError('Erreur réseau, réessayez.');
     } finally {
       setLoading(false);
     }
@@ -328,15 +320,15 @@ function BoostModal({ onClose }) {
           {/* Header */}
           <div style={{ marginBottom: 24 }}>
             <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '3px 10px', borderRadius: 4, background: `${U.accent}18`, border: `1px solid ${U.accent}40`, color: U.accent, fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', marginBottom: 12 }}>
-              {t('boost.badge')}
+              ⚡ BOOST SPOTLIGHT
             </div>
-            <h2 style={{ color: U.text, fontWeight: 700, fontSize: 20, fontFamily: F.h, margin: '0 0 6px', letterSpacing: '-0.02em' }}>{t('boost.title')}</h2>
-            <p style={{ color: U.muted, fontSize: 13, margin: 0, lineHeight: 1.6 }}>Votre marque défile dans la <strong style={{ color: U.text }}>{t('boost.body.bar')}</strong> en haut de l'Explorer, visible par tous les visiteurs. <strong style={{ color: U.text }}>{t('boost.body.price')}</strong>, sans engagement.</p>
+            <h2 style={{ color: U.text, fontWeight: 700, fontSize: 20, fontFamily: F.h, margin: '0 0 6px', letterSpacing: '-0.02em' }}>Mettre votre bloc en avant</h2>
+            <p style={{ color: U.muted, fontSize: 13, margin: 0, lineHeight: 1.6 }}>Votre marque défile dans la <strong style={{ color: U.text }}>barre de diffusion</strong> en haut de l'Explorer, visible par tous les visiteurs. <strong style={{ color: U.text }}>1€/heure</strong>, sans engagement.</p>
           </div>
 
           {/* Duration picker */}
           <div style={{ marginBottom: 18 }}>
-            <div style={{ color: U.muted, fontSize: 10, fontWeight: 600, letterSpacing: '0.07em', marginBottom: 10 }}>{t('boost.duration')}</div>
+            <div style={{ color: U.muted, fontSize: 10, fontWeight: 600, letterSpacing: '0.07em', marginBottom: 10 }}>DURÉE</div>
             <div style={{ display: 'flex', gap: 8 }}>
               {[1, 3, 6, 12, 24].map(h => (
                 <button key={h} onClick={() => setHours(h)} style={{ flex: 1, padding: '9px 4px', borderRadius: 8, cursor: 'pointer', fontFamily: F.b, background: hours === h ? `${U.accent}15` : U.faint, border: `1px solid ${hours === h ? U.accent + '55' : U.border}`, color: hours === h ? U.accent : U.muted, fontWeight: hours === h ? 700 : 400, fontSize: 12, transition: 'all 0.15s' }}>
@@ -349,9 +341,9 @@ function BoostModal({ onClose }) {
 
           {/* Fields */}
           {[
-            [t('boost.name.label'), name, setName, 'text', t('boost.name.ph')],
-            [t('boost.url.label'), url, setUrl, 'url', 'https://monsite.com'],
-            [t('boost.email.label'), email, setEmail, 'email', 'vous@email.com'],
+            ['Votre nom / marque', name, setName, 'text', 'Nike, StartupXYZ…'],
+            ['URL de destination', url, setUrl, 'url', 'https://monsite.com'],
+            ['Email de contact', email, setEmail, 'email', 'vous@email.com'],
           ].map(([label, val, setter, type, ph]) => (
             <div key={label} style={{ marginBottom: 14 }}>
               <div style={{ color: U.muted, fontSize: 10, fontWeight: 600, letterSpacing: '0.07em', marginBottom: 8 }}>{label.toUpperCase()}</div>
@@ -376,14 +368,14 @@ function BoostModal({ onClose }) {
           )}
 
           <button onClick={handleSubmit} disabled={loading} style={{ width: '100%', padding: '13px', borderRadius: 10, fontFamily: F.b, cursor: loading ? 'wait' : 'pointer', background: U.accent, border: 'none', color: U.accentFg, fontWeight: 700, fontSize: 14, opacity: loading ? 0.7 : 1, boxShadow: `0 0 22px ${U.accent}45`, transition: 'opacity 0.15s' }}>
-            {loading ? t('boost.sending') : t('boost.cta', total)}
+            {loading ? 'Envoi…' : `Lancer le boost — €${total}`}
           </button>
-          <div style={{ marginTop: 10, color: U.muted, fontSize: 11, textAlign: 'center' }}>{t('boost.footer')}</div>
+          <div style={{ marginTop: 10, color: U.muted, fontSize: 11, textAlign: 'center' }}>Paiement sécurisé · Activation sous 1h · Annulation libre</div>
         </>) : (
           <div style={{ textAlign: 'center', padding: '20px 0' }}>
             <div style={{ fontSize: 40, marginBottom: 16 }}>⚡</div>
-            <h2 style={{ color: U.text, fontFamily: F.h, fontSize: 22, margin: '0 0 10px', letterSpacing: '-0.02em' }}>{t('boost.sent.title')}</h2>
-            <p style={{ color: U.muted, fontSize: 13, lineHeight: 1.7, margin: '0 0 24px' }}>{t('boost.sent.body')}</p>
+            <h2 style={{ color: U.text, fontFamily: F.h, fontSize: 22, margin: '0 0 10px', letterSpacing: '-0.02em' }}>Boost reçu !</h2>
+            <p style={{ color: U.muted, fontSize: 13, lineHeight: 1.7, margin: '0 0 24px' }}>Votre demande a été transmise.<br />Vous recevrez les instructions de paiement par email sous peu.</p>
             <button onClick={onClose} style={{ padding: '11px 28px', borderRadius: 10, fontFamily: F.b, cursor: 'pointer', background: U.accent, border: 'none', color: U.accentFg, fontWeight: 700, fontSize: 14 }}>Fermer</button>
           </div>
         )}
@@ -449,7 +441,7 @@ function CheckoutModal({ slot, onClose }) {
   const blurInp  = e => e.target.style.borderColor = U.border;
 
   const handleCheckout = async () => {
-    if (!email || !email.includes('@')) { setError(t('checkout.err.email')); return; }
+    if (!email || !email.includes('@')) { setError('Entrez un email valide'); return; }
     setLoading(true); setError(null);
     try {
       const displayName = blockForm.title || email.split('@')[0];
@@ -481,7 +473,7 @@ function CheckoutModal({ slot, onClose }) {
         {/* Header */}
         <div style={{ marginBottom:20 }}>
           <div style={{ display:'inline-block', padding:'2px 8px', borderRadius:4, background:`${c}18`, border:`1px solid ${c}30`, color:c, fontSize:10, fontWeight:700, letterSpacing:'0.05em', marginBottom:8 }}>{TIER_LABEL[tier]}</div>
-          <h2 style={{ color:U.text, fontWeight:700, fontSize:18, fontFamily:F.h, margin:'0 0 4px' }}>{t('checkout.title')}</h2>
+          <h2 style={{ color:U.text, fontWeight:700, fontSize:18, fontFamily:F.h, margin:'0 0 4px' }}>Réserver ce bloc</h2>
           <div style={{ color:U.muted, fontSize:12 }}>Position ({slot.x}, {slot.y}) · €{pricePerDay}/jour</div>
         </div>
 
@@ -501,7 +493,7 @@ function CheckoutModal({ slot, onClose }) {
 
         {/* ─── CATÉGORIE ─── */}
         <div style={{ marginBottom:16 }}>
-          <div style={{ color:U.muted, fontSize:10, fontWeight:600, letterSpacing:'0.07em', marginBottom:10 }}>{t('checkout.category')}</div>
+          <div style={{ color:U.muted, fontSize:10, fontWeight:600, letterSpacing:'0.07em', marginBottom:10 }}>CATÉGORIE DU BLOC</div>
           <div style={{ display:'flex', flexWrap:'wrap', gap:5 }}>
             {CATS.map(cat => (
               <button key={cat.id} onClick={() => { setCategory(cat.id); setF('primary_color',''); }}
@@ -516,27 +508,27 @@ function CheckoutModal({ slot, onClose }) {
         <div style={{ display:'flex', flexDirection:'column', gap:12, marginBottom:20 }}>
 
           <div>
-            <div style={{ color:U.muted, fontSize:10, fontWeight:600, letterSpacing:'0.07em', marginBottom:7 }}>{t('checkout.name')}</div>
+            <div style={{ color:U.muted, fontSize:10, fontWeight:600, letterSpacing:'0.07em', marginBottom:7 }}>NOM / TITRE</div>
             <input type="text" value={blockForm.title} maxLength={40}
               onChange={e => setF('title', e.target.value)}
               onFocus={focusInp} onBlur={blurInp}
-              placeholder={t('checkout.name.ph', cat.id)}
+              placeholder={cat.id==='social'?'Votre pseudo':cat.id==='music'?'Artiste / titre':'Votre nom ou marque'}
               style={inpStyle} />
           </div>
 
           <div>
-            <div style={{ color:U.muted, fontSize:10, fontWeight:600, letterSpacing:'0.07em', marginBottom:7 }}>{t('checkout.hook')}</div>
+            <div style={{ color:U.muted, fontSize:10, fontWeight:600, letterSpacing:'0.07em', marginBottom:7 }}>ACCROCHE</div>
             <input type="text" value={blockForm.slogan} maxLength={80}
               onChange={e => setF('slogan', e.target.value)}
               onFocus={focusInp} onBlur={blurInp}
-              placeholder={t('checkout.hook.ph')}
+              placeholder="Une phrase courte et percutante…"
               style={inpStyle} />
           </div>
 
           {/* Réseau social picker */}
           {cat.showSocial && (
             <div>
-              <div style={{ color:U.muted, fontSize:10, fontWeight:600, letterSpacing:'0.07em', marginBottom:7 }}>{t('checkout.network')}</div>
+              <div style={{ color:U.muted, fontSize:10, fontWeight:600, letterSpacing:'0.07em', marginBottom:7 }}>RÉSEAU</div>
               <div style={{ display:'flex', flexWrap:'wrap', gap:5 }}>
                 {SOCIALS.map(s => (
                   <button key={s.id} onClick={() => { setF('social_network',s.id); setF('primary_color',s.color); }}
@@ -551,7 +543,7 @@ function CheckoutModal({ slot, onClose }) {
           {/* Musique picker */}
           {cat.showMusic && (
             <div>
-              <div style={{ color:U.muted, fontSize:10, fontWeight:600, letterSpacing:'0.07em', marginBottom:7 }}>{t('checkout.platform')}</div>
+              <div style={{ color:U.muted, fontSize:10, fontWeight:600, letterSpacing:'0.07em', marginBottom:7 }}>PLATEFORME</div>
               <div style={{ display:'flex', flexWrap:'wrap', gap:5 }}>
                 {MUSIC_PLATS.map(p => (
                   <button key={p.id} onClick={() => { setF('music_platform',p.id); setF('primary_color',p.color); }}
@@ -566,11 +558,11 @@ function CheckoutModal({ slot, onClose }) {
           {/* Image URL */}
           {cat.showImg && (
             <div>
-              <div style={{ color:U.muted, fontSize:10, fontWeight:600, letterSpacing:'0.07em', marginBottom:7 }}>{t('checkout.image')}</div>
+              <div style={{ color:U.muted, fontSize:10, fontWeight:600, letterSpacing:'0.07em', marginBottom:7 }}>IMAGE (URL)</div>
               <input type="url" value={blockForm.image_url}
                 onChange={e => setF('image_url', e.target.value)}
                 onFocus={focusInp} onBlur={blurInp}
-                placeholder={t('checkout.image.ph')}
+                placeholder="https://exemple.com/image.jpg"
                 style={inpStyle} />
             </div>
           )}
@@ -591,8 +583,8 @@ function CheckoutModal({ slot, onClose }) {
               {!blockForm.image_url && (selSocial?.e || selMusic?.e || cat.icon)}
             </div>
             <div style={{ flex:1, minWidth:0 }}>
-              <div style={{ fontSize:12, fontWeight:700, color:blockColor }}>{blockForm.title||t('checkout.preview.title')}</div>
-              <div style={{ fontSize:10, color:'rgba(255,255,255,0.4)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{blockForm.slogan||t('checkout.preview.hook')}</div>
+              <div style={{ fontSize:12, fontWeight:700, color:blockColor }}>{blockForm.title||'Votre titre'}</div>
+              <div style={{ fontSize:10, color:'rgba(255,255,255,0.4)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{blockForm.slogan||'Votre accroche…'}</div>
             </div>
             <div style={{ fontSize:9, fontWeight:700, color:blockColor, padding:'2px 7px', background:`${blockColor}15`, borderRadius:4, border:`1px solid ${blockColor}30`, flexShrink:0 }}>{cat.label.toUpperCase()}</div>
           </div>
@@ -604,7 +596,7 @@ function CheckoutModal({ slot, onClose }) {
         <div style={{ marginBottom:14 }}>
           <div style={{ color:U.muted, fontSize:10, fontWeight:600, letterSpacing:'0.07em', marginBottom:7 }}>EMAIL</div>
           <input type="email" value={email} onChange={e => setEmail(e.target.value)}
-            placeholder={t('checkout.email.ph')}
+            placeholder="votre@email.com"
             style={inpStyle}
             onFocus={focusInp} onBlur={blurInp} />
         </div>
@@ -620,7 +612,7 @@ function CheckoutModal({ slot, onClose }) {
         )}
 
         <button onClick={handleCheckout} disabled={loading} style={{ width:'100%', padding:'13px', borderRadius:10, fontFamily:F.b, cursor:loading?'wait':'pointer', background:loading?U.s2:U.accent, border:'none', color:loading?U.muted:U.accentFg, fontWeight:700, fontSize:14, opacity:loading?0.6:1, transition:'opacity 0.15s, box-shadow 0.2s', boxShadow:loading?'none':`0 0 22px ${U.accent}50` }}>
-          {loading ? t('checkout.loading') : `Payer €${totalPrice}`}
+          {loading ? 'Redirection vers Stripe…' : `Payer €${totalPrice}`}
         </button>
         <div style={{ marginTop:10, color:U.muted, fontSize:11, textAlign:'center' }}>{t('checkout.secure')}</div>
       </div>
@@ -852,7 +844,7 @@ const BlockCell = memo(({ slot, isSelected, onSelect, onFocus, sz: szProp, showS
           {sz >= 52 && (
             <div style={{ position:'relative', zIndex:2, display:'flex', flexDirection:'column', alignItems:'center', gap:2 }}>
               <div style={{ fontSize: Math.max(8, sz * 0.18), lineHeight:1, filter:'grayscale(0.5)', opacity:0.55 }}>🔒</div>
-              <div style={{ fontSize: Math.max(5, sz * 0.09), fontWeight:800, color:`${c}80`, letterSpacing:'0.06em', fontFamily:FF.h }}>{t('adv.coming')}</div>
+              <div style={{ fontSize: Math.max(5, sz * 0.09), fontWeight:800, color:`${c}80`, letterSpacing:'0.06em', fontFamily:FF.h }}>BIENTÔT</div>
             </div>
           )}
           {/* Trait simple pour petits blocs */}
@@ -886,9 +878,9 @@ function BuyoutModal({ slot, onClose }) {
   const c = slot ? TIER_COLOR[slot.tier] : U.accent;
 
   const handleSubmit = async () => {
-    if (!email || !email.includes('@')) { setError(t('boost.err.email')); return; }
+    if (!email || !email.includes('@')) { setError('Email invalide'); return; }
     const cents = Math.round(parseFloat(offerEuros) * 100);
-    if (!cents || cents < minOffer * 100) { setError(t('buyout.err.min', minOffer)); return; }
+    if (!cents || cents < minOffer * 100) { setError(`Offre minimum : €${minOffer}`); return; }
     setLoading(true); setError(null);
     try {
       await submitBuyoutOffer({
@@ -901,7 +893,7 @@ function BuyoutModal({ slot, onClose }) {
       });
       setStep(2);
     } catch (err) {
-      setError(err.message || t('buyout.err.net'));
+      setError(err.message || 'Erreur lors de l\'envoi');
     } finally {
       setLoading(false);
     }
@@ -936,7 +928,7 @@ function BuyoutModal({ slot, onClose }) {
               />
             </div>
             <div style={{ color: U.muted, fontSize: 11, marginTop: 6 }}>
-              {t('buyout.minline', minOffer)}
+              Offre minimum : <span style={{ color: U.text }}>€{minOffer}</span> · Commission plateforme : 20%
             </div>
           </div>
 
@@ -949,7 +941,7 @@ function BuyoutModal({ slot, onClose }) {
                 onFocus={e => e.target.style.borderColor = U.border2} onBlur={e => e.target.style.borderColor = U.border} />
             </div>
             <div style={{ flex: 1 }}>
-              <div style={{ color: U.muted, fontSize: 10, fontWeight: 600, letterSpacing: '0.07em', marginBottom: 6 }}>{t('buyout.name')}</div>
+              <div style={{ color: U.muted, fontSize: 10, fontWeight: 600, letterSpacing: '0.07em', marginBottom: 6 }}>NOM (optionnel)</div>
               <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder={t('buyout.name.ph')}
                 style={{ width: '100%', padding: '10px 12px', borderRadius: 8, background: U.faint, border: `1px solid ${U.border}`, color: U.text, fontSize: 13, fontFamily: F.b, outline: 'none', boxSizing: 'border-box' }}
                 onFocus={e => e.target.style.borderColor = U.border2} onBlur={e => e.target.style.borderColor = U.border} />
@@ -958,7 +950,7 @@ function BuyoutModal({ slot, onClose }) {
 
           {/* Message */}
           <div style={{ marginBottom: 20 }}>
-            <div style={{ color: U.muted, fontSize: 10, fontWeight: 600, letterSpacing: '0.07em', marginBottom: 6 }}>{t('buyout.msg')}</div>
+            <div style={{ color: U.muted, fontSize: 10, fontWeight: 600, letterSpacing: '0.07em', marginBottom: 6 }}>MESSAGE POUR L'OCCUPANT (optionnel)</div>
             <textarea value={message} onChange={e => setMessage(e.target.value)}
               placeholder={t('buyout.message.ph')}
               rows={2}
@@ -971,7 +963,7 @@ function BuyoutModal({ slot, onClose }) {
           )}
 
           <button onClick={handleSubmit} disabled={loading} style={{ width: '100%', padding: '13px', borderRadius: 10, fontFamily: F.b, cursor: loading ? 'wait' : 'pointer', background: U.accent, border: 'none', color: U.accentFg, fontWeight: 700, fontSize: 14, opacity: loading ? 0.7 : 1, boxShadow: `0 0 22px ${U.accent}45` }}>
-            {loading ? t('buyout.sending') : t('buyout.submit')}
+            {loading ? 'Envoi…' : 'Envoyer l\'offre →'}
           </button>
           <p style={{ color: U.muted, fontSize: 11, textAlign: 'center', marginTop: 10, marginBottom: 0 }}>{t('buyout.nodebite')}</p>
         </>) : (
@@ -1091,7 +1083,7 @@ function AdvertiserProfileModal({ advertiserId, slots, onClose, onOpenSlot }) {
   const socialMeta = SOCIAL_META[tenant.social];
   const musicMeta  = MUSIC_META[tenant.music];
 
-  const BADGE_LABELS = { 'CRÉATEUR': t('profile.creator'), 'FREELANCE': t('profile.freelance'), 'MARQUE': t('profile.brand') };
+  const BADGE_LABELS = { 'CRÉATEUR': 'Créateur·ice', 'FREELANCE': 'Auto-entrepreneur', 'MARQUE': 'Marque' };
   const profileLabel = BADGE_LABELS[tenant.badge] || tenant.badge || '';
 
   // Couleur de texte sur fond coloré (lisibilité)
@@ -1442,8 +1434,8 @@ function AdvertiserProfileModal({ advertiserId, slots, onClose, onOpenSlot }) {
               }}>
                 <div style={{ width: 14, height: 1, background: c, opacity: 0.45 }} />
                 {advertiserSlots.length > 1
-                  ? t('profile.spaces', advertiserSlots.length)
-                  : t('profile.space1')}
+                  ? `${advertiserSlots.length} espaces sur la grille`
+                  : 'Son espace sur la grille'}
                 <div style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.06)' }} />
               </div>
 
@@ -1536,8 +1528,8 @@ function AdvertiserProfileModal({ advertiserId, slots, onClose, onOpenSlot }) {
               display: 'flex', justifyContent: 'space-around', gap: 8,
             }}>
               {[
-                { v: (totalStats.impressions_7d || 0).toLocaleString('fr-FR'), l: t('profile.views') },
-                { v: (totalStats.clicks_7d || 0).toLocaleString('fr-FR'),      l: t('profile.visits') },
+                { v: (totalStats.impressions_7d || 0).toLocaleString('fr-FR'), l: 'vues / 7j' },
+                { v: (totalStats.clicks_7d || 0).toLocaleString('fr-FR'),      l: 'visites' },
                 { v: `${totalStats.ctr_pct ?? 0}%`,                             l: 'engagement' },
               ].map(({ v, l }) => (
                 <div key={l} style={{ textAlign: 'center' }}>
@@ -1585,7 +1577,7 @@ function AdvertiserProfileModal({ advertiserId, slots, onClose, onOpenSlot }) {
                 e.currentTarget.style.boxShadow = `0 4px 28px ${ctaBg}38`;
               }}
             >
-              {tenant.cta || t('focus.discover')}
+              {tenant.cta || 'Découvrir son univers'}
               <span style={{ fontSize: 17, lineHeight: 1 }}>→</span>
             </a>
           )}
@@ -1684,7 +1676,7 @@ function FocusModal({ slot, allSlots, onClose, onNavigate, onGoAdvertiser, onVie
                 >
                   <div style={{ display:'flex', alignItems:'center', gap:7, marginBottom:3 }}>
                     <div style={{ color: U.text, fontWeight: 700, fontSize: 19, fontFamily: F.h, letterSpacing: '-0.02em' }}>{tenant.name}</div>
-                    <div style={{ color:c, fontSize:11, opacity:0.7, flexShrink:0 }}>{t('focus.profile')}</div>
+                    <div style={{ color:c, fontSize:11, opacity:0.7, flexShrink:0 }}>↗ profil</div>
                   </div>
                 </button>
                 <div style={{ color: U.muted, fontSize: 13, lineHeight: 1.5 }}>{tenant.slogan}</div>
@@ -1772,8 +1764,8 @@ function FocusModal({ slot, allSlots, onClose, onNavigate, onGoAdvertiser, onVie
             {publicStats && (publicStats.impressions > 0 || publicStats.clicks > 0) && (
               <div style={{ margin:'16px 0', padding:'12px 14px', borderRadius:10, background:`${c}08`, border:`1px solid ${c}18`, display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:8 }}>
                 {[
-                  [publicStats.impressions_7d?.toLocaleString('fr-FR') ?? '0', t('focus.views')],
-                  [publicStats.clicks_7d?.toLocaleString('fr-FR')    ?? '0', t('focus.clicks')],
+                  [publicStats.impressions_7d?.toLocaleString('fr-FR') ?? '0', 'vues / 7j'],
+                  [publicStats.clicks_7d?.toLocaleString('fr-FR')    ?? '0', 'clics / 7j'],
                   [publicStats.ctr_pct != null ? `${publicStats.ctr_pct}%` : '—', 'CTR'],
                 ].map(([v, l]) => (
                   <div key={l} style={{ textAlign:'center', padding:'6px 0' }}>
@@ -1782,7 +1774,7 @@ function FocusModal({ slot, allSlots, onClose, onNavigate, onGoAdvertiser, onVie
                   </div>
                 ))}
                 <div style={{ gridColumn:'1/-1', borderTop:`1px solid ${c}15`, marginTop:4, paddingTop:8, textAlign:'center' }}>
-                  <span style={{ fontSize:9, color:'rgba(255,255,255,0.3)', letterSpacing:'0.05em' }}>{t('focus.realdata')}</span>
+                  <span style={{ fontSize:9, color:'rgba(255,255,255,0.3)', letterSpacing:'0.05em' }}>DONNÉES RÉELLES · MIS À JOUR EN TEMPS RÉEL</span>
                 </div>
               </div>
             )}
@@ -1812,18 +1804,20 @@ function FocusModal({ slot, allSlots, onClose, onNavigate, onGoAdvertiser, onVie
 
               {/* Titre */}
               <div style={{ color: isAvail ? U.text : c, fontWeight: 800, fontSize: 17, fontFamily: F.h, marginBottom: 8, letterSpacing: '-0.01em' }}>
-                {isAvail ? t('focus.available') : t('focus.locked')}
+                {isAvail ? 'Bloc disponible' : 'Non disponible'}
               </div>
 
               {/* Corps */}
               <div style={{ color: U.muted, fontSize: 13, lineHeight: 1.7, marginBottom: 20 }}>
                 {isAvail ? (
                   <>
-                    {t('focus.avail.body1', TIER_LABEL[tier])} <span style={{ color: U.accent, fontWeight: 600 }}>€{TIER_PRICE[tier]}/jour</span>
+                    Ce bloc <strong style={{ color: U.text }}>{TIER_LABEL[tier]}</strong> est libre à la location.<br/>
+                    <span style={{ color: U.accent, fontWeight: 600 }}>€{TIER_PRICE[tier]}/jour</span> · visibilité immédiate sur la grille.
                   </>
                 ) : (
                   <>
-                    {t('focus.locked.body1', TIER_LABEL[tier])} {t('focus.locked.body2')}
+                    Les blocs <strong style={{ color: c }}>{TIER_LABEL[tier]}</strong> ne sont pas encore ouverts à la réservation.<br/>
+                    Inscrivez-vous pour être <strong style={{ color: U.text }}>notifié en premier</strong> à l'ouverture.
                   </>
                 )}
               </div>
@@ -1839,11 +1833,11 @@ function FocusModal({ slot, allSlots, onClose, onNavigate, onGoAdvertiser, onVie
               {/* CTA */}
               {isAvail ? (
                 <button onClick={() => { onClose(); onGoAdvertiser(); }} style={{ display: 'block', width: '100%', padding: '12px', borderRadius: 10, fontFamily: F.b, cursor: 'pointer', background: U.accent, border: 'none', color: U.accentFg, fontWeight: 700, fontSize: 13, boxShadow: `0 0 20px ${U.accent}40` }}>
-                  {t('focus.avail.cta')}
+                  Réserver ce bloc →
                 </button>
               ) : (
                 <button onClick={() => { onClose(); onWaitlist(); }} style={{ display: 'block', width: '100%', padding: '12px', borderRadius: 10, fontFamily: F.b, cursor: 'pointer', background: `${c}15`, border: `1.5px solid ${c}40`, color: c, fontWeight: 700, fontSize: 13 }}>
-                  {t('focus.locked.cta')}
+                  ✉ Me prévenir à l'ouverture
                 </button>
               )}
             </div>
@@ -2004,13 +1998,13 @@ function FeedInvitePanel({ slots, onSwitchToFeed, onDismiss }) {
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 4 }}>
                 <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#00e8a2', boxShadow: '0 0 6px #00e8a2', animation: 'blink 1.5s infinite' }} />
-                <span style={{ fontSize: 9, fontWeight: 700, color: '#00e8a2', letterSpacing: '0.1em' }}>{t('feedinvite.badge')}</span>
+                <span style={{ fontSize: 9, fontWeight: 700, color: '#00e8a2', letterSpacing: '0.1em' }}>DÉCOUVERTE</span>
               </div>
               <div style={{ color: U.text, fontWeight: 800, fontSize: 15, fontFamily: F.h, lineHeight: 1.2, letterSpacing: '-0.01em' }}>
-                {t('feedinvite.line1')}
+                Explorez les blocs
               </div>
               <div style={{ color: U.text, fontWeight: 800, fontSize: 15, fontFamily: F.h, lineHeight: 1.2, letterSpacing: '-0.01em' }}>
-                {t('feedinvite.line2')} <span style={{ color: c }}>{t('feedinvite.feed')}</span>
+                en mode <span style={{ color: c }}>Feed</span>
               </div>
             </div>
             <button
@@ -2064,7 +2058,7 @@ function FeedInvitePanel({ slots, onSwitchToFeed, onDismiss }) {
 
           {/* Description */}
           <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11, lineHeight: 1.6, marginBottom: 14 }}>
-            {t('feedinvite.body')}
+            Naviguez bloc par bloc, découvrez les offres et inspirations des annonceurs actifs.
           </div>
 
           {/* CTA */}
@@ -2079,7 +2073,7 @@ function FeedInvitePanel({ slots, onSwitchToFeed, onDismiss }) {
               transition: 'opacity 0.15s',
             }}
           >
-            {t('feedinvite.open')}
+            Ouvrir le Feed →
           </button>
 
           {/* Skip */}
@@ -2087,7 +2081,7 @@ function FeedInvitePanel({ slots, onSwitchToFeed, onDismiss }) {
             onClick={onDismiss}
             style={{ width: '100%', marginTop: 7, padding: '6px', background: 'none', border: 'none', color: 'rgba(255,255,255,0.25)', fontSize: 10, cursor: 'pointer', fontFamily: F.b }}
           >
-            {t('feedinvite.dismiss')}
+            Continuer à explorer la grille
           </button>
         </div>
       </div>
@@ -2117,17 +2111,17 @@ function BoostTicker({ slots, authUser, userBookings, onBoost, onGoAdvertiser })
   };
 
   const ctaLabel = !isLoggedIn
-    ? t('ticker.cta.mine')
+    ? '⚡ Booster mon bloc'
     : !hasActiveBooking
-    ? t('ticker.cta.mine')
-    : t('ticker.cta.yours');
+    ? '⚡ Booster mon bloc'
+    : '⚡ Booster votre bloc';
 
   // Empty state message items
   const emptyItems = [
-    t('ticker.e1'),
-    t('ticker.e2'),
-    t('ticker.e3'),
-    t('ticker.e4'),
+    '⚡ Boostez votre bloc pour apparaître ici et obtenir une visibilité maximale',
+    '🚀 Votre marque vue par tous les visiteurs en temps réel',
+    '✦ Réservez un bloc ADS-SQUARE et activez le boost pour rejoindre cette barre',
+    '💡 Les annonceurs boostés obtiennent 3× plus de clics',
   ];
 
   return (
@@ -2137,18 +2131,18 @@ function BoostTicker({ slots, authUser, userBookings, onBoost, onGoAdvertiser })
         <div style={{ position: 'absolute', bottom: 36, right: 12, zIndex: 100, background: U.s1, border: `1px solid ${U.accent}40`, borderRadius: 10, padding: '10px 14px', boxShadow: '0 8px 32px rgba(0,0,0,0.5)', maxWidth: 260, animation: 'fadeIn 0.2s ease' }}>
           {!isLoggedIn ? (
             <>
-              <div style={{ color: U.text, fontWeight: 700, fontSize: 12, marginBottom: 4 }}>{t('ticker.nobloc.title')}</div>
-              <div style={{ color: U.muted, fontSize: 11, lineHeight: 1.5, marginBottom: 8 }}>{t('ticker.nobloc.body')}</div>
+              <div style={{ color: U.text, fontWeight: 700, fontSize: 12, marginBottom: 4 }}>Vous n'avez pas encore de bloc</div>
+              <div style={{ color: U.muted, fontSize: 11, lineHeight: 1.5, marginBottom: 8 }}>Réservez un bloc ADS-SQUARE pour profiter d'un boost de visibilité et apparaître ici.</div>
               <button onClick={() => { setShowTickerToast(false); onGoAdvertiser(); }} style={{ padding: '6px 12px', borderRadius: 7, background: U.accent, border: 'none', color: U.accentFg, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
-                {t('ticker.nobloc.cta')}
+                Voir les blocs disponibles →
               </button>
             </>
           ) : (
             <>
-              <div style={{ color: U.text, fontWeight: 700, fontSize: 12, marginBottom: 4 }}>{t('ticker.noactive.title')}</div>
-              <div style={{ color: U.muted, fontSize: 11, lineHeight: 1.5, marginBottom: 8 }}>{t('ticker.noactive.body')}</div>
+              <div style={{ color: U.text, fontWeight: 700, fontSize: 12, marginBottom: 4 }}>Aucun bloc actif</div>
+              <div style={{ color: U.muted, fontSize: 11, lineHeight: 1.5, marginBottom: 8 }}>Le boost est disponible une fois que vous avez réservé et activé un bloc.</div>
               <button onClick={() => { setShowTickerToast(false); onGoAdvertiser(); }} style={{ padding: '6px 12px', borderRadius: 7, background: U.accent, border: 'none', color: U.accentFg, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
-                {t('ticker.noactive.cta')}
+                Réserver un bloc →
               </button>
             </>
           )}
@@ -2201,7 +2195,6 @@ function BoostTicker({ slots, authUser, userBookings, onBoost, onGoAdvertiser })
 
 function PublicView({ slots, isLive, onGoAdvertiser, onWaitlist, authUser, userBookings }) {
   const t = useT();
-  const THEMES = useThemes(); // translated labels (overwrites module-level THEMES locally)
   const containerRef  = useRef(null);
   const [containerW, setContainerW] = useState(0);
   const [containerH, setContainerH] = useState(0);
@@ -2306,8 +2299,8 @@ function PublicView({ slots, isLive, onGoAdvertiser, onWaitlist, authUser, userB
     // Theme filter: ne dimme que les blocs occupés qui ne matchent pas;
     // les blocs vides/indisponibles du tier restent à pleine opacité.
     if (filterTheme !== 'all') {
-      const theme = THEMES.find(th2 => th2.id === filterTheme);
-      if (theme) s = s.filter(sl => sl.occ && theme.match?.(sl.tenant?.t, sl.tenant?.name, sl.tenant?.url));
+      const theme = THEMES.find(t => t.id === filterTheme);
+      if (theme) s = s.filter(sl => !sl.occ || theme.match?.(sl.tenant?.t, sl.tenant?.name, sl.tenant?.url));
     }
     return new Set(s.map(sl => sl.id));
   }, [slots, filterTier, filterTheme]);
@@ -2387,14 +2380,19 @@ function PublicView({ slots, isLive, onGoAdvertiser, onWaitlist, authUser, userB
             const isFiltering = filterTier !== 'all' || filterTheme !== 'all';
 
             // ── Couleur néon selon le filtre actif ──────────────
-            // Tier → couleur du tier, Theme → couleur du thème
+            // Tier  → s'allume sur tous les blocs du tier sélectionné
+            // Theme → s'allume UNIQUEMENT sur les blocs dont la catégorie
+            //         correspond exactement au thème choisi (pas les vides)
             let neonColor = null;
             if (isFiltering && inFilter) {
               if (filterTier !== 'all') {
                 neonColor = TIER_COLOR[slot.tier];
               } else if (filterTheme !== 'all') {
-                const th = THEMES.find(th2 => th2.id === filterTheme);
-                neonColor = th?.color || TIER_COLOR[slot.tier];
+                const slotTheme = getSlotTheme(slot);
+                const activeTheme = THEMES.find(th => th.id === filterTheme);
+                if (slotTheme?.id === filterTheme) {
+                  neonColor = activeTheme?.color || TIER_COLOR[slot.tier];
+                }
               }
             }
 
@@ -2533,6 +2531,7 @@ const AnonBlock = memo(({ slot, chosenSlot, activeTier, onChoose, sz: szProp }) 
   const isChosen = chosenSlot?.id === slot.id;
   const isTierHighlighted = activeTier && (t === activeTier || (activeTier === 'ten' && t === 'corner_ten'));
   const r = t === 'one' ? Math.round(sz * 0.1) : t === 'ten' || t === 'corner_ten' ? Math.round(sz * 0.09) : t === 'hundred' ? 3 : 2;
+  const available = isTierAvailable(t);
 
   if (occ) return (
     <div onClick={() => onChoose(slot)} style={{ width: sz, height: sz, borderRadius: r, background: slot.tenant?.b || U.s2, border: `1px solid ${isTierHighlighted ? c + '50' : isChosen ? c + '80' : c + '25'}`, position: 'relative', overflow: 'hidden', flexShrink: 0, cursor: 'pointer', outline: isChosen ? `2px solid ${c}` : 'none', outlineOffset: 1, transition: 'box-shadow 0.25s', boxShadow: isChosen ? `0 0 0 2px ${c}55, 0 0 ${sz * 0.5}px ${c}35` : isTierHighlighted ? `0 0 ${sz * 0.4}px ${c}18` : 'none' }}>
@@ -2544,6 +2543,45 @@ const AnonBlock = memo(({ slot, chosenSlot, activeTier, onChoose, sz: szProp }) 
     </div>
   );
 
+  // ── Bloc indisponible ──────────────────────────────────────────
+  if (!available) {
+    return (
+      <div
+        onClick={() => onChoose(slot)}
+        style={{
+          width: sz, height: sz, flexShrink: 0, position: 'relative', borderRadius: r,
+          background: isChosen ? `${c}14` : `${c}06`,
+          border: `1px solid ${isChosen ? c + '55' : c + '18'}`,
+          outline: isChosen ? `2px solid ${c}60` : 'none',
+          outlineOffset: 1, cursor: 'pointer', opacity: 0.75, overflow: 'hidden',
+          transition: 'border-color 0.2s, background 0.2s',
+        }}
+      >
+        <div style={{ position: 'absolute', inset: 0, background: `repeating-linear-gradient(45deg, ${c}06 0px, ${c}06 1px, transparent 1px, transparent 7px)`, borderRadius: r }} />
+        {sz >= 20 && (
+          <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: Math.max(2, sz * 0.05) }}>
+            <span style={{ fontSize: Math.max(7, sz * 0.22), lineHeight: 1, opacity: 0.55 }}>🔒</span>
+            {sz >= 52 && (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, marginTop: 2 }}>
+                <div style={{ fontSize: Math.max(5, sz * 0.075), fontWeight: 800, color: `${c}90`, letterSpacing: '0.05em', fontFamily: F.h, textAlign: 'center', lineHeight: 1.2 }}>DISPONIBLE</div>
+                <div style={{ fontSize: Math.max(5, sz * 0.07), fontWeight: 700, color: `${c}60`, letterSpacing: '0.04em', fontFamily: F.h, textAlign: 'center', lineHeight: 1.2 }}>PROCHAINEMENT</div>
+              </div>
+            )}
+            {sz >= 32 && sz < 52 && (
+              <div style={{ fontSize: Math.max(5, sz * 0.09), fontWeight: 800, color: `${c}70`, letterSpacing: '0.05em', fontFamily: F.h, textAlign: 'center', lineHeight: 1.2 }}>BIENTÔT</div>
+            )}
+          </div>
+        )}
+        {sz < 20 && sz >= 10 && (
+          <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div style={{ width: '50%', height: 1, background: `${c}40`, borderRadius: 1 }} />
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ── Bloc libre disponible ──────────────────────────────────────
   return (
     <div onClick={() => onChoose(slot)} style={{ width: sz, height: sz, flexShrink: 0, position: 'relative', borderRadius: r, background: isChosen ? `${c}18` : isTierHighlighted ? `${c}0c` : U.s2, border: `1px solid ${isChosen ? c + '80' : isTierHighlighted ? c + '40' : U.border}`, outline: isChosen ? `2px solid ${c}` : 'none', outlineOffset: 1, cursor: 'pointer', boxShadow: isChosen ? `0 0 0 2px ${c}55, 0 0 ${sz * 0.5}px ${c}35` : isTierHighlighted ? `0 0 ${sz * 0.4}px ${c}22` : 'none', transition: 'border-color 0.2s, background 0.2s, box-shadow 0.25s' }}>
       {isChosen && sz >= 18 && (
@@ -2711,12 +2749,12 @@ function AdvertiserView({ slots, isLive, onWaitlist, onCheckout }) {
                       </div>
                     </div>
                     {/* Clics par période */}
-                    <div style={{ fontSize:9, color:U.muted, fontWeight:600, letterSpacing:'0.07em', marginTop:4 }}>{t('adv.stats.period')}</div>
+                    <div style={{ fontSize:9, color:U.muted, fontWeight:600, letterSpacing:'0.07em', marginTop:4 }}>CLICS PAR PÉRIODE</div>
                     <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:6 }}>
                       {[
-                        [slotStats.clicks_today?.toLocaleString() ?? '0', t('adv.stats.today')],
-                        [slotStats.clicks_7d?.toLocaleString()    ?? '0', t('adv.stats.7d')],
-                        [slotStats.clicks_30d?.toLocaleString()   ?? '0', t('adv.stats.30d')],
+                        [slotStats.clicks_today?.toLocaleString() ?? '0', "Aujourd'hui"],
+                        [slotStats.clicks_7d?.toLocaleString()    ?? '0', '7 jours'],
+                        [slotStats.clicks_30d?.toLocaleString()   ?? '0', '30 jours'],
                       ].map(([v, l]) => (
                         <div key={l} style={{ padding:'8px 6px', borderRadius:7, background:U.s2, border:`1px solid ${U.border}`, textAlign:'center' }}>
                           <div style={{ color:U.accent, fontWeight:700, fontSize:14, fontFamily:F.h }}>{v}</div>
@@ -2769,13 +2807,13 @@ function AdvertiserView({ slots, isLive, onWaitlist, onCheckout }) {
                   {neighborStats && (neighborStats.impressions_7d > 0 || neighborStats.clicks_7d > 0) && (
                     <div style={{ marginBottom:12, padding:'10px 12px', borderRadius:9, background:`${U.accent}08`, border:`1px solid ${U.accent}20` }}>
                       <div style={{ fontSize:9, color:U.muted, fontWeight:700, letterSpacing:'0.07em', marginBottom:8 }}>
-                        {t('adv.neighbor', neighborStats.sampleSize)}
+                        TRAFIC DES BLOCS VOISINS ({neighborStats.sampleSize} blocs analysés)
                       </div>
                       <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:5 }}>
                         {[
-                          [neighborStats.impressions_7d?.toLocaleString('fr-FR') ?? '0', t('adv.neighbor.views')],
-                          [neighborStats.clicks_7d?.toLocaleString('fr-FR') ?? '0', t('adv.neighbor.clicks')],
-                          [`${neighborStats.ctr_pct ?? 0}%`, t('adv.neighbor.ctr')],
+                          [neighborStats.impressions_7d?.toLocaleString('fr-FR') ?? '0', 'vues / 7j'],
+                          [neighborStats.clicks_7d?.toLocaleString('fr-FR') ?? '0', 'clics / 7j'],
+                          [`${neighborStats.ctr_pct ?? 0}%`, 'CTR moy.'],
                         ].map(([v, l]) => (
                           <div key={l} style={{ textAlign:'center', padding:'7px 4px', borderRadius:6, background:U.s2, border:`1px solid ${U.border}` }}>
                             <div style={{ color:U.accent, fontWeight:800, fontSize:14, fontFamily:F.h }}>{v}</div>
@@ -2784,7 +2822,7 @@ function AdvertiserView({ slots, isLive, onWaitlist, onCheckout }) {
                         ))}
                       </div>
                       <div style={{ marginTop:7, fontSize:9, color:'rgba(255,255,255,0.22)', textAlign:'center' }}>
-                        {t('adv.neighbor.footer', TIER_LABEL[chosenSlot.tier])}
+                        Performances réelles · blocs {TIER_LABEL[chosenSlot.tier]} actifs
                       </div>
                     </div>
                   )}
@@ -2801,18 +2839,19 @@ function AdvertiserView({ slots, isLive, onWaitlist, onCheckout }) {
                       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, marginBottom: 20 }}>
                         <div style={{ width: 48, height: 48, borderRadius: 14, background: `${c}12`, border: `1.5px solid ${c}40`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22 }}>🔒</div>
                         <div style={{ textAlign: 'center' }}>
-                          <div style={{ color: c, fontWeight: 800, fontSize: 14, fontFamily: F.h, letterSpacing: '0.04em', marginBottom: 4 }}>{t('adv.locked.soon')}</div>
+                          <div style={{ color: c, fontWeight: 800, fontSize: 14, fontFamily: F.h, letterSpacing: '0.04em', marginBottom: 4 }}>PROCHAINEMENT</div>
                           <div style={{ color: U.muted, fontSize: 11, lineHeight: 1.6 }}>
-                            {t('adv.locked.body', TIER_LABEL[chosenSlot.tier]).split('\n').map((l,i)=><span key={i}>{l}{i===0&&<br/>}</span>)}
+                            Les blocs <strong style={{ color: U.text }}>{TIER_LABEL[chosenSlot.tier]}</strong> ouvrent en phase 2.<br />
+                            Réservez votre place en avant-première.
                           </div>
                         </div>
                       </div>
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 16 }}>
                         {[
-                          [t('adv.locked.price'), `€${TIER_PRICE[chosenSlot.tier]}/j`],
-                          [t('adv.locked.tier'), TIER_LABEL[chosenSlot.tier]],
-                          [t('adv.locked.pos'), `(${chosenSlot.x}, ${chosenSlot.y})`],
-                          [t('adv.locked.launch'), t('adv.locked.phase')],
+                          ['Prix', `€${TIER_PRICE[chosenSlot.tier]}/j`],
+                          ['Tier', TIER_LABEL[chosenSlot.tier]],
+                          ['Position', `(${chosenSlot.x}, ${chosenSlot.y})`],
+                          ['Lancement', 'Phase 2'],
                         ].map(([label, val]) => (
                           <div key={label} style={{ padding: '8px 12px', borderRadius: 8, background: `${c}08`, border: `1px solid ${c}20`, textAlign: 'center' }}>
                             <div style={{ color: U.muted, fontSize: 9, fontWeight: 700, letterSpacing: '0.06em', marginBottom: 3 }}>{label}</div>
@@ -2821,9 +2860,9 @@ function AdvertiserView({ slots, isLive, onWaitlist, onCheckout }) {
                         ))}
                       </div>
                       <button onClick={onWaitlist} style={{ width: '100%', padding: '12px', borderRadius: 8, fontFamily: F.b, cursor: 'pointer', background: `${c}18`, border: `1.5px solid ${c}50`, color: c, fontWeight: 700, fontSize: 13 }}>
-                        {t('adv.locked.cta')}
+                        ✉ Me prévenir à l'ouverture
                       </button>
-                      <div style={{ color: U.muted, fontSize: 10, textAlign: 'center', marginTop: 8 }}>{t('adv.locked.priority')}</div>
+                      <div style={{ color: U.muted, fontSize: 10, textAlign: 'center', marginTop: 8 }}>Accès prioritaire garanti aux premiers inscrits</div>
                     </div>
                   );
                 })()
@@ -2889,18 +2928,13 @@ function LandingGrid({ slots }) {
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
 
+    const BSZ = isMobile ? 7 : 9;   // block size px
+    const GAP = isMobile ? 1 : 1.5; // gap px
+    const STEP = BSZ + GAP;
     const COLS = GRID_COLS;
     const ROWS = GRID_ROWS;
-    const W = window.innerWidth;
-    const H = window.innerHeight;
-
-    // Scale blocks to fill the full viewport (cover mode)
-    const scaleX = W / COLS;
-    const scaleY = H / ROWS;
-    const scale  = Math.max(scaleX, scaleY) * 1.05;
-    const BSZ    = scale * 0.82;
-    const GAP    = scale * 0.18;
-    const STEP   = BSZ + GAP;
+    const W = COLS * STEP;
+    const H = ROWS * STEP;
 
     // hi-dpi
     const dpr = window.devicePixelRatio || 1;
@@ -2909,11 +2943,6 @@ function LandingGrid({ slots }) {
     canvas.style.width  = W + 'px';
     canvas.style.height = H + 'px';
     ctx.scale(dpr, dpr);
-
-    const gridW  = COLS * STEP;
-    const gridH  = ROWS * STEP;
-    const offsetX = (W - gridW) / 2;
-    const offsetY = (H - gridH) / 2;
 
     // Build a lookup: slot id → slot
     const slotMap = {};
@@ -2965,8 +2994,8 @@ function LandingGrid({ slots }) {
             }
           }
 
-          const px = offsetX + x * STEP;
-          const py = offsetY + y * STEP;
+          const px = x * STEP;
+          const py = y * STEP;
           const r  = slot.tier === 'one' ? 3 : slot.tier === 'ten' || slot.tier === 'corner_ten' ? 2 : 1;
 
           // glow halo
@@ -3120,7 +3149,7 @@ function LandingPage({ slots, onPublic, onAdvertiser, onWaitlist }) {
 
         {/* Legal footer links */}
         <div style={{ marginTop: 36, paddingTop: 24, borderTop: `1px solid ${U.border}`, display: 'flex', gap: 16, justifyContent: 'center', flexWrap: 'wrap' }}>
-          {[[t('landing.faq'),'/faq'],[t('landing.cgv'),'/cgv'],[t('landing.legal'),'/legal'],[t('landing.privacy'),'/privacy']].map(([label, href]) => (
+          {[['FAQ', '/faq'], ['CGV', '/cgv'], ['Mentions légales', '/legal'], ['Confidentialité', '/privacy']].map(([label, href]) => (
             <a key={href} href={href} style={{ color: U.muted, fontSize: 11, textDecoration: 'none', transition: 'color 0.15s' }}
               onMouseEnter={e => e.currentTarget.style.color = U.text}
               onMouseLeave={e => e.currentTarget.style.color = U.muted}>
@@ -3143,7 +3172,6 @@ export default function App() {
   const [showBoost, setShowBoost]       = useState(false);
   const [authUser, setAuthUser]         = useState(null);
   const [userBookings, setUserBookings]  = useState([]);
-  const [dailyVisitors, setDailyVisitors] = useState(null);
   const { slots, isLive, loading }  = useGridData();
   const { isMobile } = useScreenSize();
   const handleWaitlist = useCallback(() => setShowWaitlist(true), []);
@@ -3166,22 +3194,6 @@ export default function App() {
         }
       }
     });
-  }, []);
-
-  useEffect(() => {
-    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-    if (!url || !key) return;
-    const today = new Date().toISOString().slice(0, 10);
-    fetch(`${url}/rest/v1/slot_clicks?select=visitor_id,created_at&created_at=gte.${today}T00:00:00Z&event_type=eq.impression`, {
-      headers: { 'apikey': key, 'Authorization': `Bearer ${key}`, 'Prefer': 'count=none' }
-    }).then(r => r.ok ? r.json() : []).then(rows => {
-      if (!Array.isArray(rows)) return;
-      const unique = rows.some(r => r.visitor_id)
-        ? new Set(rows.map(r => r.visitor_id).filter(Boolean)).size
-        : rows.length;
-      setDailyVisitors(unique);
-    }).catch(() => {});
   }, []);
 
   const handleSignOut = useCallback(async () => {
@@ -3214,18 +3226,6 @@ export default function App() {
         <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: isMobile ? '0 12px' : '0 24px', height: 48, flexShrink: 0, borderBottom: `1px solid ${U.border}`, background: `${U.s1}f0`, backdropFilter: 'blur(14px)', zIndex: 100, gap: 8 }}>
           <BrandLogo size={isMobile ? 15 : 17} onClick={() => setView('landing')} />
 
-          {!isMobile && (
-            <div style={{ display:'flex', alignItems:'center', gap:6, padding:'4px 10px', borderRadius:20, background:'rgba(96,165,250,0.08)', border:'1px solid rgba(96,165,250,0.18)', marginLeft:8 }}>
-              <div style={{ width:5, height:5, borderRadius:'50%', background:'#60a5fa', boxShadow:'0 0 5px #60a5fa', animation:'blink 2s infinite', flexShrink:0 }} />
-              <span style={{ color:'#60a5fa', fontWeight:700, fontSize:11, fontFamily:F.h, letterSpacing:'-0.01em', lineHeight:1 }}>
-                {dailyVisitors !== null ? dailyVisitors.toLocaleString('fr-FR') : '—'}
-              </span>
-              <span style={{ color:'rgba(96,165,250,0.5)', fontSize:10, fontWeight:500, whiteSpace:'nowrap' }}>
-                {t('nav.visitors')}
-              </span>
-            </div>
-          )}
-
           <nav style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
             {[
               ['public',     t('nav.explore'),  '◈'],
@@ -3243,7 +3243,7 @@ export default function App() {
             {authUser ? (
               <>
                 {/* Icône profil → dashboard */}
-                <a href="/dashboard" title={t('nav.dashboard')}
+                <a href="/dashboard" title="Mon dashboard"
                   style={{ width: 30, height: 30, borderRadius: '50%', background: 'rgba(212,168,75,0.15)', border: `1.5px solid ${U.accent}`, display: 'flex', alignItems: 'center', justifyContent: 'center', textDecoration: 'none', flexShrink: 0, cursor: 'pointer', transition: 'all 0.15s' }}
                   onMouseEnter={e => { e.currentTarget.style.background = 'rgba(212,168,75,0.3)'; }}
                   onMouseLeave={e => { e.currentTarget.style.background = 'rgba(212,168,75,0.15)'; }}
@@ -3252,7 +3252,7 @@ export default function App() {
                 </a>
                 {/* Déconnexion */}
                 {!isMobile && (
-                  <button onClick={handleSignOut} title={t('nav.logout')}
+                  <button onClick={handleSignOut} title="Se déconnecter"
                     style={{ width: 30, height: 30, borderRadius: '50%', background: U.faint, border: `1px solid ${U.border2}`, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0, transition: 'all 0.15s' }}
                     onMouseEnter={e => { e.currentTarget.style.borderColor = U.err; e.currentTarget.style.color = U.err; }}
                     onMouseLeave={e => { e.currentTarget.style.borderColor = U.border2; e.currentTarget.style.color = U.muted; }}
@@ -3262,7 +3262,7 @@ export default function App() {
                 )}
               </>
             ) : (
-              <a href="/dashboard/login" title={t('nav.login')}
+              <a href="/dashboard/login" title="Se connecter"
                 style={{ width: 30, height: 30, borderRadius: '50%', background: U.faint, border: `1px solid ${U.border2}`, display: 'flex', alignItems: 'center', justifyContent: 'center', textDecoration: 'none', flexShrink: 0, cursor: 'pointer', transition: 'all 0.15s' }}
                 onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.3)'; e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; }}
                 onMouseLeave={e => { e.currentTarget.style.borderColor = U.border2; e.currentTarget.style.background = U.faint; }}
@@ -3274,7 +3274,7 @@ export default function App() {
             {/* ── Language toggle ── */}
             <button
               onClick={() => setLang(l => l === 'fr' ? 'en' : 'fr')}
-              title={lang === 'fr' ? t('nav.lang.to_en') : t('nav.lang.to_fr')}
+              title={lang === 'fr' ? 'Switch to English' : 'Passer en français'}
               style={{ marginLeft: isMobile ? 2 : 4, padding: isMobile ? '4px 7px' : '4px 9px', borderRadius: 7, fontFamily: F.b, cursor: 'pointer', background: U.faint, border: `1px solid ${U.border2}`, color: U.muted, fontSize: isMobile ? 10 : 11, fontWeight: 700, letterSpacing: '0.05em', transition: 'all 0.15s', flexShrink: 0 }}
               onMouseEnter={e => { e.currentTarget.style.color = U.text; }}
               onMouseLeave={e => { e.currentTarget.style.color = U.muted; }}
