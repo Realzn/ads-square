@@ -4,7 +4,7 @@
 import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { createServiceClient } from '../../../../lib/supabase-server';
-import { TIER_PRICE, TIER_LABEL, getTier } from '../../../../lib/grid';
+import { TIER_PRICE, TIER_LABEL, getTier, isTierAvailable } from '../../../../lib/grid';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
   apiVersion: '2023-10-16',
@@ -36,6 +36,14 @@ export async function POST(request) {
       return NextResponse.json(
         { error: 'Tier mismatch' },
         { status: 400 }
+      );
+    }
+
+    // Vérifier que le tier est ouvert à la location
+    if (!isTierAvailable(realTier)) {
+      return NextResponse.json(
+        { error: `Les blocs ${TIER_LABEL[realTier]} arrivent prochainement. Restez connecté !` },
+        { status: 403 }
       );
     }
 

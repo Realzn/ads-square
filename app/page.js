@@ -4,6 +4,7 @@ import {
   D, FF, GRID_COLS, GRID_ROWS, CENTER_X, CENTER_Y,
   TIER_SIZE, TIER_COLOR, TIER_LABEL, TIER_PRICE, PROFILES,
   buildStructuralGrid, buildDemoGrid, mergeGridWithBookings,
+  isTierAvailable,
 } from '../lib/grid';
 import {
   isSupabaseConfigured, fetchActiveSlots,
@@ -748,6 +749,115 @@ const BlockCell = memo(({ slot, isSelected, onSelect, onFocus, sz: szProp, showS
   let sz = szProp !== undefined ? szProp : TIER_SIZE[tier];
   const c = TIER_COLOR[tier];
   const isCornerTen = tier === 'corner_ten';
+  const r = tier === 'one' ? Math.round(sz * 0.1) : tier === 'ten' || isCornerTen ? Math.round(sz * 0.09) : tier === 'hundred' ? 3 : 2;
+  const available = isTierAvailable(tier);
+
+  // Track impression when occupied block enters viewport (once per session per slot)
+  const ref = useRef(null);
+  useEffect(() => {
+    if (!occ || !tenant?.bookingId) return;
+    const sessionKey = `imp_${tenant.bookingId}`;
+    if (sessionStorage.getItem(sessionKey)) return; // already tracked this session
+    const el = ref.current;
+    if (!el) return;
+    const obs = new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting) {
+        sessionStorage.setItem(sessionKey, '1');
+        fetch('/api/track', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ slotX: slot.x, slotY: slot.y, bookingId: tenant.bookingId, event: 'impression' }),
+        }).catch(() => {});
+        obs.disconnect();
+      }
+    }, { threshold: 0.5 });
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [occ, tenant?.bookingId, slot.x, slot.y]);
+
+  const handleClick = () => {
+    if (occ) { onFocus(slot); return; }
+    if (!available) { onFocus(slot); return; } // ouvre la modale "prochainement"
+    onSelect(slot);
+  };
+
+  return (
+    <div
+      ref={ref}
+      onClick={handleClick}
+      title={
+        occ ? tenant?.name
+        : available ? `${TIER_LABEL[tier]} — €${TIER_PRICE[tier]}/j`
+        : `${TIER_LABEL[tier]} — Prochainement`
+      }
+      style={{
+        width: sz, height: sz,
+        borderRadius: r,
+        position: 'relative',
+        overflow: 'hidden',
+        cursor: 'pointer',
+        flexShrink: 0,
+        border: `1px solid ${isSelected ? c : isCornerTen ? c + '70' : occ ? c + '40' : available ? U.border : c + '30'}`,
+        background: occ ? (tenant?.b || U.s2) : U.s2,
+        outline: isSelected ? `2px solid ${c}` : 'none',
+        outlineOffset: 1,
+        boxShadow: isSelected
+          ? `0 0 0 2px ${c}60, 0 0 ${sz * 0.5}px ${c}35`
+          : isCornerTen
+            ? `0 0 ${sz * 0.6}px ${c}28, inset 0 0 ${sz * 0.3}px ${c}08`
+            : occ && sz >= 24
+              ? `0 0 ${sz * 0.35}px ${c}22`
+              : !available && sz >= 20
+                ? `0 0 ${sz * 0.4}px ${c}18`
+                : 'none',
+        transition: 'opacity 0.2s, outline 0.1s, box-shadow 0.3s',
+      }}
+    >
+      {occ && <BlockMedia tenant={tenant} tier={tier} sz={sz} />}
+      {!occ && available && sz >= 8 && (
+        <div style={{ position: 'absolute', inset: 0, background: `${c}06`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          {sz >= 28 && <div style={{ width: '30%', height: 1, background: `${c}25`, borderRadius: 1 }} />}
+        </div>
+      )}
+      {/* Overlay "Prochainement" sur les tiers non disponibles */}
+      {!occ && !available && (
+        <div style={{
+          position: 'absolute', inset: 0,
+          background: `linear-gradient(135deg, ${c}10 0%, ${c}06 100%)`,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          flexDirection: 'column', gap: 1,
+        }}>
+          {sz >= 20 && (
+            <div style={{
+              width: sz >= 40 ? '50%' : '70%',
+              height: 1,
+              background: `${c}35`,
+              borderRadius: 1,
+            }} />
+          )}
+          {sz >= 50 && (
+            <div style={{
+              fontSize: Math.max(5, sz * 0.11),
+              fontWeight: 800,
+              color: `${c}70`,
+              letterSpacing: '0.04em',
+              textAlign: 'center',
+              fontFamily: FF.h,
+              lineHeight: 1,
+              marginTop: 2,
+            }}>
+              BIENTÔT
+            </div>
+          )}
+        </div>
+      )}
+      {occ && hot && <div style={{ position: 'absolute', top: 2, right: 2, width: 4, height: 4, borderRadius: '50%', background: '#ff4455', animation: 'blink 1.5s infinite' }} />}
+      {showStats && occ && <HoverStatsBadge slot={slot} sz={sz} />}
+      {/* Mini badge permanent sur gros blocs */}
+      {showStats && occ && sz >= 40 && <LiveMiniBadge slot={slot} sz={sz} />}
+    </div>
+  );
+});
   const r = tier === 'one' ? Math.round(sz * 0.1) : tier === 'ten' || isCornerTen ? Math.round(sz * 0.09) : tier === 'hundred' ? 3 : 2;
 
   // Track impression when occupied block enters viewport (once per session per slot)
@@ -1729,7 +1839,75 @@ function AdvertiserView({ slots, isLive, onWaitlist, onCheckout }) {
                 <div style={{ color: U.muted, fontSize: 10, textAlign: 'center' }}>
                   {t('adv.cta.rent.sub', TIER_PRICE[chosenSlot.tier])}
                 </div>
-              </>)}
+              </>);
+            })()}
+            {/* Bloc "Prochainement" pour les tiers non encore ouverts */}
+            {!chosenSlot.occ && !isTierAvailable(chosenSlot.tier) && (() => {
+              const c = TIER_COLOR[chosenSlot.tier];
+              return (
+                <div style={{ padding: '16px 0' }}>
+                  {/* Badge prochainement */}
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, marginBottom: 20 }}>
+                    <div style={{
+                      width: 48, height: 48, borderRadius: 14,
+                      background: `${c}12`, border: `1.5px solid ${c}40`,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontSize: 22,
+                    }}>🔒</div>
+                    <div style={{ textAlign: 'center' }}>
+                      <div style={{ color: c, fontWeight: 800, fontSize: 14, fontFamily: F.h, letterSpacing: '0.04em', marginBottom: 4 }}>
+                        PROCHAINEMENT
+                      </div>
+                      <div style={{ color: U.muted, fontSize: 11, lineHeight: 1.6 }}>
+                        Les blocs <strong style={{ color: U.text }}>{TIER_LABEL[chosenSlot.tier]}</strong> ouvrent en phase 2.<br />
+                        Réservez votre place en avant-première.
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Infos du tier */}
+                  <div style={{
+                    display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8,
+                    marginBottom: 16,
+                  }}>
+                    {[
+                      ['Prix', `€${TIER_PRICE[chosenSlot.tier]}/j`],
+                      ['Tier', TIER_LABEL[chosenSlot.tier]],
+                      ['Position', `(${chosenSlot.x}, ${chosenSlot.y})`],
+                      ['Lancement', 'Phase 2'],
+                    ].map(([label, val]) => (
+                      <div key={label} style={{
+                        padding: '8px 12px', borderRadius: 8,
+                        background: `${c}08`, border: `1px solid ${c}20`,
+                        textAlign: 'center',
+                      }}>
+                        <div style={{ color: U.muted, fontSize: 9, fontWeight: 700, letterSpacing: '0.06em', marginBottom: 3 }}>{label}</div>
+                        <div style={{ color: U.text, fontWeight: 700, fontSize: 13, fontFamily: F.h }}>{val}</div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* CTA liste d'attente */}
+                  <button
+                    onClick={onWaitlist}
+                    style={{
+                      width: '100%', padding: '12px',
+                      borderRadius: 8, fontFamily: F.b,
+                      cursor: 'pointer',
+                      background: `${c}18`,
+                      border: `1.5px solid ${c}50`,
+                      color: c, fontWeight: 700, fontSize: 13,
+                      transition: 'all 0.2s',
+                    }}
+                  >
+                    ✉ Me prévenir à l'ouverture
+                  </button>
+                  <div style={{ color: U.muted, fontSize: 10, textAlign: 'center', marginTop: 8 }}>
+                    Accès prioritaire garanti aux premiers inscrits
+                  </div>
+                </div>
+              );
+            })()}
             </div>
           </div>
         ) : (
