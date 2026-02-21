@@ -2883,9 +2883,6 @@ function LandingGrid({ slots }) {
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
 
-    const BSZ = isMobile ? 7 : 9;   // block size px
-    const GAP = isMobile ? 1 : 1.5; // gap px
-    const STEP = BSZ + GAP;
     const COLS = GRID_COLS;
     const ROWS = GRID_ROWS;
 
@@ -2893,9 +2890,18 @@ function LandingGrid({ slots }) {
     const W = window.innerWidth;
     const H = window.innerHeight;
 
+    // Calculer la taille de bloc pour que la grille remplisse tout l'écran (cover)
+    const scaleX = W / COLS;
+    const scaleY = H / ROWS;
+    const scale  = Math.max(scaleX, scaleY) * 1.05; // légère marge pour éviter les bords vides
+
+    const BSZ  = scale * 0.82; // bloc = 82% du step
+    const GAP  = scale * 0.18; // gap  = 18% du step
+    const STEP = BSZ + GAP;
+
     // Offset pour centrer la grille dans la fenêtre
-    const gridW = COLS * STEP;
-    const gridH = ROWS * STEP;
+    const gridW  = COLS * STEP;
+    const gridH  = ROWS * STEP;
     const offsetX = (W - gridW) / 2;
     const offsetY = (H - gridH) / 2;
 
