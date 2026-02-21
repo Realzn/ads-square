@@ -1117,9 +1117,17 @@ function LoginScreen({ onLogin }) {
       const res = await fetch('/api/admin?action=stats', {
         headers: { 'x-admin-token': pwd },
       });
-      if (res.ok) { onLogin(pwd); }
-      else { setError('Mot de passe incorrect.'); }
-    } catch { setError('Erreur de connexion.'); }
+      if (res.ok) {
+        onLogin(pwd);
+      } else if (res.status === 500) {
+        const json = await res.json().catch(() => ({}));
+        setError(json.error || 'Erreur serveur — vérifiez que ADMIN_SECRET est défini dans Cloudflare Pages → Settings → Environment variables');
+      } else if (res.status === 401) {
+        setError('Mot de passe incorrect.');
+      } else {
+        setError(`Erreur ${res.status} — réessayez.`);
+      }
+    } catch { setError('Erreur de connexion au serveur.'); }
     finally { setLoading(false); }
   };
 
@@ -1273,7 +1281,7 @@ export default function AdminDashboard() {
       </div>
 
       {/* Main */}
-      <div style={{ marginLeft: 220, minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+      <div style={{ marginLeft: 220, minHeight: '100vh', display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
         {/* Topbar */}
         <div style={{
           padding: '18px 32px', borderBottom: `1px solid ${A.border}`,
@@ -1290,7 +1298,7 @@ export default function AdminDashboard() {
         </div>
 
         {/* Content */}
-        <div style={{ flex: 1, padding: '28px 32px', maxWidth: 1400 }}>
+        <div style={{ flex: 1, padding: '28px 32px', maxWidth: 1400, overflowY: 'auto' }}>
           {tab === 'overview'  && <TabOverview  api={api} />}
           {tab === 'bookings'  && <TabBookings  api={api} onToast={onToast} />}
           {tab === 'users'     && <TabUsers     api={api} onToast={onToast} />}

@@ -8,7 +8,11 @@ import { createServiceClient } from '../../../lib/supabase-server';
 function checkAdminAuth(request) {
   const token = request.headers.get('x-admin-token');
   const secret = process.env.ADMIN_SECRET;
-  if (!secret) return { error: 'ADMIN_SECRET non configuré', status: 500 };
+  // ADMIN_SECRET manquant → erreur de config (500), pas d'auth
+  if (!secret) {
+    console.error('[Admin] ADMIN_SECRET non défini dans les variables d'environnement Cloudflare');
+    return { error: 'ADMIN_SECRET manquant — ajoutez-le dans Cloudflare Pages → Settings → Environment variables', status: 500 };
+  }
   if (!token || token !== secret) return { error: 'Non autorisé', status: 401 };
   return null;
 }

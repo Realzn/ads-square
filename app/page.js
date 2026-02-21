@@ -795,10 +795,12 @@ const BlockCell = memo(({ slot, isSelected, onSelect, onFocus, sz: szProp, showS
         borderRadius: r,
         position: 'relative',
         overflow: 'hidden',
-        cursor: 'pointer',
+        cursor: occ ? 'pointer' : available ? 'pointer' : 'not-allowed',
         flexShrink: 0,
-        border: `1px solid ${isSelected ? c : isCornerTen ? c + '70' : occ ? c + '40' : available ? U.border : c + '30'}`,
-        background: occ ? (tenant?.b || U.s2) : U.s2,
+        opacity: !occ && !available ? 0.45 : 1,
+        border: `1px solid ${isSelected ? c : isCornerTen ? c + '70' : occ ? c + '40' : available ? U.border : c + '20'}`,
+        background: occ ? (tenant?.b || U.s2) : !available ? '#0a0a0a' : U.s2,
+        filter: !occ && !available ? 'saturate(0.3)' : 'none',
         outline: isSelected ? `2px solid ${c}` : 'none',
         outlineOffset: 1,
         boxShadow: isSelected
@@ -819,35 +821,35 @@ const BlockCell = memo(({ slot, isSelected, onSelect, onFocus, sz: szProp, showS
           {sz >= 28 && <div style={{ width: '30%', height: 1, background: `${c}25`, borderRadius: 1 }} />}
         </div>
       )}
-      {/* Overlay "Prochainement" sur les tiers non disponibles */}
+      {/* Overlay blocs indisponibles — visuellement fort et compréhensible */}
       {!occ && !available && (
         <div style={{
           position: 'absolute', inset: 0,
-          background: `linear-gradient(135deg, ${c}10 0%, ${c}06 100%)`,
+          background: `repeating-linear-gradient(
+            45deg,
+            ${c}06 0px, ${c}06 2px,
+            transparent 2px, transparent 8px
+          )`,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          flexDirection: 'column', gap: 1,
+          flexDirection: 'column', gap: 2,
         }}>
-          {sz >= 20 && (
-            <div style={{
-              width: sz >= 40 ? '50%' : '70%',
-              height: 1,
-              background: `${c}35`,
-              borderRadius: 1,
-            }} />
+          {/* Ligne diagonale centrale pour gros blocs */}
+          {sz >= 40 && (
+            <svg style={{ position:'absolute', inset:0, width:'100%', height:'100%', opacity:0.18 }}>
+              <line x1="0" y1="0" x2="100%" y2="100%" stroke={c} strokeWidth="1"/>
+              <line x1="100%" y1="0" x2="0" y2="100%" stroke={c} strokeWidth="1"/>
+            </svg>
           )}
-          {sz >= 50 && (
-            <div style={{
-              fontSize: Math.max(5, sz * 0.11),
-              fontWeight: 800,
-              color: `${c}70`,
-              letterSpacing: '0.04em',
-              textAlign: 'center',
-              fontFamily: FF.h,
-              lineHeight: 1,
-              marginTop: 2,
-            }}>
-              BIENTÔT
+          {/* Cadenas pour blocs moyens */}
+          {sz >= 52 && (
+            <div style={{ position:'relative', zIndex:2, display:'flex', flexDirection:'column', alignItems:'center', gap:2 }}>
+              <div style={{ fontSize: Math.max(8, sz * 0.18), lineHeight:1, filter:'grayscale(0.5)', opacity:0.55 }}>🔒</div>
+              <div style={{ fontSize: Math.max(5, sz * 0.09), fontWeight:800, color:`${c}80`, letterSpacing:'0.06em', fontFamily:FF.h }}>BIENTÔT</div>
             </div>
+          )}
+          {/* Trait simple pour petits blocs */}
+          {sz < 52 && sz >= 14 && (
+            <div style={{ width:'55%', height:1, background:`${c}45`, borderRadius:1, position:'relative', zIndex:2 }} />
           )}
         </div>
       )}
@@ -1140,21 +1142,66 @@ function FocusModal({ slot, allSlots, onClose, onNavigate, onGoAdvertiser }) {
               {tenant.cta} →
             </a>
           </div>
-        ) : (
-          <div style={{ padding: isMobile ? '32px 20px' : '48px 28px', textAlign: 'center' }}>
-            <div style={{ width: 56, height: 56, borderRadius: 14, background: `${TIER_COLOR[tier]}10`, border: `1px solid ${TIER_COLOR[tier]}25`, margin: '0 auto 20px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <div style={{ width: 20, height: 20, borderRadius: 4, border: `1.5px solid ${TIER_COLOR[tier]}60`, background: `${TIER_COLOR[tier]}12` }} />
+        ) : (() => {
+          const isAvail = isTierAvailable(tier);
+          const c = TIER_COLOR[tier];
+          return (
+            <div style={{ padding: isMobile ? '28px 20px 32px' : '40px 28px 40px', textAlign: 'center' }}>
+              {/* Icône selon état */}
+              <div style={{ width: 64, height: 64, borderRadius: 16, background: isAvail ? `${c}10` : `${c}08`, border: `1.5px solid ${isAvail ? c + '35' : c + '20'}`, margin: '0 auto 20px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 26, position: 'relative' }}>
+                {isAvail ? (
+                  // Bloc libre — carré vide avec animation subtle
+                  <div style={{ width: 22, height: 22, borderRadius: 5, border: `2px solid ${c}50`, background: `${c}10`, animation: 'vacantBreath 2.5s ease-in-out infinite' }} />
+                ) : (
+                  // Bloc verrouillé — cadenas
+                  <span style={{ filter: 'grayscale(0.3)', opacity: 0.7 }}>🔒</span>
+                )}
+                {isAvail && (
+                  <div style={{ position: 'absolute', top: -4, right: -4, width: 18, height: 18, borderRadius: '50%', background: '#00e8a2', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10 }}>✦</div>
+                )}
+              </div>
+
+              {/* Titre */}
+              <div style={{ color: isAvail ? U.text : c, fontWeight: 800, fontSize: 17, fontFamily: F.h, marginBottom: 8, letterSpacing: '-0.01em' }}>
+                {isAvail ? 'Bloc disponible' : 'Non disponible'}
+              </div>
+
+              {/* Corps */}
+              <div style={{ color: U.muted, fontSize: 13, lineHeight: 1.7, marginBottom: 20 }}>
+                {isAvail ? (
+                  <>
+                    Ce bloc <strong style={{ color: U.text }}>{TIER_LABEL[tier]}</strong> est libre à la location.<br/>
+                    <span style={{ color: U.accent, fontWeight: 600 }}>€{TIER_PRICE[tier]}/jour</span> · visibilité immédiate sur la grille.
+                  </>
+                ) : (
+                  <>
+                    Les blocs <strong style={{ color: c }}>{TIER_LABEL[tier]}</strong> ne sont pas encore ouverts à la réservation.<br/>
+                    Inscrivez-vous pour être <strong style={{ color: U.text }}>notifié en premier</strong> à l'ouverture.
+                  </>
+                )}
+              </div>
+
+              {/* Badge tier */}
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 10px', borderRadius: 6, background: `${c}10`, border: `1px solid ${c}25`, marginBottom: 20 }}>
+                <div style={{ width: 6, height: 6, borderRadius: 1, background: c }} />
+                <span style={{ color: c, fontSize: 10, fontWeight: 700, letterSpacing: '0.08em' }}>{TIER_LABEL[tier]}</span>
+                <span style={{ color: U.muted, fontSize: 10 }}>·</span>
+                <span style={{ color: U.muted, fontSize: 10 }}>({slot.x}, {slot.y})</span>
+              </div>
+
+              {/* CTA */}
+              {isAvail ? (
+                <button onClick={() => { onClose(); onGoAdvertiser(); }} style={{ display: 'block', width: '100%', padding: '12px', borderRadius: 10, fontFamily: F.b, cursor: 'pointer', background: U.accent, border: 'none', color: U.accentFg, fontWeight: 700, fontSize: 13, boxShadow: `0 0 20px ${U.accent}40` }}>
+                  Réserver ce bloc →
+                </button>
+              ) : (
+                <button onClick={() => { onClose(); onGoAdvertiser(); }} style={{ display: 'block', width: '100%', padding: '12px', borderRadius: 10, fontFamily: F.b, cursor: 'pointer', background: `${c}15`, border: `1.5px solid ${c}40`, color: c, fontWeight: 700, fontSize: 13 }}>
+                  ✉ Me prévenir à l'ouverture
+                </button>
+              )}
             </div>
-            <div style={{ color: U.text, fontWeight: 700, fontSize: 18, fontFamily: F.h, marginBottom: 8, letterSpacing: '-0.02em' }}>{t('focus.empty.title')}</div>
-            <div style={{ color: U.muted, fontSize: 13, lineHeight: 1.7, marginBottom: 24 }}>
-              Ce bloc {TIER_LABEL[tier]} n'est actuellement occupé par personne.<br/>
-              Pour le louer ou faire une offre, rendez-vous dans<br/><span style={{ color: U.text, fontWeight: 600 }}>{t('nav.reserve')}</span>.
-            </div>
-            <button onClick={() => { onClose(); onGoAdvertiser(); }} style={{ padding: '11px 24px', borderRadius: 10, fontFamily: F.b, cursor: 'pointer', background: U.faint, border: `1px solid ${U.border2}`, color: U.text, fontWeight: 600, fontSize: 13 }}>
-              {t('focus.empty.cta')}
-            </button>
-          </div>
-        )}
+          );
+        })()}
       </div>
     </div>
   );

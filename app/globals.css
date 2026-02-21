@@ -8,12 +8,15 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 html, body {
-  height: 100%;
+  /* NE PAS mettre overflow:hidden ici — chaque page gère son propre scroll */
+  /* La grille principale (page.js) met overflow:hidden sur son propre wrapper */
   background: #020609;
   color: #dde8ff;
   font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
-  overflow: hidden;
 }
+
+/* Seule la page principale (App) force le viewport plein écran sans scroll body */
+/* Les pages footer, admin, dashboard scrollent normalement */
 
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: rgba(255,255,255,0.03); }
