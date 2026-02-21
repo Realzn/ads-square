@@ -2201,6 +2201,7 @@ function BoostTicker({ slots, authUser, userBookings, onBoost, onGoAdvertiser })
 
 function PublicView({ slots, isLive, onGoAdvertiser, onWaitlist, authUser, userBookings }) {
   const t = useT();
+  const THEMES = useThemes(); // translated labels (overwrites module-level THEMES locally)
   const containerRef  = useRef(null);
   const [containerW, setContainerW] = useState(0);
   const [containerH, setContainerH] = useState(0);
@@ -2305,7 +2306,7 @@ function PublicView({ slots, isLive, onGoAdvertiser, onWaitlist, authUser, userB
     // Theme filter: ne dimme que les blocs occupés qui ne matchent pas;
     // les blocs vides/indisponibles du tier restent à pleine opacité.
     if (filterTheme !== 'all') {
-      const theme = THEMES.find(t => t.id === filterTheme);
+      const theme = THEMES.find(th2 => th2.id === filterTheme);
       if (theme) s = s.filter(sl => sl.occ && theme.match?.(sl.tenant?.t, sl.tenant?.name, sl.tenant?.url));
     }
     return new Set(s.map(sl => sl.id));
@@ -2392,7 +2393,7 @@ function PublicView({ slots, isLive, onGoAdvertiser, onWaitlist, authUser, userB
               if (filterTier !== 'all') {
                 neonColor = TIER_COLOR[slot.tier];
               } else if (filterTheme !== 'all') {
-                const th = THEMES.find(t => t.id === filterTheme);
+                const th = THEMES.find(th2 => th2.id === filterTheme);
                 neonColor = th?.color || TIER_COLOR[slot.tier];
               }
             }
@@ -3173,8 +3174,8 @@ export default function App() {
     if (!url || !key) return;
     const today = new Date().toISOString().slice(0, 10);
     fetch(`${url}/rest/v1/slot_clicks?select=visitor_id,created_at&created_at=gte.${today}T00:00:00Z&event_type=eq.impression`, {
-      headers: { 'apikey': key, 'Authorization': `Bearer ${key}` }
-    }).then(r => r.json()).then(rows => {
+      headers: { 'apikey': key, 'Authorization': `Bearer ${key}`, 'Prefer': 'count=none' }
+    }).then(r => r.ok ? r.json() : []).then(rows => {
       if (!Array.isArray(rows)) return;
       const unique = rows.some(r => r.visitor_id)
         ? new Set(rows.map(r => r.visitor_id).filter(Boolean)).size
