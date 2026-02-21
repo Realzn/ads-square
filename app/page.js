@@ -219,7 +219,7 @@ function Modal({ onClose, width = 480, children, isMobile }) {
           border: `1px solid ${U.border2}`,
           borderRadius: isMobile ? '20px 20px 0 0' : 16,
           overflow: 'hidden',
-          overflowY: 'auto',
+          overflowY: 'hidden',
           maxHeight: isMobile ? '90vh' : '88vh',
           transform: entered ? 'translateY(0) scale(1)' : 'translateY(16px) scale(0.97)',
           transition: 'transform 0.25s cubic-bezier(0.22,1,0.36,1)',
@@ -384,6 +384,196 @@ function BoostModal({ onClose }) {
   );
 }
 
+
+// ─── BlockPreview ──────────────────────────────────────────────
+// Réplique exacte de BlockCell + BlockMedia pour le preview live.
+// Rendu identique pixel-perfect à ce qui apparaîtra sur la grille.
+function BlockPreview({ tier, blockForm, category, CATS, SOCIALS, MUSIC_PLATS }) {
+  const cat         = CATS.find(c => c.id === category) || CATS[2];
+  const selSocial   = SOCIALS.find(s => s.id === blockForm.social_network);
+  const selMusic    = MUSIC_PLATS.find(p => p.id === blockForm.music_platform);
+  const blockColor  = blockForm.primary_color || selSocial?.color || selMusic?.color || cat.color;
+  const bgColor     = blockForm.background_color || '#0d1828';
+  const hasImage    = !!blockForm.image_url;
+  const logoInitial = (blockForm.title || '?').charAt(0).toUpperCase();
+  const c           = TIER_COLOR[tier];
+
+  // Tailles de preview
+  const PREVIEW_SZ  = 160;   // bloc agrandi pour la colonne preview
+  const REAL_SZ     = TIER_SIZE[tier] || 11;
+  const r_preview   = tier === 'one' ? 16 : tier === 'ten' || tier === 'corner_ten' ? 14 : tier === 'hundred' ? 5 : 3;
+  const r_real      = tier === 'one' ? Math.round(REAL_SZ * 0.1) : tier === 'ten' || tier === 'corner_ten' ? Math.round(REAL_SZ * 0.09) : tier === 'hundred' ? 3 : 2;
+
+  // Label plateforme
+  const platformLabel = selSocial?.label || selMusic?.label || null;
+
+  // Render du contenu interne (BlockMedia logic)
+  function BlockContent({ sz, fontSize }) {
+    if (hasImage) return (
+      <img
+        src={blockForm.image_url}
+        alt=""
+        style={{ position:'absolute', inset:0, width:'100%', height:'100%', objectFit:'cover' }}
+        onError={e => e.target.style.display = 'none'}
+      />
+    );
+    return (
+      <div style={{ position:'absolute', inset:0, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:2, padding:3, background:bgColor, overflow:'hidden' }}>
+        <span style={{ color:blockColor, fontSize:Math.min(sz * 0.36, 42), fontWeight:900, lineHeight:1, fontFamily:F.h }}>
+          {selSocial?.e || selMusic?.e || cat.icon || logoInitial}
+        </span>
+        {sz >= 52 && blockForm.title && (
+          <span style={{ color:blockColor+'cc', fontSize:Math.min(sz * 0.12, 13), fontWeight:700, textAlign:'center', lineHeight:1.2, maxWidth:'90%', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+            {blockForm.title}
+          </span>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ display:'flex', flexDirection:'column', gap:20, alignItems:'center' }}>
+
+      {/* ── Label "APERÇU EN DIRECT" ── */}
+      <div style={{ display:'flex', alignItems:'center', gap:7, alignSelf:'flex-start' }}>
+        <div style={{ width:6, height:6, borderRadius:'50%', background:'#00e8a2', animation:'blink 1.5s infinite' }} />
+        <span style={{ fontSize:9, fontWeight:800, color:'#00e8a2', letterSpacing:'0.1em' }}>APERÇU EN DIRECT</span>
+      </div>
+
+      {/* ── Grande vue ── */}
+      <div style={{ position:'relative', width:PREVIEW_SZ, height:PREVIEW_SZ }}>
+        {/* Halo tier */}
+        <div style={{
+          position:'absolute', inset:-8, borderRadius:r_preview+6,
+          boxShadow:`0 0 40px ${blockColor}30, 0 0 80px ${blockColor}12`,
+          pointerEvents:'none',
+        }} />
+        {/* Bloc principal */}
+        <div style={{
+          width:PREVIEW_SZ, height:PREVIEW_SZ,
+          borderRadius:r_preview,
+          position:'relative', overflow:'hidden',
+          border:`1.5px solid ${blockColor}55`,
+          background:bgColor,
+          boxShadow:`0 0 0 1px ${blockColor}25, 0 8px 32px rgba(0,0,0,0.5)`,
+        }}>
+          <BlockContent sz={PREVIEW_SZ} />
+          {/* Badge catégorie en surimpression */}
+          <div style={{ position:'absolute', bottom:8, left:8, right:8, display:'flex', justifyContent:'space-between', alignItems:'flex-end', zIndex:3 }}>
+            {blockForm.slogan && (
+              <div style={{ fontSize:9, color:'rgba(255,255,255,0.55)', fontWeight:500, lineHeight:1.3, maxWidth:'70%', overflow:'hidden', display:'-webkit-box', WebkitLineClamp:2, WebkitBoxOrient:'vertical' }}>
+                {blockForm.slogan}
+              </div>
+            )}
+            <div style={{ fontSize:8, fontWeight:800, color:blockColor, padding:'2px 6px', background:`${blockColor}18`, borderRadius:3, border:`1px solid ${blockColor}35`, flexShrink:0 }}>
+              {cat.label.toUpperCase()}
+            </div>
+          </div>
+          {/* Overlay gradient bas */}
+          <div style={{ position:'absolute', bottom:0, left:0, right:0, height:60, background:`linear-gradient(to top, ${bgColor}cc, transparent)`, pointerEvents:'none' }} />
+        </div>
+
+        {/* Badge LIVE en haut à droite */}
+        <div style={{ position:'absolute', top:-8, right:-8, display:'flex', alignItems:'center', gap:4, padding:'3px 8px', borderRadius:20, background:'rgba(0,0,0,0.85)', border:`1px solid ${c}30`, backdropFilter:'blur(8px)' }}>
+          <div style={{ width:5, height:5, borderRadius:'50%', background:'#00e8a2', animation:'blink 1.5s infinite' }} />
+          <span style={{ fontSize:8, fontWeight:700, color:'rgba(255,255,255,0.7)', letterSpacing:'0.06em' }}>LIVE</span>
+        </div>
+      </div>
+
+      {/* ── Vue "contexte grille" — taille réelle entourée de voisins ── */}
+      <div style={{ display:'flex', flexDirection:'column', gap:6, alignItems:'center', width:'100%' }}>
+        <div style={{ fontSize:9, color:'rgba(255,255,255,0.25)', letterSpacing:'0.06em', fontWeight:600 }}>TAILLE RÉELLE SUR LA GRILLE</div>
+        <div style={{
+          padding:12,
+          borderRadius:10,
+          background:'#0a0a0a',
+          border:`1px solid ${U.border}`,
+          display:'flex', alignItems:'center', justifyContent:'center',
+          gap:3,
+          position:'relative',
+          overflow:'hidden',
+        }}>
+          {/* Grille de voisins simulés */}
+          {[0,1,2,3,4,5,6,7,8].map(i => {
+            const isCenter = i === 4;
+            const sz = REAL_SZ;
+            return (
+              <div key={i} style={{ display: i % 3 === 0 && i > 0 ? 'none' : 'block' }}>
+                {i % 3 === 0 && i > 0 ? null : (
+                  <div style={{
+                    width:sz, height:sz,
+                    borderRadius:r_real,
+                    background:isCenter ? bgColor : U.s2,
+                    border:`1px solid ${isCenter ? blockColor+'55' : U.border}`,
+                    position:'relative', overflow:'hidden',
+                    boxShadow: isCenter ? `0 0 ${sz*1.5}px ${blockColor}40` : 'none',
+                    flexShrink:0,
+                  }}>
+                    {isCenter && <BlockContent sz={sz} />}
+                    {!isCenter && sz >= 6 && (
+                      <div style={{ position:'absolute', inset:0, background:`${c}04` }} />
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* ── Vraie vue contexte grille en ligne ── */}
+      <div style={{ display:'flex', flexDirection:'column', gap:4, width:'100%' }}>
+        <div style={{
+          padding:'8px 10px',
+          borderRadius:8,
+          background:'#0a0a0a',
+          border:`1px solid ${U.border}`,
+          display:'flex', alignItems:'center', justifyContent:'center',
+          gap:2,
+          overflow:'hidden',
+        }}>
+          {Array.from({length:7}, (_,i) => {
+            const isCenter = i === 3;
+            const sz = REAL_SZ;
+            return (
+              <div key={i} style={{
+                width:sz, height:sz,
+                borderRadius:r_real,
+                flexShrink:0,
+                background:isCenter ? bgColor : (i % 2 === 0 ? U.s2 : '#0d0d0d'),
+                border:`1px solid ${isCenter ? blockColor+'60' : U.border}`,
+                position:'relative', overflow:'hidden',
+                transition:'all 0.2s',
+                boxShadow: isCenter ? `0 0 ${Math.max(4, sz)}px ${blockColor}50` : 'none',
+              }}>
+                {isCenter && <BlockContent sz={sz} />}
+              </div>
+            );
+          })}
+        </div>
+        <div style={{ fontSize:8, color:'rgba(255,255,255,0.18)', textAlign:'center', fontWeight:500 }}>
+          Simulation de voisinage sur la grille publique
+        </div>
+      </div>
+
+      {/* ── Infos recap ── */}
+      <div style={{ width:'100%', padding:'10px 12px', borderRadius:8, background:`${c}08`, border:`1px solid ${c}20` }}>
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:6 }}>
+          <div style={{ display:'inline-block', padding:'2px 7px', borderRadius:4, background:`${c}15`, border:`1px solid ${c}30`, color:c, fontSize:9, fontWeight:800, letterSpacing:'0.06em' }}>{TIER_LABEL[tier]}</div>
+          {platformLabel && (
+            <div style={{ fontSize:9, color:'rgba(255,255,255,0.4)', fontWeight:600 }}>{platformLabel}</div>
+          )}
+        </div>
+        <div style={{ fontSize:11, color:'rgba(255,255,255,0.5)', lineHeight:1.5 }}>
+          <span style={{ color:'rgba(255,255,255,0.7)', fontWeight:600 }}>{blockForm.title || '—'}</span>
+          {blockForm.slogan && <span> · {blockForm.slogan}</span>}
+        </div>
+      </div>
+
+    </div>
+  );
+}
+
 function CheckoutModal({ slot, onClose }) {
   const { isMobile } = useScreenSize();
   const t = useT();
@@ -467,8 +657,41 @@ function CheckoutModal({ slot, onClose }) {
   if (!slot) return null;
 
   return (
-    <Modal onClose={onClose} width={isMobile ? 360 : 520} isMobile={isMobile}>
-      <div style={{ padding: isMobile ? '20px 16px 28px' : '32px 36px 36px', maxHeight:'90vh', overflowY:'auto' }}>
+    <Modal onClose={onClose} width={820} isMobile={isMobile}>
+      {/* ── Layout 2 colonnes: form (gauche) + preview (droite) ── */}
+      <div style={{ display:'flex', flexDirection: isMobile ? 'column' : 'row', maxHeight:isMobile?'92vh':'88vh', overflow:'hidden' }}>
+
+        {/* ── Preview compacte mobile (bandeau haut) ── */}
+        {isMobile && (
+          <div style={{ flexShrink:0, padding:'12px 16px', borderBottom:`1px solid ${U.border}`, background:U.s2 }}>
+            <div style={{ display:'flex', alignItems:'center', gap:12 }}>
+              <div style={{ position:'relative', flexShrink:0 }}>
+                <div style={{ width:52, height:52, borderRadius:10, background:blockForm.background_color||'#0d1828', border:`1.5px solid ${blockColor}55`, position:'relative', overflow:'hidden', boxShadow:`0 0 14px ${blockColor}30` }}>
+                  {blockForm.image_url
+                    ? <img src={blockForm.image_url} alt="" style={{ position:'absolute', inset:0, width:'100%', height:'100%', objectFit:'cover' }} />
+                    : <div style={{ position:'absolute', inset:0, display:'flex', alignItems:'center', justifyContent:'center' }}>
+                        <span style={{ fontSize:20, fontWeight:900, color:blockColor, fontFamily:F.h }}>{selSocial?.e || selMusic?.e || cat.icon}</span>
+                      </div>
+                  }
+                </div>
+                <div style={{ position:'absolute', top:-4, right:-4, width:8, height:8, borderRadius:'50%', background:'#00e8a2', border:'1.5px solid #080808', animation:'blink 1.5s infinite' }} />
+              </div>
+              <div style={{ flex:1, minWidth:0 }}>
+                <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:2 }}>
+                  <span style={{ fontSize:8, fontWeight:800, color:'#00e8a2', letterSpacing:'0.08em' }}>APERÇU</span>
+                  <span style={{ padding:'1px 6px', borderRadius:3, background:`${c}15`, border:`1px solid ${c}30`, color:c, fontSize:8, fontWeight:800 }}>{TIER_LABEL[tier]}</span>
+                </div>
+                <div style={{ fontSize:13, fontWeight:700, color:blockColor, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                  {blockForm.title || <span style={{color:'rgba(255,255,255,0.25)'}}>Votre titre…</span>}
+                </div>
+                {blockForm.slogan && <div style={{ fontSize:10, color:'rgba(255,255,255,0.4)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{blockForm.slogan}</div>}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── Colonne GAUCHE : Formulaire ── */}
+        <div style={{ flex:1, padding: isMobile ? '16px 16px 28px' : '28px 28px 32px', overflowY:'auto', minWidth:0 }}>
 
         {/* Header */}
         <div style={{ marginBottom:20 }}>
@@ -615,7 +838,30 @@ function CheckoutModal({ slot, onClose }) {
           {loading ? 'Redirection vers Stripe…' : `Payer €${totalPrice}`}
         </button>
         <div style={{ marginTop:10, color:U.muted, fontSize:11, textAlign:'center' }}>{t('checkout.secure')}</div>
-      </div>
+        </div>{/* fin col gauche */}
+
+        {/* ── Colonne DROITE : Preview live (desktop seulement) ── */}
+        {!isMobile && (
+          <div style={{
+            width:280, flexShrink:0,
+            borderLeft:`1px solid ${U.border}`,
+            background:U.s2,
+            padding:'28px 20px',
+            overflowY:'auto',
+            display:'flex', flexDirection:'column', gap:0,
+          }}>
+            <BlockPreview
+              tier={tier}
+              blockForm={blockForm}
+              category={category}
+              CATS={CATS}
+              SOCIALS={SOCIALS}
+              MUSIC_PLATS={MUSIC_PLATS}
+            />
+          </div>
+        )}
+
+      </div>{/* fin layout 2col */}
     </Modal>
   );
 }
