@@ -10,7 +10,7 @@ function checkAdminAuth(request) {
   const secret = process.env.ADMIN_SECRET;
   // ADMIN_SECRET manquant → erreur de config (500), pas d'auth
   if (!secret) {
-    console.error('[Admin] ADMIN_SECRET non défini dans les variables d'environnement Cloudflare');
+    console.error("[Admin] ADMIN_SECRET non défini dans les variables d'environnement Cloudflare");
     return { error: 'ADMIN_SECRET manquant — ajoutez-le dans Cloudflare Pages → Settings → Environment variables', status: 500 };
   }
   if (!token || token !== secret) return { error: 'Non autorisé', status: 401 };
