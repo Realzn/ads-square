@@ -1547,6 +1547,103 @@ function HoverStatsBadge({ slot, sz }) {
   );
 }
 
+
+// ─── SlotWrapper — memo wrapper for each grid slot ──────────────────────────
+// Isolates the per-slot render: when filterTier/filterTheme changes,
+// only slots whose inFilter/neonColor actually changed re-render.
+// Eliminates 1369 wrapper div style objects + neon layers per render cycle.
+const SlotWrapper = memo(({
+  slot, colOffset, rowOffset, sz,
+  isFiltering, inFilter, neonColor,
+  onFocus, onSelect,
+}) => {
+  const wrapperOpacity = isFiltering ? (inFilter ? 1 : 0.05) : 1;
+  const isLargeBlock   = sz >= 40;
+
+  return (
+    <div
+      style={{
+        position:   'absolute',
+        left:        colOffset,
+        top:         rowOffset,
+        opacity:     wrapperOpacity,
+        transition: 'opacity 0.25s ease, transform 0.2s ease',
+        transform:   isFiltering && inFilter ? 'scale(1.04)' : 'scale(1)',
+        zIndex:      isFiltering && inFilter ? 2 : 1,
+      }}
+    >
+      <BlockCell
+        slot={slot}
+        isSelected={false}
+        onSelect={onSelect}
+        onFocus={onFocus}
+        sz={sz}
+        showStats={true}
+      />
+
+      {neonColor && (
+        <>
+          {/* Couche 1 — bordure néon nette */}
+          <div style={{
+            position: 'absolute', inset: 0, borderRadius: 'inherit',
+            boxShadow: `inset 0 0 0 ${isLargeBlock ? 2 : 1}px ${neonColor}`,
+            pointerEvents: 'none', zIndex: 6,
+          }} />
+
+          {/* Couche 2 — halo externe proche */}
+          <div style={{
+            position: 'absolute',
+            inset: isLargeBlock ? -3 : -2,
+            borderRadius: 'inherit',
+            boxShadow: `0 0 ${isLargeBlock ? 10 : 6}px ${isLargeBlock ? 4 : 2}px ${neonColor}70`,
+            pointerEvents: 'none', zIndex: 5,
+            animation: 'neonPulse 2.2s ease-in-out infinite',
+          }} />
+
+          {/* Couche 3 — glow diffus large (gros blocs seulement) */}
+          {isLargeBlock && (
+            <div style={{
+              position: 'absolute', inset: -8, borderRadius: 'inherit',
+              boxShadow: `0 0 28px 8px ${neonColor}35`,
+              pointerEvents: 'none', zIndex: 4,
+              animation: 'neonPulse 2.2s ease-in-out infinite',
+              animationDelay: '0.4s',
+            }} />
+          )}
+
+          {/* Couche 4 — teinte colorée (blocs vides/indisponibles) */}
+          {!slot.occ && (
+            <div style={{
+              position: 'absolute', inset: 0, borderRadius: 'inherit',
+              background: `${neonColor}12`,
+              pointerEvents: 'none', zIndex: 3,
+            }} />
+          )}
+
+          {/* Couche 5 — étiquette tier sur gros blocs libres */}
+          {!slot.occ && sz >= 48 && (
+            <div style={{
+              position: 'absolute', bottom: 4, left: '50%',
+              transform: 'translateX(-50%)',
+              fontSize: Math.max(7, sz * 0.1),
+              fontWeight: 800,
+              color: neonColor,
+              fontFamily: F.h,
+              letterSpacing: '0.04em',
+              textShadow: `0 0 8px ${neonColor}`,
+              pointerEvents: 'none', zIndex: 7,
+              whiteSpace: 'nowrap',
+            }}>
+              {TIER_LABEL[slot.tier]}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+});
+SlotWrapper.displayName = 'SlotWrapper';
+
 // BlockCell — mémoïsé, reçoit sa taille via sz prop
 const BlockCell = memo(({ slot, isSelected, onSelect, onFocus, sz: szProp, showStats }) => {
   const { tier, occ, tenant, hot } = slot;
@@ -1579,11 +1676,12 @@ const BlockCell = memo(({ slot, isSelected, onSelect, onFocus, sz: szProp, showS
     return () => obs.disconnect();
   }, [occ, tenant?.bookingId, slot.x, slot.y]);
 
-  const handleClick = () => {
+  const handleClick = useCallback(() => {
     if (occ) { onFocus(slot); return; }
     if (!available) { onFocus(slot); return; } // ouvre la modale "prochainement"
     onSelect(slot);
-  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [occ, available, onFocus, onSelect, slot.id]);
 
   return (
     <div
@@ -3400,6 +3498,10 @@ function PublicView({ slots, isLive, onGoAdvertiser, onWaitlist, authUser, userB
 
   const stats = useMemo(() => ({ occupied: slots.filter(s => s.occ).length, vacant: slots.filter(s => !s.occ).length }), [slots]);
 
+  // ── Stable references — prevent 1369 new closures per render ──
+  const NOOP_SELECT  = useCallback(() => {}, []);
+  const isFiltering  = filterTier !== 'all' || filterTheme !== 'all';
+
   const tierFilters = useMemo(() => [
     ['all', t('toolbar.all')],
     ['one', t('toolbar.epicenter')],
@@ -3470,7 +3572,7 @@ function PublicView({ slots, isLive, onGoAdvertiser, onWaitlist, authUser, userB
         <div style={{ position: 'relative', width: totalGridW, height: totalGridH, flexShrink: 0 }}>
           {slots.map(slot => {
             const inFilter  = filteredSlots.has(slot.id);
-            const isFiltering = filterTier !== 'all' || filterTheme !== 'all';
+            // isFiltering is hoisted above the map — stable per render, not per slot
 
             // ── Couleur néon selon le filtre actif ──────────────
             // Tier  → s'allume sur tous les blocs du tier sélectionné
@@ -3489,94 +3591,21 @@ function PublicView({ slots, isLive, onGoAdvertiser, onWaitlist, authUser, userB
               }
             }
 
-            // sz du bloc pour calibrer l'intensité du glow
             const sz = tierSizes[slot.tier] || 10;
 
-            // Opacité : hors filtre = très dim, dans filtre = pleine lumière
-            const wrapperOpacity = isFiltering ? (inFilter ? 1 : 0.05) : 1;
-
             return (
-              <div
+              <SlotWrapper
                 key={slot.id}
-                style={{
-                  position: 'absolute',
-                  left: colOffsets[slot.x],
-                  top: rowOffsets[slot.y],
-                  opacity: wrapperOpacity,
-                  transition: 'opacity 0.25s ease, transform 0.2s ease',
-                  // Légère montée des blocs en filtre pour sensation de "sélection"
-                  transform: isFiltering && inFilter ? 'scale(1.04)' : 'scale(1)',
-                  zIndex: isFiltering && inFilter ? 2 : 1,
-                }}
-              >
-                <BlockCell slot={slot} isSelected={false} onSelect={() => {}} onFocus={setFocusSlot} sz={tierSizes[slot.tier]} showStats={true} />
-
-                {/* ── Néon overlay multi-couches ── */}
-                {neonColor && (() => {
-                  const isLargeBlock = sz >= 40;
-                  const isMedium     = sz >= 20 && sz < 40;
-                  return (
-                    <>
-                      {/* Couche 1 — bordure néon nette */}
-                      <div style={{
-                        position: 'absolute', inset: 0, borderRadius: 'inherit',
-                        boxShadow: `inset 0 0 0 ${isLargeBlock ? 2 : 1}px ${neonColor}`,
-                        pointerEvents: 'none', zIndex: 6,
-                      }} />
-
-                      {/* Couche 2 — halo externe proche */}
-                      <div style={{
-                        position: 'absolute',
-                        inset: isLargeBlock ? -3 : -2,
-                        borderRadius: 'inherit',
-                        boxShadow: `0 0 ${isLargeBlock ? 10 : 6}px ${isLargeBlock ? 4 : 2}px ${neonColor}70`,
-                        pointerEvents: 'none', zIndex: 5,
-                        animation: 'neonPulse 2.2s ease-in-out infinite',
-                      }} />
-
-                      {/* Couche 3 — glow diffus large (gros blocs seulement) */}
-                      {isLargeBlock && (
-                        <div style={{
-                          position: 'absolute',
-                          inset: -8,
-                          borderRadius: 'inherit',
-                          boxShadow: `0 0 28px 8px ${neonColor}35`,
-                          pointerEvents: 'none', zIndex: 4,
-                          animation: 'neonPulse 2.2s ease-in-out infinite',
-                          animationDelay: '0.4s',
-                        }} />
-                      )}
-
-                      {/* Couche 4 — teinte colorée sur le fond du bloc (blocs vides/indisponibles) */}
-                      {!slot.occ && (
-                        <div style={{
-                          position: 'absolute', inset: 0, borderRadius: 'inherit',
-                          background: `${neonColor}12`,
-                          pointerEvents: 'none', zIndex: 3,
-                        }} />
-                      )}
-
-                      {/* Couche 5 — étiquette tier sur les gros blocs libres/indisponibles */}
-                      {!slot.occ && sz >= 48 && (
-                        <div style={{
-                          position: 'absolute', bottom: 4, left: '50%',
-                          transform: 'translateX(-50%)',
-                          fontSize: Math.max(7, sz * 0.1),
-                          fontWeight: 800,
-                          color: neonColor,
-                          fontFamily: F.h,
-                          letterSpacing: '0.04em',
-                          textShadow: `0 0 8px ${neonColor}`,
-                          pointerEvents: 'none', zIndex: 7,
-                          whiteSpace: 'nowrap',
-                        }}>
-                          {TIER_LABEL[slot.tier]}
-                        </div>
-                      )}
-                    </>
-                  );
-                })()}
-              </div>
+                slot={slot}
+                colOffset={colOffsets[slot.x]}
+                rowOffset={rowOffsets[slot.y]}
+                sz={sz}
+                isFiltering={isFiltering}
+                inFilter={inFilter}
+                neonColor={neonColor}
+                onFocus={setFocusSlot}
+                onSelect={NOOP_SELECT}
+              />
             );
           })}
         </div>
@@ -4157,6 +4186,10 @@ function LandingPage({ slots, onPublic, onAdvertiser, onWaitlist }) {
   const { isMobile } = useScreenSize();
   const t = useT();
   const stats = useMemo(() => ({ occupied: slots.filter(s => s.occ).length, vacant: slots.filter(s => !s.occ).length }), [slots]);
+
+  // ── Stable references — prevent 1369 new closures per render ──
+  const NOOP_SELECT  = useCallback(() => {}, []);
+  const isFiltering  = filterTier !== 'all' || filterTheme !== 'all';
   const [platformStats, setPlatformStats] = useState(null);
 
   useEffect(() => {
