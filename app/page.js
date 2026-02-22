@@ -4187,9 +4187,6 @@ function LandingPage({ slots, onPublic, onAdvertiser, onWaitlist }) {
   const t = useT();
   const stats = useMemo(() => ({ occupied: slots.filter(s => s.occ).length, vacant: slots.filter(s => !s.occ).length }), [slots]);
 
-  // ── Stable references — prevent 1369 new closures per render ──
-  const NOOP_SELECT  = useCallback(() => {}, []);
-  const isFiltering  = filterTier !== 'all' || filterTheme !== 'all';
   const [platformStats, setPlatformStats] = useState(null);
 
   useEffect(() => {
