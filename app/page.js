@@ -523,26 +523,100 @@ function BlockPreview({ tier, blockForm, category, CATS, SOCIALS, MUSIC_PLATS })
   // Label plateforme
   const platformLabel = selSocial?.label || selMusic?.label || null;
 
-  // Render du contenu interne (BlockMedia logic)
-  function BlockContent({ sz, fontSize }) {
-    if (hasImage) return (
-      <img
-        src={blockForm.image_url}
-        alt=""
-        style={{ position:'absolute', inset:0, width:'100%', height:'100%', objectFit:'cover' }}
-        onError={e => e.target.style.display = 'none'}
-      />
-    );
+  // Render du contenu interne — même logique que BlockMedia
+  function BlockContent({ sz }) {
+    const t = category;
+    const img = blockForm.image_url || '';
+    const c = blockColor;
+    const b = bgColor;
+    const l = logoInitial;
+    const name = blockForm.title || '';
+    const slogan = blockForm.slogan || '';
+    const social = blockForm.social_network || '';
+    const music = blockForm.music_platform || '';
+    const appStore = blockForm.app_store || '';
+
+    if (t === 'video') {
+      const btnSz = Math.min(sz * 0.42, 32);
+      return (
+        <div style={{ position:'absolute', inset:0, overflow:'hidden', background:b }}>
+          {img && <img src={img} alt="" style={{ position:'absolute', inset:0, width:'100%', height:'100%', objectFit:'cover', opacity:0.55 }} onError={e=>e.target.style.display='none'} />}
+          <div style={{ position:'absolute', inset:0, background:'linear-gradient(to bottom, rgba(0,0,0,0.2), rgba(0,0,0,0.6))' }} />
+          <div style={{ position:'absolute', inset:0, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:3 }}>
+            <div style={{ width:btnSz, height:btnSz, borderRadius:'50%', background:'rgba(0,0,0,0.6)', border:`${Math.max(1,btnSz*0.06)}px solid ${c}`, display:'flex', alignItems:'center', justifyContent:'center', backdropFilter:'blur(6px)', boxShadow:`0 0 ${btnSz*0.6}px ${c}70, 0 0 ${btnSz*1.2}px ${c}30` }}>
+              <span style={{ color:c, fontSize:Math.max(8,btnSz*0.38), lineHeight:1, paddingLeft:'12%' }}>▶</span>
+            </div>
+            {sz>=52&&name&&<span style={{ color:'rgba(255,255,255,0.85)', fontSize:Math.min(sz*0.1,9), fontWeight:700, textAlign:'center', maxWidth:'85%', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{name}</span>}
+          </div>
+        </div>
+      );
+    }
+    if (img && (t === 'image' || t === 'lifestyle' || t === 'brand' || t === 'clothing')) {
+      return (
+        <div style={{ position:'absolute', inset:0, overflow:'hidden' }}>
+          <img src={img} alt="" style={{ position:'absolute', inset:0, width:'100%', height:'100%', objectFit:'cover' }} onError={e=>e.target.style.display='none'} />
+          {t==='lifestyle'&&<div style={{ position:'absolute', inset:0, background:'linear-gradient(to top, rgba(0,0,0,0.78) 0%, rgba(0,0,0,0.1) 50%, transparent 100%)' }}>{sz>=52&&name&&<div style={{ position:'absolute', bottom:4, left:4, right:4, color:'#fff', fontSize:Math.min(sz*0.1,9), fontWeight:700, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{name}</div>}</div>}
+          {t==='brand'&&<div style={{ position:'absolute', inset:0, background:`linear-gradient(to top, ${b} 0%, transparent 55%)` }} />}
+          {t==='clothing'&&slogan&&sz>=26&&<div style={{ position:'absolute', bottom:3, right:3, padding:'2px 6px', borderRadius:3, background:'rgba(0,0,0,0.82)', color:'#fff', fontSize:Math.min(sz*0.11,10), fontWeight:800, backdropFilter:'blur(6px)', border:'1px solid rgba(255,255,255,0.18)' }}>{slogan.slice(0,14)}</div>}
+        </div>
+      );
+    }
+    if (t === 'social') {
+      const icon = SOCIAL_ICONS_MAP[social] || selSocial?.e || '⊕';
+      const col  = SOCIAL_COLORS_MAP[social] || c;
+      return (
+        <div style={{ position:'absolute', inset:0, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:1, padding:2, overflow:'hidden',
+          background:`radial-gradient(circle at 50% 45%, ${col}28 0%, ${col}0a 55%, ${b} 100%)` }}>
+          {sz>=11&&<span style={{ fontSize:Math.min(sz*0.52,36), lineHeight:1, filter:`drop-shadow(0 0 ${Math.min(sz*0.15,8)}px ${col}90)` }}>{icon}</span>}
+          {sz>=44&&name&&<span style={{ color:col, fontSize:Math.min(sz*0.1,9), fontWeight:700, textAlign:'center', maxWidth:'90%', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', marginTop:1 }}>{name}</span>}
+        </div>
+      );
+    }
+    if (t === 'music') {
+      const icon = MUSIC_ICONS_MAP[music] || selMusic?.e || '🎵';
+      const col  = MUSIC_COLORS_MAP[music] || c;
+      const bars=[0.55,1,0.7,0.9,0.45,0.8]; const barH=Math.min(sz*0.2,16); const barW=Math.max(1.5,sz*0.038);
+      return (
+        <div style={{ position:'absolute', inset:0, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:Math.max(1,sz*0.04), padding:2, overflow:'hidden',
+          background:`radial-gradient(ellipse at 50% 35%, ${col}22 0%, ${col}05 60%, ${b} 100%)` }}>
+          {sz>=11&&<span style={{ color:col, fontSize:Math.min(sz*0.46,30), lineHeight:1, fontWeight:900, filter:`drop-shadow(0 0 ${Math.min(sz*0.12,6)}px ${col}80)` }}>{icon}</span>}
+          {sz>=28&&<div style={{ display:'flex', alignItems:'flex-end', gap:Math.max(1,barW*0.4), height:barH }}>{bars.map((h,i)=><div key={i} style={{ width:barW, borderRadius:barW, background:col, height:barH*h, animation:`eqBar${i%5} ${0.38+i*0.11}s ease-in-out infinite alternate`, boxShadow:`0 0 ${barW*1.5}px ${col}70` }} />)}</div>}
+          {sz>=52&&name&&<span style={{ color:col+'cc', fontSize:Math.min(sz*0.09,8), fontWeight:700, textAlign:'center', maxWidth:'92%', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{name}</span>}
+        </div>
+      );
+    }
+    if (t === 'app') {
+      const storeCol = APP_STORE_COLORS[appStore] || c;
+      const storeLbl = appStore==='app_store'?'🍎':appStore==='google_play'?'▶':'🌐';
+      const iconSz=Math.min(sz*0.54,40);
+      return (
+        <div style={{ position:'absolute', inset:0, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:Math.max(1,sz*0.04), padding:3, background:`${storeCol}0a`, overflow:'hidden' }}>
+          <div style={{ position:'absolute', inset:0, background:`radial-gradient(circle at 50% 40%, ${storeCol}18 0%, transparent 65%)` }} />
+          {img?<img src={img} alt="" style={{ width:iconSz, height:iconSz, borderRadius:iconSz*0.22, objectFit:'cover', border:`1.5px solid ${storeCol}40`, boxShadow:`0 ${iconSz*0.08}px ${iconSz*0.3}px rgba(0,0,0,0.5)`, position:'relative' }} onError={e=>e.target.style.display='none'} />
+              :sz>=20&&<div style={{ width:iconSz, height:iconSz, borderRadius:iconSz*0.22, background:`${storeCol}22`, border:`1.5px solid ${storeCol}55`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:iconSz*0.42, fontWeight:900, color:storeCol, fontFamily:F.h, position:'relative' }}>{l}</div>}
+          {sz>=26&&<div style={{ position:'relative', display:'flex', alignItems:'center', gap:2, padding:`${Math.max(1,sz*0.03)}px ${Math.max(2,sz*0.06)}px`, borderRadius:Math.max(2,sz*0.04), background:`${storeCol}20`, border:`1px solid ${storeCol}40` }}>
+            <span style={{ fontSize:Math.min(sz*0.12,9), lineHeight:1 }}>{storeLbl}</span>
+            {sz>=44&&<span style={{ color:storeCol, fontSize:Math.min(sz*0.09,8), fontWeight:700 }}>{appStore==='app_store'?'App Store':appStore==='google_play'?'Google Play':'Web'}</span>}
+          </div>}
+        </div>
+      );
+    }
+    if (t === 'text') {
+      const pad=Math.max(3,sz*0.08);
+      return (
+        <div style={{ position:'absolute', inset:0, display:'flex', flexDirection:'column', justifyContent:'center', padding:pad, background:b, overflow:'hidden' }}>
+          {sz>=20&&<div style={{ width:'45%', height:Math.max(1,sz*0.025), background:`linear-gradient(90deg, ${c}80, ${c}20)`, marginBottom:Math.max(2,sz*0.05), borderRadius:1 }} />}
+          {sz>=24&&<div style={{ color:c, fontSize:Math.min(sz*0.14,11), fontWeight:800, lineHeight:1.25, overflow:'hidden', display:'-webkit-box', WebkitLineClamp:sz>=56?3:2, WebkitBoxOrient:'vertical', letterSpacing:'-0.01em' }}>{name||'Votre publication'}</div>}
+          {sz>=64&&slogan&&<div style={{ color:`${c}60`, fontSize:Math.min(sz*0.09,8), marginTop:sz*0.04, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{slogan}</div>}
+          {sz>=30&&<div style={{ width:'28%', height:Math.max(1,sz*0.02), background:`linear-gradient(90deg, ${c}40, transparent)`, marginTop:Math.max(2,sz*0.05), borderRadius:1 }} />}
+        </div>
+      );
+    }
+    if (img) return <img src={img} alt="" style={{ position:'absolute', inset:0, width:'100%', height:'100%', objectFit:'cover' }} onError={e=>e.target.style.display='none'} />;
     return (
       <div style={{ position:'absolute', inset:0, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:2, padding:3, background:bgColor, overflow:'hidden' }}>
-        <span style={{ color:blockColor, fontSize:Math.min(sz * 0.36, 42), fontWeight:900, lineHeight:1, fontFamily:F.h }}>
-          {selSocial?.e || selMusic?.e || cat.icon || logoInitial}
-        </span>
-        {sz >= 52 && blockForm.title && (
-          <span style={{ color:blockColor+'cc', fontSize:Math.min(sz * 0.12, 13), fontWeight:700, textAlign:'center', lineHeight:1.2, maxWidth:'90%', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
-            {blockForm.title}
-          </span>
-        )}
+        <span style={{ color:blockColor, fontSize:Math.min(sz*0.36,42), fontWeight:900, lineHeight:1, fontFamily:F.h }}>{selSocial?.e||selMusic?.e||cat.icon||logoInitial}</span>
+        {sz>=52&&name&&<span style={{ color:blockColor+'cc', fontSize:Math.min(sz*0.12,13), fontWeight:700, textAlign:'center', lineHeight:1.2, maxWidth:'90%', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{name}</span>}
       </div>
     );
   }
@@ -1195,28 +1269,40 @@ function CheckoutModal({ slot, onClose }) {
 
 // ─── Block rendering ───────────────────────────────────────────
 
+const SOCIAL_ICONS_MAP  = { instagram:'📸', tiktok:'🎵', x:'✕', youtube:'▶', linkedin:'💼', snapchat:'👻', twitch:'🎮', discord:'💬', facebook:'👍', pinterest:'📌' };
+const SOCIAL_COLORS_MAP = { instagram:'#e1306c', tiktok:'#69c9d0', x:'#1d9bf0', youtube:'#ff0000', linkedin:'#0a66c2', snapchat:'#fffc00', twitch:'#9146ff', discord:'#5865f2', facebook:'#0082fb', pinterest:'#e60023' };
+const MUSIC_ICONS_MAP   = { spotify:'🎵', apple_music:'🍎', soundcloud:'☁', deezer:'🎶', youtube_music:'▶', bandcamp:'🎸' };
+const MUSIC_COLORS_MAP  = { spotify:'#1ed760', apple_music:'#fc3c44', soundcloud:'#ff5500', deezer:'#a238ff', youtube_music:'#ff0000', bandcamp:'#1da0c3' };
+const APP_STORE_LABELS  = { app_store:'🍎 App Store', google_play:'▶ Google Play', web:'🌐 Web' };
+const APP_STORE_COLORS  = { app_store:'#007aff', google_play:'#01875f', web:'#6366f1' };
+
 function BlockMedia({ tenant, tier }) {
   const sz = TIER_SIZE[tier] || 56;
   if (!tenant) return null;
   const { t, img, c, b, l, name, slogan, social, music, appStore } = tenant;
 
-  const SOCIAL_ICONS  = { instagram:'📸', tiktok:'🎵', x:'✕', youtube:'▶', linkedin:'💼', snapchat:'👻', twitch:'🎮', discord:'💬' };
-  const MUSIC_ICONS   = { spotify:'♪', apple_music:'🍎', soundcloud:'☁', deezer:'≋', youtube_music:'▶', bandcamp:'🎸' };
-  const MUSIC_COLORS  = { spotify:'#1ed760', apple_music:'#fc3c44', soundcloud:'#ff5500', deezer:'#a238ff', youtube_music:'#ff0000', bandcamp:'#1da0c3' };
-  const SOCIAL_COLORS = { instagram:'#e1306c', tiktok:'#69c9d0', x:'#1d9bf0', youtube:'#ff0000', linkedin:'#0a66c2', snapchat:'#fffc00', twitch:'#9146ff', discord:'#5865f2' };
-
-  // ── VIDÉO : thumbnail + overlay + ▶ ──────────────────────────
+  // ── VIDÉO : thumbnail en fond + overlay sombre + bouton ▶ circulaire glow
   if (t === 'video') {
+    const btnSz = Math.min(sz * 0.42, 32);
     return (
       <div style={{ position:'absolute', inset:0, overflow:'hidden', background:b||'#0a0a0a' }}>
-        {img && <img src={img} alt={name||''} style={{ position:'absolute', inset:0, width:'100%', height:'100%', objectFit:'cover', opacity:0.65 }} onError={e=>e.target.style.display='none'} />}
-        <div style={{ position:'absolute', inset:0, background:`linear-gradient(135deg,${b||'#0a0a0a'}88,transparent)` }} />
+        {img && <img src={img} alt={name||''} style={{ position:'absolute', inset:0, width:'100%', height:'100%', objectFit:'cover', opacity:0.55 }} onError={e=>e.target.style.display='none'} />}
+        {/* overlay sombre dégradé */}
+        <div style={{ position:'absolute', inset:0, background:`linear-gradient(to bottom, rgba(0,0,0,0.2) 0%, rgba(0,0,0,0.6) 100%)` }} />
         {sz >= 16 && (
-          <div style={{ position:'absolute', inset:0, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:2 }}>
-            <div style={{ width:Math.min(sz*0.38,28), height:Math.min(sz*0.38,28), borderRadius:'50%', background:'rgba(0,0,0,0.55)', border:`1.5px solid ${c}80`, display:'flex', alignItems:'center', justifyContent:'center', backdropFilter:'blur(4px)' }}>
-              <span style={{ color:c, fontSize:Math.min(sz*0.22,16), lineHeight:1, paddingLeft:'10%' }}>▶</span>
+          <div style={{ position:'absolute', inset:0, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:3 }}>
+            {/* bouton ▶ circulaire avec glow */}
+            <div style={{
+              width:btnSz, height:btnSz, borderRadius:'50%',
+              background:'rgba(0,0,0,0.6)',
+              border:`${Math.max(1,btnSz*0.06)}px solid ${c}`,
+              display:'flex', alignItems:'center', justifyContent:'center',
+              backdropFilter:'blur(6px)',
+              boxShadow:`0 0 ${btnSz*0.6}px ${c}70, 0 0 ${btnSz*1.2}px ${c}30`,
+            }}>
+              <span style={{ color:c, fontSize:Math.max(8, btnSz*0.38), lineHeight:1, paddingLeft:'12%' }}>▶</span>
             </div>
-            {sz >= 52 && <span style={{ color:'rgba(255,255,255,0.75)', fontSize:Math.min(sz*0.1,9), fontWeight:700, textAlign:'center', maxWidth:'85%', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', marginTop:2 }}>{name}</span>}
+            {sz >= 52 && <span style={{ color:'rgba(255,255,255,0.85)', fontSize:Math.min(sz*0.1,9), fontWeight:700, textAlign:'center', maxWidth:'85%', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{name}</span>}
           </div>
         )}
       </div>
@@ -1228,84 +1314,115 @@ function BlockMedia({ tenant, tier }) {
     return (
       <div style={{ position:'absolute', inset:0, overflow:'hidden' }}>
         <img src={img} alt={name||''} style={{ position:'absolute', inset:0, width:'100%', height:'100%', objectFit:'cover' }} onError={e=>e.target.style.display='none'} />
-        {/* Prix badge pour vêtements */}
-        {t === 'clothing' && slogan && sz >= 40 && (
-          <div style={{ position:'absolute', bottom:3, right:3, padding:'2px 5px', borderRadius:3, background:'rgba(0,0,0,0.75)', color:'#fff', fontSize:Math.min(sz*0.1,9), fontWeight:800, backdropFilter:'blur(4px)' }}>{slogan.slice(0,12)}</div>
-        )}
-        {/* Gradient + nom pour lifestyle */}
-        {t === 'lifestyle' && sz >= 40 && (
-          <div style={{ position:'absolute', inset:0, background:'linear-gradient(to top, rgba(0,0,0,0.72) 0%, transparent 55%)' }}>
+        {/* Gradient bas pour lifestyle */}
+        {t === 'lifestyle' && (
+          <div style={{ position:'absolute', inset:0, background:'linear-gradient(to top, rgba(0,0,0,0.78) 0%, rgba(0,0,0,0.1) 50%, transparent 100%)' }}>
             {sz >= 52 && <div style={{ position:'absolute', bottom:4, left:4, right:4, color:'#fff', fontSize:Math.min(sz*0.1,9), fontWeight:700, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{name}</div>}
           </div>
         )}
-        {/* Overlay marque */}
+        {/* Overlay dégradé marque */}
         {t === 'brand' && (
-          <div style={{ position:'absolute', inset:0, background:`linear-gradient(to top, ${b||'rgba(0,0,0,0.6)'} 0%, transparent 60%)` }} />
+          <div style={{ position:'absolute', inset:0, background:`linear-gradient(to top, ${b||'rgba(0,0,0,0.65)'} 0%, transparent 55%)` }} />
+        )}
+        {/* Badge prix pour vêtements */}
+        {t === 'clothing' && slogan && sz >= 26 && (
+          <div style={{
+            position:'absolute', bottom:3, right:3,
+            padding:`${Math.max(1,sz*0.04)}px ${Math.max(3,sz*0.08)}px`,
+            borderRadius:Math.max(2,sz*0.04),
+            background:'rgba(0,0,0,0.82)',
+            color:'#fff', fontSize:Math.min(sz*0.11,10), fontWeight:800,
+            backdropFilter:'blur(6px)',
+            border:'1px solid rgba(255,255,255,0.18)',
+            lineHeight:1.2,
+          }}>{slogan.slice(0,14)}</div>
         )}
       </div>
     );
   }
 
-  // ── RÉSEAUX SOCIAUX ───────────────────────────────────────────
+  // ── RÉSEAUX SOCIAUX : fond radial couleur plateforme + grande icône ─
   if (t === 'social') {
-    const icon = SOCIAL_ICONS[social] || '⊕';
-    const col  = SOCIAL_COLORS[social] || c;
+    const icon = SOCIAL_ICONS_MAP[social] || '⊕';
+    const col  = SOCIAL_COLORS_MAP[social] || c;
     return (
-      <div style={{ position:'absolute', inset:0, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:1, padding:3, background:b||`${col}10`, overflow:'hidden' }}>
-        <div style={{ position:'absolute', inset:0, background:`radial-gradient(circle at 50% 40%, ${col}15, transparent 70%)` }} />
-        {sz >= 16 && <span style={{ fontSize:Math.min(sz*0.44,30), lineHeight:1, position:'relative' }}>{icon}</span>}
-        {sz >= 44 && <span style={{ color:col, fontSize:Math.min(sz*0.1,9), fontWeight:700, textAlign:'center', maxWidth:'90%', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', position:'relative' }}>{name}</span>}
+      <div style={{ position:'absolute', inset:0, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:1, padding:2, overflow:'hidden',
+        background:`radial-gradient(circle at 50% 45%, ${col}28 0%, ${col}0a 55%, ${b||'#0a0a14'} 100%)` }}>
+        {sz >= 11 && <span style={{ fontSize:Math.min(sz*0.52,36), lineHeight:1, position:'relative', filter:`drop-shadow(0 0 ${Math.min(sz*0.15,8)}px ${col}90)` }}>{icon}</span>}
+        {sz >= 44 && <span style={{ color:col, fontSize:Math.min(sz*0.1,9), fontWeight:700, textAlign:'center', maxWidth:'90%', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', position:'relative', marginTop:1 }}>{name}</span>}
       </div>
     );
   }
 
-  // ── MUSIQUE : icône + barres égaliseur ────────────────────────
+  // ── MUSIQUE : icône plateforme colorée + barres égaliseur animées ─
   if (t === 'music') {
-    const icon = MUSIC_ICONS[music] || '♪';
-    const col  = MUSIC_COLORS[music] || c;
-    const bars = [0.6,1,0.75,0.9,0.5];
-    const barH = Math.min(sz * 0.18, 14);
+    const icon = MUSIC_ICONS_MAP[music] || '🎵';
+    const col  = MUSIC_COLORS_MAP[music] || c;
+    const bars = [0.55, 1, 0.7, 0.9, 0.45, 0.8];
+    const barH = Math.min(sz * 0.2, 16);
+    const barW = Math.max(1.5, sz * 0.038);
     return (
-      <div style={{ position:'absolute', inset:0, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:2, padding:3, background:b||`${col}08`, overflow:'hidden' }}>
-        <div style={{ position:'absolute', inset:0, background:`radial-gradient(ellipse at 50% 30%, ${col}18, transparent 65%)` }} />
-        {sz >= 16 && <span style={{ color:col, fontSize:Math.min(sz*0.4,26), lineHeight:1, fontWeight:900, position:'relative' }}>{icon}</span>}
-        {sz >= 36 && (
-          <div style={{ display:'flex', alignItems:'flex-end', gap:Math.max(1, sz*0.02), height:barH, position:'relative' }}>
+      <div style={{ position:'absolute', inset:0, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:Math.max(1,sz*0.04), padding:2, overflow:'hidden',
+        background:`radial-gradient(ellipse at 50% 35%, ${col}22 0%, ${col}05 60%, ${b||'#0a0a14'} 100%)` }}>
+        {sz >= 11 && <span style={{ color:col, fontSize:Math.min(sz*0.46,30), lineHeight:1, fontWeight:900, position:'relative', filter:`drop-shadow(0 0 ${Math.min(sz*0.12,6)}px ${col}80)` }}>{icon}</span>}
+        {sz >= 28 && (
+          <div style={{ display:'flex', alignItems:'flex-end', gap:Math.max(1, barW*0.4), height:barH, position:'relative' }}>
             {bars.map((h,i) => (
-              <div key={i} style={{ width:Math.max(1,sz*0.04), borderRadius:1, background:col, opacity:0.7,
+              <div key={i} style={{ width:barW, borderRadius:barW, background:col,
                 height: barH * h,
-                animation: `eqBar${i} ${0.4 + i*0.12}s ease-in-out infinite alternate` }} />
+                animation: `eqBar${i % 5} ${0.38 + i*0.11}s ease-in-out infinite alternate`,
+                boxShadow:`0 0 ${barW*1.5}px ${col}70`,
+              }} />
             ))}
           </div>
         )}
-        {sz >= 52 && <span style={{ color:col+'bb', fontSize:Math.min(sz*0.1,9), fontWeight:700, textAlign:'center', maxWidth:'90%', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', position:'relative' }}>{name}</span>}
+        {sz >= 52 && <span style={{ color:col+'cc', fontSize:Math.min(sz*0.09,8), fontWeight:700, textAlign:'center', maxWidth:'92%', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', position:'relative' }}>{name}</span>}
       </div>
     );
   }
 
-  // ── APP : icône arrondie + badge store ────────────────────────
+  // ── APP : app icon arrondie style App Store + badge store en bas ─
   if (t === 'app') {
-    const storeLabel = appStore === 'ios' ? '🍎' : appStore === 'android' ? '🤖' : '⬡';
+    const storeCol = APP_STORE_COLORS[appStore] || c;
+    const storeLbl = appStore === 'app_store' ? '🍎' : appStore === 'google_play' ? '▶' : '🌐';
+    const iconSz = Math.min(sz * 0.54, 40);
     return (
-      <div style={{ position:'absolute', inset:0, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:2, padding:3, background:b||'transparent', overflow:'hidden' }}>
+      <div style={{ position:'absolute', inset:0, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:Math.max(1,sz*0.04), padding:3, background:b||`${storeCol}0a`, overflow:'hidden' }}>
+        <div style={{ position:'absolute', inset:0, background:`radial-gradient(circle at 50% 40%, ${storeCol}18 0%, transparent 65%)` }} />
         {img
-          ? <img src={img} alt="" style={{ width:Math.min(sz*0.55,38), height:Math.min(sz*0.55,38), borderRadius:Math.min(sz*0.12,9), objectFit:'cover', border:`1px solid ${c}30` }} onError={e=>e.target.style.display='none'} />
-          : sz >= 24 && <div style={{ width:Math.min(sz*0.52,36), height:Math.min(sz*0.52,36), borderRadius:Math.min(sz*0.12,9), background:`${c}20`, border:`1.5px solid ${c}50`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:Math.min(sz*0.24,18), fontWeight:900, color:c, fontFamily:F.h }}>{l}</div>
+          ? <img src={img} alt="" style={{ width:iconSz, height:iconSz, borderRadius:iconSz*0.22, objectFit:'cover',
+              border:`1.5px solid ${storeCol}40`,
+              boxShadow:`0 ${iconSz*0.08}px ${iconSz*0.3}px rgba(0,0,0,0.5), 0 0 ${iconSz*0.2}px ${storeCol}30`,
+              position:'relative'
+            }} onError={e=>e.target.style.display='none'} />
+          : sz >= 20 && <div style={{ width:iconSz, height:iconSz, borderRadius:iconSz*0.22, background:`${storeCol}22`,
+              border:`1.5px solid ${storeCol}55`,
+              display:'flex', alignItems:'center', justifyContent:'center',
+              fontSize:iconSz*0.42, fontWeight:900, color:storeCol, fontFamily:F.h,
+              boxShadow:`0 ${iconSz*0.08}px ${iconSz*0.3}px rgba(0,0,0,0.4)`,
+              position:'relative'
+            }}>{l}</div>
         }
-        {sz >= 32 && <div style={{ fontSize:Math.min(sz*0.14,10), lineHeight:1 }}>{storeLabel}</div>}
-        {sz >= 52 && <span style={{ color:c+'bb', fontSize:Math.min(sz*0.1,9), fontWeight:700, textAlign:'center', maxWidth:'90%', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{name}</span>}
+        {sz >= 26 && (
+          <div style={{ position:'relative', display:'flex', alignItems:'center', gap:2, padding:`${Math.max(1,sz*0.03)}px ${Math.max(2,sz*0.06)}px`, borderRadius:Math.max(2,sz*0.04), background:`${storeCol}20`, border:`1px solid ${storeCol}40` }}>
+            <span style={{ fontSize:Math.min(sz*0.12,9), lineHeight:1 }}>{storeLbl}</span>
+            {sz >= 44 && <span style={{ color:storeCol, fontSize:Math.min(sz*0.09,8), fontWeight:700, lineHeight:1 }}>{appStore === 'app_store' ? 'App Store' : appStore === 'google_play' ? 'Google Play' : 'Web'}</span>}
+          </div>
+        )}
+        {sz >= 56 && <span style={{ color:storeCol+'bb', fontSize:Math.min(sz*0.09,8), fontWeight:700, textAlign:'center', maxWidth:'90%', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', position:'relative' }}>{name}</span>}
       </div>
     );
   }
 
-  // ── PUBLICATION ───────────────────────────────────────────────
+  // ── PUBLICATION : titre typographié + lignes de séparation ───
   if (t === 'text') {
+    const pad = Math.max(3, sz * 0.08);
     return (
-      <div style={{ position:'absolute', inset:0, display:'flex', flexDirection:'column', justifyContent:'center', padding:Math.max(3, sz*0.07), background:b||'transparent', overflow:'hidden' }}>
-        {sz >= 24 && <div style={{ width:'40%', height:1, background:`${c}60`, marginBottom:Math.max(2,sz*0.04), borderRadius:1 }} />}
-        {sz >= 28 && <div style={{ color:c, fontSize:Math.min(sz*0.13,10), fontWeight:800, lineHeight:1.3, overflow:'hidden', display:'-webkit-box', WebkitLineClamp:sz >= 56 ? 3 : 2, WebkitBoxOrient:'vertical' }}>{name}</div>}
-        {sz >= 60 && slogan && <div style={{ color:`${c}66`, fontSize:Math.min(sz*0.1,8), marginTop:2, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{slogan}</div>}
-        {sz >= 40 && <div style={{ width:'25%', height:1, background:`${c}30`, marginTop:Math.max(2,sz*0.04), borderRadius:1 }} />}
+      <div style={{ position:'absolute', inset:0, display:'flex', flexDirection:'column', justifyContent:'center', padding:pad, background:b||'transparent', overflow:'hidden' }}>
+        {sz >= 20 && <div style={{ width:'45%', height:Math.max(1, sz*0.025), background:`linear-gradient(90deg, ${c}80, ${c}20)`, marginBottom:Math.max(2,sz*0.05), borderRadius:1 }} />}
+        {sz >= 24 && <div style={{ color:c, fontSize:Math.min(sz*0.14,11), fontWeight:800, lineHeight:1.25, overflow:'hidden', display:'-webkit-box', WebkitLineClamp:sz >= 56 ? 3 : 2, WebkitBoxOrient:'vertical', letterSpacing:'-0.01em' }}>{name}</div>}
+        {sz >= 64 && slogan && <div style={{ color:`${c}60`, fontSize:Math.min(sz*0.09,8), marginTop:sz*0.04, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', lineHeight:1.3 }}>{slogan}</div>}
+        {sz >= 30 && <div style={{ width:'28%', height:Math.max(1, sz*0.02), background:`linear-gradient(90deg, ${c}40, transparent)`, marginTop:Math.max(2,sz*0.05), borderRadius:1 }} />}
       </div>
     );
   }
@@ -2314,6 +2431,131 @@ function ShareBlocButton({ x, y, name, slogan }) {
   );
 }
 
+// ─── PreviewPlayer — mini player 30s pour vidéo & musique ──────
+function PreviewPlayer({ tenant, isMobile }) {
+  const [open, setOpen] = useState(false);
+  const url = tenant?.url || '';
+  const c   = tenant?.c || '#00d9f5';
+  const t   = tenant?.t;
+
+  // Résoudre l'URL d'embed selon la plateforme
+  let embedUrl = null;
+  let embedH   = 80;
+  let label    = null;
+  let icon     = null;
+
+  if (t === 'video') {
+    const yt    = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([A-Za-z0-9_-]+)/);
+    const vimeo = url.match(/vimeo\.com\/(\d+)/);
+    const tt    = url.match(/tiktok\.com\/@[^/]+\/video\/(\d+)/);
+    if (yt) {
+      embedUrl = `https://www.youtube.com/embed/${yt[1]}?autoplay=1&start=0&end=30&rel=0&modestbranding=1`;
+      embedH   = isMobile ? 200 : 240;
+      label    = 'Aperçu 30s — YouTube';
+      icon     = '▶';
+    } else if (vimeo) {
+      embedUrl = `https://player.vimeo.com/video/${vimeo[1]}?autoplay=1#t=0,30`;
+      embedH   = isMobile ? 200 : 240;
+      label    = 'Aperçu 30s — Vimeo';
+      icon     = '▶';
+    } else if (tt) {
+      embedUrl = `https://www.tiktok.com/embed/v2/${tt[1]}`;
+      embedH   = isMobile ? 320 : 380;
+      label    = 'Aperçu TikTok';
+      icon     = '🎵';
+    }
+  } else if (t === 'music') {
+    const spotify  = url.match(/spotify\.com\/(track|album|playlist)\/([A-Za-z0-9]+)/);
+    const sc       = url.includes('soundcloud.com');
+    const ytm      = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([A-Za-z0-9_-]+)/);
+    const deezer   = url.match(/deezer\.com\/[a-z]+\/track\/(\d+)/);
+    if (spotify) {
+      embedUrl = `https://open.spotify.com/embed/${spotify[1]}/${spotify[2]}?utm_source=generator&theme=0`;
+      embedH   = 152;
+      label    = 'Écouter sur Spotify';
+      icon     = '🎵';
+    } else if (sc) {
+      embedUrl = `https://w.soundcloud.com/player/?url=${encodeURIComponent(url)}&color=%231ed760&auto_play=false&hide_related=true&show_comments=false&show_user=true&show_reposts=false&show_teaser=false`;
+      embedH   = 80;
+      label    = 'Écouter sur SoundCloud';
+      icon     = '☁';
+    } else if (ytm) {
+      embedUrl = `https://www.youtube.com/embed/${ytm[1]}?autoplay=1&start=0&end=30&rel=0&modestbranding=1`;
+      embedH   = isMobile ? 180 : 200;
+      label    = 'Aperçu 30s — YouTube Music';
+      icon     = '▶';
+    } else if (deezer) {
+      embedUrl = `https://widget.deezer.com/widget/dark/track/${deezer[1]}`;
+      embedH   = 100;
+      label    = 'Écouter sur Deezer';
+      icon     = '🎶';
+    }
+  }
+
+  if (!embedUrl) return null;
+
+  return (
+    <div style={{ marginBottom: 16 }}>
+      {!open ? (
+        // ── Bouton "Aperçu" fermé ──
+        <button
+          onClick={() => setOpen(true)}
+          style={{
+            width: '100%', display: 'flex', alignItems: 'center', gap: 10,
+            padding: '11px 16px', borderRadius: 10,
+            background: `${c}10`, border: `1.5px solid ${c}35`,
+            color: '#fff', cursor: 'pointer', fontFamily: F.b,
+            transition: 'background 0.15s, border-color 0.15s',
+          }}
+          onMouseEnter={e => { e.currentTarget.style.background = `${c}1e`; e.currentTarget.style.borderColor = `${c}60`; }}
+          onMouseLeave={e => { e.currentTarget.style.background = `${c}10`; e.currentTarget.style.borderColor = `${c}35`; }}
+        >
+          {/* Icône cercle */}
+          <div style={{ width: 36, height: 36, borderRadius: '50%', background: c, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: `0 0 16px ${c}60` }}>
+            <span style={{ fontSize: 16, color: '#000', paddingLeft: t === 'video' ? '12%' : 0 }}>{icon}</span>
+          </div>
+          <div style={{ flex: 1, textAlign: 'left' }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: '#fff', lineHeight: 1.2 }}>{label}</div>
+            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)', marginTop: 2 }}>
+              {t === 'video' ? 'Aperçu 30 secondes' : 'Lecture intégrée'}
+            </div>
+          </div>
+          {/* Badge durée */}
+          {t === 'video' && (
+            <div style={{ padding: '3px 8px', borderRadius: 20, background: `${c}20`, border: `1px solid ${c}40`, color: c, fontSize: 10, fontWeight: 700, flexShrink: 0 }}>
+              ▶ 0:30
+            </div>
+          )}
+        </button>
+      ) : (
+        // ── Player ouvert ──
+        <div style={{ borderRadius: 10, overflow: 'hidden', border: `1.5px solid ${c}40`, position: 'relative', boxShadow: `0 0 32px ${c}20` }}>
+          {/* Barre top avec bouton fermer */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: `${c}12`, borderBottom: `1px solid ${c}20` }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: c, display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ width: 6, height: 6, borderRadius: '50%', background: c, display: 'inline-block', animation: 'blink 1.5s infinite', boxShadow: `0 0 6px ${c}` }} />
+              {label}
+            </span>
+            <button
+              onClick={() => setOpen(false)}
+              style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.45)', cursor: 'pointer', fontSize: 16, lineHeight: 1, padding: '0 2px' }}
+            >×</button>
+          </div>
+          <iframe
+            src={embedUrl}
+            width="100%" height={embedH}
+            frameBorder="0"
+            allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+            allowFullScreen
+            loading="lazy"
+            style={{ display: 'block', background: '#000' }}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
 function FocusModal({ slot, allSlots, onClose, onNavigate, onGoAdvertiser, onViewProfile, onWaitlist }) {
   const [entered, setEntered] = useState(false);
   const t = useT();
@@ -2382,81 +2624,122 @@ function FocusModal({ slot, allSlots, onClose, onNavigate, onGoAdvertiser, onVie
           const yt = tenant.url?.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([A-Za-z0-9_-]+)/);
           const vimeo = tenant.url?.match(/vimeo\.com\/(\d+)/);
 
-          // Vidéo : embed à la place de l'image
+          // ▶ Vidéo : embed YouTube/Vimeo remplace l'image hero
           if (tenant.t === 'video' && (yt || vimeo)) {
             const embedSrc = yt
               ? `https://www.youtube.com/embed/${yt[1]}?autoplay=0&rel=0&modestbranding=1`
               : `https://player.vimeo.com/video/${vimeo[1]}?autoplay=0`;
             return (
-              <div style={{ position:'relative', height: isMobile ? 180 : 240, background:'#000', overflow:'hidden' }}>
+              <div style={{ position:'relative', height: isMobile ? 200 : 260, background:'#000', overflow:'hidden' }}>
                 <iframe src={embedSrc} width="100%" height="100%" frameBorder="0"
                   allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                   allowFullScreen style={{ display:'block' }} />
               </div>
             );
           }
+          if (tenant.t === 'video') {
+            return (
+              <div style={{ position:'relative', height: isMobile ? 180 : 240, overflow:'hidden', background:tenant.b||'#0a0a0a' }}>
+                {tenant.img && <img src={tenant.img} alt="" style={{ width:'100%', height:'100%', objectFit:'cover', opacity:0.55 }} />}
+                <div style={{ position:'absolute', inset:0, background:'linear-gradient(to bottom, rgba(0,0,0,0.1), rgba(0,0,0,0.65))' }} />
+                <div style={{ position:'absolute', inset:0, display:'flex', alignItems:'center', justifyContent:'center' }}>
+                  <div style={{ width:64, height:64, borderRadius:'50%', background:'rgba(0,0,0,0.7)', border:`2.5px solid ${c}`, display:'flex', alignItems:'center', justifyContent:'center', backdropFilter:'blur(8px)', boxShadow:`0 0 40px ${c}60, 0 0 80px ${c}25` }}>
+                    <span style={{ color:c, fontSize:28, lineHeight:1, paddingLeft:'14%' }}>▶</span>
+                  </div>
+                </div>
+              </div>
+            );
+          }
 
-          // Publication : pas de hero, juste une barre colorée
+          // ≡ Publication : barre colorée fine (pas de hero), typographie éditoriale
           if (tenant.t === 'text') {
             return (
-              <div style={{ height:6, background:`linear-gradient(90deg, ${c}, ${c}40, transparent)` }} />
+              <div style={{ padding:'20px 28px 0' }}>
+                <div style={{ height:3, borderRadius:2, background:`linear-gradient(90deg, ${c}, ${c}60, transparent)`, marginBottom:2 }} />
+              </div>
             );
           }
 
-          // App : fond neutre + app icon grande centrée
+          // ⬡ App : fond dégradé + app icon grande centrée avec ombre
           if (tenant.t === 'app') {
+            const storeCol = APP_STORE_COLORS[tenant.appStore] || c;
             return (
-              <div style={{ height: isMobile ? 120 : 140, background:`linear-gradient(135deg, ${tenant.b||U.s2}, ${U.s2})`, display:'flex', alignItems:'center', justifyContent:'center', position:'relative' }}>
-                <div style={{ position:'absolute', inset:0, background:`radial-gradient(circle at 50% 100%, ${c}25, transparent 70%)` }} />
+              <div style={{ height: isMobile ? 130 : 160, background:`linear-gradient(135deg, ${tenant.b||U.s2} 0%, ${U.s2} 100%)`, display:'flex', alignItems:'center', justifyContent:'center', position:'relative', overflow:'hidden' }}>
+                <div style={{ position:'absolute', inset:0, background:`radial-gradient(ellipse at 50% 110%, ${storeCol}30, transparent 65%)` }} />
                 {tenant.img
-                  ? <img src={tenant.img} alt="" style={{ width:80, height:80, borderRadius:20, objectFit:'cover', border:`2px solid ${c}40`, boxShadow:`0 8px 32px ${c}40`, position:'relative' }} />
-                  : <div style={{ width:80, height:80, borderRadius:20, background:`${c}20`, border:`2px solid ${c}40`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:32, fontWeight:900, color:c, fontFamily:F.h, position:'relative' }}>{tenant.l}</div>
+                  ? <img src={tenant.img} alt="" style={{ width:88, height:88, borderRadius:22, objectFit:'cover', border:`2.5px solid ${storeCol}50`, boxShadow:`0 16px 48px rgba(0,0,0,0.6), 0 0 32px ${storeCol}35`, position:'relative' }} />
+                  : <div style={{ width:88, height:88, borderRadius:22, background:`${storeCol}22`, border:`2.5px solid ${storeCol}55`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:36, fontWeight:900, color:storeCol, fontFamily:F.h, boxShadow:`0 16px 48px rgba(0,0,0,0.5), 0 0 32px ${storeCol}30`, position:'relative' }}>{tenant.l}</div>
                 }
+                {/* Badge store */}
+                <div style={{ position:'absolute', bottom:10, left:'50%', transform:'translateX(-50%)', display:'flex', alignItems:'center', gap:5, padding:'4px 12px', borderRadius:20, background:'rgba(0,0,0,0.6)', border:`1px solid ${storeCol}40`, backdropFilter:'blur(8px)' }}>
+                  <span style={{ fontSize:12 }}>{tenant.appStore==='app_store'?'🍎':tenant.appStore==='google_play'?'▶':'🌐'}</span>
+                  <span style={{ color:storeCol, fontSize:11, fontWeight:700 }}>{tenant.appStore==='app_store'?'App Store':tenant.appStore==='google_play'?'Google Play':'Web'}</span>
+                </div>
               </div>
             );
           }
 
-          // Social : bannière couleur plateforme
+          // ⊕ Réseaux : bannière couleur plateforme + grande icône
           if (tenant.t === 'social') {
-            const SOCIAL_COLORS = { instagram:'#e1306c', tiktok:'#69c9d0', x:'#1d9bf0', youtube:'#ff0000', linkedin:'#0a66c2', snapchat:'#fffc00', twitch:'#9146ff', discord:'#5865f2' };
-            const SOCIAL_ICONS  = { instagram:'📸', tiktok:'🎵', x:'✕', youtube:'▶', linkedin:'💼', snapchat:'👻', twitch:'🎮', discord:'💬' };
-            const col = SOCIAL_COLORS[tenant.social] || c;
-            const ico = SOCIAL_ICONS[tenant.social] || '⊕';
+            const col = SOCIAL_COLORS_MAP[tenant.social] || c;
+            const ico = SOCIAL_ICONS_MAP[tenant.social] || '⊕';
             return (
-              <div style={{ height: isMobile ? 100 : 120, background:`linear-gradient(135deg, ${col}30, ${col}08)`, display:'flex', alignItems:'center', justifyContent:'center', gap:16, position:'relative', overflow:'hidden' }}>
-                <div style={{ position:'absolute', inset:0, background:`radial-gradient(ellipse at 30% 50%, ${col}25, transparent 70%)` }} />
-                <span style={{ fontSize:52, position:'relative' }}>{ico}</span>
+              <div style={{ height: isMobile ? 110 : 140, background:`linear-gradient(135deg, ${col}25 0%, ${col}06 100%)`, display:'flex', alignItems:'center', justifyContent:'center', gap:16, position:'relative', overflow:'hidden' }}>
+                <div style={{ position:'absolute', inset:0, background:`radial-gradient(ellipse at 35% 50%, ${col}35, transparent 65%)` }} />
+                <div style={{ position:'absolute', right:'-10%', top:'-20%', width:'60%', height:'140%', background:`radial-gradient(circle, ${col}12 0%, transparent 65%)`, pointerEvents:'none' }} />
+                <span style={{ fontSize:64, position:'relative', filter:`drop-shadow(0 0 20px ${col}80)` }}>{ico}</span>
               </div>
             );
           }
 
-          // Musique : image album si disponible, sinon fond coloré
+          // ♪ Musique : image album en fond flouté + miniature centrée, puis lecteur audio
           if (tenant.t === 'music') {
-            const MUSIC_COLORS = { spotify:'#1ed760', apple_music:'#fc3c44', soundcloud:'#ff5500', deezer:'#a238ff', youtube_music:'#ff0000', bandcamp:'#1da0c3' };
-            const col = MUSIC_COLORS[tenant.music] || c;
+            const col = MUSIC_COLORS_MAP[tenant.music] || c;
+            const icon = MUSIC_ICONS_MAP[tenant.music] || '🎵';
             if (tenant.img) return (
-              <div style={{ position:'relative', height: isMobile ? 160 : 200, overflow:'hidden', background:U.s2 }}>
-                <img src={tenant.img} alt="" style={{ width:'100%', height:'100%', objectFit:'cover', opacity:0.6, filter:'blur(2px)', transform:'scale(1.05)' }} />
-                <div style={{ position:'absolute', inset:0, background:`linear-gradient(to top, ${U.s1} 0%, transparent 60%)` }} />
-                <img src={tenant.img} alt="" style={{ position:'absolute', top:'50%', left:'50%', transform:'translate(-50%,-50%)', width:80, height:80, borderRadius:12, objectFit:'cover', border:`2px solid ${col}60`, boxShadow:`0 8px 32px rgba(0,0,0,0.6)` }} />
+              <div style={{ position:'relative', height: isMobile ? 170 : 210, overflow:'hidden', background:U.s2 }}>
+                <img src={tenant.img} alt="" style={{ width:'100%', height:'100%', objectFit:'cover', opacity:0.5, filter:'blur(3px)', transform:'scale(1.08)' }} />
+                <div style={{ position:'absolute', inset:0, background:`linear-gradient(to top, ${U.s1} 0%, ${col}08 40%, transparent 80%)` }} />
+                <img src={tenant.img} alt="" style={{ position:'absolute', top:'50%', left:'50%', transform:'translate(-50%,-55%)', width:88, height:88, borderRadius:14, objectFit:'cover', border:`2px solid ${col}70`, boxShadow:`0 12px 40px rgba(0,0,0,0.7), 0 0 24px ${col}40` }} />
+                {/* Mini barres égaliseur en bas de l'image */}
+                <div style={{ position:'absolute', bottom:10, left:'50%', transform:'translateX(-50%)', display:'flex', alignItems:'flex-end', gap:3, height:14 }}>
+                  {[0.55,1,0.7,0.9,0.45,0.8].map((h,i)=>(
+                    <div key={i} style={{ width:3, borderRadius:2, background:col, height:14*h, animation:`eqBar${i%5} ${0.38+i*0.11}s ease-in-out infinite alternate`, boxShadow:`0 0 4px ${col}80` }} />
+                  ))}
+                </div>
               </div>
             );
             return (
-              <div style={{ height: isMobile ? 100 : 120, background:`linear-gradient(135deg, ${col}20, ${U.s2})`, display:'flex', alignItems:'center', justifyContent:'center', position:'relative' }}>
-                <div style={{ position:'absolute', inset:0, background:`radial-gradient(circle at 50% 50%, ${col}30, transparent 70%)` }} />
-                <span style={{ fontSize:56, position:'relative' }}>🎵</span>
+              <div style={{ height: isMobile ? 110 : 130, background:`linear-gradient(135deg, ${col}18, ${U.s2})`, display:'flex', alignItems:'center', justifyContent:'center', gap:18, position:'relative', overflow:'hidden' }}>
+                <div style={{ position:'absolute', inset:0, background:`radial-gradient(circle at 50% 50%, ${col}28, transparent 65%)` }} />
+                <span style={{ fontSize:60, position:'relative', filter:`drop-shadow(0 0 20px ${col}80)` }}>{icon}</span>
+                <div style={{ display:'flex', alignItems:'flex-end', gap:4, height:28, position:'relative' }}>
+                  {[0.55,1,0.7,0.9,0.45,0.8].map((h,i)=>(
+                    <div key={i} style={{ width:5, borderRadius:3, background:col, height:28*h, animation:`eqBar${i%5} ${0.38+i*0.11}s ease-in-out infinite alternate`, boxShadow:`0 0 6px ${col}80` }} />
+                  ))}
+                </div>
               </div>
             );
           }
 
-          // Image / Lifestyle / Marque / Vêtements / Lien avec image
+          // ◎ Vêtements : badge prix en overlay sur la photo
+          if (tenant.img && tenant.t === 'clothing') return (
+            <div style={{ position:'relative', height: isMobile ? 180 : 230, overflow:'hidden', background:U.s2 }}>
+              <img src={tenant.img} alt={tenant.name} style={{ width:'100%', height:'100%', objectFit:'cover', opacity:0.85 }} />
+              <div style={{ position:'absolute', inset:0, background:`linear-gradient(to top, ${U.s1} 0%, transparent 55%)` }} />
+              {tenant.slogan && (
+                <div style={{ position:'absolute', top:14, right:14, padding:'7px 16px', borderRadius:24, background:'rgba(0,0,0,0.82)', color:'#fff', fontSize:14, fontWeight:900, backdropFilter:'blur(10px)', border:'1.5px solid rgba(255,255,255,0.2)', boxShadow:'0 4px 20px rgba(0,0,0,0.4)' }}>{tenant.slogan}</div>
+              )}
+            </div>
+          );
+
+          // Image / Lifestyle / Marque / Lien avec image
           if (tenant.img) return (
-            <div style={{ position:'relative', height: isMobile ? 160 : 210, overflow:'hidden', background:U.s2 }}>
-              <img src={tenant.img} alt={tenant.name} style={{ width:'100%', height:'100%', objectFit:'cover', opacity:0.75 }} />
-              <div style={{ position:'absolute', inset:0, background:`linear-gradient(to top, ${U.s1} 0%, ${c}08 40%, transparent 60%)` }} />
-              {/* Badge prix pour vêtements */}
-              {tenant.t === 'clothing' && tenant.slogan && (
-                <div style={{ position:'absolute', top:12, right:12, padding:'5px 12px', borderRadius:20, background:'rgba(0,0,0,0.75)', color:'#fff', fontSize:12, fontWeight:800, backdropFilter:'blur(8px)', border:'1px solid rgba(255,255,255,0.15)' }}>{tenant.slogan}</div>
+            <div style={{ position:'relative', height: isMobile ? 170 : 220, overflow:'hidden', background:U.s2 }}>
+              <img src={tenant.img} alt={tenant.name} style={{ width:'100%', height:'100%', objectFit:'cover', opacity:0.8 }} />
+              <div style={{ position:'absolute', inset:0, background:`linear-gradient(to top, ${U.s1} 0%, ${c}06 40%, transparent 65%)` }} />
+              {tenant.t === 'lifestyle' && tenant.name && (
+                <div style={{ position:'absolute', bottom:16, left:20, right:20, color:'#fff', fontSize:16, fontWeight:700, textShadow:'0 2px 8px rgba(0,0,0,0.8)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{tenant.name}</div>
               )}
             </div>
           );
@@ -2527,33 +2810,10 @@ function FocusModal({ slot, allSlots, onClose, onNavigate, onGoAdvertiser, onVie
               );
             })()}
 
-            {/* Preview audio — embed 30s pour musique */}
-            {tenant.t === 'music' && tenant.url && (() => {
-              const url = tenant.url;
-              let embedUrl = null;
-              // Spotify track/album/playlist
-              const spotifyMatch = url.match(/spotify\.com\/(track|album|playlist)\/([A-Za-z0-9]+)/);
-              if (spotifyMatch) embedUrl = `https://open.spotify.com/embed/${spotifyMatch[1]}/${spotifyMatch[2]}?utm_source=generator&theme=0`;
-              // SoundCloud
-              if (!embedUrl && url.includes('soundcloud.com')) embedUrl = `https://w.soundcloud.com/player/?url=${encodeURIComponent(url)}&color=%231ed760&auto_play=false&hide_related=true&show_comments=false&show_user=true&show_reposts=false&show_teaser=false`;
-              // YouTube
-              const ytMatch = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([A-Za-z0-9_-]+)/);
-              if (!embedUrl && ytMatch) embedUrl = `https://www.youtube.com/embed/${ytMatch[1]}?start=0&end=30`;
-              if (!embedUrl) return null;
-              const isSoundcloud = url.includes('soundcloud.com');
-              return (
-                <div style={{ marginBottom:16, borderRadius:10, overflow:'hidden', border:`1px solid ${tenant.c}25` }}>
-                  <iframe
-                    src={embedUrl}
-                    width="100%" height={isSoundcloud ? 80 : 80}
-                    frameBorder="0"
-                    allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
-                    loading="lazy"
-                    style={{ display:'block' }}
-                  />
-                </div>
-              );
-            })()}
+            {/* ── PreviewPlayer 30s — vidéo & musique ── */}
+            {(tenant.t === 'video' || tenant.t === 'music') && (
+              <PreviewPlayer tenant={tenant} isMobile={isMobile} />
+            )}
 
             {/* Badge promo */}
             {tenant.badge && (

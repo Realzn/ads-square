@@ -1125,22 +1125,26 @@ export default function DashboardPage() {
   }, []);
 
   const loadData = useCallback(async () => {
-    const [adv, bkgs] = await Promise.all([getAdvertiserProfile(), getDashboardBookings()]);
-    setAdvertiser(adv);
-    setBookings(bkgs);
-    // Keep selected booking in sync
-    if (selectedBooking) {
-      const updated = bkgs.find(b => b.id === selectedBooking.id);
-      if (updated) setSelected(updated);
+    try {
+      const [adv, bkgs] = await Promise.all([getAdvertiserProfile(), getDashboardBookings()]);
+      setAdvertiser(adv);
+      setBookings(bkgs || []);
+      // Keep selected booking in sync
+      if (selectedBooking) {
+        const updated = (bkgs || []).find(b => b.id === selectedBooking.id);
+        if (updated) setSelected(updated);
+      }
+    } catch (err) {
+      console.error('[Dashboard] loadData error:', err);
     }
   }, [selectedBooking?.id]);
 
   useEffect(() => {
-    getSession().then(s => {
+    getSession().then(async s => {
       if (!s) { router.replace('/dashboard/login'); return; }
       setSession(s);
+      await loadData();
       setLoading(false);
-      loadData();
     });
   }, []);
 
