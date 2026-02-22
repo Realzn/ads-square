@@ -149,19 +149,22 @@ function useGridLayout(containerW, containerH, isMobile) {
   const rowHeights = useMemo(() => _BASE_LAYOUT.rh.map(h => Math.round(h * k)), [k]);
 
   const colOffsets = useMemo(() => {
-    const o = [0];
-    for (let x = 0; x < GRID_COLS - 1; x++) o.push(o[x] + colWidths[x] + GAP);
+    // 1-indexed: colOffsets[slot.x] where slot.x = 1..GRID_COLS
+    // Index 0 is unused padding so that 1-indexed slot coords map directly.
+    const o = [0, 0]; // o[0]=padding, o[1]=0 (first column starts at 0)
+    for (let x = 1; x < GRID_COLS; x++) o.push(o[x] + colWidths[x - 1] + GAP);
     return o;
   }, [colWidths]);
 
   const rowOffsets = useMemo(() => {
-    const o = [0];
-    for (let y = 0; y < GRID_ROWS - 1; y++) o.push(o[y] + rowHeights[y] + GAP);
+    // 1-indexed: rowOffsets[slot.y] where slot.y = 1..GRID_ROWS
+    const o = [0, 0]; // o[0]=padding, o[1]=0 (first row starts at 0)
+    for (let y = 1; y < GRID_ROWS; y++) o.push(o[y] + rowHeights[y - 1] + GAP);
     return o;
   }, [rowHeights]);
 
-  const totalGridW = colOffsets[GRID_COLS - 1] + colWidths[GRID_COLS - 1];
-  const totalGridH = rowOffsets[GRID_ROWS - 1] + rowHeights[GRID_ROWS - 1];
+  const totalGridW = colOffsets[GRID_COLS] + colWidths[GRID_COLS - 1];
+  const totalGridH = rowOffsets[GRID_ROWS] + rowHeights[GRID_ROWS - 1];
 
   return { colOffsets, rowOffsets, totalGridW, totalGridH, tierSizes, k };
 }
@@ -3282,128 +3285,6 @@ function FeedInvitePanel({ slots, onSwitchToFeed, onDismiss }) {
 
 // ─── Public View ───────────────────────────────────────────────
 // ─── Boost Ticker (scrolling banner of boosted slots only) ──────
-// ─── MobileDesktopModal ────────────────────────────────────────
-// Affiché sur mobile quand l'utilisateur veut réserver un bloc.
-// Invite à passer sur PC/tablette pour compléter la réservation.
-function MobileDesktopModal({ onClose }) {
-  const [entered, setEntered] = useState(false);
-  const c = U.accent;
-  useEffect(() => { requestAnimationFrame(() => setEntered(true)); }, []);
-  useEffect(() => {
-    const fn = e => { if (e.key === 'Escape') onClose(); };
-    window.addEventListener('keydown', fn);
-    return () => window.removeEventListener('keydown', fn);
-  }, [onClose]);
-
-  const steps = [
-    { icon: '🌐', text: 'Ouvrez votre navigateur sur ordinateur' },
-    { icon: '🔗', text: 'Rendez-vous sur la même URL' },
-    { icon: '⊞',  text: 'Cliquez sur « Réserver » pour choisir votre bloc' },
-  ];
-
-  return (
-    <div
-      onClick={onClose}
-      style={{
-        position: 'fixed', inset: 0, zIndex: 3000,
-        background: 'rgba(0,0,0,0.88)', backdropFilter: 'blur(20px)',
-        display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
-        opacity: entered ? 1 : 0, transition: 'opacity 0.25s ease',
-      }}
-    >
-      <div
-        onClick={e => e.stopPropagation()}
-        style={{
-          width: '100vw', background: U.s1,
-          borderRadius: '24px 24px 0 0',
-          border: `1px solid ${U.border2}`,
-          borderBottom: 'none',
-          boxShadow: `0 -8px 60px rgba(0,0,0,0.6), 0 0 0 1px ${c}18`,
-          padding: '0 0 40px',
-          transform: entered ? 'translateY(0)' : 'translateY(60px)',
-          transition: 'transform 0.3s cubic-bezier(0.34,1.2,0.64,1)',
-        }}
-      >
-        {/* Drag handle */}
-        <div style={{ display: 'flex', justifyContent: 'center', padding: '14px 0 8px' }}>
-          <div style={{ width: 36, height: 4, borderRadius: 99, background: U.border2 }} />
-        </div>
-
-        {/* Icon PC */}
-        <div style={{ display: 'flex', justifyContent: 'center', margin: '8px 0 18px' }}>
-          <div style={{
-            width: 72, height: 72, borderRadius: 20,
-            background: `linear-gradient(135deg, ${c}20, ${c}08)`,
-            border: `1.5px solid ${c}40`,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            boxShadow: `0 0 32px ${c}25`,
-          }}>
-            <span style={{ fontSize: 34 }}>🖥️</span>
-          </div>
-        </div>
-
-        {/* Title */}
-        <div style={{ padding: '0 28px', textAlign: 'center', marginBottom: 8 }}>
-          <h2 style={{ color: U.text, fontWeight: 800, fontSize: 22, fontFamily: F.h, margin: '0 0 8px', letterSpacing: '-0.03em' }}>
-            Réservation sur ordinateur
-          </h2>
-          <p style={{ color: U.muted, fontSize: 14, margin: 0, lineHeight: 1.55 }}>
-            La réservation d'un bloc publicitaire est disponible <span style={{ color: U.text, fontWeight: 600 }}>uniquement sur PC ou tablette</span> pour une expérience optimale.
-          </p>
-        </div>
-
-        {/* Steps */}
-        <div style={{ margin: '24px 24px 28px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {steps.map((s, i) => (
-            <div key={i} style={{
-              display: 'flex', alignItems: 'center', gap: 14,
-              background: U.faint, border: `1px solid ${U.border}`,
-              borderRadius: 12, padding: '12px 16px',
-            }}>
-              <div style={{
-                width: 36, height: 36, borderRadius: 10, flexShrink: 0,
-                background: `${c}18`, border: `1px solid ${c}30`,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: 17,
-              }}>
-                {s.icon}
-              </div>
-              <span style={{ color: U.text, fontSize: 13, fontWeight: 500, lineHeight: 1.4 }}>{s.text}</span>
-            </div>
-          ))}
-        </div>
-
-        {/* CTA copy URL */}
-        <div style={{ padding: '0 24px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <button
-            onClick={() => { navigator.clipboard?.writeText(window.location.href).catch(() => {}); onClose(); }}
-            style={{
-              width: '100%', padding: '14px',
-              borderRadius: 12, fontFamily: F.b, cursor: 'pointer',
-              background: `linear-gradient(135deg, ${c}, ${c}cc)`,
-              border: 'none', color: U.accentFg, fontWeight: 700, fontSize: 14,
-              boxShadow: `0 4px 24px ${c}50`, letterSpacing: '0.01em',
-            }}
-          >
-            📋 Copier le lien pour l'ouvrir sur PC
-          </button>
-          <button
-            onClick={onClose}
-            style={{
-              width: '100%', padding: '13px',
-              borderRadius: 12, fontFamily: F.b, cursor: 'pointer',
-              background: 'transparent', border: `1px solid ${U.border2}`,
-              color: U.muted, fontWeight: 600, fontSize: 13,
-            }}
-          >
-            Continuer à explorer le feed
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function BoostTicker({ slots, authUser, userBookings, onBoost, onGoAdvertiser }) {
   const [showTickerToast, setShowTickerToast] = useState(false);
 
@@ -3514,26 +3395,10 @@ function PublicView({ slots, isLive, onGoAdvertiser, onWaitlist, authUser, userB
   const [focusSlot, setFocusSlot]   = useState(null);
   const [filterTier, setFilterTier] = useState('all');
   const [filterTheme, setFilterTheme] = useState('all');
-  const { isMobile } = useScreenSize();
   const [feedMode, setFeedMode]     = useState(false);
   const [showFeedInvite, setShowFeedInvite] = useState(false);
   const [profileAdvertiserId, setProfileAdvertiserId] = useState(null);
-  const [showMobileBook, setShowMobileBook] = useState(false);
-
-  // Sur mobile, forcer le mode feed dès le montage
-  useEffect(() => { if (isMobile) setFeedMode(true); }, [isMobile]);
-
-  // Sur mobile, bloquer la bascule vers la grille
-  const handleSetFeedMode = useCallback((val) => {
-    if (isMobile && !val) return; // on ne peut pas quitter le feed sur mobile
-    setFeedMode(val);
-  }, [isMobile]);
-
-  // Wrapper onGoAdvertiser : sur mobile → modale PC
-  const handleGoAdvertiser = useCallback(() => {
-    if (isMobile) { setShowMobileBook(true); return; }
-    onGoAdvertiser();
-  }, [isMobile, onGoAdvertiser]);
+  const { isMobile } = useScreenSize();
 
   // ── Logique d'invitation au Feed ──────────────────────────────
   const INACTIVITY_MS  = 60_000;  // 60s sans interaction → panneau
@@ -3653,18 +3518,12 @@ function PublicView({ slots, isLive, onGoAdvertiser, onWaitlist, authUser, userB
       {/* ── Row 1: View toggle + Tier filters + Live stats ── */}
       <div style={{ borderBottom: `1px solid ${U.border}`, background: `${U.s1}f5`, backdropFilter: 'blur(12px)', flexShrink: 0, overflowX: 'auto', overflowY: 'hidden', WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 14px', height: 40, minWidth: 'max-content' }}>
-          {/* View toggle — sur mobile, seul le feed est disponible */}
-          {isMobile ? (
-            <div style={{ display: 'flex', background: U.faint, border: `1px solid ${U.border}`, borderRadius: 7, overflow: 'hidden', flexShrink: 0 }}>
-              <div style={{ padding: '4px 11px', fontFamily: F.b, fontSize: 11, background: U.s2, color: U.text, fontWeight: 600 }}>{t('toolbar.feed')}</div>
-            </div>
-          ) : (
-            <div style={{ display: 'flex', background: U.faint, border: `1px solid ${U.border}`, borderRadius: 7, overflow: 'hidden', flexShrink: 0 }}>
-              {[['grid','Grille'], ['feed','Feed']].map(([id, label]) => (
-                <button key={id} onClick={() => handleSetFeedMode(id === 'feed')} style={{ padding: '4px 11px', fontFamily: F.b, cursor: 'pointer', fontSize: 11, background: (feedMode ? 'feed' : 'grid') === id ? U.s2 : 'transparent', border: 'none', color: (feedMode ? 'feed' : 'grid') === id ? U.text : U.muted, fontWeight: (feedMode ? 'feed' : 'grid') === id ? 600 : 400, transition: 'all 0.15s', whiteSpace: 'nowrap' }}>{t(id === 'grid' ? 'toolbar.grid' : 'toolbar.feed')}</button>
-              ))}
-            </div>
-          )}
+          {/* View toggle */}
+          <div style={{ display: 'flex', background: U.faint, border: `1px solid ${U.border}`, borderRadius: 7, overflow: 'hidden', flexShrink: 0 }}>
+            {[['grid','Grille'], ['feed','Feed']].map(([id, label]) => (
+              <button key={id} onClick={() => setFeedMode(id === 'feed')} style={{ padding: '4px 11px', fontFamily: F.b, cursor: 'pointer', fontSize: 11, background: (feedMode ? 'feed' : 'grid') === id ? U.s2 : 'transparent', border: 'none', color: (feedMode ? 'feed' : 'grid') === id ? U.text : U.muted, fontWeight: (feedMode ? 'feed' : 'grid') === id ? 600 : 400, transition: 'all 0.15s', whiteSpace: 'nowrap' }}>{t(id === 'grid' ? 'toolbar.grid' : 'toolbar.feed')}</button>
+            ))}
+          </div>
 
           {!feedMode && <>
             <div style={{ width: 1, height: 16, background: U.border, flexShrink: 0 }} />
@@ -3709,7 +3568,7 @@ function PublicView({ slots, isLive, onGoAdvertiser, onWaitlist, authUser, userB
       )}
 
       {/* ── Boost ticker ── */}
-      <BoostTicker slots={slots} authUser={authUser} userBookings={userBookings} onBoost={handleGoAdvertiser} onGoAdvertiser={handleGoAdvertiser} />
+      <BoostTicker slots={slots} authUser={authUser} userBookings={userBookings} onBoost={onGoAdvertiser} onGoAdvertiser={onGoAdvertiser} />
 
       {/* Les deux vues restent dans le DOM — display:none évite le remount et préserve containerW */}
       <div style={{ flex: 1, display: feedMode ? 'none' : 'flex', overflow: 'auto', alignItems: 'flex-start', justifyContent: 'center', minHeight: 0 }} ref={containerRef}>
@@ -3762,7 +3621,7 @@ function PublicView({ slots, isLive, onGoAdvertiser, onWaitlist, authUser, userB
         allSlots={slots}
         onClose={() => setFocusSlot(null)}
         onNavigate={setFocusSlot}
-        onGoAdvertiser={handleGoAdvertiser}
+        onGoAdvertiser={onGoAdvertiser}
         onWaitlist={onWaitlist}
         onViewProfile={(advId) => { setFocusSlot(null); setTimeout(() => setProfileAdvertiserId(advId), 50); }}
       />}
@@ -3774,11 +3633,6 @@ function PublicView({ slots, isLive, onGoAdvertiser, onWaitlist, authUser, userB
           onSwitchToFeed={handleSwitchToFeed}
           onDismiss={handleDismissInvite}
         />
-      )}
-
-      {/* ── Modale réservation PC (mobile uniquement) ── */}
-      {showMobileBook && (
-        <MobileDesktopModal onClose={() => setShowMobileBook(false)} />
       )}
 
       {/* ── Advertiser Profile Modal ── */}
@@ -4442,7 +4296,6 @@ export default function App() {
   const [checkoutSlot, setCheckoutSlot] = useState(null);
   const [buyoutSlot, setBuyoutSlot]     = useState(null);
   const [showBoost, setShowBoost]       = useState(false);
-  const [showMobileBookNav, setShowMobileBookNav] = useState(false);
   const [authUser, setAuthUser]         = useState(null);
   const [userBookings, setUserBookings]  = useState([]);
   const { slots, isLive, loading }  = useGridData();
@@ -4502,12 +4355,9 @@ export default function App() {
           <nav style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
             {[
               ['public',     t('nav.explore'),  '◈'],
-              ['advertiser', t('nav.reserve'),  '⊞'], // intercepted on mobile
+              ['advertiser', t('nav.reserve'),  '⊞'],
             ].map(([v, label, icon]) => (
-              <button key={v} onClick={() => {
-                if (isMobile && v === 'advertiser') { setShowMobileBookNav(true); return; }
-                setView(v);
-              }} style={{ padding: isMobile ? '5px 7px' : '5px 12px', borderRadius: 7, fontFamily: F.b, cursor: 'pointer', background: view === v ? U.s2 : 'transparent', border: `1px solid ${view === v ? U.border2 : 'transparent'}`, color: view === v ? U.text : U.muted, fontSize: isMobile ? 11 : 12, fontWeight: view === v ? 600 : 400, transition: 'all 0.15s', whiteSpace: 'nowrap' }}>
+              <button key={v} onClick={() => setView(v)} style={{ padding: isMobile ? '5px 7px' : '5px 12px', borderRadius: 7, fontFamily: F.b, cursor: 'pointer', background: view === v ? U.s2 : 'transparent', border: `1px solid ${view === v ? U.border2 : 'transparent'}`, color: view === v ? U.text : U.muted, fontSize: isMobile ? 11 : 12, fontWeight: view === v ? 600 : 400, transition: 'all 0.15s', whiteSpace: 'nowrap' }}>
                 {isMobile ? (view === v ? label : icon) : label}
               </button>
             ))}
@@ -4564,7 +4414,6 @@ export default function App() {
         {view === 'public'     && <PublicView     slots={slots} isLive={isLive} onGoAdvertiser={() => setShowBoost(true)} onWaitlist={handleWaitlist} authUser={authUser} userBookings={userBookings} />}
         {view === 'advertiser' && <AdvertiserView slots={slots} isLive={isLive} onWaitlist={handleWaitlist} onCheckout={handleCheckout} />}
         {showWaitlist  && <WaitlistModal  onClose={() => setShowWaitlist(false)} />}
-        {showMobileBookNav && <MobileDesktopModal onClose={() => setShowMobileBookNav(false)} />}
         {checkoutSlot  && <CheckoutModal  slot={checkoutSlot} onClose={() => setCheckoutSlot(null)} />}
         {buyoutSlot    && <BuyoutModal    slot={buyoutSlot}   onClose={() => setBuyoutSlot(null)} />}
         {showBoost     && <BoostModal     onClose={() => setShowBoost(false)} />}
