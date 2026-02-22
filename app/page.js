@@ -112,7 +112,7 @@ function useGridData() {
 }
 
 // ─── Grid Layout Engine ────────────────────────────────────────
-const BASE_SIZE = { one: 120, ten: 52, corner_ten: 52, hundred: 26, thousand: 11 };
+const BASE_SIZE = { epicenter: 120, prestige: 54, elite: 34, business: 20, standard: 12, viral: 7 };
 const GAP = 2;
 
 function _buildBaseLayout() {
@@ -138,27 +138,27 @@ function useGridLayout(containerW, containerH, isMobile) {
   const k = containerW > 0 ? Math.max(0.08, containerW / baseW) : (isMobile ? 0.18 : 1);
 
   const tierSizes = useMemo(() => ({
-    one:        Math.round(BASE_SIZE.one        * k),
-    ten:        Math.round(BASE_SIZE.ten        * k),
-    corner_ten: Math.round(BASE_SIZE.corner_ten * k),
-    hundred:    Math.round(BASE_SIZE.hundred    * k),
-    thousand:   Math.max(2, Math.round(BASE_SIZE.thousand * k)),
+    epicenter: Math.round(BASE_SIZE.epicenter * k),
+    prestige:  Math.round(BASE_SIZE.prestige  * k),
+    elite:     Math.round(BASE_SIZE.elite     * k),
+    business:  Math.round(BASE_SIZE.business  * k),
+    standard:  Math.max(2, Math.round(BASE_SIZE.standard * k)),
+    viral:     Math.max(2, Math.round(BASE_SIZE.viral    * k)),
   }), [k]);
 
   const colWidths  = useMemo(() => cw.map(w => Math.round(w * k)), [k]);
   const rowHeights = useMemo(() => _BASE_LAYOUT.rh.map(h => Math.round(h * k)), [k]);
 
   const colOffsets = useMemo(() => {
-    // 1-indexed: colOffsets[slot.x] where slot.x = 1..GRID_COLS
-    // Index 0 is unused padding so that 1-indexed slot coords map directly.
-    const o = [0, 0]; // o[0]=padding, o[1]=0 (first column starts at 0)
+    // 1-indexed: colOffsets[slot.x] pour slot.x = 1..GRID_COLS
+    const o = [0, 0]; // o[0]=padding, o[1]=0 (1ère colonne)
     for (let x = 1; x < GRID_COLS; x++) o.push(o[x] + colWidths[x - 1] + GAP);
     return o;
   }, [colWidths]);
 
   const rowOffsets = useMemo(() => {
-    // 1-indexed: rowOffsets[slot.y] where slot.y = 1..GRID_ROWS
-    const o = [0, 0]; // o[0]=padding, o[1]=0 (first row starts at 0)
+    // 1-indexed: rowOffsets[slot.y] pour slot.y = 1..GRID_ROWS
+    const o = [0, 0]; // o[0]=padding, o[1]=0 (1ère rangée)
     for (let y = 1; y < GRID_ROWS; y++) o.push(o[y] + rowHeights[y - 1] + GAP);
     return o;
   }, [rowHeights]);
@@ -166,7 +166,7 @@ function useGridLayout(containerW, containerH, isMobile) {
   const totalGridW = colOffsets[GRID_COLS] + colWidths[GRID_COLS - 1];
   const totalGridH = rowOffsets[GRID_ROWS] + rowHeights[GRID_ROWS - 1];
 
-  return { colOffsets, rowOffsets, totalGridW, totalGridH, tierSizes, k };
+  return { colOffsets, rowOffsets, totalGridW, totalGridH, tierSizes, k, colWidths, rowHeights };
 }
 
 // ─── Small Components ──────────────────────────────────────────
@@ -520,8 +520,8 @@ function BlockPreview({ tier, blockForm, category, CATS, SOCIALS, MUSIC_PLATS })
   // Tailles de preview
   const PREVIEW_SZ  = 160;   // bloc agrandi pour la colonne preview
   const REAL_SZ     = TIER_SIZE[tier] || 11;
-  const r_preview   = tier === 'one' ? 16 : tier === 'ten' || tier === 'corner_ten' ? 14 : tier === 'hundred' ? 5 : 3;
-  const r_real      = tier === 'one' ? Math.round(REAL_SZ * 0.1) : tier === 'ten' || tier === 'corner_ten' ? Math.round(REAL_SZ * 0.09) : tier === 'hundred' ? 3 : 2;
+  const r_preview   = tier === 'epicenter' ? 16 : tier === 'prestige' || tier === 'elite' ? 14 : tier === 'business' ? 5 : 3;
+  const r_real      = tier === 'epicenter' ? Math.round(REAL_SZ * 0.1) : tier === 'prestige' || tier === 'elite' ? Math.round(REAL_SZ * 0.09) : tier === 'business' ? 3 : 2;
 
   // Label plateforme
   const platformLabel = selSocial?.label || selMusic?.label || null;
@@ -1557,11 +1557,12 @@ function HoverStatsBadge({ slot, sz }) {
 // Eliminates 1369 wrapper div style objects + neon layers per render cycle.
 const SlotWrapper = memo(({
   slot, colOffset, rowOffset, sz,
+  w, h,
   isFiltering, inFilter, neonColor,
   onFocus, onSelect,
 }) => {
   const wrapperOpacity = isFiltering ? (inFilter ? 1 : 0.05) : 1;
-  const isLargeBlock   = sz >= 40;
+  const isLargeBlock   = Math.min(w ?? sz, h ?? sz) >= 40;
 
   return (
     <div
@@ -1581,6 +1582,8 @@ const SlotWrapper = memo(({
         onSelect={onSelect}
         onFocus={onFocus}
         sz={sz}
+        w={w}
+        h={h}
         showStats={true}
       />
 
@@ -1647,13 +1650,17 @@ const SlotWrapper = memo(({
 });
 SlotWrapper.displayName = 'SlotWrapper';
 
-// BlockCell — mémoïsé, reçoit sa taille via sz prop
-const BlockCell = memo(({ slot, isSelected, onSelect, onFocus, sz: szProp, showStats }) => {
+// BlockCell — mémoïsé, reçoit sa taille via sz + w/h pour fill rectangulaire
+const BlockCell = memo(({ slot, isSelected, onSelect, onFocus, sz: szProp, w, h, showStats }) => {
   const { tier, occ, tenant, hot } = slot;
-  let sz = szProp !== undefined ? szProp : TIER_SIZE[tier];
+  const bw = w ?? szProp ?? TIER_SIZE[tier];
+  const bh = h ?? szProp ?? TIER_SIZE[tier];
+  let sz = Math.min(bw, bh);  // pour font/icon/radius sizing
   const c = TIER_COLOR[tier];
-  const isCornerTen = tier === 'corner_ten';
-  const r = tier === 'one' ? Math.round(sz * 0.1) : tier === 'ten' || isCornerTen ? Math.round(sz * 0.09) : tier === 'hundred' ? 3 : 2;
+  const r = tier === 'epicenter' ? Math.round(sz * 0.1)
+          : tier === 'prestige'  ? Math.round(sz * 0.09)
+          : tier === 'elite'     ? Math.round(sz * 0.07)
+          : tier === 'business'  ? 3 : 2;
   const available = isTierAvailable(tier);
 
   // Track impression when occupied block enters viewport (once per session per slot)
@@ -1696,7 +1703,7 @@ const BlockCell = memo(({ slot, isSelected, onSelect, onFocus, sz: szProp, showS
         : `${TIER_LABEL[tier]} — Prochainement`
       }
       style={{
-        width: sz, height: sz,
+        width: bw, height: bh,
         borderRadius: r,
         position: 'relative',
         overflow: 'hidden',
@@ -2721,7 +2728,7 @@ function FocusModal({ slot, allSlots, onClose, onNavigate, onGoAdvertiser, onVie
         <button onClick={onClose} style={{ position: 'absolute', top: 14, right: 14, width: 30, height: 30, borderRadius: '50%', border: `1px solid ${U.border}`, background: U.faint, color: U.muted, cursor: 'pointer', fontSize: 16, zIndex: 10, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
 
         {/* Hero — adapté selon content_type */}
-        {occ && tenant && tier !== 'thousand' && (() => {
+        {occ && tenant && tier !== 'viral' && (() => {
           const yt = tenant.url?.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([A-Za-z0-9_-]+)/);
           const vimeo = tenant.url?.match(/vimeo\.com\/(\d+)/);
 
@@ -3098,13 +3105,13 @@ function TikTokFeed({ slots, isLive }) {
             )}
 
             {/* Block visual */}
-            <div style={{ position: 'relative', zIndex: 1, width: isMobile ? 176 : 232, height: isMobile ? 176 : 232, borderRadius: tier === 'one' ? 24 : 18, background: occ ? (tenant.b || U.s2) : U.s2, border: `1px solid ${c}30`, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'border-color 0.4s, box-shadow 0.4s', boxShadow: isActive ? `0 0 48px ${c}30, 0 0 12px ${c}18` : `0 0 16px ${c}08` }}>
+            <div style={{ position: 'relative', zIndex: 1, width: isMobile ? 176 : 232, height: isMobile ? 176 : 232, borderRadius: tier === 'epicenter' ? 24 : 18, background: occ ? (tenant.b || U.s2) : U.s2, border: `1px solid ${c}30`, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'border-color 0.4s, box-shadow 0.4s', boxShadow: isActive ? `0 0 48px ${c}30, 0 0 12px ${c}18` : `0 0 16px ${c}08` }}>
               {occ && tenant?.img && <img src={tenant.img} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', opacity: 0.55 }} onError={e => e.target.style.display='none'} />}
               <div style={{ position: 'relative', zIndex: 1, textAlign: 'center', padding: 16 }}>
                 {occ ? (
                   <>
-                    <div style={{ fontSize: tier === 'one' ? 52 : 36, fontWeight: 900, color: c, fontFamily: F.h, lineHeight: 1, marginBottom: 6 }}>{tenant.l}</div>
-                    {tier !== 'thousand' && <div style={{ color: `${c}cc`, fontSize: tier === 'one' ? 13 : 10, fontWeight: 700 }}>{tenant.name}</div>}
+                    <div style={{ fontSize: tier === 'epicenter' ? 52 : 36, fontWeight: 900, color: c, fontFamily: F.h, lineHeight: 1, marginBottom: 6 }}>{tenant.l}</div>
+                    {tier !== 'viral' && <div style={{ color: `${c}cc`, fontSize: tier === 'epicenter' ? 13 : 10, fontWeight: 700 }}>{tenant.name}</div>}
                   </>
                 ) : (
                   <>
@@ -3471,7 +3478,7 @@ function PublicView({ slots, isLive, onGoAdvertiser, onWaitlist, authUser, userB
     return () => obs.disconnect();
   }, []);
 
-  const { colOffsets, rowOffsets, totalGridW, totalGridH, tierSizes, k } =
+  const { colOffsets, rowOffsets, totalGridW, totalGridH, tierSizes, k, colWidths, rowHeights } =
     useGridLayout(containerW, containerH, isMobile);
 
   // Centre sur ÉPICENTRE au premier rendu + à chaque retour depuis Feed
@@ -3489,7 +3496,7 @@ function PublicView({ slots, isLive, onGoAdvertiser, onWaitlist, authUser, userB
     let s = slots;
     // Tier filter: inclut TOUS les slots du tier (occupés, libres ET indisponibles)
     // pour un dimming uniforme identique à la vue annonceur.
-    if (filterTier !== 'all') s = s.filter(sl => sl.tier === filterTier || (filterTier === 'ten' && sl.tier === 'corner_ten'));
+    if (filterTier !== 'all') s = s.filter(sl => sl.tier === filterTier);
     // Theme filter: ne dimme que les blocs occupés qui ne matchent pas;
     // les blocs vides/indisponibles du tier restent à pleine opacité.
     if (filterTheme !== 'all') {
@@ -3507,10 +3514,12 @@ function PublicView({ slots, isLive, onGoAdvertiser, onWaitlist, authUser, userB
 
   const tierFilters = useMemo(() => [
     ['all', t('toolbar.all')],
-    ['one', t('toolbar.epicenter')],
-    ['ten', t('toolbar.prestige')],
-    ['hundred', t('toolbar.business')],
-    ['thousand', t('toolbar.viral')],
+    ['epicenter', t('toolbar.epicenter')],
+    ['prestige',  t('toolbar.prestige')],
+    ['elite',     t('toolbar.elite')],
+    ['business',  t('toolbar.business')],
+    ['standard',  t('toolbar.standard')],
+    ['viral',     t('toolbar.viral')],
   ], [t]);
 
   return (
@@ -3603,6 +3612,8 @@ function PublicView({ slots, isLive, onGoAdvertiser, onWaitlist, authUser, userB
                 colOffset={colOffsets[slot.x]}
                 rowOffset={rowOffsets[slot.y]}
                 sz={sz}
+                w={colWidths[slot.x - 1]}
+                h={rowHeights[slot.y - 1]}
                 isFiltering={isFiltering}
                 inFilter={inFilter}
                 neonColor={neonColor}
@@ -3649,17 +3660,19 @@ function PublicView({ slots, isLive, onGoAdvertiser, onWaitlist, authUser, userB
 }
 
 // ─── AnonBlock ─────────────────────────────────────────────────
-const AnonBlock = memo(({ slot, chosenSlot, activeTier, onChoose, sz: szProp }) => {
+const AnonBlock = memo(({ slot, chosenSlot, activeTier, onChoose, sz: szProp, w, h }) => {
   const { tier: t, occ } = slot;
-  const sz = szProp !== undefined ? szProp : TIER_SIZE[t];
+  const bw = w ?? szProp ?? TIER_SIZE[t];
+  const bh = h ?? szProp ?? TIER_SIZE[t];
+  const sz = Math.min(bw, bh);
   const c  = TIER_COLOR[t];
   const isChosen = chosenSlot?.id === slot.id;
-  const isTierHighlighted = activeTier && (t === activeTier || (activeTier === 'ten' && t === 'corner_ten'));
-  const r = t === 'one' ? Math.round(sz * 0.1) : t === 'ten' || t === 'corner_ten' ? Math.round(sz * 0.09) : t === 'hundred' ? 3 : 2;
+  const isTierHighlighted = activeTier && t === activeTier;
+  const r = t === 'epicenter' ? Math.round(sz * 0.1) : t === 'prestige' ? Math.round(sz * 0.09) : t === 'elite' ? Math.round(sz * 0.07) : t === 'business' ? 3 : 2;
   const available = isTierAvailable(t);
 
   if (occ) return (
-    <div onClick={() => onChoose(slot)} style={{ width: sz, height: sz, borderRadius: r, background: slot.tenant?.b || U.s2, border: `1px solid ${isTierHighlighted ? c + '50' : isChosen ? c + '80' : c + '25'}`, position: 'relative', overflow: 'hidden', flexShrink: 0, cursor: 'pointer', outline: isChosen ? `2px solid ${c}` : 'none', outlineOffset: 1, transition: 'box-shadow 0.25s', boxShadow: isChosen ? `0 0 0 2px ${c}55, 0 0 ${sz * 0.5}px ${c}35` : isTierHighlighted ? `0 0 ${sz * 0.4}px ${c}18` : 'none' }}>
+    <div onClick={() => onChoose(slot)} style={{ width: bw, height: bh, borderRadius: r, background: slot.tenant?.b || U.s2, border: `1px solid ${isTierHighlighted ? c + '50' : isChosen ? c + '80' : c + '25'}`, position: 'relative', overflow: 'hidden', flexShrink: 0, cursor: 'pointer', outline: isChosen ? `2px solid ${c}` : 'none', outlineOffset: 1, transition: 'box-shadow 0.25s', boxShadow: isChosen ? `0 0 0 2px ${c}55, 0 0 ${sz * 0.5}px ${c}35` : isTierHighlighted ? `0 0 ${sz * 0.4}px ${c}18` : 'none' }}>
       {sz >= 12 && slot.tenant && (
         <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: slot.tenant.b || U.s2 }}>
           {sz >= 24 && <span style={{ color: slot.tenant.c, fontSize: Math.min(sz * 0.38, 28), fontWeight: 900, fontFamily: F.h, lineHeight: 1 }}>{slot.tenant.l}</span>}
@@ -3674,7 +3687,7 @@ const AnonBlock = memo(({ slot, chosenSlot, activeTier, onChoose, sz: szProp }) 
       <div
         onClick={() => onChoose(slot)}
         style={{
-          width: sz, height: sz, flexShrink: 0, position: 'relative', borderRadius: r,
+          width: bw, height: bh, flexShrink: 0, position: 'relative', borderRadius: r,
           background: isChosen ? `${c}14` : `${c}06`,
           border: `1px solid ${isChosen ? c + '55' : c + '18'}`,
           outline: isChosen ? `2px solid ${c}60` : 'none',
@@ -3708,7 +3721,7 @@ const AnonBlock = memo(({ slot, chosenSlot, activeTier, onChoose, sz: szProp }) 
 
   // ── Bloc libre disponible ──────────────────────────────────────
   return (
-    <div onClick={() => onChoose(slot)} style={{ width: sz, height: sz, flexShrink: 0, position: 'relative', borderRadius: r, background: isChosen ? `${c}18` : isTierHighlighted ? `${c}0c` : U.s2, border: `1px solid ${isChosen ? c + '80' : isTierHighlighted ? c + '40' : U.border}`, outline: isChosen ? `2px solid ${c}` : 'none', outlineOffset: 1, cursor: 'pointer', boxShadow: isChosen ? `0 0 0 2px ${c}55, 0 0 ${sz * 0.5}px ${c}35` : isTierHighlighted ? `0 0 ${sz * 0.4}px ${c}22` : 'none', transition: 'border-color 0.2s, background 0.2s, box-shadow 0.25s' }}>
+    <div onClick={() => onChoose(slot)} style={{ width: bw, height: bh, flexShrink: 0, position: 'relative', borderRadius: r, background: isChosen ? `${c}18` : isTierHighlighted ? `${c}0c` : U.s2, border: `1px solid ${isChosen ? c + '80' : isTierHighlighted ? c + '40' : U.border}`, outline: isChosen ? `2px solid ${c}` : 'none', outlineOffset: 1, cursor: 'pointer', boxShadow: isChosen ? `0 0 0 2px ${c}55, 0 0 ${sz * 0.5}px ${c}35` : isTierHighlighted ? `0 0 ${sz * 0.4}px ${c}22` : 'none', transition: 'border-color 0.2s, background 0.2s, box-shadow 0.25s' }}>
       {isChosen && sz >= 18 && (
         <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <svg width={sz * 0.4} height={sz * 0.4} viewBox="0 0 12 12" fill="none">
@@ -3734,8 +3747,8 @@ function AdvertiserView({ slots, isLive, onWaitlist, onCheckout }) {
 
   // Check if all slots in a tier are occupied (enables buyout offer)
   const tierOccupancy = useMemo(() => {
-    const counts = { one: 0, ten: 0, corner_ten: 0, hundred: 0, thousand: 0 };
-    const total   = { one: 1, ten: 48, corner_ten: 4, hundred: 576, thousand: 740 };
+    const counts = { epicenter: 0, prestige: 0, elite: 0, business: 0, standard: 0, viral: 0 };
+    const total   = { epicenter: 1, prestige: 8, elite: 40, business: 176, standard: 400, viral: 671 };
     slots.forEach(s => { if (s.occ && counts[s.tier] !== undefined) counts[s.tier]++; });
     const full = {};
     Object.keys(counts).forEach(k => full[k] = counts[k] >= total[k]);
@@ -3755,7 +3768,7 @@ function AdvertiserView({ slots, isLive, onWaitlist, onCheckout }) {
     return () => obs.disconnect();
   }, []);
 
-  const { colOffsets, rowOffsets, totalGridW, totalGridH, tierSizes } =
+  const { colOffsets, rowOffsets, totalGridW, totalGridH, tierSizes, colWidths, rowHeights } =
     useGridLayout(containerW, containerH, isMobile);
 
   const activeTier = selectedTier || hoveredTier;
@@ -3799,11 +3812,12 @@ function AdvertiserView({ slots, isLive, onWaitlist, onCheckout }) {
   }, [chosenSlot?.id, slots]);
 
   const tiers = [
-    { id: 'one',      label: t('adv.tier.epicenter'), price: 1000, count: 1,   desc: t('adv.tier.center') },
-    { id: 'ten',      label: t('adv.tier.prestige'),  price: 100,  count: 48,  desc: t('adv.tier.crown') },
-    { id: 'corner_ten',label:t('adv.tier.corner'),   price: 100,  count: 4,   desc: t('adv.tier.corners') },
-    { id: 'hundred',  label: t('adv.tier.business'), price: 10,   count: 576, desc: t('adv.tier.mid') },
-    { id: 'thousand', label: t('adv.tier.viral'),    price: 1,    count: 740, desc: t('adv.tier.perimeter') },
+    { id: 'epicenter', label: t('adv.tier.epicenter'), price: 1000, count: 1,   desc: t('adv.tier.center') },
+    { id: 'prestige',  label: t('adv.tier.prestige'),  price: 100,  count: 8,   desc: t('adv.tier.crown') },
+    { id: 'elite',     label: t('adv.tier.elite'),     price: 50,   count: 40,  desc: t('adv.tier.elite.desc') },
+    { id: 'business',  label: t('adv.tier.business'),  price: 10,   count: 176, desc: t('adv.tier.mid') },
+    { id: 'standard',  label: t('adv.tier.standard'),  price: 3,    count: 400, desc: t('adv.tier.standard.desc') },
+    { id: 'viral',     label: t('adv.tier.viral'),     price: 1,    count: 671, desc: t('adv.tier.perimeter') },
   ];
 
   return (
@@ -3814,7 +3828,7 @@ function AdvertiserView({ slots, isLive, onWaitlist, onCheckout }) {
           <div style={{ color: U.muted, fontSize: 10, fontWeight: 600, letterSpacing: '0.07em', marginBottom: 14 }}>{t('adv.choose')}</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             {tiers.map(tier => {
-              const isActive = activeTier === tier.id || (activeTier === 'ten' && tier.id === 'corner_ten');
+              const isActive = activeTier === tier.id;
               const c = TIER_COLOR[tier.id];
               return (
                 <div key={tier.id}
@@ -3922,7 +3936,7 @@ function AdvertiserView({ slots, isLive, onWaitlist, onCheckout }) {
                       {t('adv.cta.offer')}
                     </button>
                     <div style={{ color: U.muted, fontSize: 10, textAlign: 'center', lineHeight: 1.5 }}>
-                      {tierIsFull ? t('adv.cta.offer.sub') : `Disponible quand les ${['one','ten','corner_ten'].includes(chosenSlot.tier) ? TIER_LABEL[chosenSlot.tier] : 'blocs de ce tier'} sont tous occupés`}
+                      {tierIsFull ? t('adv.cta.offer.sub') : `Disponible quand les ${['epicenter','prestige','elite'].includes(chosenSlot.tier) ? TIER_LABEL[chosenSlot.tier] : 'blocs de ce tier'} sont tous occupés`}
                     </div>
                   </>
                 );
@@ -4013,10 +4027,10 @@ function AdvertiserView({ slots, isLive, onWaitlist, onCheckout }) {
       <div ref={containerRef} style={{ flex: 1, overflow: 'auto', background: U.bg, order: isMobile ? 1 : 0, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', minHeight: 0, maxHeight: isMobile ? '45vh' : undefined }}>
         <div style={{ position: 'relative', width: totalGridW, height: totalGridH, flexShrink: 0 }}>
           {slots.map(slot => {
-            const tierMatch = !activeTier || slot.tier === activeTier || (activeTier === 'ten' && slot.tier === 'corner_ten');
+            const tierMatch = !activeTier || slot.tier === activeTier;
             return (
               <div key={slot.id} style={{ position: 'absolute', left: colOffsets[slot.x], top: rowOffsets[slot.y], opacity: tierMatch ? 1 : 0.06, transition: 'opacity 0.2s' }}>
-                <AnonBlock slot={slot} chosenSlot={chosenSlot} activeTier={activeTier} onChoose={handleChoose} sz={tierSizes[slot.tier]} />
+                <AnonBlock slot={slot} chosenSlot={chosenSlot} activeTier={activeTier} onChoose={handleChoose} sz={tierSizes[slot.tier]} w={colWidths[slot.x - 1]} h={rowHeights[slot.y - 1]} />
               </div>
             );
           })}
@@ -4038,13 +4052,13 @@ function LandingGrid({ slots }) {
   const [litSlots, setLitSlots] = useState([]);
   useEffect(() => {
     const always = slots.filter(s =>
-      (s.tier === 'one') ||
-      (s.tier === 'corner_ten') ||
-      (s.occ && s.tier === 'ten')
+      (s.tier === 'epicenter') ||
+      (s.tier === 'prestige') ||
+      (s.occ && s.tier === 'elite')
     );
-    const randOcc  = slots.filter(s => s.occ  && s.tier === 'hundred').sort(() => .5 - Math.random()).slice(0, 12);
-    const randVac  = slots.filter(s => !s.occ && s.tier === 'hundred').sort(() => .5 - Math.random()).slice(0, 8);
-    const randVir  = slots.filter(s => s.tier === 'thousand').sort(() => .5 - Math.random()).slice(0, 20);
+    const randOcc  = slots.filter(s => s.occ  && s.tier === 'business').sort(() => .5 - Math.random()).slice(0, 12);
+    const randVac  = slots.filter(s => !s.occ && s.tier === 'business').sort(() => .5 - Math.random()).slice(0, 8);
+    const randVir  = slots.filter(s => s.tier === 'viral').sort(() => .5 - Math.random()).slice(0, 20);
     setLitSlots([...always, ...randOcc, ...randVac, ...randVir]);
   }, [slots.length]);
 
@@ -4092,9 +4106,9 @@ function LandingGrid({ slots }) {
 
           // base opacity: very dim for all blocks
           let baseAlpha = 0.04;
-          if (slot.tier === 'one')        baseAlpha = 0.22;
-          else if (slot.tier === 'ten' || slot.tier === 'corner_ten') baseAlpha = 0.12;
-          else if (slot.tier === 'hundred') baseAlpha = 0.06;
+          if (slot.tier === 'epicenter')                   baseAlpha = 0.22;
+          else if (slot.tier === 'prestige' || slot.tier === 'elite') baseAlpha = 0.12;
+          else if (slot.tier === 'business') baseAlpha = 0.06;
 
           let alpha = baseAlpha;
           let glowR = 0;
@@ -4104,13 +4118,13 @@ function LandingGrid({ slots }) {
             const pulse  = 0.5 + 0.5 * Math.sin(t * 0.9 + phase); // 0→1
             const pulse2 = 0.5 + 0.5 * Math.sin(t * 0.4 + phase + 1.2);
 
-            if (slot.tier === 'one') {
+            if (slot.tier === 'epicenter') {
               alpha  = 0.55 + 0.35 * pulse;
               glowR  = (BSZ * 3.5 + BSZ * 2 * pulse2);
-            } else if (slot.tier === 'ten' || slot.tier === 'corner_ten') {
+            } else if (slot.tier === 'prestige' || slot.tier === 'elite') {
               alpha  = 0.28 + 0.22 * pulse;
               glowR  = (BSZ * 1.8 + BSZ * 0.8 * pulse2);
-            } else if (slot.tier === 'hundred') {
+            } else if (slot.tier === 'business') {
               alpha  = 0.12 + 0.14 * pulse;
               glowR  = (BSZ * 1.2 + BSZ * 0.5 * pulse2);
             } else {
@@ -4121,7 +4135,7 @@ function LandingGrid({ slots }) {
 
           const px = x * STEP;
           const py = y * STEP;
-          const r  = slot.tier === 'one' ? 3 : slot.tier === 'ten' || slot.tier === 'corner_ten' ? 2 : 1;
+          const r  = slot.tier === 'epicenter' ? 3 : slot.tier === 'prestige' || slot.tier === 'elite' ? 2 : 1;
 
           // glow halo
           if (glowR > 0) {
