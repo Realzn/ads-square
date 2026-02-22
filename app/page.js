@@ -11,7 +11,7 @@ import {
   subscribeToBookings, createCheckoutSession,
   fetchSlotStats, submitBuyoutOffer, recordClick,
 } from '../lib/supabase';
-import { getSession, signOut } from '../lib/supabase-auth';
+import { getSession, signIn, signUp, signOut } from '../lib/supabase-auth';
 import { getT } from '../lib/i18n';
 
 // ─── Language context ─────────────────────────────────────────
@@ -252,7 +252,6 @@ function WaitlistModal({ onClose }) {
   const [error, setError]     = useState(null);
 
   const handleSubmit = async () => {
-    if (!email || !email.includes('@')) { setError('Entrez un email valide'); return; }
     setLoading(true); setError(null);
     try {
       const res  = await fetch('/api/waitlist', {
@@ -694,13 +693,51 @@ function BlockPreview({ tier, blockForm, category, CATS, SOCIALS, MUSIC_PLATS })
 function CheckoutModal({ slot, onClose }) {
   const { isMobile } = useScreenSize();
   const t = useT();
-  const [step, setStep]       = useState(1); // 1=contenu, 2=paiement
+  const [step, setStep]       = useState(0); // 0=auth, 1=contenu, 2=paiement
   const [email, setEmail]     = useState('');
+  const [authMode, setAuthMode]   = useState('login'); // 'login' | 'signup'
+  const [authName, setAuthName]   = useState('');
+  const [authPass, setAuthPass]   = useState('');
+  const [authLoading, setAuthLoading] = useState(true);
+  const [authError, setAuthError] = useState('');
+
+  // Vérifie session au montage — saute l'étape auth si déjà connecté
+  useEffect(() => {
+    getSession().then(session => {
+      if (session?.user?.email) {
+        setEmail(session.user.email);
+        setStep(1);
+      }
+      setAuthLoading(false);
+    });
+  }, []);
+
+  const handleAuth = async () => {
+    if (!email.includes('@')) { setAuthError('Email invalide'); return; }
+    if (!authPass || authPass.length < 6) { setAuthError('Mot de passe : 6 caractères minimum'); return; }
+    setAuthLoading(true); setAuthError('');
+    try {
+      if (authMode === 'signup') {
+        await signUp({ email, password: authPass, displayName: authName || email.split('@')[0] });
+      } else {
+        await signIn({ email, password: authPass });
+      }
+      setStep(1);
+    } catch (err) {
+      setAuthError(
+        err.message === 'Invalid login credentials' ? 'Email ou mot de passe incorrect.' :
+        err.message === 'User already registered'   ? 'Compte existant. Connectez-vous.' :
+        err.message
+      );
+    } finally { setAuthLoading(false); }
+  };
   const [days, setDays]       = useState(30);
   const [loading, setLoading] = useState(false);
   const [error, setError]     = useState(null);
   // Contenu du bloc
   const [category, setCategory] = useState('link');
+  const [imgMode, setImgMode] = useState('url'); // 'url' | 'upload'
+  const [imgUploading, setImgUploading] = useState(false);
   const [blockForm, setBlockForm] = useState({
     title: '', slogan: '', url: '', cta_text: 'Visiter',
     image_url: '', primary_color: '', background_color: '#0d1828',
@@ -713,16 +750,66 @@ function CheckoutModal({ slot, onClose }) {
   const c = TIER_COLOR[tier];
 
   const CATS = [
-    { id:'video',    label:'Vidéo',       icon:'▶', color:'#e53935', urlLabel:'LIEN VIDÉO',        urlPh:'https://youtube.com/watch?v=…',   showImg:false, showSocial:false, showMusic:false, showApp:false },
-    { id:'image',    label:'Image',        icon:'◻', color:'#8e24aa', urlLabel:'LIEN DESTINATION',  urlPh:'https://votresite.com',           showImg:true,  showSocial:false, showMusic:false, showApp:false },
-    { id:'link',     label:'Lien',         icon:'⌖', color:'#1e88e5', urlLabel:'URL DESTINATION',   urlPh:'https://votresite.com',           showImg:false, showSocial:false, showMusic:false, showApp:false },
-    { id:'social',   label:'Réseaux',      icon:'⊕', color:'#00acc1', urlLabel:'LIEN DU PROFIL',    urlPh:'https://instagram.com/…',         showImg:false, showSocial:true,  showMusic:false, showApp:false },
-    { id:'music',    label:'Musique',      icon:'♪', color:'#1ed760', urlLabel:"LIEN D'ÉCOUTE",     urlPh:'https://open.spotify.com/…',      showImg:false, showSocial:false, showMusic:true,  showApp:false },
-    { id:'app',      label:'App',          icon:'⬡', color:'#43a047', urlLabel:"LIEN DE L'APP",     urlPh:'https://apps.apple.com/…',        showImg:true,  showSocial:false, showMusic:false, showApp:true  },
-    { id:'brand',    label:'Marque',       icon:'⬟', color:'#f0b429', urlLabel:'SITE MARQUE',       urlPh:'https://votremarque.com',         showImg:true,  showSocial:false, showMusic:false, showApp:false },
-    { id:'clothing', label:'Vêtements',    icon:'◎', color:'#f4511e', urlLabel:'LIEN COLLECTION',   urlPh:'https://boutique.com',            showImg:true,  showSocial:false, showMusic:false, showApp:false },
-    { id:'lifestyle',label:'Lifestyle',    icon:'❋', color:'#00bfa5', urlLabel:'LIEN DESTINATION',  urlPh:'https://votrecontenu.com',        showImg:true,  showSocial:false, showMusic:false, showApp:false },
-    { id:'text',     label:'Publication',  icon:'≡', color:'#90a4ae', urlLabel:"LIEN DE L'ARTICLE", urlPh:'https://medium.com/…',            showImg:false, showSocial:false, showMusic:false, showApp:false },
+    { id:'video',    label:'Vidéo',      icon:'▶', color:'#e53935',
+      titleLabel:'TITRE / CHAÎNE',      titlePh:'Ex: MaChaine — Ep.12',
+      sloganLabel:'CRÉATEUR / GENRE',   sloganPh:'Ex: Tech & Gaming · 50k abonnés',
+      urlLabel:'LIEN YOUTUBE / VIMEO',  urlPh:'https://youtube.com/watch?v=…',
+      ctaDefault:'Regarder',            showImg:true,  showSocial:false, showMusic:false, showApp:false,
+      hint:`L'embed vidéo s'affichera directement dans le popup.` },
+    { id:'image',    label:'Image',      icon:'◻', color:'#8e24aa',
+      titleLabel:'VOTRE NOM / MARQUE',  titlePh:'Ex: Studio Créatif',
+      sloganLabel:'ACCROCHE',           sloganPh:'Ex: Portraits & identités visuelles',
+      urlLabel:'LIEN DESTINATION',      urlPh:'https://votresite.com',
+      ctaDefault:'Découvrir',           showImg:true,  showSocial:false, showMusic:false, showApp:false,
+      hint:`L'image remplit entièrement le bloc.` },
+    { id:'link',     label:'Lien',       icon:'⌖', color:'#1e88e5',
+      titleLabel:'TITRE DU LIEN',       titlePh:'Ex: Mon site portfolio',
+      sloganLabel:'DESCRIPTION',        sloganPh:'Ex: Design & développement web',
+      urlLabel:'URL DESTINATION',       urlPh:'https://votresite.com',
+      ctaDefault:'Visiter',             showImg:false, showSocial:false, showMusic:false, showApp:false,
+      hint:'Le bloc affiche vos initiales et votre nom.' },
+    { id:'social',   label:'Réseaux',    icon:'⊕', color:'#00acc1',
+      titleLabel:'VOTRE NOM',           titlePh:'Ex: @votrepseudo',
+      sloganLabel:'BIO / DESCRIPTION',  sloganPh:'Ex: Créateur de contenu · Paris',
+      urlLabel:'LIEN DU PROFIL',        urlPh:'https://instagram.com/votrepseudo',
+      ctaDefault:'Suivre',              showImg:false, showSocial:true,  showMusic:false, showApp:false,
+      hint:`L'icône de la plateforme s'affiche sur le bloc.` },
+    { id:'music',    label:'Musique',    icon:'♪', color:'#1ed760',
+      titleLabel:'ARTISTE / TITRE',     titlePh:'Ex: MaMusique — Album 2025',
+      sloganLabel:'GENRE / STYLE',      sloganPh:'Ex: Hip-hop · R&B · Lo-fi',
+      urlLabel:"LIEN D'ÉCOUTE",         urlPh:'https://open.spotify.com/track/…',
+      ctaDefault:'Écouter',             showImg:true,  showSocial:false, showMusic:true,  showApp:false,
+      hint:`Un lecteur audio s'intègre dans le popup (Spotify, SoundCloud, YouTube).` },
+    { id:'app',      label:'App',        icon:'⬡', color:'#43a047',
+      titleLabel:"NOM DE L'APP",        titlePh:'Ex: MonApp — Todo & Focus',
+      sloganLabel:'NOTE / ACCROCHE',    sloganPh:'Ex: 4.8★ · 10k+ téléchargements',
+      urlLabel:"LIEN STORE / SITE",     urlPh:'https://apps.apple.com/…',
+      ctaDefault:'Télécharger',         showImg:true,  showSocial:false, showMusic:false, showApp:true,
+      hint:`L'icône de l'app est affichée arrondie, style App Store.` },
+    { id:'brand',    label:'Marque',     icon:'⬟', color:'#f0b429',
+      titleLabel:'NOM DE LA MARQUE',    titlePh:'Ex: MaMarque™',
+      sloganLabel:'TAGLINE',            sloganPh:`Ex: L'excellence depuis 2010`,
+      urlLabel:'SITE WEB',              urlPh:'https://votremarque.com',
+      ctaDefault:'Découvrir',           showImg:true,  showSocial:false, showMusic:false, showApp:false,
+      hint:`Le logo s'affiche centré sur fond couleur marque.` },
+    { id:'clothing', label:'Vêtements', icon:'◎', color:'#f4511e',
+      titleLabel:'NOM DE LA BOUTIQUE',  titlePh:'Ex: UrbanWear',
+      sloganLabel:'PRIX / ACCROCHE',    sloganPh:'Ex: À partir de 29€',
+      urlLabel:'LIEN COLLECTION',       urlPh:'https://boutique.com/collection',
+      ctaDefault:'Voir la collection',  showImg:true,  showSocial:false, showMusic:false, showApp:false,
+      hint:`Le prix s'affiche en badge sur la photo produit.` },
+    { id:'lifestyle',label:'Lifestyle', icon:'❋', color:'#00bfa5',
+      titleLabel:'VOTRE NOM',           titlePh:'Ex: Camille L.',
+      sloganLabel:'ACCROCHE',           sloganPh:'Ex: Travel · Food · Bien-être',
+      urlLabel:'LIEN DESTINATION',      urlPh:'https://votrecontenu.com',
+      ctaDefault:'Découvrir',           showImg:true,  showSocial:false, showMusic:false, showApp:false,
+      hint:'La photo est affichée en plein bloc avec gradient.' },
+    { id:'text',     label:'Publication',icon:'≡', color:'#90a4ae',
+      titleLabel:"TITRE DE L'ARTICLE",  titlePh:'Ex: Comment lancer son SaaS en 30j',
+      sloganLabel:'EXTRAIT / ACCROCHE', sloganPh:'Ex: Un guide complet pas-à-pas…',
+      urlLabel:"LIEN DE L'ARTICLE",     urlPh:'https://medium.com/…',
+      ctaDefault:"Lire l'article",      showImg:false, showSocial:false, showMusic:false, showApp:false,
+      hint:`Le titre s'affiche typographié directement sur le bloc.` },
   ];
   const SOCIALS = [
     {id:'instagram',label:'Instagram',color:'#e1306c',e:'📸'},{id:'tiktok',label:'TikTok',color:'#69c9d0',e:'🎵'},
@@ -748,7 +835,6 @@ function CheckoutModal({ slot, onClose }) {
   const blurInp  = e => e.target.style.borderColor = U.border;
 
   const handleCheckout = async () => {
-    if (!email || !email.includes('@')) { setError('Entrez un email valide'); return; }
     setLoading(true); setError(null);
     try {
       const displayName = blockForm.title || email.split('@')[0];
@@ -772,6 +858,70 @@ function CheckoutModal({ slot, onClose }) {
   };
 
   if (!slot) return null;
+
+  // ── Étape 0 : authentification ────────────────────────────────
+  if (authLoading && step === 0) return (
+    <Modal onClose={onClose} width={420} isMobile={isMobile}>
+      <div style={{ padding:48, textAlign:'center', color:U.muted, fontSize:14 }}>Chargement…</div>
+    </Modal>
+  );
+
+  if (step === 0) return (
+    <Modal onClose={onClose} width={420} isMobile={isMobile}>
+      <div style={{ padding:'36px 32px' }}>
+        <div style={{ marginBottom:24 }}>
+          <div style={{ fontSize:20, fontWeight:800, color:U.text, marginBottom:6 }}>
+            {authMode === 'login' ? 'Connexion' : 'Créer un compte'}
+          </div>
+          <div style={{ fontSize:13, color:U.muted, lineHeight:1.5 }}>
+            {authMode === 'login'
+              ? 'Connectez-vous pour accéder au paiement et à votre espace annonceur.'
+              : 'Créez votre compte pour réserver ce bloc et gérer votre publicité.'}
+          </div>
+        </div>
+
+        {authMode === 'signup' && (
+          <div style={{ marginBottom:12 }}>
+            <div style={{ color:U.muted, fontSize:10, fontWeight:600, letterSpacing:'0.07em', marginBottom:6 }}>NOM AFFICHÉ</div>
+            <input value={authName} onChange={e => setAuthName(e.target.value)}
+              placeholder="Votre nom ou marque"
+              style={{ width:'100%', padding:'10px 13px', borderRadius:8, background:U.faint, border:`1px solid ${U.border}`, color:U.text, fontSize:13, outline:'none', boxSizing:'border-box' }} />
+          </div>
+        )}
+
+        <div style={{ marginBottom:12 }}>
+          <div style={{ color:U.muted, fontSize:10, fontWeight:600, letterSpacing:'0.07em', marginBottom:6 }}>EMAIL</div>
+          <input type="email" value={email} onChange={e => setEmail(e.target.value)}
+            placeholder="votre@email.com"
+            style={{ width:'100%', padding:'10px 13px', borderRadius:8, background:U.faint, border:`1px solid ${U.border}`, color:U.text, fontSize:13, outline:'none', boxSizing:'border-box' }} />
+        </div>
+
+        <div style={{ marginBottom:20 }}>
+          <div style={{ color:U.muted, fontSize:10, fontWeight:600, letterSpacing:'0.07em', marginBottom:6 }}>MOT DE PASSE</div>
+          <input type="password" value={authPass} onChange={e => setAuthPass(e.target.value)}
+            placeholder={authMode === 'signup' ? 'Minimum 6 caractères' : '••••••••'}
+            onKeyDown={e => e.key === 'Enter' && handleAuth()}
+            style={{ width:'100%', padding:'10px 13px', borderRadius:8, background:U.faint, border:`1px solid ${U.border}`, color:U.text, fontSize:13, outline:'none', boxSizing:'border-box' }} />
+        </div>
+
+        {authError && (
+          <div style={{ padding:'8px 12px', borderRadius:6, background:`${U.err}12`, border:`1px solid ${U.err}30`, color:U.err, fontSize:12, marginBottom:14, textAlign:'center' }}>{authError}</div>
+        )}
+
+        <button onClick={handleAuth} disabled={authLoading}
+          style={{ width:'100%', padding:13, borderRadius:10, cursor:authLoading?'wait':'pointer', background:U.accent, border:'none', color:U.accentFg, fontWeight:700, fontSize:14, opacity:authLoading?0.6:1 }}>
+          {authLoading ? '…' : authMode === 'login' ? 'Se connecter →' : 'Créer mon compte →'}
+        </button>
+
+        <div style={{ marginTop:16, textAlign:'center', fontSize:12, color:U.muted }}>
+          {authMode === 'login'
+            ? <span>Pas encore de compte ? <span onClick={() => { setAuthMode('signup'); setAuthError(''); }} style={{ color:U.accent, cursor:'pointer', fontWeight:600 }}>S'inscrire</span></span>
+            : <span>Déjà un compte ? <span onClick={() => { setAuthMode('login'); setAuthError(''); }} style={{ color:U.accent, cursor:'pointer', fontWeight:600 }}>Se connecter</span></span>
+          }
+        </div>
+      </div>
+    </Modal>
+  );
 
   return (
     <Modal onClose={onClose} width={820} isMobile={isMobile}>
@@ -836,7 +986,7 @@ function CheckoutModal({ slot, onClose }) {
           <div style={{ color:U.muted, fontSize:10, fontWeight:600, letterSpacing:'0.07em', marginBottom:10 }}>CATÉGORIE DU BLOC</div>
           <div style={{ display:'flex', flexWrap:'wrap', gap:5 }}>
             {CATS.map(cat => (
-              <button key={cat.id} onClick={() => { setCategory(cat.id); setF('primary_color',''); }}
+              <button key={cat.id} onClick={() => { setCategory(cat.id); setF('primary_color', cat.color); setF('cta_text', cat.ctaDefault || 'Visiter'); }}
                 style={{ padding:'5px 10px', borderRadius:7, border:`1px solid ${category===cat.id?cat.color:U.border}`, background:category===cat.id?cat.color+'15':'transparent', color:category===cat.id?cat.color:U.muted, fontSize:11, fontWeight:category===cat.id?700:400, cursor:'pointer', display:'flex', alignItems:'center', gap:4, transition:'all 0.15s' }}>
                 <span>{cat.icon}</span><span>{cat.label}</span>
               </button>
@@ -847,21 +997,28 @@ function CheckoutModal({ slot, onClose }) {
         {/* ─── CHAMPS ADAPTATIFS ─── */}
         <div style={{ display:'flex', flexDirection:'column', gap:12, marginBottom:20 }}>
 
+          {/* Hint catégorie */}
+          {cat.hint && (
+            <div style={{ padding:'8px 12px', borderRadius:7, background:`${cat.color}10`, border:`1px solid ${cat.color}25`, fontSize:11, color:cat.color, display:'flex', alignItems:'center', gap:6 }}>
+              <span>{cat.icon}</span> {cat.hint}
+            </div>
+          )}
+
           <div>
-            <div style={{ color:U.muted, fontSize:10, fontWeight:600, letterSpacing:'0.07em', marginBottom:7 }}>NOM / TITRE</div>
+            <div style={{ color:U.muted, fontSize:10, fontWeight:600, letterSpacing:'0.07em', marginBottom:7 }}>{cat.titleLabel || 'NOM / TITRE'}</div>
             <input type="text" value={blockForm.title} maxLength={40}
               onChange={e => setF('title', e.target.value)}
               onFocus={focusInp} onBlur={blurInp}
-              placeholder={cat.id==='social'?'Votre pseudo':cat.id==='music'?'Artiste / titre':'Votre nom ou marque'}
+              placeholder={cat.titlePh || 'Votre nom ou marque'}
               style={inpStyle} />
           </div>
 
           <div>
-            <div style={{ color:U.muted, fontSize:10, fontWeight:600, letterSpacing:'0.07em', marginBottom:7 }}>ACCROCHE</div>
+            <div style={{ color:U.muted, fontSize:10, fontWeight:600, letterSpacing:'0.07em', marginBottom:7 }}>{cat.sloganLabel || 'ACCROCHE'}</div>
             <input type="text" value={blockForm.slogan} maxLength={80}
               onChange={e => setF('slogan', e.target.value)}
               onFocus={focusInp} onBlur={blurInp}
-              placeholder="Une phrase courte et percutante…"
+              placeholder={cat.sloganPh || 'Une phrase courte et percutante…'}
               style={inpStyle} />
           </div>
 
@@ -898,12 +1055,67 @@ function CheckoutModal({ slot, onClose }) {
           {/* Image URL */}
           {cat.showImg && (
             <div>
-              <div style={{ color:U.muted, fontSize:10, fontWeight:600, letterSpacing:'0.07em', marginBottom:7 }}>IMAGE (URL)</div>
-              <input type="url" value={blockForm.image_url}
-                onChange={e => setF('image_url', e.target.value)}
-                onFocus={focusInp} onBlur={blurInp}
-                placeholder="https://exemple.com/image.jpg"
-                style={inpStyle} />
+              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:7 }}>
+                <div style={{ color:U.muted, fontSize:10, fontWeight:600, letterSpacing:'0.07em' }}>IMAGE</div>
+                <div style={{ display:'flex', gap:2, background:U.faint, borderRadius:6, padding:2 }}>
+                  {['url','upload'].map(m => (
+                    <button key={m} onClick={() => setImgMode(m)} style={{ padding:'3px 10px', borderRadius:4, border:'none', cursor:'pointer', fontSize:10, fontWeight:700, background: imgMode===m ? U.accent : 'transparent', color: imgMode===m ? U.accentFg : U.muted, transition:'all 0.15s' }}>
+                      {m === 'url' ? 'URL' : '⬆ Upload'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {imgMode === 'url' ? (
+                <input type="url" value={blockForm.image_url}
+                  onChange={e => setF('image_url', e.target.value)}
+                  onFocus={focusInp} onBlur={blurInp}
+                  placeholder="https://exemple.com/image.jpg"
+                  style={inpStyle} />
+              ) : (
+                <div>
+                  <label style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:6, padding:'16px', borderRadius:8, background:U.faint, border:`2px dashed ${U.border2}`, cursor:'pointer', transition:'border-color 0.15s' }}
+                    onDragOver={e => e.preventDefault()}
+                    onDrop={async e => {
+                      e.preventDefault();
+                      const file = e.dataTransfer.files[0];
+                      if (!file || !file.type.startsWith('image/')) return;
+                      setImgUploading(true);
+                      try {
+                        const { uploadBlockImage } = await import('../../lib/supabase');
+                        const url = await uploadBlockImage(file);
+                        if (url) setF('image_url', url);
+                      } catch(err) { console.error(err); }
+                      finally { setImgUploading(false); }
+                    }}>
+                    <input type="file" accept="image/*" style={{ display:'none' }}
+                      onChange={async e => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        setImgUploading(true);
+                        try {
+                          const { uploadBlockImage } = await import('../../lib/supabase');
+                          const url = await uploadBlockImage(file);
+                          if (url) setF('image_url', url);
+                        } catch(err) { console.error(err); }
+                        finally { setImgUploading(false); }
+                      }} />
+                    {imgUploading ? (
+                      <span style={{ color:U.muted, fontSize:12 }}>Upload en cours…</span>
+                    ) : blockForm.image_url ? (
+                      <>
+                        <img src={blockForm.image_url} alt="" style={{ width:60, height:60, objectFit:'cover', borderRadius:8 }} />
+                        <span style={{ color:U.accent, fontSize:11, fontWeight:600 }}>Changer l'image</span>
+                      </>
+                    ) : (
+                      <>
+                        <span style={{ fontSize:20 }}>🖼</span>
+                        <span style={{ color:U.muted, fontSize:12, textAlign:'center' }}>Glissez une image ici<br/>ou cliquez pour choisir</span>
+                        <span style={{ color:U.muted, fontSize:10 }}>JPG, PNG, WebP — max 5 Mo</span>
+                      </>
+                    )}
+                  </label>
+                </div>
+              )}
             </div>
           )}
 
@@ -932,13 +1144,10 @@ function CheckoutModal({ slot, onClose }) {
 
         <div style={{ height:1, background:U.border, marginBottom:20 }} />
 
-        {/* EMAIL */}
-        <div style={{ marginBottom:14 }}>
-          <div style={{ color:U.muted, fontSize:10, fontWeight:600, letterSpacing:'0.07em', marginBottom:7 }}>EMAIL</div>
-          <input type="email" value={email} onChange={e => setEmail(e.target.value)}
-            placeholder="votre@email.com"
-            style={inpStyle}
-            onFocus={focusInp} onBlur={blurInp} />
+        {/* Email connecté (lecture seule) */}
+        <div style={{ marginBottom:14, padding:'9px 13px', borderRadius:8, background:U.faint, border:`1px solid ${U.border}`, display:'flex', alignItems:'center', gap:8 }}>
+          <span style={{ fontSize:12, color:U.muted }}>Connecté en tant que</span>
+          <span style={{ fontSize:13, color:U.text, fontWeight:600 }}>{email}</span>
         </div>
 
         {/* Récap prix */}
@@ -989,13 +1198,128 @@ function CheckoutModal({ slot, onClose }) {
 function BlockMedia({ tenant, tier }) {
   const sz = TIER_SIZE[tier] || 56;
   if (!tenant) return null;
-  if (tenant.t === 'image' && tenant.img) return (
-    <img src={tenant.img} alt={tenant.name || ''} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} onError={e => e.target.style.display = 'none'} />
+  const { t, img, c, b, l, name, slogan, social, music, appStore } = tenant;
+
+  const SOCIAL_ICONS  = { instagram:'📸', tiktok:'🎵', x:'✕', youtube:'▶', linkedin:'💼', snapchat:'👻', twitch:'🎮', discord:'💬' };
+  const MUSIC_ICONS   = { spotify:'♪', apple_music:'🍎', soundcloud:'☁', deezer:'≋', youtube_music:'▶', bandcamp:'🎸' };
+  const MUSIC_COLORS  = { spotify:'#1ed760', apple_music:'#fc3c44', soundcloud:'#ff5500', deezer:'#a238ff', youtube_music:'#ff0000', bandcamp:'#1da0c3' };
+  const SOCIAL_COLORS = { instagram:'#e1306c', tiktok:'#69c9d0', x:'#1d9bf0', youtube:'#ff0000', linkedin:'#0a66c2', snapchat:'#fffc00', twitch:'#9146ff', discord:'#5865f2' };
+
+  // ── VIDÉO : thumbnail + overlay + ▶ ──────────────────────────
+  if (t === 'video') {
+    return (
+      <div style={{ position:'absolute', inset:0, overflow:'hidden', background:b||'#0a0a0a' }}>
+        {img && <img src={img} alt={name||''} style={{ position:'absolute', inset:0, width:'100%', height:'100%', objectFit:'cover', opacity:0.65 }} onError={e=>e.target.style.display='none'} />}
+        <div style={{ position:'absolute', inset:0, background:`linear-gradient(135deg,${b||'#0a0a0a'}88,transparent)` }} />
+        {sz >= 16 && (
+          <div style={{ position:'absolute', inset:0, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:2 }}>
+            <div style={{ width:Math.min(sz*0.38,28), height:Math.min(sz*0.38,28), borderRadius:'50%', background:'rgba(0,0,0,0.55)', border:`1.5px solid ${c}80`, display:'flex', alignItems:'center', justifyContent:'center', backdropFilter:'blur(4px)' }}>
+              <span style={{ color:c, fontSize:Math.min(sz*0.22,16), lineHeight:1, paddingLeft:'10%' }}>▶</span>
+            </div>
+            {sz >= 52 && <span style={{ color:'rgba(255,255,255,0.75)', fontSize:Math.min(sz*0.1,9), fontWeight:700, textAlign:'center', maxWidth:'85%', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', marginTop:2 }}>{name}</span>}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ── IMAGE / LIFESTYLE / MARQUE / VÊTEMENTS : image full bleed ─
+  if (img && (t === 'image' || t === 'lifestyle' || t === 'brand' || t === 'clothing')) {
+    return (
+      <div style={{ position:'absolute', inset:0, overflow:'hidden' }}>
+        <img src={img} alt={name||''} style={{ position:'absolute', inset:0, width:'100%', height:'100%', objectFit:'cover' }} onError={e=>e.target.style.display='none'} />
+        {/* Prix badge pour vêtements */}
+        {t === 'clothing' && slogan && sz >= 40 && (
+          <div style={{ position:'absolute', bottom:3, right:3, padding:'2px 5px', borderRadius:3, background:'rgba(0,0,0,0.75)', color:'#fff', fontSize:Math.min(sz*0.1,9), fontWeight:800, backdropFilter:'blur(4px)' }}>{slogan.slice(0,12)}</div>
+        )}
+        {/* Gradient + nom pour lifestyle */}
+        {t === 'lifestyle' && sz >= 40 && (
+          <div style={{ position:'absolute', inset:0, background:'linear-gradient(to top, rgba(0,0,0,0.72) 0%, transparent 55%)' }}>
+            {sz >= 52 && <div style={{ position:'absolute', bottom:4, left:4, right:4, color:'#fff', fontSize:Math.min(sz*0.1,9), fontWeight:700, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{name}</div>}
+          </div>
+        )}
+        {/* Overlay marque */}
+        {t === 'brand' && (
+          <div style={{ position:'absolute', inset:0, background:`linear-gradient(to top, ${b||'rgba(0,0,0,0.6)'} 0%, transparent 60%)` }} />
+        )}
+      </div>
+    );
+  }
+
+  // ── RÉSEAUX SOCIAUX ───────────────────────────────────────────
+  if (t === 'social') {
+    const icon = SOCIAL_ICONS[social] || '⊕';
+    const col  = SOCIAL_COLORS[social] || c;
+    return (
+      <div style={{ position:'absolute', inset:0, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:1, padding:3, background:b||`${col}10`, overflow:'hidden' }}>
+        <div style={{ position:'absolute', inset:0, background:`radial-gradient(circle at 50% 40%, ${col}15, transparent 70%)` }} />
+        {sz >= 16 && <span style={{ fontSize:Math.min(sz*0.44,30), lineHeight:1, position:'relative' }}>{icon}</span>}
+        {sz >= 44 && <span style={{ color:col, fontSize:Math.min(sz*0.1,9), fontWeight:700, textAlign:'center', maxWidth:'90%', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', position:'relative' }}>{name}</span>}
+      </div>
+    );
+  }
+
+  // ── MUSIQUE : icône + barres égaliseur ────────────────────────
+  if (t === 'music') {
+    const icon = MUSIC_ICONS[music] || '♪';
+    const col  = MUSIC_COLORS[music] || c;
+    const bars = [0.6,1,0.75,0.9,0.5];
+    const barH = Math.min(sz * 0.18, 14);
+    return (
+      <div style={{ position:'absolute', inset:0, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:2, padding:3, background:b||`${col}08`, overflow:'hidden' }}>
+        <div style={{ position:'absolute', inset:0, background:`radial-gradient(ellipse at 50% 30%, ${col}18, transparent 65%)` }} />
+        {sz >= 16 && <span style={{ color:col, fontSize:Math.min(sz*0.4,26), lineHeight:1, fontWeight:900, position:'relative' }}>{icon}</span>}
+        {sz >= 36 && (
+          <div style={{ display:'flex', alignItems:'flex-end', gap:Math.max(1, sz*0.02), height:barH, position:'relative' }}>
+            {bars.map((h,i) => (
+              <div key={i} style={{ width:Math.max(1,sz*0.04), borderRadius:1, background:col, opacity:0.7,
+                height: barH * h,
+                animation: `eqBar${i} ${0.4 + i*0.12}s ease-in-out infinite alternate` }} />
+            ))}
+          </div>
+        )}
+        {sz >= 52 && <span style={{ color:col+'bb', fontSize:Math.min(sz*0.1,9), fontWeight:700, textAlign:'center', maxWidth:'90%', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', position:'relative' }}>{name}</span>}
+      </div>
+    );
+  }
+
+  // ── APP : icône arrondie + badge store ────────────────────────
+  if (t === 'app') {
+    const storeLabel = appStore === 'ios' ? '🍎' : appStore === 'android' ? '🤖' : '⬡';
+    return (
+      <div style={{ position:'absolute', inset:0, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:2, padding:3, background:b||'transparent', overflow:'hidden' }}>
+        {img
+          ? <img src={img} alt="" style={{ width:Math.min(sz*0.55,38), height:Math.min(sz*0.55,38), borderRadius:Math.min(sz*0.12,9), objectFit:'cover', border:`1px solid ${c}30` }} onError={e=>e.target.style.display='none'} />
+          : sz >= 24 && <div style={{ width:Math.min(sz*0.52,36), height:Math.min(sz*0.52,36), borderRadius:Math.min(sz*0.12,9), background:`${c}20`, border:`1.5px solid ${c}50`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:Math.min(sz*0.24,18), fontWeight:900, color:c, fontFamily:F.h }}>{l}</div>
+        }
+        {sz >= 32 && <div style={{ fontSize:Math.min(sz*0.14,10), lineHeight:1 }}>{storeLabel}</div>}
+        {sz >= 52 && <span style={{ color:c+'bb', fontSize:Math.min(sz*0.1,9), fontWeight:700, textAlign:'center', maxWidth:'90%', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{name}</span>}
+      </div>
+    );
+  }
+
+  // ── PUBLICATION ───────────────────────────────────────────────
+  if (t === 'text') {
+    return (
+      <div style={{ position:'absolute', inset:0, display:'flex', flexDirection:'column', justifyContent:'center', padding:Math.max(3, sz*0.07), background:b||'transparent', overflow:'hidden' }}>
+        {sz >= 24 && <div style={{ width:'40%', height:1, background:`${c}60`, marginBottom:Math.max(2,sz*0.04), borderRadius:1 }} />}
+        {sz >= 28 && <div style={{ color:c, fontSize:Math.min(sz*0.13,10), fontWeight:800, lineHeight:1.3, overflow:'hidden', display:'-webkit-box', WebkitLineClamp:sz >= 56 ? 3 : 2, WebkitBoxOrient:'vertical' }}>{name}</div>}
+        {sz >= 60 && slogan && <div style={{ color:`${c}66`, fontSize:Math.min(sz*0.1,8), marginTop:2, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{slogan}</div>}
+        {sz >= 40 && <div style={{ width:'25%', height:1, background:`${c}30`, marginTop:Math.max(2,sz*0.04), borderRadius:1 }} />}
+      </div>
+    );
+  }
+
+  // ── IMAGE générique ───────────────────────────────────────────
+  if (img) return (
+    <img src={img} alt={name||''} style={{ position:'absolute', inset:0, width:'100%', height:'100%', objectFit:'cover' }} onError={e=>e.target.style.display='none'} />
   );
+
+  // ── DÉFAUT : initiales + nom ──────────────────────────────────
   return (
-    <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2, padding: 3, background: tenant.b || 'transparent', overflow: 'hidden' }}>
-      {sz >= 30 && <span style={{ color: tenant.c, fontSize: Math.min(sz * 0.36, 32), fontWeight: 900, lineHeight: 1, fontFamily: F.h }}>{tenant.l}</span>}
-      {sz >= 52 && <span style={{ color: tenant.c + 'cc', fontSize: Math.min(sz * 0.12, 11), fontWeight: 700, textAlign: 'center', lineHeight: 1.2, maxWidth: '90%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tenant.name}</span>}
+    <div style={{ position:'absolute', inset:0, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:2, padding:3, background:b||'transparent', overflow:'hidden' }}>
+      {sz >= 30 && <span style={{ color:c, fontSize:Math.min(sz*0.36,32), fontWeight:900, lineHeight:1, fontFamily:F.h }}>{l}</span>}
+      {sz >= 52 && <span style={{ color:c+'cc', fontSize:Math.min(sz*0.12,11), fontWeight:700, textAlign:'center', lineHeight:1.2, maxWidth:'90%', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{name}</span>}
     </div>
   );
 }
@@ -2053,13 +2377,92 @@ function FocusModal({ slot, allSlots, onClose, onNavigate, onGoAdvertiser, onVie
         {/* Close */}
         <button onClick={onClose} style={{ position: 'absolute', top: 14, right: 14, width: 30, height: 30, borderRadius: '50%', border: `1px solid ${U.border}`, background: U.faint, color: U.muted, cursor: 'pointer', fontSize: 16, zIndex: 10, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
 
-        {/* Hero image */}
-        {occ && tenant?.img && tier !== 'thousand' && (
-          <div style={{ position: 'relative', height: isMobile ? 160 : 210, overflow: 'hidden', background: U.s2 }}>
-            <img src={tenant.img} alt={tenant.name} style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: 0.7 }} />
-            <div style={{ position: 'absolute', inset: 0, background: `linear-gradient(to top, ${U.s1} 0%, ${c}08 40%, transparent 60%)` }} />
-          </div>
-        )}
+        {/* Hero — adapté selon content_type */}
+        {occ && tenant && tier !== 'thousand' && (() => {
+          const yt = tenant.url?.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([A-Za-z0-9_-]+)/);
+          const vimeo = tenant.url?.match(/vimeo\.com\/(\d+)/);
+
+          // Vidéo : embed à la place de l'image
+          if (tenant.t === 'video' && (yt || vimeo)) {
+            const embedSrc = yt
+              ? `https://www.youtube.com/embed/${yt[1]}?autoplay=0&rel=0&modestbranding=1`
+              : `https://player.vimeo.com/video/${vimeo[1]}?autoplay=0`;
+            return (
+              <div style={{ position:'relative', height: isMobile ? 180 : 240, background:'#000', overflow:'hidden' }}>
+                <iframe src={embedSrc} width="100%" height="100%" frameBorder="0"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen style={{ display:'block' }} />
+              </div>
+            );
+          }
+
+          // Publication : pas de hero, juste une barre colorée
+          if (tenant.t === 'text') {
+            return (
+              <div style={{ height:6, background:`linear-gradient(90deg, ${c}, ${c}40, transparent)` }} />
+            );
+          }
+
+          // App : fond neutre + app icon grande centrée
+          if (tenant.t === 'app') {
+            return (
+              <div style={{ height: isMobile ? 120 : 140, background:`linear-gradient(135deg, ${tenant.b||U.s2}, ${U.s2})`, display:'flex', alignItems:'center', justifyContent:'center', position:'relative' }}>
+                <div style={{ position:'absolute', inset:0, background:`radial-gradient(circle at 50% 100%, ${c}25, transparent 70%)` }} />
+                {tenant.img
+                  ? <img src={tenant.img} alt="" style={{ width:80, height:80, borderRadius:20, objectFit:'cover', border:`2px solid ${c}40`, boxShadow:`0 8px 32px ${c}40`, position:'relative' }} />
+                  : <div style={{ width:80, height:80, borderRadius:20, background:`${c}20`, border:`2px solid ${c}40`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:32, fontWeight:900, color:c, fontFamily:F.h, position:'relative' }}>{tenant.l}</div>
+                }
+              </div>
+            );
+          }
+
+          // Social : bannière couleur plateforme
+          if (tenant.t === 'social') {
+            const SOCIAL_COLORS = { instagram:'#e1306c', tiktok:'#69c9d0', x:'#1d9bf0', youtube:'#ff0000', linkedin:'#0a66c2', snapchat:'#fffc00', twitch:'#9146ff', discord:'#5865f2' };
+            const SOCIAL_ICONS  = { instagram:'📸', tiktok:'🎵', x:'✕', youtube:'▶', linkedin:'💼', snapchat:'👻', twitch:'🎮', discord:'💬' };
+            const col = SOCIAL_COLORS[tenant.social] || c;
+            const ico = SOCIAL_ICONS[tenant.social] || '⊕';
+            return (
+              <div style={{ height: isMobile ? 100 : 120, background:`linear-gradient(135deg, ${col}30, ${col}08)`, display:'flex', alignItems:'center', justifyContent:'center', gap:16, position:'relative', overflow:'hidden' }}>
+                <div style={{ position:'absolute', inset:0, background:`radial-gradient(ellipse at 30% 50%, ${col}25, transparent 70%)` }} />
+                <span style={{ fontSize:52, position:'relative' }}>{ico}</span>
+              </div>
+            );
+          }
+
+          // Musique : image album si disponible, sinon fond coloré
+          if (tenant.t === 'music') {
+            const MUSIC_COLORS = { spotify:'#1ed760', apple_music:'#fc3c44', soundcloud:'#ff5500', deezer:'#a238ff', youtube_music:'#ff0000', bandcamp:'#1da0c3' };
+            const col = MUSIC_COLORS[tenant.music] || c;
+            if (tenant.img) return (
+              <div style={{ position:'relative', height: isMobile ? 160 : 200, overflow:'hidden', background:U.s2 }}>
+                <img src={tenant.img} alt="" style={{ width:'100%', height:'100%', objectFit:'cover', opacity:0.6, filter:'blur(2px)', transform:'scale(1.05)' }} />
+                <div style={{ position:'absolute', inset:0, background:`linear-gradient(to top, ${U.s1} 0%, transparent 60%)` }} />
+                <img src={tenant.img} alt="" style={{ position:'absolute', top:'50%', left:'50%', transform:'translate(-50%,-50%)', width:80, height:80, borderRadius:12, objectFit:'cover', border:`2px solid ${col}60`, boxShadow:`0 8px 32px rgba(0,0,0,0.6)` }} />
+              </div>
+            );
+            return (
+              <div style={{ height: isMobile ? 100 : 120, background:`linear-gradient(135deg, ${col}20, ${U.s2})`, display:'flex', alignItems:'center', justifyContent:'center', position:'relative' }}>
+                <div style={{ position:'absolute', inset:0, background:`radial-gradient(circle at 50% 50%, ${col}30, transparent 70%)` }} />
+                <span style={{ fontSize:56, position:'relative' }}>🎵</span>
+              </div>
+            );
+          }
+
+          // Image / Lifestyle / Marque / Vêtements / Lien avec image
+          if (tenant.img) return (
+            <div style={{ position:'relative', height: isMobile ? 160 : 210, overflow:'hidden', background:U.s2 }}>
+              <img src={tenant.img} alt={tenant.name} style={{ width:'100%', height:'100%', objectFit:'cover', opacity:0.75 }} />
+              <div style={{ position:'absolute', inset:0, background:`linear-gradient(to top, ${U.s1} 0%, ${c}08 40%, transparent 60%)` }} />
+              {/* Badge prix pour vêtements */}
+              {tenant.t === 'clothing' && tenant.slogan && (
+                <div style={{ position:'absolute', top:12, right:12, padding:'5px 12px', borderRadius:20, background:'rgba(0,0,0,0.75)', color:'#fff', fontSize:12, fontWeight:800, backdropFilter:'blur(8px)', border:'1px solid rgba(255,255,255,0.15)' }}>{tenant.slogan}</div>
+              )}
+            </div>
+          );
+
+          return null;
+        })()}
 
         {occ && tenant ? (
           <div style={{ padding: isMobile ? '16px 20px 28px' : '24px 28px 32px' }}>
@@ -2120,6 +2523,34 @@ function FocusModal({ slot, allSlots, onClose, onNavigate, onGoAdvertiser, onVie
                       <span style={{ fontSize:14 }}>{musicMeta.icon}</span> {musicMeta.label}
                     </a>
                   )}
+                </div>
+              );
+            })()}
+
+            {/* Preview audio — embed 30s pour musique */}
+            {tenant.t === 'music' && tenant.url && (() => {
+              const url = tenant.url;
+              let embedUrl = null;
+              // Spotify track/album/playlist
+              const spotifyMatch = url.match(/spotify\.com\/(track|album|playlist)\/([A-Za-z0-9]+)/);
+              if (spotifyMatch) embedUrl = `https://open.spotify.com/embed/${spotifyMatch[1]}/${spotifyMatch[2]}?utm_source=generator&theme=0`;
+              // SoundCloud
+              if (!embedUrl && url.includes('soundcloud.com')) embedUrl = `https://w.soundcloud.com/player/?url=${encodeURIComponent(url)}&color=%231ed760&auto_play=false&hide_related=true&show_comments=false&show_user=true&show_reposts=false&show_teaser=false`;
+              // YouTube
+              const ytMatch = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([A-Za-z0-9_-]+)/);
+              if (!embedUrl && ytMatch) embedUrl = `https://www.youtube.com/embed/${ytMatch[1]}?start=0&end=30`;
+              if (!embedUrl) return null;
+              const isSoundcloud = url.includes('soundcloud.com');
+              return (
+                <div style={{ marginBottom:16, borderRadius:10, overflow:'hidden', border:`1px solid ${tenant.c}25` }}>
+                  <iframe
+                    src={embedUrl}
+                    width="100%" height={isSoundcloud ? 80 : 80}
+                    frameBorder="0"
+                    allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+                    loading="lazy"
+                    style={{ display:'block' }}
+                  />
                 </div>
               );
             })()}
