@@ -1,14 +1,7 @@
-// app/layout.js
-// Layout racine ADS-SQUARE — Optimisé Lighthouse
-//
-// ✅ CORRECTIFS APPLIQUÉS :
-//   [FCP/LCP]  Polices non-bloquantes via media="print" onLoad trick
-//   [LCP]      preconnect cdn.fontshare.com (80ms économisés)
-//   [CLS]      Fallback fonts dimensionnés dans globals.css
-//   [A11y]     Landmark <main> ajouté (était absent)
-//   [A11y]     Skip-link "Aller au contenu" pour clavier
+// app/layout.js — Server Component (pas de handlers d'événements ici)
 
 import './globals.css';
+import SkipLink from './SkipLink';
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://ads-square.com';
 
@@ -29,19 +22,15 @@ export const metadata = {
     siteName: 'ADS-SQUARE',
     images: [{ url: `${SITE_URL}/og.png`, width: 1200, height: 630 }],
   },
-  twitter: {
-    card: 'summary_large_image',
-  },
+  twitter: { card: 'summary_large_image' },
   robots: { index: true, follow: true },
-  alternates: {
-    canonical: SITE_URL,
-  },
+  alternates: { canonical: SITE_URL },
 };
 
 export const viewport = {
   width: 'device-width',
   initialScale: 1,
-  // ⚠️ NE PAS ajouter userScalable: 'no' — bloque le zoom, nuit à l'accessibilité (WCAG 1.4.4)
+  // ⚠️ NE PAS ajouter userScalable: 'no' — nuit à l'accessibilité (WCAG 1.4.4)
 };
 
 export default function RootLayout({ children }) {
@@ -50,38 +39,20 @@ export default function RootLayout({ children }) {
       <head>
         {/*
          * ── Preconnects ───────────────────────────────────────────────────
-         * Établit les connexions TCP/TLS tôt pour les origines critiques.
-         *
-         * ✅ CORRECTIF : cdn.fontshare.com était MANQUANT.
-         *   → Lighthouse indiquait 80ms d'économie LCP possible.
-         *   → api.fontshare.com est l'API CSS, cdn.fontshare.com sert les .woff2.
-         *   → Les deux preconnects sont nécessaires.
-         *
-         * ⚠️ Limiter à 4 preconnects max (coûteux sur mobile).
+         * ✅ cdn.fontshare.com AJOUTÉ — manquait (Lighthouse: -80ms LCP)
+         * Les 4 origins : api.fontshare.com (CSS) + cdn.fontshare.com (woff2)
+         *                 fonts.googleapis.com (CSS) + fonts.gstatic.com (woff2)
          */}
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link rel="preconnect" href="https://api.fontshare.com" />
-        {/* ✅ AJOUTÉ : preconnect pour le CDN des fichiers woff2 Fontshare */}
         <link rel="preconnect" href="https://cdn.fontshare.com" crossOrigin="anonymous" />
 
         {/*
          * ── Polices non-bloquantes ────────────────────────────────────────
-         * ✅ CORRECTIF : les polices bloquaient le rendu (2 120ms sur mobile).
-         *
-         * Technique media="print" + onLoad="this.media='all'" :
-         *   1. Le navigateur charge les CSS polices en basse priorité (non-bloquant).
-         *   2. Une fois chargées, bascule vers media=all → polices activées.
-         *   3. <noscript> assure le rendu si JS désactivé.
-         *
-         * Les métriques de fallback dans globals.css (@font-face Fallback)
-         * réduisent le CLS au minimum lors du swap font.
-         *
-         * Alternative : exécuter `bash scripts/download-fonts.sh` pour
-         * auto-héberger les polices avec font-display: optional → CLS = 0.
+         * ✅ Technique media="print" + onLoad — économie ~2 120ms FCP/LCP mobile
+         * Les fallback fonts dans globals.css réduisent le CLS lors du swap.
          */}
-
-        {/* Clash Display (700–900) — titres, logo */}
         <link
           rel="stylesheet"
           href="https://api.fontshare.com/v2/css?f[]=clash-display@700,800,900&display=swap"
@@ -96,7 +67,6 @@ export default function RootLayout({ children }) {
           />
         </noscript>
 
-        {/* DM Sans (400–800) — corps, UI */}
         <link
           rel="stylesheet"
           href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,700;0,9..40,800;1,9..40,400&display=swap"
@@ -113,43 +83,10 @@ export default function RootLayout({ children }) {
       </head>
 
       <body>
-        {/*
-         * ── Skip-link (accessibilité clavier) ────────────────────────────
-         * Permet aux utilisateurs clavier de passer directement au contenu.
-         * Invisible sauf au focus — requis WCAG 2.4.1.
-         */}
-        <a
-          href="#main-content"
-          style={{
-            position: 'absolute',
-            top: -999,
-            left: -999,
-            zIndex: 9999,
-            padding: '8px 16px',
-            background: '#f0b429',
-            color: '#080808',
-            fontWeight: 700,
-            borderRadius: 6,
-            textDecoration: 'none',
-            fontSize: 14,
-          }}
-          onFocus={(e) => {
-            e.target.style.top = '8px';
-            e.target.style.left = '8px';
-          }}
-          onBlur={(e) => {
-            e.target.style.top = '-999px';
-            e.target.style.left = '-999px';
-          }}
-        >
-          Aller au contenu principal
-        </a>
+        {/* SkipLink est un Client Component (onFocus/onBlur) — WCAG 2.4.1 */}
+        <SkipLink />
 
-        {/*
-         * ── Landmark <main> ───────────────────────────────────────────────
-         * ✅ CORRECTIF : était absent → -7pts Lighthouse accessibilité.
-         * Requis WCAG 2.4.1 + utilisé par les lecteurs d'écran pour naviguer.
-         */}
+        {/* ✅ Landmark <main> — était absent, -7pts Lighthouse accessibilité */}
         <main id="main-content">
           {children}
         </main>
