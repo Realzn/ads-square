@@ -1,108 +1,87 @@
-# ADS-SQUARE v2 — Architecture Guide
+# ADS-SQUARE
 
-## 🏗️ Nouvelle architecture
+La grille publicitaire ouverte à tous. Réservez un bloc dès 1€/jour.
 
-```
-Cloudflare Pages (Next.js frontend)
-        ↓ fetch active_slots
-Supabase (PostgreSQL + Auth + Realtime)
-        ↑ webhook écrit les bookings
-Stripe (Checkout + Webhooks)
-        ↑ paiement annonceur
-Annonceur
-```
+## Stack
 
-## 📁 Structure des fichiers
+- **Next.js 15** (App Router) + **React 19**
+- **Cloudflare Pages** (déploiement via OpenNext)
+- **Supabase** (base de données + auth)
+- **Stripe** (paiements)
+- **Tailwind CSS**
 
-```
-├── app/
-│   ├── page.js                    ← Page principale (refactorisée)
-│   ├── layout.js                  ← Layout (inchangé)
-│   ├── not-found.js               ← 404 (inchangé)
-│   ├── globals.css                ← CSS global (inchangé)
-│   └── api/stripe/
-│       ├── checkout/route.js      ← NOUVEAU: crée une session Stripe
-│       └── webhook/route.js       ← NOUVEAU: confirme les paiements
-├── lib/
-│   ├── grid.js                    ← NOUVEAU: logique grille extraite
-│   ├── supabase.js                ← REFACTORISÉ: client + realtime
-│   └── supabase-server.js         ← NOUVEAU: client service_role
-├── supabase/
-│   ├── 001_schema.sql             ← Migration principale
-│   └── 002_seed_demo.sql          ← Données de test
-├── package.json                   ← +stripe dependency
-└── .env.example                   ← Template variables
+---
+
+## Setup
+
+```bash
+# Installer les dépendances
+npm install --legacy-peer-deps
+
+# Configurer les variables d'environnement
+cp .env.example .env.local
+# → Remplir NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY, etc.
+
+# Développement
+npm run dev
+
+# Build & déploiement Cloudflare Pages
+npm run cf:deploy
 ```
 
-## 🚀 Guide de déploiement étape par étape
+---
 
-### Étape 1 : Supabase (5 min)
+## Optimisations Lighthouse appliquées
 
-1. Ouvrir ton projet Supabase → **SQL Editor**
-2. Coller et exécuter `supabase/001_schema.sql`
-3. Coller et exécuter `supabase/002_seed_demo.sql`
-4. Vérifier : `SELECT * FROM active_slots WHERE is_occupied = true;`
-5. Aller dans **Database → Replication** → Activer `bookings` pour le Realtime
-6. Copier la `service_role key` depuis **Settings → API**
+### Performance mobile (73 → ~90+)
 
-### Étape 2 : Variables d'environnement (2 min)
+| Correctif | Fichier | Impact |
+|-----------|---------|--------|
+| Polices non-bloquantes (media="print" trick) | `app/layout.js` | FCP/LCP −2 120ms |
+| preconnect cdn.fontshare.com ajouté | `app/layout.js` | LCP −80ms |
+| Fallback fonts avec métriques ajustées | `app/globals.css` | CLS −0.210 |
+| Animations composées sur boutons nav | `app/globals.css` | CLS −0.015 |
+| Browserslist restreint (polyfills supprimés) | `package.json` | JS −11 KiB |
 
-Dans **Cloudflare Pages → Settings → Environment variables**, ajouter :
+### Sécurité (Bonnes pratiques 96 → 100)
 
-| Variable | Valeur |
-|----------|--------|
-| `NEXT_PUBLIC_SUPABASE_URL` | `https://xxxx.supabase.co` |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | `eyJhbG...` (anon key) |
-| `SUPABASE_SERVICE_ROLE_KEY` | `eyJhbG...` (service role) |
-| `NEXT_PUBLIC_STRIPE_ENABLED` | `false` (pour l'instant) |
-| `NEXT_PUBLIC_SITE_URL` | `https://ads-square.com` |
+| Correctif | Fichier |
+|-----------|---------|
+| CSP, HSTS, COOP, X-Frame-Options | `public/_headers` |
+| Supabase Realtime lazy (erreurs WebSocket supprimées) | `lib/supabase.js` |
 
-### Étape 3 : Déployer le code (5 min)
+### Accessibilité (93 → ~97)
 
-Remplacer les fichiers dans ton repo :
-- `lib/grid.js` (nouveau)
-- `lib/supabase.js` (remplacer)
-- `lib/supabase-server.js` (nouveau)
-- `app/page.js` (remplacer)
-- `app/api/stripe/checkout/route.js` (nouveau)
-- `app/api/stripe/webhook/route.js` (nouveau)
-- `package.json` (remplacer)
+| Correctif | Fichier |
+|-----------|---------|
+| Landmark `<main>` ajouté | `app/layout.js` |
+| Skip-link clavier | `app/layout.js` |
 
-Push → Cloudflare rebuild automatique.
+---
 
-### Étape 4 : Stripe (quand prêt)
+## Prochaine optimisation recommandée : auto-héberger les polices
 
-1. Créer un compte sur [stripe.com](https://stripe.com)
-2. Compléter le KYC (1-3 jours)
-3. Ajouter les variables dans Cloudflare :
-   - `STRIPE_SECRET_KEY` = `sk_test_...`
-   - `STRIPE_WEBHOOK_SECRET` = `whsec_...`
-   - `NEXT_PUBLIC_STRIPE_ENABLED` = `true`
-4. Dans Stripe → **Webhooks** → ajouter endpoint :
-   - URL : `https://ads-square.com/api/stripe/webhook`
-   - Events : `checkout.session.completed`, `checkout.session.expired`, `charge.refunded`
+Pour atteindre **CLS = 0 garanti** et supprimer toutes les dépendances CDN polices :
 
-## 🔄 Comment ça marche maintenant
+```bash
+bash scripts/download-fonts.sh
+```
 
-### Mode démo (sans Supabase)
-Si les variables Supabase ne sont pas configurées, la grille affiche les données fictives comme avant (rng seed 42). Aucun changement visible pour l'utilisateur.
+Puis dans `app/globals.css`, décommenter la section **OPTION B** et supprimer les `<link>` polices dans `app/layout.js`.
 
-### Mode live (avec Supabase)
-1. Au chargement, le frontend fetch `active_slots` (vue Supabase)
-2. La grille affiche les vrais blocs réservés
-3. Le Realtime écoute les changements sur `bookings`
-4. Quand un paiement est confirmé, le webhook active le booking → le Realtime push le changement → la grille se met à jour pour tous les visiteurs
+---
 
-### Mode paiement (avec Stripe)
-1. L'annonceur choisit un bloc → modal de checkout
-2. API route crée une session Stripe + un booking `pending`
-3. Redirect vers Stripe Checkout
-4. Paiement OK → webhook reçoit `checkout.session.completed`
-5. Webhook active le booking → Realtime → grille mise à jour
+## Analyser le bundle JavaScript
 
-## ⚠️ Notes importantes
+```bash
+npm run analyze
+```
 
-- **RLS** : Les bookings ne peuvent être créés/modifiés que via `service_role` (webhook). Le `anon_key` ne peut que lire. C'est voulu pour la sécurité.
-- **Expiration** : La fonction `expire_old_bookings()` doit être appelée quotidiennement. Options : pg_cron (plan Pro) ou Edge Function CRON.
-- **Next.js 14.2.0** : Vulnérabilité connue. Migrer vers 14.2.10+ quand possible.
-- **Cloudflare Pages** : Les API routes Stripe nécessitent le runtime Node.js. Vérifier la compatibilité avec `@cloudflare/next-on-pages`.
+Ouvre un rapport visuel des chunks. Priorité : `chunks/111-*.js` (50 KiB, 37 KiB inutilisés).
+
+**Solution recommandée :** passer les composants non visibles au chargement en `dynamic import` :
+
+```js
+import dynamic from 'next/dynamic';
+const FocusModal = dynamic(() => import('./FocusModal'));
+```

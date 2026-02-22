@@ -5,6 +5,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
+    "analyze": "ANALYZE=true next build",
     "cf:build": "npx opennextjs-cloudflare build && cp .open-next/worker.js .open-next/assets/_worker.js && cp -r .open-next/cloudflare .open-next/assets/ && cp -r .open-next/middleware .open-next/assets/ && cp -r .open-next/server-functions .open-next/assets/ && cp -r .open-next/.build .open-next/assets/ && echo '{\"version\":1,\"include\":[\"/*\"],\"exclude\":[\"/_next/static/*\",\"/_next/image*\",\"/favicon.ico\",\"/favicon.png\"]}' > .open-next/assets/_routes.json",
     "cf:preview": "npm run cf:build && npx wrangler pages dev .open-next/assets",
     "cf:deploy": "npm run cf:build && npx wrangler pages deploy .open-next/assets",
@@ -18,10 +19,20 @@
     "stripe": "^14.14.0"
   },
   "devDependencies": {
+    "@next/bundle-analyzer": "^15.0.0",
     "@opennextjs/cloudflare": "1.16.5",
     "wrangler": "3.95.0",
     "autoprefixer": "^10.0.1",
     "postcss": "^8.4.0",
     "tailwindcss": "^3.4.0"
-  }
+  },
+  "browserslist": [
+    "last 2 Chrome versions",
+    "last 2 Firefox versions",
+    "last 2 Safari versions",
+    "last 2 Edge versions",
+    "not dead",
+    "not IE 11",
+    "> 0.5%"
+  ]
 }
