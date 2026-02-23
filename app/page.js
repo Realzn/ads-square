@@ -3602,7 +3602,8 @@ function PublicView({ slots, isLive, onGoAdvertiser, onWaitlist, authUser, userB
             // Ghost slots are part of a merged block but not the anchor — skip rendering
             if (slot.isGhost) return null;
 
-            const inFilter  = filteredSlots.has(slot.id);\n            // isFiltering is hoisted above the map — stable per render, not per slot
+            const inFilter  = filteredSlots.has(slot.id);
+            // isFiltering is hoisted above the map — stable per render, not per slot
 
             // ── Couleur néon selon le filtre actif ──────────────
             // Tier  → s'allume sur tous les blocs du tier sélectionné
