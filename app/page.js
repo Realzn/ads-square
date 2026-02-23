@@ -300,12 +300,12 @@ function WaitlistModal({ onClose }) {
           <div style={{ marginBottom: 18 }}>
             <div style={{ color: U.muted, fontSize: 10, fontWeight: 600, letterSpacing: '0.07em', marginBottom: 10 }}>VOUS ÊTES</div>
             <div style={{ display: 'flex', gap: 7 }}>
-              {PROFILES.map(p => {
-                const active = profile === p.id;
+              {Object.entries(PROFILES).map(([id, p]) => {
+                const active = profile === id;
                 const col    = p.color || U.accent;
                 return (
-                  <button key={p.id}
-                    onClick={() => setProfile(p.id)}
+                  <button key={id}
+                    onClick={() => setProfile(id)}
                     style={{
                       flex: 1, padding: '9px 6px', borderRadius: 9, cursor: 'pointer',
                       fontFamily: F.b, textAlign: 'center', transition: 'all 0.15s',
@@ -3498,8 +3498,8 @@ function PublicView({ slots, isLive, onGoAdvertiser, onWaitlist, authUser, userB
     if (feedMode) { centeredRef.current = false; return; }
     if (centeredRef.current || !containerRef.current || containerW === 0) return;
     const el = containerRef.current;
-    el.scrollLeft = colOffsets[CENTER_X] + tierSizes.one / 2 - el.clientWidth / 2;
-    el.scrollTop  = rowOffsets[CENTER_Y] + tierSizes.one / 2 - el.clientHeight / 2;
+    el.scrollLeft = colOffsets[CENTER_X] + tierSizes.epicenter / 2 - el.clientWidth / 2;
+    el.scrollTop  = rowOffsets[CENTER_Y] + tierSizes.epicenter / 2 - el.clientHeight / 2;
     centeredRef.current = true;
   }, [feedMode, colOffsets, rowOffsets, tierSizes, containerW]);
 
@@ -4034,8 +4034,8 @@ function AdvertiserView({ slots, isLive, onWaitlist, onCheckout }) {
   useEffect(() => {
     if (centeredAdvRef.current || !containerRef.current || containerW === 0) return;
     const el = containerRef.current;
-    el.scrollLeft = colOffsets[CENTER_X] + tierSizes.one / 2 - el.clientWidth / 2;
-    el.scrollTop  = rowOffsets[CENTER_Y] + tierSizes.one / 2 - el.clientHeight / 2;
+    el.scrollLeft = colOffsets[CENTER_X] + tierSizes.epicenter / 2 - el.clientWidth / 2;
+    el.scrollTop  = rowOffsets[CENTER_Y] + tierSizes.epicenter / 2 - el.clientHeight / 2;
     centeredAdvRef.current = true;
   }, [colOffsets, rowOffsets, tierSizes, containerW]);
 
