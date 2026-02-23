@@ -3682,7 +3682,7 @@ function heatColor(ratio) {
 // ─── AdvSlotWrapper — grille annonceur = même rendu que PublicView ────────────
 // Utilise BlockCell (rendu complet avec BlockMedia) + overlay sélection + heatmap
 const AdvSlotWrapper = memo(({
-  slot, colOffset, rowOffset, sz,
+  slot, colOffset, rowOffset, sz, w, h,
   isChosen, isTierFiltering, tierMatch,
   heatmapMode, heatClicks, heatMax,
   isHeatHovered, onChoose, onHeatHover, onHeatLeave,
@@ -3690,6 +3690,9 @@ const AdvSlotWrapper = memo(({
   const c     = TIER_COLOR[slot.tier];
   const ratio = heatmapMode && heatMax > 0 ? Math.min(heatClicks / heatMax, 1) : 0;
   const heatCol = heatmapMode ? heatColor(ratio) : null;
+
+  // Effective cell size for border-radius and glow calculations
+  const cellSz = Math.min(w ?? sz, h ?? sz);
 
   const handleClick = useCallback(() => onChoose(slot), [slot, onChoose]);
 
@@ -3718,6 +3721,8 @@ const AdvSlotWrapper = memo(({
         onSelect={handleClick}
         onFocus={handleClick}
         sz={sz}
+        w={w}
+        h={h}
         showStats={!heatmapMode}
       />
 
@@ -3725,11 +3730,11 @@ const AdvSlotWrapper = memo(({
       {isChosen && (
         <div style={{
           position: 'absolute', inset: -2,
-          borderRadius: slot.tier === 'one' ? Math.round(sz * 0.1) + 2
-                      : slot.tier === 'ten' || slot.tier === 'corner_ten' ? Math.round(sz * 0.09) + 2
-                      : slot.tier === 'hundred' ? 5 : 4,
+          borderRadius: slot.tier === 'epicenter' ? Math.round(cellSz * 0.1) + 2
+                      : slot.tier === 'prestige' || slot.tier === 'elite' ? Math.round(cellSz * 0.09) + 2
+                      : slot.tier === 'business' ? 5 : 4,
           border: `2px solid ${c}`,
-          boxShadow: `0 0 0 1px ${c}25, 0 0 ${Math.max(12, sz * 0.55)}px ${c}40`,
+          boxShadow: `0 0 0 1px ${c}25, 0 0 ${Math.max(12, cellSz * 0.55)}px ${c}40`,
           pointerEvents: 'none', zIndex: 10,
           animation: 'selectedPulse 2.4s ease-in-out infinite',
         }} />
@@ -3755,20 +3760,20 @@ const AdvSlotWrapper = memo(({
             <div style={{
               position: 'absolute', inset: 0,
               borderRadius: 'inherit',
-              boxShadow: `inset 0 0 0 ${sz >= 40 ? 1.5 : 1}px ${heatCol}${Math.round(Math.min(0.85, ratio * 1.1) * 255).toString(16).padStart(2,'0')}, 0 0 ${Math.round(sz * ratio * 0.7)}px ${heatCol}${Math.round(ratio * 0.45 * 255).toString(16).padStart(2,'0')}`,
+              boxShadow: `inset 0 0 0 ${cellSz >= 40 ? 1.5 : 1}px ${heatCol}${Math.round(Math.min(0.85, ratio * 1.1) * 255).toString(16).padStart(2,'0')}, 0 0 ${Math.round(cellSz * ratio * 0.7)}px ${heatCol}${Math.round(ratio * 0.45 * 255).toString(16).padStart(2,'0')}`,
               pointerEvents: 'none', zIndex: 9,
             }} />
           )}
 
           {/* Indicateur de chaleur (petit point en haut-droite, gros blocs uniquement) */}
-          {ratio > 0.1 && sz >= 44 && (
+          {ratio > 0.1 && cellSz >= 44 && (
             <div style={{
               position: 'absolute', top: 5, right: 5,
-              width: Math.max(5, Math.round(sz * 0.09)),
-              height: Math.max(5, Math.round(sz * 0.09)),
+              width: Math.max(5, Math.round(cellSz * 0.09)),
+              height: Math.max(5, Math.round(cellSz * 0.09)),
               borderRadius: '50%',
               background: heatCol,
-              boxShadow: `0 0 ${Math.round(sz * 0.14)}px ${heatCol}99`,
+              boxShadow: `0 0 ${Math.round(cellSz * 0.14)}px ${heatCol}99`,
               opacity: 0.75 + ratio * 0.25,
               pointerEvents: 'none', zIndex: 11,
             }} />
@@ -3778,7 +3783,7 @@ const AdvSlotWrapper = memo(({
           {isHeatHovered && (
             <div style={{
               position: 'absolute',
-              bottom: sz + 10,
+              bottom: cellSz + 10,
               left: '50%',
               transform: 'translateX(-50%)',
               background: 'rgba(4,6,12,0.97)',
@@ -4332,6 +4337,8 @@ function AdvertiserView({ slots, isLive, onWaitlist, onCheckout }) {
                   colOffset={colOffsets[slot.x]}
                   rowOffset={rowOffsets[slot.y]}
                   sz={tierSizes[slot.tier]}
+                  w={colWidths[slot.x - 1]}
+                  h={rowHeights[slot.y - 1]}
                   isChosen={chosenSlot?.id === slot.id}
                   isTierFiltering={!!activeTier}
                   tierMatch={tierMatch}
