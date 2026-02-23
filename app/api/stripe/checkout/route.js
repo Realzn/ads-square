@@ -80,8 +80,8 @@ export async function POST(request) {
     }
 
     // Calculate price
-    const pricePerDay = TIER_PRICE[tier]; // in €
-    const totalCents = pricePerDay * days * 100; // Stripe uses cents
+    const pricePerDay = TIER_PRICE[tier]; // in cents (e.g. business = 1000 = €10)
+    const totalCents = pricePerDay * days; // already in cents — do NOT multiply by 100 again
 
     // Create Stripe Checkout Session
     const session = await stripe.checkout.sessions.create({

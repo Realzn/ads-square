@@ -311,6 +311,9 @@ function TabEditBloc({ booking, onSaved, showToast }) {
   const [category, setCat]  = useState('link');
   const [saving, setSaving] = useState(false);
   const [focused, setFocused] = useState('');
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useState(null)[0] || { current: null };
+  const fileRef = useRef(null);
 
   const CATS = [
     {id:'video',    label:'Vidéo',      icon:'▶', color:'#e53935', urlLabel:'LIEN VIDÉO',        urlPh:'https://youtube.com/watch?v=…',  showImg:false, showSocial:false, showMusic:false},
@@ -595,15 +598,42 @@ function TabEditBloc({ booking, onSaved, showToast }) {
         {/* Colonne droite — image + aperçu */}
         <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
 
-          {/* Image : url pour toutes catégories visuelles */}
+          {/* Image : url ou upload fichier */}
           {cat.showImg && (
-            <Field label="IMAGE / VISUEL (URL)">
+            <Field label="IMAGE / VISUEL">
               <input type="url" value={form.image_url||''} disabled={!canEdit}
                 onChange={e => set('image_url', e.target.value)}
                 onFocus={() => setFocused('img')} onBlur={() => setFocused('')}
                 placeholder="https://exemple.com/image.jpg"
                 style={iStyle(focused==='img')} />
-              {/* Recommandation de taille selon le tier */}
+
+              {/* Upload local */}
+              {canEdit && (
+                <div style={{ marginTop:8, display:'flex', gap:8, alignItems:'center' }}>
+                  <input ref={fileRef} type="file" accept="image/*" style={{ display:'none' }}
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (!file || !booking) return;
+                      setUploading(true);
+                      try {
+                        const publicUrl = await uploadBlockImage(file, booking.id);
+                        set('image_url', publicUrl);
+                        showToast('✅ Image uploadée avec succès !', 'success');
+                      } catch(err) {
+                        showToast('Erreur upload : ' + err.message, 'error');
+                      } finally { setUploading(false); e.target.value = ''; }
+                    }}
+                  />
+                  <button
+                    onClick={() => fileRef.current?.click()}
+                    disabled={uploading}
+                    style={{ padding:'8px 14px', borderRadius:8, background:uploading?U.faint:'rgba(212,168,75,0.1)', border:`1px solid ${uploading?U.border:'rgba(212,168,75,0.4)'}`, color:uploading?U.muted:'#d4a84b', fontSize:12, fontWeight:600, cursor:uploading?'wait':'pointer', fontFamily:F.b, transition:'all 0.2s' }}>
+                    {uploading ? '⏳ Upload…' : '📁 Uploader un fichier'}
+                  </button>
+                  <span style={{ fontSize:11, color:U.muted }}>JPG, PNG, WEBP</span>
+                </div>
+              )}
+
               {(() => {
                 const rec = IMAGE_RECS[booking.tier];
                 if (!rec) return null;
@@ -617,36 +647,104 @@ function TabEditBloc({ booking, onSaved, showToast }) {
                   </div>
                 );
               })()}
-              <div style={{ fontSize:11, color:U.muted, marginTop:4 }}>URL directe vers une image JPG, PNG, WEBP</div>
               {form.image_url && (
                 <ImagePreviewWithCheck src={form.image_url} tier={booking.tier} />
               )}
               {!form.image_url && (
-                <div style={{ marginTop:8, borderRadius:8, height:100, background:U.s1, border:`2px dashed ${U.border2}`, display:'flex', alignItems:'center', justifyContent:'center', flexDirection:'column', gap:4 }}>
-                  <div style={{ fontSize:22, color:U.muted }}>{cat.icon}</div>
-                  <div style={{ fontSize:11, color:U.muted }}>Collez une URL d'image ci-dessus</div>
+                <div style={{ marginTop:8, borderRadius:8, height:80, background:U.s1, border:`2px dashed ${U.border2}`, display:'flex', alignItems:'center', justifyContent:'center', flexDirection:'column', gap:4 }}>
+                  <div style={{ fontSize:20, color:U.muted }}>{cat.icon}</div>
+                  <div style={{ fontSize:11, color:U.muted }}>Collez une URL ou uploadez un fichier</div>
                 </div>
               )}
             </Field>
           )}
 
-          {/* Aperçu du bloc */}
+          {/* Aperçu fidèle au bloc réel */}
           <Field label="APERÇU EN TEMPS RÉEL">
-            <div style={{ borderRadius:10, background:form.background_color||'#0d1828', border:`1px solid ${blockColor}30`, padding:16, boxShadow:`0 0 24px ${blockColor}12` }}>
-              <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:12 }}>
-                <div style={{ width:44, height:44, borderRadius:8, flexShrink:0, background:form.image_url?`url(${form.image_url}) center/cover`:`${blockColor}18`, border:`2px solid ${blockColor}60`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:18, color:blockColor, overflow:'hidden' }}>
-                  {!form.image_url && (selSocial?.e || selMusic?.e || cat.icon)}
+            {(() => {
+              const TIER_SIZE_MAP = { epicenter:100, prestige:56, elite:32, business:18, standard:11, viral:7 };
+              const sz = TIER_SIZE_MAP[booking.tier] || 18;
+              const PREVIEW_SZ = 160;
+              const rPreview = booking.tier === 'epicenter' ? 16 : ['prestige','elite'].includes(booking.tier) ? 14 : booking.tier === 'business' ? 5 : 3;
+              const rReal = booking.tier === 'epicenter' ? Math.round(sz*0.1) : ['prestige','elite'].includes(booking.tier) ? Math.round(sz*0.09) : booking.tier === 'business' ? 3 : 2;
+              const img = form.image_url || '';
+              const c = blockColor;
+              const b = form.background_color || '#0d1828';
+              const name = form.display_name || '';
+              const slogan = form.slogan || '';
+              const social = form.social_network || '';
+              const music = form.music_platform || '';
+              const appStore = form.app_store || '';
+
+              const SOCIAL_ICONS = { instagram:'📸',tiktok:'🎵',x:'✕',youtube:'▶',linkedin:'💼',snapchat:'👻',twitch:'🎮',discord:'💬',facebook:'👍' };
+              const SOCIAL_COLORS = { instagram:'#e1306c',tiktok:'#69c9d0',x:'#1d9bf0',youtube:'#ff0000',linkedin:'#0a66c2',snapchat:'#fffc00',twitch:'#9146ff',discord:'#5865f2' };
+              const MUSIC_ICONS = { spotify:'🎵',apple_music:'🍎',soundcloud:'☁',deezer:'🎶',youtube_music:'▶',bandcamp:'🎸' };
+              const MUSIC_COLORS = { spotify:'#1ed760',apple_music:'#fc3c44',soundcloud:'#ff5500',deezer:'#a238ff',youtube_music:'#ff0000',bandcamp:'#1da0c3' };
+              const APP_COLORS = { app_store:'#007aff',google_play:'#01875f',web:'#6366f1' };
+
+              function BlockContent({ size }) {
+                const t = category;
+                if (t === 'video') {
+                  const btnSz = Math.min(size*0.42,32);
+                  return <div style={{ position:'absolute',inset:0,overflow:'hidden',background:b }}>{img&&<img src={img} alt="" style={{ position:'absolute',inset:0,width:'100%',height:'100%',objectFit:'cover',opacity:0.55 }} onError={e=>e.target.style.display='none'} />}<div style={{ position:'absolute',inset:0,background:'linear-gradient(to bottom,rgba(0,0,0,.2),rgba(0,0,0,.6))' }} /><div style={{ position:'absolute',inset:0,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:3 }}><div style={{ width:btnSz,height:btnSz,borderRadius:'50%',background:'rgba(0,0,0,.6)',border:`${Math.max(1,btnSz*.06)}px solid ${c}`,display:'flex',alignItems:'center',justifyContent:'center',backdropFilter:'blur(6px)',boxShadow:`0 0 ${btnSz*.6}px ${c}70` }}><span style={{ color:c,fontSize:Math.max(8,btnSz*.38),lineHeight:1,paddingLeft:'12%' }}>▶</span></div>{size>=52&&name&&<span style={{ color:'rgba(255,255,255,.85)',fontSize:Math.min(size*.1,9),fontWeight:700,textAlign:'center',maxWidth:'85%',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap' }}>{name}</span>}</div></div>;
+                }
+                if (img && ['image','lifestyle','brand','clothing'].includes(t)) {
+                  return <div style={{ position:'absolute',inset:0,overflow:'hidden' }}><img src={img} alt="" style={{ position:'absolute',inset:0,width:'100%',height:'100%',objectFit:'cover' }} onError={e=>e.target.style.display='none'} />{t==='brand'&&<div style={{ position:'absolute',inset:0,background:`linear-gradient(to top,${b} 0%,transparent 55%)` }} />}</div>;
+                }
+                if (t === 'social') {
+                  const icon = SOCIAL_ICONS[social] || selSocial?.e || '⊕';
+                  const col = SOCIAL_COLORS[social] || c;
+                  return <div style={{ position:'absolute',inset:0,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:1,padding:2,overflow:'hidden',background:`radial-gradient(circle at 50% 45%,${col}28 0%,${col}0a 55%,${b} 100%)` }}>{size>=11&&<span style={{ fontSize:Math.min(size*.52,36),lineHeight:1,filter:`drop-shadow(0 0 ${Math.min(size*.15,8)}px ${col}90)` }}>{icon}</span>}{size>=44&&name&&<span style={{ color:col,fontSize:Math.min(size*.1,9),fontWeight:700,textAlign:'center',maxWidth:'90%',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',marginTop:1 }}>{name}</span>}</div>;
+                }
+                if (t === 'music') {
+                  const icon = MUSIC_ICONS[music] || selMusic?.e || '🎵';
+                  const col = MUSIC_COLORS[music] || c;
+                  return <div style={{ position:'absolute',inset:0,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:1,padding:2,overflow:'hidden',background:`radial-gradient(ellipse at 50% 35%,${col}22 0%,${col}05 60%,${b} 100%)` }}>{size>=11&&<span style={{ color:col,fontSize:Math.min(size*.46,30),lineHeight:1,fontWeight:900 }}>{icon}</span>}{size>=52&&name&&<span style={{ color:col+'cc',fontSize:Math.min(size*.09,8),fontWeight:700,textAlign:'center',maxWidth:'92%',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap' }}>{name}</span>}</div>;
+                }
+                if (t === 'app') {
+                  const storeCol = APP_COLORS[appStore] || c;
+                  const iconSz = Math.min(size*.54,40);
+                  return <div style={{ position:'absolute',inset:0,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:2,padding:3,background:`${storeCol}0a`,overflow:'hidden' }}>{img?<img src={img} alt="" style={{ width:iconSz,height:iconSz,borderRadius:iconSz*.22,objectFit:'cover',border:`1.5px solid ${storeCol}40` }} onError={e=>e.target.style.display='none'} />:<div style={{ width:iconSz,height:iconSz,borderRadius:iconSz*.22,background:`${storeCol}22`,border:`1.5px solid ${storeCol}55`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:iconSz*.42,color:storeCol }}>{(name||'?').charAt(0).toUpperCase()}</div>}</div>;
+                }
+                if (img) return <img src={img} alt="" style={{ position:'absolute',inset:0,width:'100%',height:'100%',objectFit:'cover' }} onError={e=>e.target.style.display='none'} />;
+                return <div style={{ position:'absolute',inset:0,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:2,padding:3,background:b }}><span style={{ color:c,fontSize:Math.min(size*.36,42),fontWeight:900,lineHeight:1,fontFamily:"'Clash Display','Syne',sans-serif" }}>{selSocial?.e||selMusic?.e||cat.icon||(name||'?').charAt(0).toUpperCase()}</span>{size>=52&&name&&<span style={{ color:c+'cc',fontSize:Math.min(size*.12,13),fontWeight:700,textAlign:'center',maxWidth:'90%',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap' }}>{name}</span>}</div>;
+              }
+
+              return (
+                <div style={{ display:'flex',flexDirection:'column',gap:14,alignItems:'center',padding:'14px',borderRadius:12,background:U.s2,border:`1px solid ${U.border}` }}>
+                  {/* Label live */}
+                  <div style={{ display:'flex',alignItems:'center',gap:6,alignSelf:'flex-start' }}>
+                    <div style={{ width:6,height:6,borderRadius:'50%',background:'#00e8a2',animation:'blink 1.5s infinite' }} />
+                    <span style={{ fontSize:9,fontWeight:800,color:'#00e8a2',letterSpacing:'0.1em' }}>APERÇU EN DIRECT</span>
+                  </div>
+
+                  {/* Grande vue fidèle */}
+                  <div style={{ position:'relative',width:PREVIEW_SZ,height:PREVIEW_SZ }}>
+                    <div style={{ position:'absolute',inset:-6,borderRadius:rPreview+4,boxShadow:`0 0 32px ${c}30`,pointerEvents:'none' }} />
+                    <div style={{ width:PREVIEW_SZ,height:PREVIEW_SZ,borderRadius:rPreview,position:'relative',overflow:'hidden',border:`1.5px solid ${c}55`,background:b,boxShadow:`0 0 0 1px ${c}25,0 8px 32px rgba(0,0,0,.5)` }}>
+                      <BlockContent size={PREVIEW_SZ} />
+                    </div>
+                    <div style={{ position:'absolute',top:-8,right:-8,display:'flex',alignItems:'center',gap:4,padding:'3px 8px',borderRadius:20,background:'rgba(0,0,0,.85)',border:`1px solid ${c}30`,backdropFilter:'blur(8px)' }}>
+                      <div style={{ width:5,height:5,borderRadius:'50%',background:'#00e8a2',animation:'blink 1.5s infinite' }} />
+                      <span style={{ fontSize:8,fontWeight:700,color:'rgba(255,255,255,.7)',letterSpacing:'0.06em' }}>LIVE</span>
+                    </div>
+                  </div>
+
+                  {/* Taille réelle sur la grille */}
+                  <div style={{ fontSize:9,color:'rgba(255,255,255,.25)',letterSpacing:'0.06em',fontWeight:600 }}>TAILLE RÉELLE SUR LA GRILLE</div>
+                  <div style={{ padding:12,borderRadius:10,background:'#0a0a0a',border:`1px solid ${U.border}`,display:'grid',gridTemplateColumns:`repeat(3,${sz}px)`,gap:3 }}>
+                    {[0,1,2,3,4,5,6,7,8].map(i => {
+                      const isCenter = i===4;
+                      return (
+                        <div key={i} style={{ width:sz,height:sz,borderRadius:rReal,background:isCenter?b:'#1a1a1a',border:`1px solid ${isCenter?c+'55':U.border}`,position:'relative',overflow:'hidden',boxShadow:isCenter?`0 0 ${sz*1.5}px ${c}40`:'none',flexShrink:0 }}>
+                          {isCenter && <BlockContent size={sz} />}
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
-                <div style={{ flex:1, minWidth:0 }}>
-                  <div style={{ fontSize:14, fontWeight:700, color:blockColor, marginBottom:3 }}>{form.display_name||'Votre titre'}</div>
-                  <div style={{ fontSize:11, color:'rgba(255,255,255,0.4)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{form.slogan||'Votre accroche…'}</div>
-                </div>
-                <div style={{ fontSize:9, fontWeight:700, color:blockColor, padding:'3px 8px', background:`${blockColor}15`, borderRadius:5, border:`1px solid ${blockColor}30`, flexShrink:0 }}>{cat.label.toUpperCase()}</div>
-              </div>
-              <div style={{ padding:'8px 14px', borderRadius:7, background:`${blockColor}15`, border:`1px solid ${blockColor}30`, textAlign:'center', color:blockColor, fontSize:12, fontWeight:700 }}>
-                {form.cta_text||'Visiter'} →
-              </div>
-            </div>
+              );
+            })()}
           </Field>
 
           <div style={{ padding:'12px 14px', background:'rgba(34,197,94,0.06)', border:'1px solid rgba(34,197,94,0.15)', borderRadius:10, fontSize:12, color:'rgba(34,197,94,0.8)' }}>

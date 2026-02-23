@@ -41,17 +41,17 @@ const F = {
 
 // ─── Theme categories ─────────────────────────────────────────
 const THEMES = [
-  { id: 'all',      label: 'Tous',         icon: '◈', color: null },
-  { id: 'video',    label: 'Vidéo',        icon: '▶', color: '#e53935', match: (t,n)   => t === 'video' },
-  { id: 'image',    label: 'Image',        icon: '◻', color: '#8e24aa', match: (t,n)   => t === 'image' },
-  { id: 'link',     label: 'Liens',        icon: '⌖', color: '#1e88e5', match: (t,n)   => t === 'link' },
-  { id: 'social',   label: 'Réseaux',      icon: '⊕', color: '#00acc1', match: (t,n)   => ['snapchat','instagram','tiktok','x.com','twitter','facebook','linkedin','meta'].some(s => n?.toLowerCase().includes(s)) },
-  { id: 'music',    label: 'Musique',      icon: '♪', color: '#1ed760', match: (t,n)   => ['spotify','music','apple music','deezer','soundcloud','artiste','artist'].some(s => n?.toLowerCase().includes(s)) },
-  { id: 'app',      label: 'App',          icon: '⬡', color: '#43a047', match: (t,n,u) => t === 'app' || ['play.google','apps.apple'].some(s => u?.includes(s)) },
-  { id: 'brand',    label: 'Marque',       icon: '⬟', color: '#f0b429', match: (t,n)   => t === 'brand' },
-  { id: 'clothing', label: 'Vêtements',    icon: '◎', color: '#f4511e', match: (t,n)   => ['nike','adidas','mode','fashion','vetement','clothing','wear','zara','uniqlo'].some(s => n?.toLowerCase().includes(s)) },
-  { id: 'lifestyle',label: 'Lifestyle',    icon: '❋', color: '#00bfa5', match: (t,n)   => ['airbnb','lifestyle','travel','voyage','food','wellness','yoga','sport'].some(s => n?.toLowerCase().includes(s)) },
-  { id: 'publish',  label: 'Publications', icon: '≡', color: '#90a4ae', match: (t,n)   => t === 'text' },
+  { id: 'all',      labelKey: 'theme.all',      icon: '◈', color: null },
+  { id: 'video',    labelKey: 'theme.video',    icon: '▶', color: '#e53935', match: (t,n)   => t === 'video' },
+  { id: 'image',    labelKey: 'theme.image',    icon: '◻', color: '#8e24aa', match: (t,n)   => t === 'image' },
+  { id: 'link',     labelKey: 'theme.link',     icon: '⌖', color: '#1e88e5', match: (t,n)   => t === 'link' },
+  { id: 'social',   labelKey: 'theme.social',   icon: '⊕', color: '#00acc1', match: (t,n)   => ['snapchat','instagram','tiktok','x.com','twitter','facebook','linkedin','meta'].some(s => n?.toLowerCase().includes(s)) },
+  { id: 'music',    labelKey: 'theme.music',    icon: '♪', color: '#1ed760', match: (t,n)   => ['spotify','music','apple music','deezer','soundcloud','artiste','artist'].some(s => n?.toLowerCase().includes(s)) },
+  { id: 'app',      labelKey: 'theme.app',      icon: '⬡', color: '#43a047', match: (t,n,u) => t === 'app' || ['play.google','apps.apple'].some(s => u?.includes(s)) },
+  { id: 'brand',    labelKey: 'theme.brand',    icon: '⬟', color: '#f0b429', match: (t,n)   => t === 'brand' },
+  { id: 'clothing', labelKey: 'theme.clothing', icon: '◎', color: '#f4511e', match: (t,n)   => ['nike','adidas','mode','fashion','vetement','clothing','wear','zara','uniqlo'].some(s => n?.toLowerCase().includes(s)) },
+  { id: 'lifestyle',labelKey: 'theme.lifestyle',icon: '❋', color: '#00bfa5', match: (t,n)   => ['airbnb','lifestyle','travel','voyage','food','wellness','yoga','sport'].some(s => n?.toLowerCase().includes(s)) },
+  { id: 'publish',  labelKey: 'theme.publish',  icon: '≡', color: '#90a4ae', match: (t,n)   => t === 'text' },
 ];
 
 function getSlotTheme(slot) {
@@ -187,7 +187,7 @@ function BrandLogo({ size = 20, onClick }) {
   );
 }
 
-function AnnouncementBar() {
+function AnnouncementBar({ onWaitlist }) {
   const [visible, setVisible] = useState(true);
   const { isMobile } = useScreenSize();
   const t = useT();
@@ -197,7 +197,7 @@ function AnnouncementBar() {
       <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 8 : 12, fontSize: isMobile ? 11 : 12, color: U.muted, overflow: 'hidden' }}>
         <span style={{ background: U.accentFg, color: U.accent, fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', padding: '2px 7px', borderRadius: 3, flexShrink: 0 }}>{t('banner.badge')}</span>
         {!isMobile && <span>{t('banner.text')}</span>}
-        <button onClick={() => {}} style={{ color: U.accent, background: 'none', border: 'none', cursor: 'pointer', fontSize: isMobile ? 11 : 12, padding: 0, fontFamily: F.b, whiteSpace: 'nowrap' }}>
+        <button onClick={onWaitlist} style={{ color: U.accent, background: 'none', border: 'none', cursor: 'pointer', fontSize: isMobile ? 11 : 12, padding: 0, fontFamily: F.b, whiteSpace: 'nowrap' }}>
           {t('banner.cta')}
         </button>
       </div>
@@ -1661,7 +1661,8 @@ const BlockCell = memo(({ slot, isSelected, onSelect, onFocus, sz: szProp, w, h,
           : tier === 'prestige'  ? Math.round(sz * 0.09)
           : tier === 'elite'     ? Math.round(sz * 0.07)
           : tier === 'business'  ? 3 : 2;
-  const available = isTierAvailable(tier);
+  const available    = isTierAvailable(tier);
+  const isCornerTen  = tier === 'corner_ten';  // legacy tier: 4 diagonal corner slots of the "ten" ring
 
   // Track impression when occupied block enters viewport (once per session per slot)
   const ref = useRef(null);
@@ -3568,7 +3569,7 @@ function PublicView({ slots, isLive, onGoAdvertiser, onWaitlist, authUser, userB
               return (
                 <button key={th.id} onClick={() => setFilterTheme(th.id)} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '3px 9px', borderRadius: 20, fontFamily: F.b, cursor: 'pointer', fontSize: 10, fontWeight: active ? 700 : 400, whiteSpace: 'nowrap', transition: 'all 0.15s', background: active ? `${col}22` : 'transparent', border: `1px solid ${active ? col + '66' : 'transparent'}`, color: active ? col : U.muted }}>
                   <span style={{ fontSize: 9 }}>{th.icon}</span>
-                  {th.label}
+                  {t(th.labelKey)}
                 </button>
               );
             })}
@@ -3576,8 +3577,8 @@ function PublicView({ slots, isLive, onGoAdvertiser, onWaitlist, authUser, userB
         </div>
       )}
 
-      {/* ── Boost ticker ── */}
-      <BoostTicker slots={slots} authUser={authUser} userBookings={userBookings} onBoost={onGoAdvertiser} onGoAdvertiser={onGoAdvertiser} />
+      {/* ── Boost ticker — only for logged-in users ── */}
+      {authUser && <BoostTicker slots={slots} authUser={authUser} userBookings={userBookings} onBoost={onGoAdvertiser} onGoAdvertiser={onGoAdvertiser} />}
 
       {/* Les deux vues restent dans le DOM — display:none évite le remount et préserve containerW */}
       <div style={{ flex: 1, display: feedMode ? 'none' : 'flex', overflow: 'auto', alignItems: 'flex-start', justifyContent: 'center', minHeight: 0 }} ref={containerRef}>
@@ -3658,6 +3659,167 @@ function PublicView({ slots, isLive, onGoAdvertiser, onWaitlist, authUser, userB
     </div>
   );
 }
+
+// ─── heatColor — interpolation 6 stops pour la heatmap ────────────
+function heatColor(ratio) {
+  const stops = [
+    { t: 0,    r: 13,  g: 24,  b: 40  },
+    { t: 0.15, r: 30,  g: 40,  b: 90  },
+    { t: 0.35, r: 70,  g: 50,  b: 190 },
+    { t: 0.55, r: 0,   g: 200, b: 230 },
+    { t: 0.75, r: 255, g: 140, b: 0   },
+    { t: 1,    r: 255, g: 30,  b: 60  },
+  ];
+  let lo = stops[0], hi = stops[stops.length - 1];
+  for (let i = 0; i < stops.length - 1; i++) {
+    if (ratio >= stops[i].t && ratio <= stops[i+1].t) { lo = stops[i]; hi = stops[i+1]; break; }
+  }
+  const span = hi.t - lo.t || 1;
+  const f    = (ratio - lo.t) / span;
+  return `rgb(${Math.round(lo.r + (hi.r - lo.r) * f)},${Math.round(lo.g + (hi.g - lo.g) * f)},${Math.round(lo.b + (hi.b - lo.b) * f)})`;
+}
+
+// ─── AdvSlotWrapper — grille annonceur = même rendu que PublicView ────────────
+// Utilise BlockCell (rendu complet avec BlockMedia) + overlay sélection + heatmap
+const AdvSlotWrapper = memo(({
+  slot, colOffset, rowOffset, sz,
+  isChosen, isTierFiltering, tierMatch,
+  heatmapMode, heatClicks, heatMax,
+  isHeatHovered, onChoose, onHeatHover, onHeatLeave,
+}) => {
+  const c     = TIER_COLOR[slot.tier];
+  const ratio = heatmapMode && heatMax > 0 ? Math.min(heatClicks / heatMax, 1) : 0;
+  const heatCol = heatmapMode ? heatColor(ratio) : null;
+
+  const handleClick = useCallback(() => onChoose(slot), [slot, onChoose]);
+
+  // Opacity : tier filter garde les blocs visibles mais estompe les autres
+  const opacity = isTierFiltering
+    ? (tierMatch ? 1 : heatmapMode ? 0.08 : 0.05)
+    : 1;
+
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        left: colOffset,
+        top: rowOffset,
+        opacity,
+        transition: 'opacity 0.25s ease',
+        zIndex: isChosen ? 3 : 1,
+      }}
+      onMouseEnter={heatmapMode ? onHeatHover : undefined}
+      onMouseLeave={heatmapMode ? onHeatLeave : undefined}
+    >
+      {/* Bloc réel — même rendu que la vue publique */}
+      <BlockCell
+        slot={slot}
+        isSelected={isChosen}
+        onSelect={handleClick}
+        onFocus={handleClick}
+        sz={sz}
+        showStats={!heatmapMode}
+      />
+
+      {/* ── Overlay sélection ── */}
+      {isChosen && (
+        <div style={{
+          position: 'absolute', inset: -2,
+          borderRadius: slot.tier === 'one' ? Math.round(sz * 0.1) + 2
+                      : slot.tier === 'ten' || slot.tier === 'corner_ten' ? Math.round(sz * 0.09) + 2
+                      : slot.tier === 'hundred' ? 5 : 4,
+          border: `2px solid ${c}`,
+          boxShadow: `0 0 0 1px ${c}25, 0 0 ${Math.max(12, sz * 0.55)}px ${c}40`,
+          pointerEvents: 'none', zIndex: 10,
+          animation: 'selectedPulse 2.4s ease-in-out infinite',
+        }} />
+      )}
+
+      {/* ── Overlay heatmap — par-dessus le contenu réel, très subtil ── */}
+      {heatmapMode && (
+        <>
+          {/* Teinture chaleur (screen blend pour ne pas écraser le contenu) */}
+          <div style={{
+            position: 'absolute', inset: 0,
+            background: ratio > 0.02
+              ? `${heatCol}${Math.round(Math.min(0.42, ratio * 0.52) * 255).toString(16).padStart(2,'0')}`
+              : 'transparent',
+            borderRadius: 'inherit',
+            mixBlendMode: 'screen',
+            pointerEvents: 'none', zIndex: 8,
+            transition: 'background 0.5s ease',
+          }} />
+
+          {/* Bordure chaleur — s'intensifie avec le ratio */}
+          {ratio > 0.04 && (
+            <div style={{
+              position: 'absolute', inset: 0,
+              borderRadius: 'inherit',
+              boxShadow: `inset 0 0 0 ${sz >= 40 ? 1.5 : 1}px ${heatCol}${Math.round(Math.min(0.85, ratio * 1.1) * 255).toString(16).padStart(2,'0')}, 0 0 ${Math.round(sz * ratio * 0.7)}px ${heatCol}${Math.round(ratio * 0.45 * 255).toString(16).padStart(2,'0')}`,
+              pointerEvents: 'none', zIndex: 9,
+            }} />
+          )}
+
+          {/* Indicateur de chaleur (petit point en haut-droite, gros blocs uniquement) */}
+          {ratio > 0.1 && sz >= 44 && (
+            <div style={{
+              position: 'absolute', top: 5, right: 5,
+              width: Math.max(5, Math.round(sz * 0.09)),
+              height: Math.max(5, Math.round(sz * 0.09)),
+              borderRadius: '50%',
+              background: heatCol,
+              boxShadow: `0 0 ${Math.round(sz * 0.14)}px ${heatCol}99`,
+              opacity: 0.75 + ratio * 0.25,
+              pointerEvents: 'none', zIndex: 11,
+            }} />
+          )}
+
+          {/* Tooltip hover */}
+          {isHeatHovered && (
+            <div style={{
+              position: 'absolute',
+              bottom: sz + 10,
+              left: '50%',
+              transform: 'translateX(-50%)',
+              background: 'rgba(4,6,12,0.97)',
+              border: `1px solid ${ratio > 0.02 ? heatCol + '45' : 'rgba(255,255,255,0.07)'}`,
+              borderRadius: 10,
+              padding: '9px 13px',
+              whiteSpace: 'nowrap',
+              zIndex: 200,
+              boxShadow: `0 12px 40px rgba(0,0,0,0.8)${ratio > 0.02 ? `, 0 0 28px ${heatCol}14` : ''}`,
+              pointerEvents: 'none',
+              backdropFilter: 'blur(16px)',
+            }}>
+              {slot.tenant?.name && (
+                <div style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.8)', marginBottom: 6, letterSpacing: '-0.01em' }}>
+                  {slot.tenant.name}
+                </div>
+              )}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: ratio > 0.02 ? 7 : 0 }}>
+                <div style={{ width: 7, height: 7, borderRadius: '50%', background: ratio > 0.02 ? heatCol : 'rgba(255,255,255,0.15)', flexShrink: 0 }} />
+                <div>
+                  <span style={{ fontSize: 16, fontWeight: 800, color: ratio > 0.02 ? heatCol : 'rgba(255,255,255,0.2)', fontFamily: F.h, letterSpacing: '-0.02em' }}>
+                    {heatClicks.toLocaleString('fr-FR')}
+                  </span>
+                  <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.3)', marginLeft: 5 }}>clics</span>
+                </div>
+              </div>
+              {ratio > 0.02 && heatMax > 0 && (
+                <div style={{ height: 2, width: 90, borderRadius: 2, background: 'rgba(255,255,255,0.06)', overflow: 'hidden' }}>
+                  <div style={{ height: '100%', width: `${Math.round(ratio * 100)}%`, background: `linear-gradient(90deg, ${heatCol}99, ${heatCol})`, borderRadius: 2, transition: 'width 0.6s cubic-bezier(0.34,1.56,0.64,1)' }} />
+                </div>
+              )}
+              {/* Pointe du tooltip */}
+              <div style={{ position: 'absolute', bottom: -5, left: '50%', transform: 'translateX(-50%) rotate(45deg)', width: 8, height: 8, background: 'rgba(4,6,12,0.97)', border: `1px solid ${ratio > 0.02 ? heatCol + '30' : 'rgba(255,255,255,0.05)'}`, borderTop: 'none', borderLeft: 'none' }} />
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+});
+AdvSlotWrapper.displayName = 'AdvSlotWrapper';
 
 // ─── AnonBlock ─────────────────────────────────────────────────
 const AnonBlock = memo(({ slot, chosenSlot, activeTier, onChoose, sz: szProp, w, h }) => {
@@ -3744,6 +3906,11 @@ function AdvertiserView({ slots, isLive, onWaitlist, onCheckout }) {
   const [slotStats, setSlotStats]       = useState(null);
   const [statsLoading, setStatsLoading] = useState(false);
   const [neighborStats, setNeighborStats] = useState(null); // stats zone pour slots libres
+  const [heatmapMode, setHeatmapMode]     = useState(false);
+  const [heatmapPeriod, setHeatmapPeriod] = useState('7d');
+  const [heatmapData, setHeatmapData]     = useState(null);   // Map<'x,y', clickCount>
+  const [heatmapLoading, setHeatmapLoading] = useState(false);
+  const [heatmapHovered, setHeatmapHovered] = useState(null); // slot.id
 
   // Check if all slots in a tier are occupied (enables buyout offer)
   const tierOccupancy = useMemo(() => {
@@ -3771,7 +3938,15 @@ function AdvertiserView({ slots, isLive, onWaitlist, onCheckout }) {
   const { colOffsets, rowOffsets, totalGridW, totalGridH, tierSizes, colWidths, rowHeights } =
     useGridLayout(containerW, containerH, isMobile);
 
-  const activeTier = selectedTier || hoveredTier;
+  // Centre sur le bloc central à l'arrivée dans la vue annonceur
+  const centeredAdvRef = useRef(false);
+  useEffect(() => {
+    if (centeredAdvRef.current || !containerRef.current || containerW === 0) return;
+    const el = containerRef.current;
+    el.scrollLeft = colOffsets[CENTER_X] + tierSizes.one / 2 - el.clientWidth / 2;
+    el.scrollTop  = rowOffsets[CENTER_Y] + tierSizes.one / 2 - el.clientHeight / 2;
+    centeredAdvRef.current = true;
+  }, [colOffsets, rowOffsets, tierSizes, containerW]);
 
   const handleChoose = useCallback(slot => {
     setChosenSlot(prev => prev?.id === slot.id ? null : slot);
@@ -3811,6 +3986,50 @@ function AdvertiserView({ slots, isLive, onWaitlist, onCheckout }) {
     }
   }, [chosenSlot?.id, slots]);
 
+  // ── Fetch heatmap data when mode/period changes ──
+  useEffect(() => {
+    if (!heatmapMode) return;
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    if (!url || !key) { setHeatmapData(new Map()); return; }
+
+    setHeatmapLoading(true);
+    const now    = new Date();
+    let   since  = null;
+    if (heatmapPeriod === '7d')  since = new Date(now - 7  * 86400000).toISOString();
+    if (heatmapPeriod === '30d') since = new Date(now - 30 * 86400000).toISOString();
+
+    const params = new URLSearchParams({
+      select: 'slot_x,slot_y',
+      event_type: 'eq.click',
+      order: 'created_at.desc',
+      limit: '100000',
+    });
+    if (since) params.set('created_at', `gte.${since}`);
+
+    fetch(`${url}/rest/v1/slot_clicks?${params}`, {
+      headers: { apikey: key, Authorization: `Bearer ${key}` },
+    })
+      .then(r => r.json())
+      .then(rows => {
+        const map = new Map();
+        if (Array.isArray(rows)) {
+          rows.forEach(({ slot_x, slot_y }) => {
+            const k = `${slot_x},${slot_y}`;
+            map.set(k, (map.get(k) || 0) + 1);
+          });
+        }
+        setHeatmapData(map);
+      })
+      .catch(() => setHeatmapData(new Map()))
+      .finally(() => setHeatmapLoading(false));
+  }, [heatmapMode, heatmapPeriod]);
+
+  const heatmapMax = useMemo(() => {
+    if (!heatmapData) return 1;
+    return Math.max(1, ...heatmapData.values());
+  }, [heatmapData]);
+
   const tiers = [
     { id: 'epicenter', label: t('adv.tier.epicenter'), price: 1000, count: 1,   desc: t('adv.tier.center') },
     { id: 'prestige',  label: t('adv.tier.prestige'),  price: 100,  count: 8,   desc: t('adv.tier.crown') },
@@ -3819,6 +4038,8 @@ function AdvertiserView({ slots, isLive, onWaitlist, onCheckout }) {
     { id: 'standard',  label: t('adv.tier.standard'),  price: 3,    count: 400, desc: t('adv.tier.standard.desc') },
     { id: 'viral',     label: t('adv.tier.viral'),     price: 1,    count: 671, desc: t('adv.tier.perimeter') },
   ];
+
+  const activeTier = selectedTier || hoveredTier;
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: isMobile ? 'column' : 'row', overflow: 'hidden', background: U.bg, minHeight: 0 }}>
@@ -3867,12 +4088,11 @@ function AdvertiserView({ slots, isLive, onWaitlist, onCheckout }) {
               </div>
             </div>
 
-            {/* Stats panel enrichi — uniquement si le slot est occupé */}
-            {chosenSlot.occ && (
-              <div style={{ padding: '12px 16px', borderBottom: `1px solid ${U.border}` }}>
-
-                <div style={{ color: U.muted, fontSize: 9, fontWeight: 600, letterSpacing: '0.07em', marginBottom: 10 }}>{t('adv.stats.title')}</div>
-                {statsLoading ? (
+            {/* Stats panel enrichi — toujours visible */}
+            <div style={{ padding: '12px 16px', borderBottom: `1px solid ${U.border}` }}>
+              <div style={{ color: U.muted, fontSize: 9, fontWeight: 600, letterSpacing: '0.07em', marginBottom: 10 }}>{t('adv.stats.title')}</div>
+              {chosenSlot.occ ? (
+                statsLoading ? (
                   <div style={{ color: U.muted, fontSize: 11, textAlign: 'center', padding: '8px 0' }}>{t('adv.stats.loading')}</div>
                 ) : slotStats ? (
                   <div style={{ display: 'flex', flexDirection:'column', gap: 6 }}>
@@ -3904,9 +4124,28 @@ function AdvertiserView({ slots, isLive, onWaitlist, onCheckout }) {
                   </div>
                 ) : (
                   <div style={{ color: U.muted, fontSize: 11, textAlign: 'center', padding: '6px 0', fontStyle: 'italic' }}>{t('adv.stats.nodemo')}</div>
-                )}
-              </div>
-            )}
+                )
+              ) : (
+                // Slot libre — stats voisins ou message
+                neighborStats && (neighborStats.impressions_7d > 0 || neighborStats.clicks_7d > 0) ? (
+                  <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+                    <div style={{ fontSize:9, color:U.muted, fontStyle:'italic', marginBottom:4 }}>Moyenne des blocs voisins du même tier</div>
+                    <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:5 }}>
+                      {[[neighborStats.impressions_7d?.toLocaleString('fr-FR')??'0','vues / 7j'],[neighborStats.clicks_7d?.toLocaleString('fr-FR')??'0','clics / 7j'],[`${neighborStats.ctr_pct??0}%`,'CTR moy.']].map(([v,l]) => (
+                        <div key={l} style={{ textAlign:'center', padding:'7px 4px', borderRadius:6, background:U.s2, border:`1px solid ${U.border}` }}>
+                          <div style={{ color:U.accent, fontWeight:800, fontSize:14, fontFamily:F.h }}>{v}</div>
+                          <div style={{ color:U.muted, fontSize:8, marginTop:2 }}>{l}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ color: U.muted, fontSize: 11, textAlign: 'center', padding: '6px 0', fontStyle: 'italic' }}>
+                    Bloc disponible — loué, les stats apparaîtront ici
+                  </div>
+                )
+              )}
+            </div>
 
             {/* CTA */}
             <div style={{ padding: '12px 16px' }}>
@@ -4023,17 +4262,90 @@ function AdvertiserView({ slots, isLive, onWaitlist, onCheckout }) {
         </div>
       </div>
 
-      {/* Grid */}
-      <div ref={containerRef} style={{ flex: 1, overflow: 'auto', background: U.bg, order: isMobile ? 1 : 0, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', minHeight: 0, maxHeight: isMobile ? '45vh' : undefined }}>
-        <div style={{ position: 'relative', width: totalGridW, height: totalGridH, flexShrink: 0 }}>
-          {slots.map(slot => {
-            const tierMatch = !activeTier || slot.tier === activeTier;
-            return (
-              <div key={slot.id} style={{ position: 'absolute', left: colOffsets[slot.x], top: rowOffsets[slot.y], opacity: tierMatch ? 1 : 0.06, transition: 'opacity 0.2s' }}>
-                <AnonBlock slot={slot} chosenSlot={chosenSlot} activeTier={activeTier} onChoose={handleChoose} sz={tierSizes[slot.tier]} w={colWidths[slot.x - 1]} h={rowHeights[slot.y - 1]} />
+      {/* Grid + heatmap toolbar */}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', order: isMobile ? 1 : 0, minHeight: 0, maxHeight: isMobile ? '45vh' : undefined }}>
+
+        {/* ── Heatmap toolbar ── */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 12px', height: 38, background: `${U.s1}f0`, borderBottom: `1px solid ${heatmapMode ? 'rgba(255,120,0,0.18)' : U.border}`, flexShrink: 0, transition: 'border-color 0.4s' }}>
+          <button
+            onClick={() => setHeatmapMode(m => !m)}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 5,
+              padding: '4px 10px', borderRadius: 6, cursor: 'pointer',
+              fontFamily: F.b, fontSize: 11, fontWeight: 700,
+              border: heatmapMode ? '1px solid rgba(255,130,0,0.45)' : `1px solid ${U.border2}`,
+              background: heatmapMode ? 'rgba(255,90,0,0.1)' : U.faint,
+              color: heatmapMode ? '#ff9044' : U.muted,
+              transition: 'all 0.25s',
+              letterSpacing: '0.04em',
+            }}
+          >
+            <span style={{ fontSize: 12, filter: heatmapMode ? 'none' : 'grayscale(0.6)', transition: 'filter 0.3s' }}>🔥</span>
+            <span>HEATMAP</span>
+            {heatmapLoading && (
+              <div style={{ width: 12, height: 12, borderRadius: '50%', border: '1.5px solid rgba(255,144,68,0.4)', borderTopColor: '#ff9044', animation: 'spin 0.8s linear infinite' }} />
+            )}
+          </button>
+
+          {heatmapMode && (
+            <>
+              <div style={{ width: 1, height: 16, background: U.border, flexShrink: 0 }} />
+              {[['7d','7 jours'], ['30d','30 jours'], ['all','Total']].map(([id, label]) => (
+                <button key={id}
+                  onClick={() => setHeatmapPeriod(id)}
+                  style={{
+                    padding: '3px 9px', borderRadius: 5, cursor: 'pointer',
+                    fontFamily: F.b, fontSize: 10, fontWeight: heatmapPeriod === id ? 700 : 400,
+                    border: `1px solid ${heatmapPeriod === id ? 'rgba(255,130,0,0.4)' : 'transparent'}`,
+                    background: heatmapPeriod === id ? 'rgba(255,90,0,0.09)' : 'transparent',
+                    color: heatmapPeriod === id ? '#ff9044' : U.muted,
+                    transition: 'all 0.15s',
+                  }}
+                >{label}</button>
+              ))}
+              <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 7 }}>
+                {/* Gradient legend */}
+                <div style={{ width: 60, height: 4, borderRadius: 2, background: 'linear-gradient(90deg, rgb(13,24,40), rgb(70,50,190), rgb(0,200,230), rgb(255,140,0), rgb(255,30,60))', opacity: 0.75 }} />
+                <div style={{ display: 'flex', justifyContent: 'space-between', width: 60, marginLeft: -60, paddingTop: 8 }}>
+                  {/* invisible spacer */}
+                </div>
+                <div style={{ display: 'flex', gap: 3, fontSize: 9, color: U.muted, alignItems: 'center' }}>
+                  <span>froid</span>
+                  <span style={{ color: 'rgba(255,255,255,0.18)' }}>→</span>
+                  <span style={{ color: '#ff9044' }}>chaud</span>
+                </div>
               </div>
-            );
-          })}
+            </>
+          )}
+        </div>
+
+        {/* Grid scroll area */}
+        <div ref={containerRef} style={{ flex: 1, overflow: 'auto', background: U.bg, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', transition: 'background 0.5s ease' }}>
+          <div style={{ position: 'relative', width: totalGridW, height: totalGridH, flexShrink: 0 }}>
+            {slots.map(slot => {
+              const tierMatch = !activeTier || slot.tier === activeTier || (activeTier === 'ten' && slot.tier === 'corner_ten');
+              const heatClicks = heatmapMode ? (heatmapData?.get(`${slot.x},${slot.y}`) || 0) : 0;
+              return (
+                <AdvSlotWrapper
+                  key={slot.id}
+                  slot={slot}
+                  colOffset={colOffsets[slot.x]}
+                  rowOffset={rowOffsets[slot.y]}
+                  sz={tierSizes[slot.tier]}
+                  isChosen={chosenSlot?.id === slot.id}
+                  isTierFiltering={!!activeTier}
+                  tierMatch={tierMatch}
+                  heatmapMode={heatmapMode}
+                  heatClicks={heatClicks}
+                  heatMax={heatmapMax}
+                  isHeatHovered={heatmapHovered === slot.id}
+                  onChoose={handleChoose}
+                  onHeatHover={() => setHeatmapHovered(slot.id)}
+                  onHeatLeave={() => setHeatmapHovered(null)}
+                />
+              );
+            })}
+          </div>
         </div>
       </div>
     </div>
@@ -4205,6 +4517,19 @@ function LandingPage({ slots, onPublic, onAdvertiser, onWaitlist }) {
   const stats = useMemo(() => ({ occupied: slots.filter(s => s.occ).length, vacant: slots.filter(s => !s.occ).length }), [slots]);
 
   const [platformStats, setPlatformStats] = useState(null);
+  const [dailyVisitors, setDailyVisitors] = useState(null);
+
+  // Track + display daily visitors using localStorage
+  useEffect(() => {
+    try {
+      const today = new Date().toISOString().slice(0, 10);
+      const raw = localStorage.getItem('ads_visitors');
+      const stored = raw ? JSON.parse(raw) : {};
+      const count = (stored.date === today ? (stored.count || 0) : 0) + 1;
+      localStorage.setItem('ads_visitors', JSON.stringify({ date: today, count }));
+      setDailyVisitors(count);
+    } catch { setDailyVisitors(null); }
+  }, []);
 
   useEffect(() => {
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -4254,6 +4579,7 @@ function LandingPage({ slots, onPublic, onAdvertiser, onWaitlist }) {
           {[
             [stats.occupied,                                                              t('landing.stat.active'),  false],
             [stats.vacant,                                                                t('landing.stat.free'),    false],
+            [dailyVisitors ? dailyVisitors.toLocaleString('fr-FR') : '—',                'visiteurs / jour',         true],
             [platformStats ? platformStats.impressions.toLocaleString('fr-FR') : '—',    'vues totales',             true],
             [platformStats ? platformStats.clicks.toLocaleString('fr-FR')      : '—',    'clics générés',            true],
             ['1€',                                                                        t('landing.stat.from'),    false],
@@ -4316,6 +4642,22 @@ export default function App() {
   const { isMobile } = useScreenSize();
   const handleWaitlist = useCallback(() => setShowWaitlist(true), []);
 
+  // ── Restore language from localStorage ──
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('ads_lang');
+      if (saved === 'en' || saved === 'fr') setLang(saved);
+    } catch {}
+  }, []);
+
+  const handleSetLang = useCallback((fn) => {
+    setLang(prev => {
+      const next = typeof fn === 'function' ? fn(prev) : fn;
+      try { localStorage.setItem('ads_lang', next); } catch {}
+      return next;
+    });
+  }, []);
+
   // Charger la session auth + bookings utilisateur au montage
   useEffect(() => {
     getSession().then(s => {
@@ -4360,7 +4702,7 @@ export default function App() {
   return (
     <LangContext.Provider value={lang}>
       <div style={{ display: 'flex', height: '100vh', background: U.bg, fontFamily: F.b, color: U.text, flexDirection: 'column', overflow: view === 'landing' ? 'auto' : 'hidden' }}>
-        <AnnouncementBar />
+        <AnnouncementBar onWaitlist={handleWaitlist} />
 
         {/* Header */}
         <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: isMobile ? '0 12px' : '0 24px', height: 48, flexShrink: 0, borderBottom: `1px solid ${U.border}`, background: `${U.s1}f0`, backdropFilter: 'blur(14px)', zIndex: 100, gap: 8 }}>
@@ -4413,7 +4755,7 @@ export default function App() {
 
             {/* ── Language toggle ── */}
             <button
-              onClick={() => setLang(l => l === 'fr' ? 'en' : 'fr')}
+              onClick={() => handleSetLang(l => l === 'fr' ? 'en' : 'fr')}
               title={lang === 'fr' ? 'Switch to English' : 'Passer en français'}
               style={{ marginLeft: isMobile ? 2 : 4, padding: isMobile ? '4px 7px' : '4px 9px', borderRadius: 7, fontFamily: F.b, cursor: 'pointer', background: U.faint, border: `1px solid ${U.border2}`, color: U.muted, fontSize: isMobile ? 10 : 11, fontWeight: 700, letterSpacing: '0.05em', transition: 'all 0.15s', flexShrink: 0 }}
               onMouseEnter={e => { e.currentTarget.style.color = U.text; }}
