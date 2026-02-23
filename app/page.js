@@ -111,6 +111,9 @@ function useGridData() {
   return { slots, isLive, loading };
 }
 
+// ─── Prix affichage (TIER_PRICE est en centimes pour Stripe) ──
+const priceEur = tier => TIER_PRICE[tier] / 100;
+
 // ─── Grid Layout Engine ────────────────────────────────────────
 const BASE_SIZE = { epicenter: 120, prestige: 54, elite: 34, business: 20, standard: 12, viral: 7 };
 const GAP = 2;
@@ -822,7 +825,7 @@ function CheckoutModal({ slot, onClose }) {
   });
 
   const tier = slot?.tier;
-  const pricePerDay = TIER_PRICE[tier] || 1;
+  const pricePerDay = priceEur(tier) || 1;
   const totalPrice  = pricePerDay * days;
   const c = TIER_COLOR[tier];
 
@@ -1712,7 +1715,7 @@ const BlockCell = memo(({ slot, isSelected, onSelect, onFocus, sz: szProp, w, h,
       onClick={handleClick}
       title={
         occ ? tenant?.name
-        : available ? `${TIER_LABEL[tier]} — €${TIER_PRICE[tier]}/j`
+        : available ? `${TIER_LABEL[tier]} — €${priceEur(tier)}/j`
         : `${TIER_LABEL[tier]} — Prochainement`
       }
       style={{
@@ -1799,7 +1802,7 @@ function BuyoutModal({ slot, onClose }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  const minOffer = slot ? Math.ceil(TIER_PRICE[slot.tier] * 1.5) : 0;
+  const minOffer = slot ? Math.ceil(priceEur(slot.tier) * 1.5) : 0;
   const c = slot ? TIER_COLOR[slot.tier] : U.accent;
 
   const handleSubmit = async () => {
@@ -2870,7 +2873,7 @@ function FocusModal({ slot, allSlots, onClose, onNavigate, onGoAdvertiser, onVie
 
         {occ && tenant ? (
           <div style={{ padding: isMobile ? '16px 20px 28px' : '24px 28px 32px' }}>
-            <div style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 4, background: `${TIER_COLOR[tier]}15`, border: `1px solid ${TIER_COLOR[tier]}30`, color: TIER_COLOR[tier], fontSize: 9, fontWeight: 700, letterSpacing: '0.06em', marginBottom: 14 }}>{TIER_LABEL[tier]} · €{TIER_PRICE[tier]}/j</div>
+            <div style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 4, background: `${TIER_COLOR[tier]}15`, border: `1px solid ${TIER_COLOR[tier]}30`, color: TIER_COLOR[tier], fontSize: 9, fontWeight: 700, letterSpacing: '0.06em', marginBottom: 14 }}>{TIER_LABEL[tier]} · €{priceEur(tier)}/j</div>
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14, marginBottom: 18 }}>
               <div style={{ width: 52, height: 52, borderRadius: 12, flexShrink: 0, background: tenant.img ? `url(${tenant.img}) center/cover` : `${c}18`, border: `1px solid ${c}30`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, fontWeight: 900, color: c, fontFamily: F.h, overflow:'hidden' }}>
                 {!tenant.img && tenant.l}
@@ -3026,7 +3029,7 @@ function FocusModal({ slot, allSlots, onClose, onNavigate, onGoAdvertiser, onVie
                 {isAvail ? (
                   <>
                     Ce bloc <strong style={{ color: U.text }}>{TIER_LABEL[tier]}</strong> est libre à la location.<br/>
-                    <span style={{ color: U.accent, fontWeight: 600 }}>€{TIER_PRICE[tier]}/jour</span> · visibilité immédiate sur la grille.
+                    <span style={{ color: U.accent, fontWeight: 600 }}>€{priceEur(tier)}/jour</span> · visibilité immédiate sur la grille.
                   </>
                 ) : (
                   <>
@@ -3130,7 +3133,7 @@ function TikTokFeed({ slots, isLive }) {
                   <>
                     <div style={{ color: `${c}60`, fontSize: 36, fontWeight: 300, lineHeight: 1 }}>+</div>
                     <div style={{ color: U.muted, fontSize: 10, fontWeight: 600, marginTop: 8, letterSpacing: '0.05em' }}>{t('feed.available')}</div>
-                    <div style={{ color: U.muted, fontSize: 9, marginTop: 3, opacity: 0.6 }}>€{TIER_PRICE[tier]}/j</div>
+                    <div style={{ color: U.muted, fontSize: 9, marginTop: 3, opacity: 0.6 }}>€{priceEur(tier)}/j</div>
                   </>
                 )}
               </div>
@@ -4216,7 +4219,7 @@ function AdvertiserView({ slots, isLive, onWaitlist, onCheckout }) {
   {chosenSlot.occ ? (chosenSlot.tenant?.name || t('adv.occupied')) : t('adv.selected')}
               </div>
               <div style={{ color: U.muted, fontSize: 11, marginTop: 2 }}>
-                ({chosenSlot.x}, {chosenSlot.y}) · €{TIER_PRICE[chosenSlot.tier]}/j
+                ({chosenSlot.x}, {chosenSlot.y}) · €{priceEur(chosenSlot.tier)}/j
               </div>
             </div>
 
@@ -4340,7 +4343,7 @@ function AdvertiserView({ slots, isLive, onWaitlist, onCheckout }) {
                     {t('adv.cta.rent')}
                   </button>
                   <div style={{ color: U.muted, fontSize: 10, textAlign: 'center' }}>
-                    {t('adv.cta.rent.sub', TIER_PRICE[chosenSlot.tier])}
+                    {t('adv.cta.rent.sub', priceEur(chosenSlot.tier))}
                   </div>
                 </>) : (() => {
                   const c = TIER_COLOR[chosenSlot.tier];
@@ -4358,7 +4361,7 @@ function AdvertiserView({ slots, isLive, onWaitlist, onCheckout }) {
                       </div>
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 16 }}>
                         {[
-                          ['Prix', `€${TIER_PRICE[chosenSlot.tier]}/j`],
+                          ['Prix', `€${priceEur(chosenSlot.tier)}/j`],
                           ['Tier', TIER_LABEL[chosenSlot.tier]],
                           ['Position', `(${chosenSlot.x}, ${chosenSlot.y})`],
                           ['Lancement', 'Phase 2'],
