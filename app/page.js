@@ -1688,7 +1688,17 @@ const BlockCell = memo(({ slot, isSelected, onSelect, onFocus, sz: szProp, w, h,
   }, [occ, tenant?.bookingId, slot.x, slot.y]);
 
   const handleClick = useCallback(() => {
-    if (occ) { onFocus(slot); return; }
+    if (occ) {
+      // Track click for heatmap
+      if (tenant?.bookingId) {
+        fetch('/api/track', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ slotX: slot.x, slotY: slot.y, bookingId: tenant.bookingId, event: 'click' }),
+        }).catch(() => {});
+      }
+      onFocus(slot); return;
+    }
     if (!available) { onFocus(slot); return; } // ouvre la modale "prochainement"
     onSelect(slot);
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -3689,17 +3699,22 @@ const AdvSlotWrapper = memo(({
 }) => {
   const c     = TIER_COLOR[slot.tier];
   const ratio = heatmapMode && heatMax > 0 ? Math.min(heatClicks / heatMax, 1) : 0;
-  const heatCol = heatmapMode ? heatColor(ratio) : null;
 
-  // Effective cell size for border-radius and glow calculations
-  const cellSz = Math.min(w ?? sz, h ?? sz);
+  // sz = tier block size; cell = full column×row space the block sits inside
+  const cellSz = sz;
 
   const handleClick = useCallback(() => onChoose(slot), [slot, onChoose]);
 
-  // Opacity : tier filter garde les blocs visibles mais estompe les autres
-  const opacity = isTierFiltering
-    ? (tierMatch ? 1 : heatmapMode ? 0.08 : 0.05)
-    : 1;
+  // Opacity: dim heavily in heatmap mode so the canvas dots are the star
+  const opacity = heatmapMode
+    ? 0.08
+    : isTierFiltering
+      ? (tierMatch ? 1 : 0.05)
+      : 1;
+
+  // Cell dimensions (full column × row size) vs block size (tier square)
+  const cellW = w ?? sz;
+  const cellH = h ?? sz;
 
   return (
     <div
@@ -3707,6 +3722,11 @@ const AdvSlotWrapper = memo(({
         position: 'absolute',
         left: colOffset,
         top: rowOffset,
+        width:  cellW,
+        height: cellH,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
         opacity,
         transition: 'opacity 0.25s ease',
         zIndex: isChosen ? 3 : 1,
@@ -3714,22 +3734,23 @@ const AdvSlotWrapper = memo(({
       onMouseEnter={heatmapMode ? onHeatHover : undefined}
       onMouseLeave={heatmapMode ? onHeatLeave : undefined}
     >
-      {/* Bloc réel — même rendu que la vue publique */}
+      {/* Bloc centré dans sa cellule — BlockCell garde sa taille de tier */}
       <BlockCell
         slot={slot}
         isSelected={isChosen}
         onSelect={handleClick}
         onFocus={handleClick}
         sz={sz}
-        w={w}
-        h={h}
         showStats={!heatmapMode}
       />
 
-      {/* ── Overlay sélection ── */}
+      {/* ── Overlay sélection — centré sur le bloc, pas la cellule ── */}
       {isChosen && (
         <div style={{
-          position: 'absolute', inset: -2,
+          position: 'absolute',
+          left: '50%', top: '50%',
+          width: sz + 4, height: sz + 4,
+          transform: 'translate(-50%, -50%)',
           borderRadius: slot.tier === 'epicenter' ? Math.round(cellSz * 0.1) + 2
                       : slot.tier === 'prestige' || slot.tier === 'elite' ? Math.round(cellSz * 0.09) + 2
                       : slot.tier === 'business' ? 5 : 4,
@@ -3740,91 +3761,166 @@ const AdvSlotWrapper = memo(({
         }} />
       )}
 
-      {/* ── Overlay heatmap — par-dessus le contenu réel, très subtil ── */}
-      {heatmapMode && (
-        <>
-          {/* Teinture chaleur (screen blend pour ne pas écraser le contenu) */}
-          <div style={{
-            position: 'absolute', inset: 0,
-            background: ratio > 0.02
-              ? `${heatCol}${Math.round(Math.min(0.42, ratio * 0.52) * 255).toString(16).padStart(2,'0')}`
-              : 'transparent',
-            borderRadius: 'inherit',
-            mixBlendMode: 'screen',
-            pointerEvents: 'none', zIndex: 8,
-            transition: 'background 0.5s ease',
-          }} />
-
-          {/* Bordure chaleur — s'intensifie avec le ratio */}
-          {ratio > 0.04 && (
-            <div style={{
-              position: 'absolute', inset: 0,
-              borderRadius: 'inherit',
-              boxShadow: `inset 0 0 0 ${cellSz >= 40 ? 1.5 : 1}px ${heatCol}${Math.round(Math.min(0.85, ratio * 1.1) * 255).toString(16).padStart(2,'0')}, 0 0 ${Math.round(cellSz * ratio * 0.7)}px ${heatCol}${Math.round(ratio * 0.45 * 255).toString(16).padStart(2,'0')}`,
-              pointerEvents: 'none', zIndex: 9,
-            }} />
-          )}
-
-          {/* Indicateur de chaleur (petit point en haut-droite, gros blocs uniquement) */}
-          {ratio > 0.1 && cellSz >= 44 && (
-            <div style={{
-              position: 'absolute', top: 5, right: 5,
-              width: Math.max(5, Math.round(cellSz * 0.09)),
-              height: Math.max(5, Math.round(cellSz * 0.09)),
-              borderRadius: '50%',
-              background: heatCol,
-              boxShadow: `0 0 ${Math.round(cellSz * 0.14)}px ${heatCol}99`,
-              opacity: 0.75 + ratio * 0.25,
-              pointerEvents: 'none', zIndex: 11,
-            }} />
-          )}
-
-          {/* Tooltip hover */}
-          {isHeatHovered && (
-            <div style={{
-              position: 'absolute',
-              bottom: cellSz + 10,
-              left: '50%',
-              transform: 'translateX(-50%)',
-              background: 'rgba(4,6,12,0.97)',
-              border: `1px solid ${ratio > 0.02 ? heatCol + '45' : 'rgba(255,255,255,0.07)'}`,
-              borderRadius: 10,
-              padding: '9px 13px',
-              whiteSpace: 'nowrap',
-              zIndex: 200,
-              boxShadow: `0 12px 40px rgba(0,0,0,0.8)${ratio > 0.02 ? `, 0 0 28px ${heatCol}14` : ''}`,
-              pointerEvents: 'none',
-              backdropFilter: 'blur(16px)',
-            }}>
-              {slot.tenant?.name && (
-                <div style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.8)', marginBottom: 6, letterSpacing: '-0.01em' }}>
-                  {slot.tenant.name}
-                </div>
-              )}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: ratio > 0.02 ? 7 : 0 }}>
-                <div style={{ width: 7, height: 7, borderRadius: '50%', background: ratio > 0.02 ? heatCol : 'rgba(255,255,255,0.15)', flexShrink: 0 }} />
-                <div>
-                  <span style={{ fontSize: 16, fontWeight: 800, color: ratio > 0.02 ? heatCol : 'rgba(255,255,255,0.2)', fontFamily: F.h, letterSpacing: '-0.02em' }}>
-                    {heatClicks.toLocaleString('fr-FR')}
-                  </span>
-                  <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.3)', marginLeft: 5 }}>clics</span>
-                </div>
-              </div>
-              {ratio > 0.02 && heatMax > 0 && (
-                <div style={{ height: 2, width: 90, borderRadius: 2, background: 'rgba(255,255,255,0.06)', overflow: 'hidden' }}>
-                  <div style={{ height: '100%', width: `${Math.round(ratio * 100)}%`, background: `linear-gradient(90deg, ${heatCol}99, ${heatCol})`, borderRadius: 2, transition: 'width 0.6s cubic-bezier(0.34,1.56,0.64,1)' }} />
-                </div>
-              )}
-              {/* Pointe du tooltip */}
-              <div style={{ position: 'absolute', bottom: -5, left: '50%', transform: 'translateX(-50%) rotate(45deg)', width: 8, height: 8, background: 'rgba(4,6,12,0.97)', border: `1px solid ${ratio > 0.02 ? heatCol + '30' : 'rgba(255,255,255,0.05)'}`, borderTop: 'none', borderLeft: 'none' }} />
+      {/* ── Tooltip heatmap on hover — canvas draws the dots, this just shows data ── */}
+      {heatmapMode && isHeatHovered && heatClicks > 0 && (
+        <div style={{
+          position: 'absolute',
+          bottom: cellSz + 14,
+          left: '50%',
+          transform: 'translateX(-50%)',
+          background: 'rgba(2,4,10,0.96)',
+          border: '1px solid rgba(255,120,60,0.35)',
+          borderRadius: 10,
+          padding: '10px 14px',
+          whiteSpace: 'nowrap',
+          zIndex: 500,
+          boxShadow: '0 12px 40px rgba(0,0,0,0.9), 0 0 24px rgba(255,100,40,0.12)',
+          pointerEvents: 'none',
+          backdropFilter: 'blur(20px)',
+        }}>
+          {slot.tenant?.name && (
+            <div style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.85)', marginBottom: 7, letterSpacing: '-0.01em' }}>
+              {slot.tenant.name}
             </div>
           )}
-        </>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{
+              width: 8, height: 8, borderRadius: '50%',
+              background: ratio > 0.75 ? '#fffbe0' : ratio > 0.45 ? '#ffcc44' : ratio > 0.2 ? '#ff8c30' : '#ff4d8f',
+              boxShadow: `0 0 8px ${ratio > 0.75 ? '#fffbe0' : ratio > 0.45 ? '#ffcc44' : '#ff8c30'}aa`,
+              flexShrink: 0,
+            }} />
+            <div>
+              <span style={{ fontSize: 17, fontWeight: 900, color: ratio > 0.75 ? '#fffbe0' : ratio > 0.45 ? '#ffcc44' : ratio > 0.2 ? '#ff9944' : '#ff6677', fontFamily: F.h, letterSpacing: '-0.02em' }}>
+                {heatClicks.toLocaleString('fr-FR')}
+              </span>
+              <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.3)', marginLeft: 6 }}>clics</span>
+            </div>
+          </div>
+          {heatMax > 0 && (
+            <div style={{ marginTop: 8, height: 3, width: 100, borderRadius: 3, background: 'rgba(255,255,255,0.07)', overflow: 'hidden' }}>
+              <div style={{ height: '100%', width: `${Math.round(ratio * 100)}%`, background: 'linear-gradient(90deg,#ff4d8f,#ff8c30,#ffcc44,#fffbe0)', borderRadius: 3, transition: 'width 0.6s cubic-bezier(0.34,1.56,0.64,1)' }} />
+            </div>
+          )}
+          <div style={{ position: 'absolute', bottom: -5, left: '50%', transform: 'translateX(-50%) rotate(45deg)', width: 8, height: 8, background: 'rgba(2,4,10,0.96)', border: '1px solid rgba(255,120,60,0.25)', borderTop: 'none', borderLeft: 'none' }} />
+        </div>
       )}
     </div>
   );
 });
 AdvSlotWrapper.displayName = 'AdvSlotWrapper';
+
+// ─── HeatmapDotCanvas — canvas overlay rendu dots lumineux (rose→jaune→blanc) ──
+function HeatmapDotCanvas({ slots, heatmapData, heatmapMax, colOffsets, rowOffsets, colWidths, rowHeights, totalGridW, totalGridH }) {
+  const canvasRef = useRef(null);
+  const frameRef  = useRef(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas || !heatmapData || totalGridW === 0 || totalGridH === 0) return;
+    const ctx    = canvas.getContext('2d');
+    const dpr    = window.devicePixelRatio || 1;
+    canvas.width        = Math.ceil(totalGridW * dpr);
+    canvas.height       = Math.ceil(totalGridH * dpr);
+    canvas.style.width  = totalGridW + 'px';
+    canvas.style.height = totalGridH + 'px';
+    ctx.scale(dpr, dpr);
+
+    // Build dot list — one per slot that has at least 1 click
+    const dots = [];
+    for (const slot of slots) {
+      const clicks = heatmapData.get(`${slot.x},${slot.y}`) || 0;
+      if (clicks === 0) continue;
+      const ratio  = heatmapMax > 0 ? Math.min(clicks / heatmapMax, 1) : 0;
+      const cw     = colWidths[slot.x - 1]  || 0;
+      const ch     = rowHeights[slot.y - 1] || 0;
+      const cx     = (colOffsets[slot.x]  || 0) + cw / 2;
+      const cy     = (rowOffsets[slot.y]  || 0) + ch / 2;
+      // base radius = half the smallest cell dimension, clamped so tiny cells still glow
+      const baseR  = Math.max(6, Math.min(cw, ch) * 0.55);
+      // phase offset for staggered pulse
+      const phase  = (cx * 0.009 + cy * 0.013) % (Math.PI * 2);
+      dots.push({ cx, cy, baseR, ratio, phase, clicks });
+    }
+
+    // Colour palette: rose → orange → jaune → blanc
+    function dotRGB(ratio) {
+      if (ratio < 0.3) {
+        const t = ratio / 0.3;
+        return [Math.round(205 + 50 * t), Math.round(50 + 70 * t), Math.round(110 - 60 * t)];
+      } else if (ratio < 0.6) {
+        const t = (ratio - 0.3) / 0.3;
+        return [255, Math.round(120 + 110 * t), Math.round(50 - 30 * t)];
+      } else if (ratio < 0.85) {
+        const t = (ratio - 0.6) / 0.25;
+        return [255, Math.round(230 + 25 * t), Math.round(20 + 80 * t)];
+      } else {
+        const t = (ratio - 0.85) / 0.15;
+        return [255, 255, Math.round(100 + 155 * t)];
+      }
+    }
+
+    let startTs = null;
+    function draw(ts) {
+      if (!startTs) startTs = ts;
+      const elapsed = (ts - startTs) / 1000;
+      ctx.clearRect(0, 0, totalGridW, totalGridH);
+      ctx.globalCompositeOperation = 'screen';
+
+      for (const { cx, cy, baseR, ratio, phase } of dots) {
+        if (ratio < 0.015) continue;
+        const [r, g, b] = dotRGB(ratio);
+        // gentle oscillating pulse — amplitude grows with intensity
+        const pulse = 1 + (0.06 + ratio * 0.12) * Math.sin(elapsed * 1.1 + phase);
+
+        // ── Layer 1: outer diffuse halo ─────────────────────────────
+        const haloR = baseR * (3.5 + ratio * 5.5) * pulse;
+        const g1    = ctx.createRadialGradient(cx, cy, 0, cx, cy, haloR);
+        const a1max = 0.09 + ratio * 0.13;
+        g1.addColorStop(0,   `rgba(${r},${g},${b},${a1max.toFixed(3)})`);
+        g1.addColorStop(0.35,`rgba(${r},${g},${b},${(a1max * 0.55).toFixed(3)})`);
+        g1.addColorStop(0.7, `rgba(${r},${g},${b},${(a1max * 0.15).toFixed(3)})`);
+        g1.addColorStop(1,   `rgba(${r},${g},${b},0)`);
+        ctx.fillStyle = g1;
+        ctx.beginPath(); ctx.arc(cx, cy, haloR, 0, Math.PI * 2); ctx.fill();
+
+        // ── Layer 2: mid glow ring ───────────────────────────────────
+        const midR  = baseR * (1.6 + ratio * 2.2) * pulse;
+        const g2    = ctx.createRadialGradient(cx, cy, 0, cx, cy, midR);
+        const a2max = 0.35 + ratio * 0.4;
+        g2.addColorStop(0,   `rgba(${r},${g},${b},${a2max.toFixed(3)})`);
+        g2.addColorStop(0.45,`rgba(${r},${g},${b},${(a2max * 0.55).toFixed(3)})`);
+        g2.addColorStop(1,   `rgba(${r},${g},${b},0)`);
+        ctx.fillStyle = g2;
+        ctx.beginPath(); ctx.arc(cx, cy, midR, 0, Math.PI * 2); ctx.fill();
+
+        // ── Layer 3: bright core ─────────────────────────────────────
+        const coreR = Math.max(2.5, baseR * (0.22 + ratio * 0.28)) * pulse;
+        const g3    = ctx.createRadialGradient(cx, cy, 0, cx, cy, coreR);
+        const coreAlpha = 0.7 + ratio * 0.3;
+        g3.addColorStop(0,   `rgba(255,255,255,${coreAlpha.toFixed(3)})`);
+        g3.addColorStop(0.3, `rgba(${r},${g},${b},${(coreAlpha * 0.9).toFixed(3)})`);
+        g3.addColorStop(0.7, `rgba(${r},${g},${b},${(coreAlpha * 0.45).toFixed(3)})`);
+        g3.addColorStop(1,   `rgba(${r},${g},${b},0)`);
+        ctx.fillStyle = g3;
+        ctx.beginPath(); ctx.arc(cx, cy, coreR, 0, Math.PI * 2); ctx.fill();
+      }
+
+      ctx.globalCompositeOperation = 'source-over';
+      frameRef.current = requestAnimationFrame(draw);
+    }
+
+    frameRef.current = requestAnimationFrame(draw);
+    return () => { cancelAnimationFrame(frameRef.current); };
+  }, [slots, heatmapData, heatmapMax, colOffsets, rowOffsets, colWidths, rowHeights, totalGridW, totalGridH]);
+
+  return (
+    <canvas
+      ref={canvasRef}
+      style={{ position: 'absolute', top: 0, left: 0, pointerEvents: 'none', zIndex: 20 }}
+    />
+  );
+}
 
 // ─── AnonBlock ─────────────────────────────────────────────────
 const AnonBlock = memo(({ slot, chosenSlot, activeTier, onChoose, sz: szProp, w, h }) => {
@@ -3991,12 +4087,42 @@ function AdvertiserView({ slots, isLive, onWaitlist, onCheckout }) {
     }
   }, [chosenSlot?.id, slots]);
 
+  // ── Generate seeded demo heatmap (Chebyshev-weighted) ──────────
+  function generateDemoHeatmap(slots) {
+    const map = new Map();
+    const rng = (seed) => {
+      // deterministic pseudo-random for reproducible demo
+      let x = Math.sin(seed) * 10000;
+      return x - Math.floor(x);
+    };
+    slots.forEach(slot => {
+      const d = Math.max(Math.abs(slot.x - CENTER_X), Math.abs(slot.y - CENTER_Y));
+      const maxD = 18;
+      const proximity = Math.max(0, 1 - d / maxD);
+      // Chebyshev weight: center = very hot, edges = cold
+      const weight = Math.pow(proximity, 1.8);
+      // Add noise with deterministic seed
+      const noise = rng(slot.x * 37 + slot.y * 13);
+      const noiseWeight = rng(slot.x * 71 + slot.y * 97) * 0.4;
+      const combined = weight * 0.7 + noiseWeight;
+      if (combined < 0.015) return; // skip very cold areas
+      // Clicks ~ 0..500, higher near center
+      const clicks = Math.round(combined * 480 + noise * 40 + 1);
+      if (clicks > 2) map.set(`${slot.x},${slot.y}`, clicks);
+    });
+    return map;
+  }
+
   // ── Fetch heatmap data when mode/period changes ──
   useEffect(() => {
     if (!heatmapMode) return;
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-    if (!url || !key) { setHeatmapData(new Map()); return; }
+    if (!url || !key) {
+      // No Supabase — use seeded demo data
+      setHeatmapData(generateDemoHeatmap(slots));
+      return;
+    }
 
     setHeatmapLoading(true);
     const now    = new Date();
@@ -4017,16 +4143,24 @@ function AdvertiserView({ slots, isLive, onWaitlist, onCheckout }) {
     })
       .then(r => r.json())
       .then(rows => {
+        if (!Array.isArray(rows) || rows.length === 0) {
+          // Empty DB — fallback to demo data
+          setHeatmapData(generateDemoHeatmap(slots));
+          return;
+        }
         const map = new Map();
-        if (Array.isArray(rows)) {
-          rows.forEach(({ slot_x, slot_y }) => {
-            const k = `${slot_x},${slot_y}`;
-            map.set(k, (map.get(k) || 0) + 1);
-          });
+        rows.forEach(({ slot_x, slot_y }) => {
+          const k = `${slot_x},${slot_y}`;
+          map.set(k, (map.get(k) || 0) + 1);
+        });
+        // If real data is too sparse, supplement with demo
+        if (map.size < 20) {
+          const demo = generateDemoHeatmap(slots);
+          demo.forEach((v, k) => { if (!map.has(k)) map.set(k, v); });
         }
         setHeatmapData(map);
       })
-      .catch(() => setHeatmapData(new Map()))
+      .catch(() => setHeatmapData(generateDemoHeatmap(slots)))
       .finally(() => setHeatmapLoading(false));
   }, [heatmapMode, heatmapPeriod]);
 
@@ -4271,16 +4405,16 @@ function AdvertiserView({ slots, isLive, onWaitlist, onCheckout }) {
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', order: isMobile ? 1 : 0, minHeight: 0, maxHeight: isMobile ? '45vh' : undefined }}>
 
         {/* ── Heatmap toolbar ── */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 12px', height: 38, background: `${U.s1}f0`, borderBottom: `1px solid ${heatmapMode ? 'rgba(255,120,0,0.18)' : U.border}`, flexShrink: 0, transition: 'border-color 0.4s' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 12px', height: 38, background: `${U.s1}f0`, borderBottom: `1px solid ${heatmapMode ? 'rgba(255,80,140,0.2)' : U.border}`, flexShrink: 0, transition: 'border-color 0.4s' }}>
           <button
             onClick={() => setHeatmapMode(m => !m)}
             style={{
               display: 'flex', alignItems: 'center', gap: 5,
               padding: '4px 10px', borderRadius: 6, cursor: 'pointer',
               fontFamily: F.b, fontSize: 11, fontWeight: 700,
-              border: heatmapMode ? '1px solid rgba(255,130,0,0.45)' : `1px solid ${U.border2}`,
-              background: heatmapMode ? 'rgba(255,90,0,0.1)' : U.faint,
-              color: heatmapMode ? '#ff9044' : U.muted,
+              border: heatmapMode ? '1px solid rgba(255,80,140,0.5)' : `1px solid ${U.border2}`,
+              background: heatmapMode ? 'rgba(255,60,120,0.1)' : U.faint,
+              color: heatmapMode ? '#ff6699' : U.muted,
               transition: 'all 0.25s',
               letterSpacing: '0.04em',
             }}
@@ -4288,7 +4422,7 @@ function AdvertiserView({ slots, isLive, onWaitlist, onCheckout }) {
             <span style={{ fontSize: 12, filter: heatmapMode ? 'none' : 'grayscale(0.6)', transition: 'filter 0.3s' }}>🔥</span>
             <span>HEATMAP</span>
             {heatmapLoading && (
-              <div style={{ width: 12, height: 12, borderRadius: '50%', border: '1.5px solid rgba(255,144,68,0.4)', borderTopColor: '#ff9044', animation: 'spin 0.8s linear infinite' }} />
+              <div style={{ width: 12, height: 12, borderRadius: '50%', border: '1.5px solid rgba(255,100,160,0.4)', borderTopColor: '#ff6699', animation: 'spin 0.8s linear infinite' }} />
             )}
           </button>
 
@@ -4301,23 +4435,20 @@ function AdvertiserView({ slots, isLive, onWaitlist, onCheckout }) {
                   style={{
                     padding: '3px 9px', borderRadius: 5, cursor: 'pointer',
                     fontFamily: F.b, fontSize: 10, fontWeight: heatmapPeriod === id ? 700 : 400,
-                    border: `1px solid ${heatmapPeriod === id ? 'rgba(255,130,0,0.4)' : 'transparent'}`,
-                    background: heatmapPeriod === id ? 'rgba(255,90,0,0.09)' : 'transparent',
-                    color: heatmapPeriod === id ? '#ff9044' : U.muted,
+                    border: `1px solid ${heatmapPeriod === id ? 'rgba(255,80,140,0.45)' : 'transparent'}`,
+                    background: heatmapPeriod === id ? 'rgba(255,60,120,0.1)' : 'transparent',
+                    color: heatmapPeriod === id ? '#ff6699' : U.muted,
                     transition: 'all 0.15s',
                   }}
                 >{label}</button>
               ))}
               <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 7 }}>
-                {/* Gradient legend */}
-                <div style={{ width: 60, height: 4, borderRadius: 2, background: 'linear-gradient(90deg, rgb(13,24,40), rgb(70,50,190), rgb(0,200,230), rgb(255,140,0), rgb(255,30,60))', opacity: 0.75 }} />
-                <div style={{ display: 'flex', justifyContent: 'space-between', width: 60, marginLeft: -60, paddingTop: 8 }}>
-                  {/* invisible spacer */}
-                </div>
+                {/* Gradient legend — rose → orange → jaune → blanc */}
+                <div style={{ width: 72, height: 5, borderRadius: 3, background: 'linear-gradient(90deg, #cd3270, #ff5c20, #ffcc44, #fffbe0)', opacity: 0.85, boxShadow: '0 0 8px rgba(255,200,80,0.3)' }} />
                 <div style={{ display: 'flex', gap: 3, fontSize: 9, color: U.muted, alignItems: 'center' }}>
-                  <span>froid</span>
+                  <span style={{ color: '#cd3270' }}>faible</span>
                   <span style={{ color: 'rgba(255,255,255,0.18)' }}>→</span>
-                  <span style={{ color: '#ff9044' }}>chaud</span>
+                  <span style={{ color: '#fffbe0' }}>fort</span>
                 </div>
               </div>
             </>
@@ -4325,7 +4456,7 @@ function AdvertiserView({ slots, isLive, onWaitlist, onCheckout }) {
         </div>
 
         {/* Grid scroll area */}
-        <div ref={containerRef} style={{ flex: 1, overflow: 'auto', background: U.bg, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', transition: 'background 0.5s ease' }}>
+        <div ref={containerRef} style={{ flex: 1, overflow: 'auto', background: heatmapMode ? '#000' : U.bg, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', transition: 'background 0.6s ease' }}>
           <div style={{ position: 'relative', width: totalGridW, height: totalGridH, flexShrink: 0 }}>
             {slots.map(slot => {
               const tierMatch = !activeTier || slot.tier === activeTier || (activeTier === 'ten' && slot.tier === 'corner_ten');
@@ -4352,6 +4483,20 @@ function AdvertiserView({ slots, isLive, onWaitlist, onCheckout }) {
                 />
               );
             })}
+            {/* Canvas dot heatmap — rendered on top of the dimmed grid */}
+            {heatmapMode && heatmapData && (
+              <HeatmapDotCanvas
+                slots={slots}
+                heatmapData={heatmapData}
+                heatmapMax={heatmapMax}
+                colOffsets={colOffsets}
+                rowOffsets={rowOffsets}
+                colWidths={colWidths}
+                rowHeights={rowHeights}
+                totalGridW={totalGridW}
+                totalGridH={totalGridH}
+              />
+            )}
           </div>
         </div>
       </div>
