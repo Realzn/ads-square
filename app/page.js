@@ -4,7 +4,7 @@ import {
   D, FF, GRID_COLS, GRID_ROWS, CENTER_X, CENTER_Y,
   TIER_SIZE, TIER_COLOR, TIER_LABEL, TIER_PRICE, PROFILES,
   buildStructuralGrid, buildDemoGrid, mergeGridWithBookings,
-  isTierAvailable,
+  isTierAvailable, computeMergedDims,
 } from '../lib/grid';
 import {
   isSupabaseConfigured, fetchActiveSlots,
@@ -3599,8 +3599,10 @@ function PublicView({ slots, isLive, onGoAdvertiser, onWaitlist, authUser, userB
       <div style={{ flex: 1, display: feedMode ? 'none' : 'flex', overflow: 'auto', alignItems: 'flex-start', justifyContent: 'center', minHeight: 0 }} ref={containerRef}>
         <div style={{ position: 'relative', width: totalGridW, height: totalGridH, flexShrink: 0 }}>
           {slots.map(slot => {
-            const inFilter  = filteredSlots.has(slot.id);
-            // isFiltering is hoisted above the map — stable per render, not per slot
+            // Ghost slots are part of a merged block but not the anchor — skip rendering
+            if (slot.isGhost) return null;
+
+            const inFilter  = filteredSlots.has(slot.id);\n            // isFiltering is hoisted above the map — stable per render, not per slot
 
             // ── Couleur néon selon le filtre actif ──────────────
             // Tier  → s'allume sur tous les blocs du tier sélectionné
@@ -3620,6 +3622,8 @@ function PublicView({ slots, isLive, onGoAdvertiser, onWaitlist, authUser, userB
             }
 
             const sz = tierSizes[slot.tier] || 10;
+            // Compute merged dimensions if this is a primary merged block
+            const { mergedW, mergedH } = computeMergedDims(slot, colWidths, rowHeights, 2);
 
             return (
               <SlotWrapper
@@ -3628,8 +3632,8 @@ function PublicView({ slots, isLive, onGoAdvertiser, onWaitlist, authUser, userB
                 colOffset={colOffsets[slot.x]}
                 rowOffset={rowOffsets[slot.y]}
                 sz={sz}
-                w={colWidths[slot.x - 1]}
-                h={rowHeights[slot.y - 1]}
+                w={mergedW ?? colWidths[slot.x - 1]}
+                h={mergedH ?? rowHeights[slot.y - 1]}
                 isFiltering={isFiltering}
                 inFilter={inFilter}
                 neonColor={neonColor}
@@ -3694,28 +3698,52 @@ function heatColor(ratio) {
   return `rgb(${Math.round(lo.r + (hi.r - lo.r) * f)},${Math.round(lo.g + (hi.g - lo.g) * f)},${Math.round(lo.b + (hi.b - lo.b) * f)})`;
 }
 
-// ─── AdvSlotWrapper — miroir exact de SlotWrapper (vue publique) ──────────────
-// BlockCell reçoit w+h pour remplir la cellule complète (pas de centering)
+// ─── AdvSlotWrapper — vue annonceur, supporte drag-select + blocs fusionnés ───
+// Ghost slots (couverts par un bloc fusionné) sont rendus invisibles.
+// Les props onDragStart / onDragEnter pilotent la sélection rectangulaire.
 const AdvSlotWrapper = memo(({
   slot, colOffset, rowOffset, sz, w, h,
   isChosen, isTierFiltering, tierMatch,
   heatmapMode, heatClicks, heatMax,
   isHeatHovered, onChoose, onHeatHover, onHeatLeave,
+  // Drag-select
+  isInSelection, selectionBlocked,
+  onDragStart, onDragEnter,
 }) => {
+  // Ghost slots: covered by a primary merged block — render invisible spacer only
+  if (slot.isGhost) {
+    return (
+      <div style={{ position: 'absolute', left: colOffset, top: rowOffset,
+                    width: w ?? sz, height: h ?? sz, pointerEvents: 'none' }} />
+    );
+  }
+
   const c     = TIER_COLOR[slot.tier];
   const ratio = heatmapMode && heatMax > 0 ? Math.min(heatClicks / heatMax, 1) : 0;
-  // effective block size for glow/radius (min of actual rendered dimensions)
   const bw = w ?? sz;
   const bh = h ?? sz;
   const effectiveSz = Math.min(bw, bh);
 
   const handleClick = useCallback(() => onChoose(slot), [slot, onChoose]);
 
+  const handleMouseDown = useCallback((e) => {
+    if (heatmapMode || slot.occ) return;
+    e.preventDefault();
+    onDragStart?.(slot);
+  }, [slot, onDragStart, heatmapMode]);
+
+  const handleMouseEnter = useCallback(() => {
+    if (heatmapMode) { onHeatHover?.(); return; }
+    onDragEnter?.(slot);
+  }, [slot, onDragEnter, onHeatHover, heatmapMode]);
+
   const opacity = heatmapMode
     ? 0.08
     : isTierFiltering
       ? (tierMatch ? 1 : 0.05)
       : 1;
+
+  const selColor = selectionBlocked ? '#e05252' : U.accent;
 
   return (
     <div
@@ -3725,12 +3753,14 @@ const AdvSlotWrapper = memo(({
         top: rowOffset,
         opacity,
         transition: 'opacity 0.25s ease',
-        zIndex: isChosen ? 3 : 1,
+        zIndex: isChosen || isInSelection ? 3 : 1,
+        cursor: (!slot.occ && !heatmapMode && onDragStart) ? 'crosshair' : 'default',
       }}
-      onMouseEnter={heatmapMode ? onHeatHover : undefined}
+      onMouseDown={handleMouseDown}
+      onMouseEnter={handleMouseEnter}
       onMouseLeave={heatmapMode ? onHeatLeave : undefined}
+      onClick={heatmapMode ? undefined : handleClick}
     >
-      {/* BlockCell fills the full column×row cell, same as SlotWrapper in public view */}
       <BlockCell
         slot={slot}
         isSelected={isChosen}
@@ -3742,7 +3772,7 @@ const AdvSlotWrapper = memo(({
         showStats={!heatmapMode}
       />
 
-      {/* ── Overlay sélection ── */}
+      {/* ── Overlay sélection clic simple ── */}
       {isChosen && (
         <div style={{
           position: 'absolute', inset: -2,
@@ -3756,7 +3786,18 @@ const AdvSlotWrapper = memo(({
         }} />
       )}
 
-      {/* ── Tooltip heatmap on hover — canvas draws the dots, this just shows data ── */}
+      {/* ── Overlay drag-selection rectangle ── */}
+      {isInSelection && !isChosen && (
+        <div style={{
+          position: 'absolute', inset: 0,
+          borderRadius: 3,
+          background: `${selColor}18`,
+          border: `1px solid ${selColor}60`,
+          pointerEvents: 'none', zIndex: 10,
+        }} />
+      )}
+
+      {/* ── Heatmap tooltip ── */}
       {heatmapMode && isHeatHovered && heatClicks > 0 && (
         <div style={{
           position: 'absolute',
@@ -3993,6 +4034,174 @@ const AnonBlock = memo(({ slot, chosenSlot, activeTier, onChoose, sz: szProp, w,
 AnonBlock.displayName = 'AnonBlock';
 
 // ─── Advertiser View ───────────────────────────────────────────
+// ─── MultiSelectCheckoutModal — bloc fusionné multi-slots ────────────────────
+function MultiSelectCheckoutModal({ selectionRect, slotsInRect, onClose, onCheckout }) {
+  const { isMobile } = useScreenSize();
+  const [days, setDays]       = useState(30);
+  const [email, setEmail]     = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError]     = useState(null);
+
+  // Check session on mount
+  useEffect(() => {
+    getSession().then(session => {
+      if (session?.user?.email) setEmail(session.user.email);
+    });
+  }, []);
+
+  if (!selectionRect || !slotsInRect?.length) return null;
+
+  const { x1, y1, x2, y2 } = selectionRect;
+  const slotCount   = slotsInRect.length;
+  const colSpan     = x2 - x1 + 1;
+  const rowSpan     = y2 - y1 + 1;
+
+  // Price breakdown by tier
+  const tierCounts = {};
+  let totalPerDay  = 0;
+  for (const s of slotsInRect) {
+    tierCounts[s.tier] = (tierCounts[s.tier] || 0) + 1;
+    totalPerDay += TIER_PRICE[s.tier]; // in cents
+  }
+  const totalCents = totalPerDay * days;
+  const totalEur   = (totalCents / 100).toFixed(2);
+
+  const handleConfirm = async () => {
+    if (!email.includes('@')) { setError('Email invalide'); return; }
+    setLoading(true); setError(null);
+    try {
+      const result = await onCheckout({
+        anchorX: x1, anchorY: y1,
+        mergeConfig: { x1, y1, x2, y2, slots: slotsInRect.map(s => ({ x: s.x, y: s.y, tier: s.tier })) },
+        days,
+        email,
+        totalCents,
+      });
+      if (result?.url) window.location.href = result.url;
+    } catch (err) {
+      setError(err.message || 'Erreur lors du checkout');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 9000,
+      background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(12px)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+    }}
+      onClick={e => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div style={{
+        background: U.card, border: `1px solid ${U.border2}`,
+        borderRadius: 16, padding: isMobile ? '20px 16px' : '28px 32px',
+        width: isMobile ? '92vw' : 440, maxHeight: '90vh', overflowY: 'auto',
+        boxShadow: '0 32px 80px rgba(0,0,0,0.8)',
+      }}>
+        {/* Header */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 }}>
+          <div>
+            <div style={{ fontSize: 11, color: U.accent, fontWeight: 700, letterSpacing: '0.06em', marginBottom: 4, fontFamily: F.h }}>
+              BLOC FUSIONNÉ
+            </div>
+            <div style={{ fontSize: 18, fontWeight: 800, color: U.text, fontFamily: F.h, letterSpacing: '-0.02em' }}>
+              {colSpan} × {rowSpan} = {slotCount} blocs
+            </div>
+            <div style={{ fontSize: 11, color: U.muted, marginTop: 3 }}>
+              Position ({x1},{y1}) → ({x2},{y2})
+            </div>
+          </div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: U.muted, fontSize: 20, cursor: 'pointer', padding: '0 4px', lineHeight: 1 }}>×</button>
+        </div>
+
+        {/* Tier breakdown */}
+        <div style={{ background: U.faint, borderRadius: 10, padding: '14px 16px', marginBottom: 20, border: `1px solid ${U.border}` }}>
+          <div style={{ fontSize: 10, color: U.muted, fontWeight: 700, letterSpacing: '0.06em', marginBottom: 10 }}>COMPOSITION DU BLOC</div>
+          {Object.entries(tierCounts).map(([tier, count]) => (
+            <div key={tier} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 7 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ width: 8, height: 8, borderRadius: 2, background: TIER_COLOR[tier] }} />
+                <span style={{ fontSize: 12, color: U.text, fontWeight: 600 }}>{count}× {TIER_LABEL[tier]}</span>
+              </div>
+              <span style={{ fontSize: 12, color: TIER_COLOR[tier], fontWeight: 700 }}>
+                €{(TIER_PRICE[tier] / 100).toFixed(0)}/j × {count} = €{((TIER_PRICE[tier] / 100) * count).toFixed(0)}/j
+              </span>
+            </div>
+          ))}
+          <div style={{ borderTop: `1px solid ${U.border}`, marginTop: 10, paddingTop: 10, display: 'flex', justifyContent: 'space-between' }}>
+            <span style={{ fontSize: 13, fontWeight: 800, color: U.text }}>Total / jour</span>
+            <span style={{ fontSize: 13, fontWeight: 800, color: U.accent }}>€{(totalPerDay / 100).toFixed(0)}/j</span>
+          </div>
+        </div>
+
+        {/* Days selector */}
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 10, color: U.muted, fontWeight: 700, letterSpacing: '0.06em', marginBottom: 8 }}>DURÉE</div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            {[7, 14, 30, 60, 90].map(d => (
+              <button key={d} onClick={() => setDays(d)} style={{
+                flex: 1, padding: '8px 4px', borderRadius: 8,
+                border: `1px solid ${days === d ? U.accent : U.border}`,
+                background: days === d ? `${U.accent}15` : U.faint,
+                color: days === d ? U.accent : U.muted,
+                fontWeight: days === d ? 700 : 400,
+                fontSize: 12, cursor: 'pointer', fontFamily: F.b,
+              }}>{d}j</button>
+            ))}
+          </div>
+        </div>
+
+        {/* Email */}
+        <div style={{ marginBottom: 20 }}>
+          <div style={{ fontSize: 10, color: U.muted, fontWeight: 700, letterSpacing: '0.06em', marginBottom: 8 }}>EMAIL</div>
+          <input
+            type="email"
+            value={email}
+            onChange={e => setEmail(e.target.value)}
+            placeholder="vous@exemple.com"
+            style={{
+              width: '100%', padding: '10px 12px', borderRadius: 8,
+              border: `1px solid ${U.border2}`, background: U.s2,
+              color: U.text, fontSize: 13, fontFamily: F.b,
+              outline: 'none', boxSizing: 'border-box',
+            }}
+          />
+        </div>
+
+        {error && (
+          <div style={{ background: `${U.err}15`, border: `1px solid ${U.err}40`, borderRadius: 8, padding: '10px 14px', marginBottom: 16, fontSize: 12, color: U.err }}>
+            {error}
+          </div>
+        )}
+
+        {/* Total & CTA */}
+        <div style={{ background: `${U.accent}12`, border: `1px solid ${U.accent}30`, borderRadius: 10, padding: '14px 16px', marginBottom: 16, textAlign: 'center' }}>
+          <div style={{ fontSize: 11, color: U.muted, marginBottom: 4 }}>TOTAL POUR {days} JOURS</div>
+          <div style={{ fontSize: 28, fontWeight: 900, color: U.accent, fontFamily: F.h, letterSpacing: '-0.03em' }}>€{totalEur}</div>
+        </div>
+
+        <button
+          onClick={handleConfirm}
+          disabled={loading || !email}
+          style={{
+            width: '100%', padding: '13px', borderRadius: 10,
+            background: loading ? U.s2 : U.accent,
+            border: 'none', color: loading ? U.muted : U.accentFg,
+            fontWeight: 800, fontSize: 14, cursor: loading ? 'not-allowed' : 'pointer',
+            fontFamily: F.h, letterSpacing: '-0.01em',
+            boxShadow: loading ? 'none' : `0 0 24px ${U.accent}40`,
+            transition: 'all 0.2s',
+          }}
+        >
+          {loading ? 'Redirection...' : `Réserver ce bloc fusionné — €${totalEur}`}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+
 function AdvertiserView({ slots, isLive, onWaitlist, onCheckout }) {
   const t = useT();
   const [selectedSlot, setSelectedSlot] = useState(null);
@@ -4007,6 +4216,94 @@ function AdvertiserView({ slots, isLive, onWaitlist, onCheckout }) {
   const [heatmapData, setHeatmapData]     = useState(null);   // Map<'x,y', clickCount>
   const [heatmapLoading, setHeatmapLoading] = useState(false);
   const [heatmapHovered, setHeatmapHovered] = useState(null); // slot.id
+
+  // ── Drag-select state (rectangle multi-bloc) ───────────────────────────────
+  const [dragAnchor,    setDragAnchor]    = useState(null); // {x, y} grid coords
+  const [dragCurrent,   setDragCurrent]   = useState(null); // {x, y} during drag
+  const [showMultiModal, setShowMultiModal] = useState(false);
+  const isDragging = useRef(false);
+
+  // Selection rectangle (bounding box of anchor → current)
+  const selectionRect = useMemo(() => {
+    if (!dragAnchor || !dragCurrent) return null;
+    return {
+      x1: Math.min(dragAnchor.x, dragCurrent.x),
+      y1: Math.min(dragAnchor.y, dragCurrent.y),
+      x2: Math.max(dragAnchor.x, dragCurrent.x),
+      y2: Math.max(dragAnchor.y, dragCurrent.y),
+    };
+  }, [dragAnchor, dragCurrent]);
+
+  // Slots within the selection rectangle
+  const slotsInRect = useMemo(() => {
+    if (!selectionRect) return [];
+    const { x1, y1, x2, y2 } = selectionRect;
+    return slots.filter(s => !s.isGhost && s.x >= x1 && s.x <= x2 && s.y >= y1 && s.y <= y2);
+  }, [selectionRect, slots]);
+
+  // True if any slot in the rectangle is occupied (blocks checkout)
+  const selectionBlocked = useMemo(() => slotsInRect.some(s => s.occ), [slotsInRect]);
+
+  const handleDragStart = useCallback((slot) => {
+    isDragging.current = true;
+    setDragAnchor({ x: slot.x, y: slot.y });
+    setDragCurrent({ x: slot.x, y: slot.y });
+    setChosenSlot(null); // clear single-slot selection during drag
+  }, []);
+
+  const handleDragEnter = useCallback((slot) => {
+    if (!isDragging.current) return;
+    setDragCurrent({ x: slot.x, y: slot.y });
+  }, []);
+
+  // Finalize drag on mouseup — open modal if multi-slot, cancel if single
+  useEffect(() => {
+    const onMouseUp = () => {
+      if (!isDragging.current) return;
+      isDragging.current = false;
+      // If selection is more than 1 slot and not blocked, open modal
+      if (dragAnchor && dragCurrent) {
+        const isMulti = dragAnchor.x !== dragCurrent.x || dragAnchor.y !== dragCurrent.y;
+        if (isMulti) {
+          setShowMultiModal(true);
+          return;
+        }
+      }
+      // Single slot drag → treat as click, clear drag
+      setDragAnchor(null);
+      setDragCurrent(null);
+    };
+    const onKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        isDragging.current = false;
+        setDragAnchor(null);
+        setDragCurrent(null);
+        setShowMultiModal(false);
+      }
+    };
+    document.addEventListener('mouseup', onMouseUp);
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('mouseup', onMouseUp);
+      document.removeEventListener('keydown', onKeyDown);
+    };
+  }, [dragAnchor, dragCurrent]);
+
+  const handleMultiCheckout = useCallback(async ({ anchorX, anchorY, mergeConfig, days, email, totalCents }) => {
+    const resp = await fetch('/api/stripe/checkout', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        slotX: anchorX, slotY: anchorY,
+        tier: slotsInRect.find(s => s.x === anchorX && s.y === anchorY)?.tier,
+        days, email, totalCents,
+        merge_config: mergeConfig,
+      }),
+    });
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || 'Checkout failed');
+    return data;
+  }, [slotsInRect]);
 
   // Check if all slots in a tier are occupied (enables buyout offer)
   const tierOccupancy = useMemo(() => {
@@ -4455,8 +4752,26 @@ function AdvertiserView({ slots, isLive, onWaitlist, onCheckout }) {
         <div ref={containerRef} style={{ flex: 1, overflow: 'auto', background: heatmapMode ? '#000' : U.bg, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', transition: 'background 0.6s ease' }}>
           <div style={{ position: 'relative', width: totalGridW, height: totalGridH, flexShrink: 0 }}>
             {slots.map(slot => {
-              const tierMatch = !activeTier || slot.tier === activeTier || (activeTier === 'ten' && slot.tier === 'corner_ten');
+              // Ghost slots: part of a merged block, covered by primary — skip rendering
+              if (slot.isGhost) {
+                return (
+                  <div key={slot.id} style={{ position: 'absolute', left: colOffsets[slot.x], top: rowOffsets[slot.y],
+                                              width: colWidths[slot.x - 1], height: rowHeights[slot.y - 1], pointerEvents: 'none' }} />
+                );
+              }
+
+              const tierMatch  = !activeTier || slot.tier === activeTier || (activeTier === 'ten' && slot.tier === 'corner_ten');
               const heatClicks = heatmapMode ? (heatmapData?.get(`${slot.x},${slot.y}`) || 0) : 0;
+
+              // Merged block dimensions (if this slot is the primary of a merge)
+              const { mergedW, mergedH } = computeMergedDims(slot, colWidths, rowHeights, 2);
+
+              // Drag-select: is this slot in the current selection rectangle?
+              const inSel = selectionRect
+                ? (slot.x >= selectionRect.x1 && slot.x <= selectionRect.x2
+                   && slot.y >= selectionRect.y1 && slot.y <= selectionRect.y2)
+                : false;
+
               return (
                 <AdvSlotWrapper
                   key={slot.id}
@@ -4464,8 +4779,8 @@ function AdvertiserView({ slots, isLive, onWaitlist, onCheckout }) {
                   colOffset={colOffsets[slot.x]}
                   rowOffset={rowOffsets[slot.y]}
                   sz={tierSizes[slot.tier]}
-                  w={colWidths[slot.x - 1]}
-                  h={rowHeights[slot.y - 1]}
+                  w={mergedW ?? colWidths[slot.x - 1]}
+                  h={mergedH ?? rowHeights[slot.y - 1]}
                   isChosen={chosenSlot?.id === slot.id}
                   isTierFiltering={!!activeTier}
                   tierMatch={tierMatch}
@@ -4476,6 +4791,10 @@ function AdvertiserView({ slots, isLive, onWaitlist, onCheckout }) {
                   onChoose={handleChoose}
                   onHeatHover={() => setHeatmapHovered(slot.id)}
                   onHeatLeave={() => setHeatmapHovered(null)}
+                  isInSelection={inSel}
+                  selectionBlocked={selectionBlocked}
+                  onDragStart={handleDragStart}
+                  onDragEnter={handleDragEnter}
                 />
               );
             })}
@@ -4496,11 +4815,45 @@ function AdvertiserView({ slots, isLive, onWaitlist, onCheckout }) {
           </div>
         </div>
       </div>
+
+      {/* ── Floating drag-select summary panel ── */}
+      {dragAnchor && dragCurrent && (dragAnchor.x !== dragCurrent.x || dragAnchor.y !== dragCurrent.y) && !showMultiModal && (
+        <div style={{
+          position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)',
+          background: selectionBlocked ? `${U.err}ee` : `${U.bg}ee`,
+          border: `1px solid ${selectionBlocked ? U.err : U.accent}`,
+          borderRadius: 12, padding: '10px 20px',
+          display: 'flex', alignItems: 'center', gap: 14,
+          boxShadow: '0 8px 32px rgba(0,0,0,0.7)',
+          backdropFilter: 'blur(12px)',
+          zIndex: 8000,
+          pointerEvents: 'none',
+        }}>
+          <div style={{ width: 8, height: 8, borderRadius: 2, background: selectionBlocked ? U.err : U.accent }} />
+          <span style={{ fontSize: 13, fontWeight: 700, color: U.text, fontFamily: F.h }}>
+            {selectionBlocked
+              ? '⛔ Sélection bloquée — bloc occupé'
+              : `${slotsInRect.length} blocs sélectionnés · €${(slotsInRect.reduce((s, slot) => s + TIER_PRICE[slot.tier], 0) / 100).toFixed(0)}/j · Relâchez pour continuer`}
+          </span>
+        </div>
+      )}
+
+      {/* ── Multi-slot checkout modal ── */}
+      {showMultiModal && selectionRect && slotsInRect.length > 0 && !selectionBlocked && (
+        <MultiSelectCheckoutModal
+          selectionRect={selectionRect}
+          slotsInRect={slotsInRect}
+          onClose={() => {
+            setShowMultiModal(false);
+            setDragAnchor(null);
+            setDragCurrent(null);
+          }}
+          onCheckout={handleMultiCheckout}
+        />
+      )}
     </div>
   );
 }
-
-// ─── Landing Mini-Grid Background ─────────────────────────────
 function LandingGrid({ slots }) {
   const { isMobile } = useScreenSize();
   const canvasRef = useRef(null);

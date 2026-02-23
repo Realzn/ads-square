@@ -20,34 +20,45 @@ export async function POST(request) {
       // Contenu du bloc (optionnel au checkout, éditable plus tard)
       display_name, slogan, cta_url, cta_text, image_url,
       primary_color, background_color, content_type, badge,
+      // Merged block support
+      merge_config,  // { x1, y1, x2, y2, slots: [{x,y,tier},...] }
+      totalCents: overrideTotalCents, // pre-calculated total for merged blocks
     } = await request.json();
 
+    // Support both single-slot (slotX/slotY) and anchor of merged block
+    const anchorX = slotX;
+    const anchorY = slotY;
+
     // Validate input
-    if (slotX == null || slotY == null || !email) {
+    if (anchorX == null || anchorY == null || !email) {
       return NextResponse.json(
         { error: 'Missing required fields: slotX, slotY, email' },
         { status: 400 }
       );
     }
 
-    // Verify tier matches grid position
-    const realTier = getTier(slotX, slotY);
-    if (realTier !== tier) {
+    const supabase = createServiceClient();
+
+    // For merged blocks, validate all slots in merge_config; for single slots, use normal flow
+    const isMerged = !!merge_config;
+
+    // Validate anchor tier
+    const realTier = getTier(anchorX, anchorY);
+
+    if (!isMerged && tier && realTier !== tier) {
       return NextResponse.json(
         { error: 'Tier mismatch' },
         { status: 400 }
       );
     }
 
-    // Vérifier la disponibilité depuis la DB (tier_config) — priorité sur le fichier statique
-    const supabase = createServiceClient();
+    // Vérifier la disponibilité depuis la DB (tier_config)
     const { data: tierCfg } = await supabase
       .from('tier_config')
       .select('available')
       .eq('tier', realTier)
       .maybeSingle();
 
-    // Fallback sur la config statique si la table n'existe pas encore
     const tierAvailable = tierCfg ? tierCfg.available : isTierAvailable(realTier);
     if (!tierAvailable) {
       return NextResponse.json(
@@ -56,34 +67,58 @@ export async function POST(request) {
       );
     }
 
-    // Check slot availability in Supabase (client already initialized above)
-    // Dates placeholder — seront remplacées par les timestamps exacts
-    // au moment de la confirmation paiement (webhook checkout.session.completed)
-    const now      = new Date();
+    const now       = new Date();
     const startDate = now.toISOString().split('T')[0];
     const endDate   = new Date(now.getTime() + days * 86400000).toISOString().split('T')[0];
 
-    // Vérifier conflits sur expires_at si disponible, sinon end_date
-    const { data: conflicts } = await supabase
-      .from('bookings')
-      .select('id')
-      .eq('slot_x', slotX)
-      .eq('slot_y', slotY)
-      .in('status', ['active', 'pending'])
-      .or(`expires_at.gt.${now.toISOString()},and(expires_at.is.null,end_date.gte.${startDate})`);
-
-    if (conflicts && conflicts.length > 0) {
-      return NextResponse.json(
-        { error: 'Ce bloc est déjà réservé pour cette période' },
-        { status: 409 }
-      );
+    if (isMerged) {
+      // For merged blocks, check conflicts for ALL slots in the rectangle
+      const slotsToCheck = merge_config.slots || [];
+      for (const s of slotsToCheck) {
+        const { data: conflicts } = await supabase
+          .from('bookings')
+          .select('id')
+          .eq('slot_x', s.x)
+          .eq('slot_y', s.y)
+          .in('status', ['active', 'pending'])
+          .or(`expires_at.gt.${now.toISOString()},and(expires_at.is.null,end_date.gte.${startDate})`);
+        if (conflicts && conflicts.length > 0) {
+          return NextResponse.json(
+            { error: `Le bloc (${s.x},${s.y}) est déjà réservé` },
+            { status: 409 }
+          );
+        }
+      }
+    } else {
+      // Single-slot conflict check
+      const { data: conflicts } = await supabase
+        .from('bookings')
+        .select('id')
+        .eq('slot_x', anchorX)
+        .eq('slot_y', anchorY)
+        .in('status', ['active', 'pending'])
+        .or(`expires_at.gt.${now.toISOString()},and(expires_at.is.null,end_date.gte.${startDate})`);
+      if (conflicts && conflicts.length > 0) {
+        return NextResponse.json(
+          { error: 'Ce bloc est déjà réservé pour cette période' },
+          { status: 409 }
+        );
+      }
     }
 
     // Calculate price
-    const pricePerDay = TIER_PRICE[tier]; // in cents (e.g. business = 1000 = €10)
-    const totalCents = pricePerDay * days; // already in cents — do NOT multiply by 100 again
+    // For merged blocks, totalCents is pre-calculated by the frontend (sum of all tier prices)
+    // For single slots, calculate normally
+    const pricePerDay = TIER_PRICE[realTier];
+    const totalCents  = isMerged && overrideTotalCents
+      ? overrideTotalCents
+      : pricePerDay * days; // in cents — do NOT multiply by 100 again
 
     // Create Stripe Checkout Session
+    const blockLabel = isMerged
+      ? `Bloc fusionné ${merge_config.x2 - merge_config.x1 + 1}×${merge_config.y2 - merge_config.y1 + 1} (${anchorX},${anchorY})`
+      : `Bloc ${TIER_LABEL[realTier]} (${anchorX},${anchorY})`;
+
     const session = await stripe.checkout.sessions.create({
       mode: 'payment',
       customer_email: email,
@@ -93,12 +128,13 @@ export async function POST(request) {
             currency: 'eur',
             unit_amount: totalCents,
             product_data: {
-              name: `Bloc ${TIER_LABEL[tier]} (${slotX},${slotY})`,
+              name: blockLabel,
               description: `Réservation ${days} jours — ADS-SQUARE`,
               metadata: {
-                slot_x: String(slotX),
-                slot_y: String(slotY),
-                tier,
+                slot_x: String(anchorX),
+                slot_y: String(anchorY),
+                tier: realTier,
+                is_merged: String(isMerged),
               },
             },
           },
@@ -106,13 +142,14 @@ export async function POST(request) {
         },
       ],
       metadata: {
-        slot_x: String(slotX),
-        slot_y: String(slotY),
-        tier,
+        slot_x: String(anchorX),
+        slot_y: String(anchorY),
+        tier: realTier,
         days: String(days),
         email,
+        is_merged: String(isMerged),
       },
-      success_url: `${process.env.NEXT_PUBLIC_SITE_URL || 'https://ads-square.com'}?payment=success&slot=${slotX}-${slotY}`,
+      success_url: `${process.env.NEXT_PUBLIC_SITE_URL || 'https://ads-square.com'}?payment=success&slot=${anchorX}-${anchorY}`,
       cancel_url: `${process.env.NEXT_PUBLIC_SITE_URL || 'https://ads-square.com'}?payment=cancelled`,
     });
 
@@ -138,11 +175,11 @@ export async function POST(request) {
       advertiserId = newAdv.id;
     }
 
-    // Create pending booking
+    // Create pending booking — single anchor row for merged blocks (ghosts derived from merge_config)
     const finalName = display_name || email.split('@')[0];
     await supabase.from('bookings').insert([{
-      slot_x: slotX,
-      slot_y: slotY,
+      slot_x: anchorX,
+      slot_y: anchorY,
       advertiser_id: advertiserId,
       status: 'pending',
       start_date: startDate,
@@ -159,6 +196,7 @@ export async function POST(request) {
       background_color: background_color || '#0d1828',
       content_type: content_type || 'link',
       badge: badge || 'CRÉATEUR',
+      ...(isMerged ? { merge_config } : {}),
     }]);
 
     return NextResponse.json({ url: session.url, sessionId: session.id });
