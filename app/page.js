@@ -3498,8 +3498,8 @@ function PublicView({ slots, isLive, onGoAdvertiser, onWaitlist, authUser, userB
     if (feedMode) { centeredRef.current = false; return; }
     if (centeredRef.current || !containerRef.current || containerW === 0) return;
     const el = containerRef.current;
-    el.scrollLeft = colOffsets[CENTER_X] + tierSizes.one / 2 - el.clientWidth / 2;
-    el.scrollTop  = rowOffsets[CENTER_Y] + tierSizes.one / 2 - el.clientHeight / 2;
+    el.scrollLeft = colOffsets[CENTER_X] + tierSizes.epicenter / 2 - el.clientWidth / 2;
+    el.scrollTop  = rowOffsets[CENTER_Y] + tierSizes.epicenter / 2 - el.clientHeight / 2;
     centeredRef.current = true;
   }, [feedMode, colOffsets, rowOffsets, tierSizes, containerW]);
 
@@ -4034,8 +4034,8 @@ function AdvertiserView({ slots, isLive, onWaitlist, onCheckout }) {
   useEffect(() => {
     if (centeredAdvRef.current || !containerRef.current || containerW === 0) return;
     const el = containerRef.current;
-    el.scrollLeft = colOffsets[CENTER_X] + tierSizes.one / 2 - el.clientWidth / 2;
-    el.scrollTop  = rowOffsets[CENTER_Y] + tierSizes.one / 2 - el.clientHeight / 2;
+    el.scrollLeft = colOffsets[CENTER_X] + tierSizes.epicenter / 2 - el.clientWidth / 2;
+    el.scrollTop  = rowOffsets[CENTER_Y] + tierSizes.epicenter / 2 - el.clientHeight / 2;
     centeredAdvRef.current = true;
   }, [colOffsets, rowOffsets, tierSizes, containerW]);
 
