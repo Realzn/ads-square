@@ -3689,8 +3689,8 @@ function heatColor(ratio) {
   return `rgb(${Math.round(lo.r + (hi.r - lo.r) * f)},${Math.round(lo.g + (hi.g - lo.g) * f)},${Math.round(lo.b + (hi.b - lo.b) * f)})`;
 }
 
-// ─── AdvSlotWrapper — grille annonceur = même rendu que PublicView ────────────
-// Utilise BlockCell (rendu complet avec BlockMedia) + overlay sélection + heatmap
+// ─── AdvSlotWrapper — miroir exact de SlotWrapper (vue publique) ──────────────
+// BlockCell reçoit w+h pour remplir la cellule complète (pas de centering)
 const AdvSlotWrapper = memo(({
   slot, colOffset, rowOffset, sz, w, h,
   isChosen, isTierFiltering, tierMatch,
@@ -3699,22 +3699,18 @@ const AdvSlotWrapper = memo(({
 }) => {
   const c     = TIER_COLOR[slot.tier];
   const ratio = heatmapMode && heatMax > 0 ? Math.min(heatClicks / heatMax, 1) : 0;
-
-  // sz = tier block size; cell = full column×row space the block sits inside
-  const cellSz = sz;
+  // effective block size for glow/radius (min of actual rendered dimensions)
+  const bw = w ?? sz;
+  const bh = h ?? sz;
+  const effectiveSz = Math.min(bw, bh);
 
   const handleClick = useCallback(() => onChoose(slot), [slot, onChoose]);
 
-  // Opacity: dim heavily in heatmap mode so the canvas dots are the star
   const opacity = heatmapMode
     ? 0.08
     : isTierFiltering
       ? (tierMatch ? 1 : 0.05)
       : 1;
-
-  // Cell dimensions (full column × row size) vs block size (tier square)
-  const cellW = w ?? sz;
-  const cellH = h ?? sz;
 
   return (
     <div
@@ -3722,11 +3718,6 @@ const AdvSlotWrapper = memo(({
         position: 'absolute',
         left: colOffset,
         top: rowOffset,
-        width:  cellW,
-        height: cellH,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
         opacity,
         transition: 'opacity 0.25s ease',
         zIndex: isChosen ? 3 : 1,
@@ -3734,28 +3725,27 @@ const AdvSlotWrapper = memo(({
       onMouseEnter={heatmapMode ? onHeatHover : undefined}
       onMouseLeave={heatmapMode ? onHeatLeave : undefined}
     >
-      {/* Bloc centré dans sa cellule — BlockCell garde sa taille de tier */}
+      {/* BlockCell fills the full column×row cell, same as SlotWrapper in public view */}
       <BlockCell
         slot={slot}
         isSelected={isChosen}
         onSelect={handleClick}
         onFocus={handleClick}
         sz={sz}
+        w={w}
+        h={h}
         showStats={!heatmapMode}
       />
 
-      {/* ── Overlay sélection — centré sur le bloc, pas la cellule ── */}
+      {/* ── Overlay sélection ── */}
       {isChosen && (
         <div style={{
-          position: 'absolute',
-          left: '50%', top: '50%',
-          width: sz + 4, height: sz + 4,
-          transform: 'translate(-50%, -50%)',
-          borderRadius: slot.tier === 'epicenter' ? Math.round(cellSz * 0.1) + 2
-                      : slot.tier === 'prestige' || slot.tier === 'elite' ? Math.round(cellSz * 0.09) + 2
+          position: 'absolute', inset: -2,
+          borderRadius: slot.tier === 'epicenter' ? Math.round(effectiveSz * 0.1) + 2
+                      : slot.tier === 'prestige' || slot.tier === 'elite' ? Math.round(effectiveSz * 0.09) + 2
                       : slot.tier === 'business' ? 5 : 4,
           border: `2px solid ${c}`,
-          boxShadow: `0 0 0 1px ${c}25, 0 0 ${Math.max(12, cellSz * 0.55)}px ${c}40`,
+          boxShadow: `0 0 0 1px ${c}25, 0 0 ${Math.max(12, effectiveSz * 0.55)}px ${c}40`,
           pointerEvents: 'none', zIndex: 10,
           animation: 'selectedPulse 2.4s ease-in-out infinite',
         }} />
@@ -3765,7 +3755,7 @@ const AdvSlotWrapper = memo(({
       {heatmapMode && isHeatHovered && heatClicks > 0 && (
         <div style={{
           position: 'absolute',
-          bottom: cellSz + 14,
+          bottom: effectiveSz + 14,
           left: '50%',
           transform: 'translateX(-50%)',
           background: 'rgba(2,4,10,0.96)',
