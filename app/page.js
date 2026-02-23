@@ -1688,21 +1688,23 @@ const BlockCell = memo(({ slot, isSelected, onSelect, onFocus, sz: szProp, w, h,
   }, [occ, tenant?.bookingId, slot.x, slot.y]);
 
   const handleClick = useCallback(() => {
-    if (occ) {
-      // Track click for heatmap
-      if (tenant?.bookingId) {
-        fetch('/api/track', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ slotX: slot.x, slotY: slot.y, bookingId: tenant.bookingId, event: 'click' }),
-        }).catch(() => {});
-      }
-      onFocus(slot); return;
-    }
-    if (!available) { onFocus(slot); return; } // ouvre la modale "prochainement"
+    // Track EVERY click on the public grid (occupied ou libre) → heatmap réelle
+    fetch('/api/track', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        slotX: slot.x,
+        slotY: slot.y,
+        bookingId: tenant?.bookingId || null,
+        event: 'click',
+      }),
+    }).catch(() => {});
+
+    if (occ) { onFocus(slot); return; }
+    if (!available) { onFocus(slot); return; }
     onSelect(slot);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [occ, available, onFocus, onSelect, slot.id]);
+  }, [occ, available, onFocus, onSelect, slot.id, slot.x, slot.y, tenant?.bookingId]);
 
   return (
     <div
@@ -3998,7 +4000,7 @@ function AdvertiserView({ slots, isLive, onWaitlist, onCheckout }) {
   const [statsLoading, setStatsLoading] = useState(false);
   const [neighborStats, setNeighborStats] = useState(null); // stats zone pour slots libres
   const [heatmapMode, setHeatmapMode]     = useState(false);
-  const [heatmapPeriod, setHeatmapPeriod] = useState('7d');
+  const [heatmapPeriod, setHeatmapPeriod] = useState('1d');
   const [heatmapData, setHeatmapData]     = useState(null);   // Map<'x,y', clickCount>
   const [heatmapLoading, setHeatmapLoading] = useState(false);
   const [heatmapHovered, setHeatmapHovered] = useState(null); // slot.id
@@ -4117,6 +4119,7 @@ function AdvertiserView({ slots, isLive, onWaitlist, onCheckout }) {
     setHeatmapLoading(true);
     const now    = new Date();
     let   since  = null;
+    if (heatmapPeriod === '1d')  since = new Date(now - 1  * 86400000).toISOString();
     if (heatmapPeriod === '7d')  since = new Date(now - 7  * 86400000).toISOString();
     if (heatmapPeriod === '30d') since = new Date(now - 30 * 86400000).toISOString();
 
@@ -4419,7 +4422,7 @@ function AdvertiserView({ slots, isLive, onWaitlist, onCheckout }) {
           {heatmapMode && (
             <>
               <div style={{ width: 1, height: 16, background: U.border, flexShrink: 0 }} />
-              {[['7d','7 jours'], ['30d','30 jours'], ['all','Total']].map(([id, label]) => (
+              {[['1d','24h'], ['7d','7 jours'], ['30d','30 jours']].map(([id, label]) => (
                 <button key={id}
                   onClick={() => setHeatmapPeriod(id)}
                   style={{
