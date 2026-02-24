@@ -1929,7 +1929,7 @@ function AdvertiserProfileModal({ advertiserId, slots, onClose, onOpenSlot }) {
   const [scrolled, setScrolled] = useState(false);
 
   const advertiserSlots = useMemo(() =>
-    slots.filter(s => s.occ && s.tenant?.advertiserId === advertiserId),
+    slots.filter(s => s.occ && !s.isGhost && s.tenant?.advertiserId === advertiserId),
     [slots, advertiserId]
   );
 
@@ -2692,7 +2692,7 @@ function FocusModal({ slot, allSlots, onClose, onNavigate, onGoAdvertiser, onVie
     if (!slot?.occ) { setPublicStats(null); return; }
     fetchSlotStats(slot.x, slot.y).then(({ data }) => setPublicStats(data)).catch(() => {});
   }, [slot?.id]);
-  const occupiedSlots = useMemo(() => allSlots.filter(s => s.occ), [allSlots]);
+  const occupiedSlots = useMemo(() => allSlots.filter(s => s.occ && !s.isGhost && s.tenant), [allSlots]);
   const curIdx  = occupiedSlots.findIndex(s => s.id === slot?.id);
   const hasPrev = curIdx > 0;
   const hasNext = curIdx < occupiedSlots.length - 1;
@@ -2715,7 +2715,7 @@ function FocusModal({ slot, allSlots, onClose, onNavigate, onGoAdvertiser, onVie
 
   if (!slot) return null;
   const { tier, occ, tenant } = slot;
-  const c = occ ? tenant.c : TIER_COLOR[tier];
+  const c = (occ && tenant) ? tenant.c : TIER_COLOR[tier];
 
   return (
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.82)', backdropFilter: 'blur(16px)', display: 'flex', alignItems: isMobile ? 'flex-end' : 'center', justifyContent: 'center', opacity: entered ? 1 : 0, transition: 'opacity 0.2s ease' }}>
@@ -3072,7 +3072,7 @@ function TikTokFeed({ slots, isLive }) {
   const [currentIdx, setCurrentIdx] = useState(0);
   const { isMobile } = useScreenSize();
 
-  const feedSlots = useMemo(() => slots.filter(s => s.occ), [slots]);
+  const feedSlots = useMemo(() => slots.filter(s => s.occ && !s.isGhost && s.tenant), [slots]);
 
   useEffect(() => {
     const container = feedRef.current;
@@ -3097,7 +3097,7 @@ function TikTokFeed({ slots, isLive }) {
     <div ref={feedRef} style={{ flex: 1, overflowY: 'scroll', overflowX: 'hidden', scrollSnapType: 'y mandatory', WebkitOverflowScrolling: 'touch', position: 'relative' }}>
       {feedSlots.map((slot, idx) => {
         const { tier, occ, tenant } = slot;
-        const c = occ ? tenant.c : TIER_COLOR[tier];
+        const c = (occ && tenant) ? tenant.c : TIER_COLOR[tier];
         const isActive = currentIdx === idx;
         return (
           <div key={slot.id} data-card={idx} style={{ scrollSnapAlign: 'start', width: '100%', height: '100%', minHeight: '100%', position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: isMobile ? 20 : 28, padding: isMobile ? '16px 16px 16px 8px' : '24px 60px 24px 24px', boxSizing: 'border-box', overflow: 'hidden', background: U.bg }}>
@@ -3177,7 +3177,7 @@ function TikTokFeed({ slots, isLive }) {
 //   2. Toutes les 3min même avec activité (invitation douce, disparaît en 8s)
 function FeedInvitePanel({ slots, onSwitchToFeed, onDismiss }) {
   const [entered, setEntered] = useState(false);
-  const occupiedSlots = useMemo(() => slots.filter(s => s.occ).slice(0, 3), [slots]);
+  const occupiedSlots = useMemo(() => slots.filter(s => s.occ && !s.isGhost && s.tenant).slice(0, 3), [slots]);
 
   useEffect(() => {
     const t = requestAnimationFrame(() => setEntered(true));
@@ -3312,7 +3312,7 @@ function BoostTicker({ slots, authUser, userBookings, onBoost, onGoAdvertiser })
   const [showTickerToast, setShowTickerToast] = useState(false);
 
   // Only show slots explicitly boosted
-  const boosted = slots.filter(s => s.occ && s.tenant && s.tenant.boosted);
+  const boosted = slots.filter(s => s.occ && !s.isGhost && s.tenant && s.tenant.boosted);
 
   // Determine CTA state
   const hasActiveBooking = userBookings && userBookings.length > 0;
@@ -3378,14 +3378,14 @@ function BoostTicker({ slots, authUser, userBookings, onBoost, onGoAdvertiser })
           <div style={{ display: 'flex', alignItems: 'center', gap: 0, animation: 'tickerScroll 40s linear infinite', width: 'max-content', willChange: 'transform' }}>
             {[...boosted, ...boosted].map((slot, i) => {
               const theme = getSlotTheme(slot);
-              const c = theme?.color || slot.tenant.c || U.accent;
+              const c = theme?.color || slot.tenant?.c || U.accent;
               return (
                 <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '0 18px', borderRight: `1px solid ${U.border}`, height: 30, cursor: 'pointer', flexShrink: 0 }}
                   onClick={() => window.open(slot.tenant.url, '_blank')}>
                   <span style={{ width: 16, height: 16, borderRadius: 4, background: `${c}22`, border: `1px solid ${c}50`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 8, fontWeight: 900, color: c, fontFamily: 'monospace', flexShrink: 0 }}>{slot.tenant.l?.charAt(0)}</span>
                   <span style={{ color: 'rgba(255,255,255,0.7)', fontSize: 10, fontWeight: 600, whiteSpace: 'nowrap' }}>{slot.tenant.name}</span>
                   {theme && <span style={{ color: c, fontSize: 8, opacity: 0.7 }}>{theme.icon}</span>}
-                  <span style={{ color: 'rgba(255,255,255,0.28)', fontSize: 9, whiteSpace: 'nowrap' }}>{slot.tenant.cta}</span>
+                  <span style={{ color: 'rgba(255,255,255,0.28)', fontSize: 9, whiteSpace: 'nowrap' }}>{slot.tenant?.cta}</span>
                 </div>
               );
             })}
@@ -3522,7 +3522,7 @@ function PublicView({ slots, isLive, onGoAdvertiser, onWaitlist, authUser, userB
     return new Set(s.map(sl => sl.id));
   }, [slots, filterTier, filterTheme]);
 
-  const stats = useMemo(() => ({ occupied: slots.filter(s => s.occ).length, vacant: slots.filter(s => !s.occ).length }), [slots]);
+  const stats = useMemo(() => ({ occupied: slots.filter(s => s.occ && !s.isGhost).length, vacant: slots.filter(s => !s.occ && !s.isGhost).length }), [slots]);
 
   // ── Stable references — prevent 1369 new closures per render ──
   const NOOP_SELECT  = useCallback(() => {}, []);
@@ -3600,6 +3600,7 @@ function PublicView({ slots, isLive, onGoAdvertiser, onWaitlist, authUser, userB
         <div style={{ position: 'relative', width: totalGridW, height: totalGridH, flexShrink: 0 }}>
           {slots.map(slot => {
             // Ghost slots are part of a merged block but not the anchor — skip rendering
+            if (!slot) return null;
             if (slot.isGhost) return null;
 
             const inFilter  = filteredSlots.has(slot.id);
@@ -4754,6 +4755,7 @@ function AdvertiserView({ slots, isLive, onWaitlist, onCheckout }) {
           <div style={{ position: 'relative', width: totalGridW, height: totalGridH, flexShrink: 0 }}>
             {slots.map(slot => {
               // Ghost slots: part of a merged block, covered by primary — skip rendering
+              if (!slot) return null;
               if (slot.isGhost) {
                 return (
                   <div key={slot.id} style={{ position: 'absolute', left: colOffsets[slot.x], top: rowOffsets[slot.y],
@@ -4870,8 +4872,8 @@ function LandingGrid({ slots }) {
       (s.tier === 'prestige') ||
       (s.occ && s.tier === 'elite')
     );
-    const randOcc  = slots.filter(s => s.occ  && s.tier === 'business').sort(() => .5 - Math.random()).slice(0, 12);
-    const randVac  = slots.filter(s => !s.occ && s.tier === 'business').sort(() => .5 - Math.random()).slice(0, 8);
+    const randOcc  = slots.filter(s => s.occ && !s.isGhost && s.tenant && s.tier === 'business').sort(() => .5 - Math.random()).slice(0, 12);
+    const randVac  = slots.filter(s => !s.occ && !s.isGhost && s.tier === 'business').sort(() => .5 - Math.random()).slice(0, 8);
     const randVir  = slots.filter(s => s.tier === 'viral').sort(() => .5 - Math.random()).slice(0, 20);
     setLitSlots([...always, ...randOcc, ...randVac, ...randVir]);
   }, [slots.length]);
@@ -5016,7 +5018,7 @@ function roundRect(ctx, x, y, w, h, r) {
 function LandingPage({ slots, onPublic, onAdvertiser, onWaitlist }) {
   const { isMobile } = useScreenSize();
   const t = useT();
-  const stats = useMemo(() => ({ occupied: slots.filter(s => s.occ).length, vacant: slots.filter(s => !s.occ).length }), [slots]);
+  const stats = useMemo(() => ({ occupied: slots.filter(s => s.occ && !s.isGhost).length, vacant: slots.filter(s => !s.occ && !s.isGhost).length }), [slots]);
 
   const [platformStats, setPlatformStats] = useState(null);
   const [dailyVisitors, setDailyVisitors] = useState(null);
