@@ -83,6 +83,81 @@ function hexToVec3(hex) {
   return [parseInt(h.slice(0,2),16)/255, parseInt(h.slice(2,4),16)/255, parseInt(h.slice(4,6),16)/255];
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// TEXTURE FACTORY — génère des sprites circulaires avec aura douce
+// Résout le problème des "carrés" WebGL de PointsMaterial
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Crée une texture canvas ronde avec gradient radial exponentiel.
+ * core  : rayon du point dur central (0..1)
+ * falloff : puissance de l'exponentielle (plus haut = plus dur)
+ * color : couleur hex optionnelle pour teinte (null = blanc pur → vertex color)
+ */
+function makeGlowTexture(THREE, { size=128, core=0.18, falloff=2.2, color=null }={}) {
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  const cx = size / 2, cy = size / 2, r = size / 2;
+
+  // Gradient radial : blanc au centre → transparent au bord
+  const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+
+  if (color) {
+    // Teinte colorée : utile pour les halos de tier
+    const hex = color.replace('#','');
+    const ri = parseInt(hex.slice(0,2),16);
+    const gi = parseInt(hex.slice(2,4),16);
+    const bi = parseInt(hex.slice(4,6),16);
+    grad.addColorStop(0,           `rgba(${ri},${gi},${bi},1.0)`);
+    grad.addColorStop(core,        `rgba(${ri},${gi},${bi},0.92)`);
+    grad.addColorStop(core + 0.12, `rgba(${ri},${gi},${bi},0.55)`);
+    grad.addColorStop(core + 0.35, `rgba(${ri},${gi},${bi},0.18)`);
+    grad.addColorStop(1.0,         `rgba(${ri},${gi},${bi},0.0)`);
+  } else {
+    // Blanc pur — la couleur vient du vertexColor
+    grad.addColorStop(0,           'rgba(255,255,255,1.0)');
+    grad.addColorStop(core,        'rgba(255,255,255,0.95)');
+    grad.addColorStop(core + 0.14, 'rgba(255,255,255,0.60)');
+    grad.addColorStop(core + 0.38, 'rgba(255,255,255,0.18)');
+    grad.addColorStop(core + 0.60, 'rgba(255,255,255,0.05)');
+    grad.addColorStop(1.0,         'rgba(255,255,255,0.0)');
+  }
+
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, size, size);
+
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.needsUpdate = true;
+  return tex;
+}
+
+/**
+ * Texture anneau lumineux — pour l'aura externe des noeuds occupés
+ */
+function makeRingTexture(THREE, { size=128, ringR=0.72, ringW=0.08 }={}) {
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  const cx = size/2, cy = size/2, r = size/2;
+
+  const inner = (ringR - ringW/2) * r;
+  const outer = (ringR + ringW/2) * r;
+  const grad = ctx.createRadialGradient(cx, cy, inner, cx, cy, outer);
+  grad.addColorStop(0,   'rgba(255,255,255,0.0)');
+  grad.addColorStop(0.2, 'rgba(255,255,255,0.7)');
+  grad.addColorStop(0.5, 'rgba(255,255,255,1.0)');
+  grad.addColorStop(0.8, 'rgba(255,255,255,0.7)');
+  grad.addColorStop(1.0, 'rgba(255,255,255,0.0)');
+
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, size, size);
+
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.needsUpdate = true;
+  return tex;
+}
+
 /**
  * Layout orbital : épicentre au centre, tiers sur coquilles sphériques concentriques.
  */
@@ -176,6 +251,14 @@ class Scene3D {
     this.raycaster.params.Points = { threshold: 0.55 };
 
     this.scene.add(new THREE.AmbientLight(0x030818, 5));
+
+    // Pré-construire les textures sprites une seule fois
+    // nodeTex  : sprite de base (point dur + aura douce)
+    // glowTex  : halo large très diffus
+    // ringTex  : anneau lumineux pour noeuds occupés
+    this._nodeTex  = makeGlowTexture(THREE, { size:256, core:0.14, falloff:2.5 });
+    this._glowTex  = makeGlowTexture(THREE, { size:256, core:0.04, falloff:1.4 });
+    this._ringTex  = makeRingTexture(THREE, { size:256, ringR:0.68, ringW:0.12 });
 
     this._group = new THREE.Group();
     this._group.rotation.x = this.rot.x;
@@ -274,10 +357,46 @@ class Scene3D {
     cg.setAttribute('position', new T.BufferAttribute(cp,3));
     cg.setAttribute('color',    new T.BufferAttribute(cc,3));
     this._corona = new T.Points(cg, new T.PointsMaterial({
-      vertexColors:true, size:0.055, transparent:true, opacity:0.52,
+      map: this._nodeTex,
+      vertexColors:true, size:0.07, transparent:true, opacity:0.52,
       blending:T.AdditiveBlending, depthWrite:false, sizeAttenuation:true,
+      alphaTest: 0.001,
     }));
     this._group.add(this._corona);
+
+    // Anneau de halo autour du noyau — sprite circulaire large
+    const ringGeo = new T.BufferGeometry();
+    ringGeo.setAttribute('position', new T.BufferAttribute(new Float32Array([0,0,0]),3));
+    ringGeo.setAttribute('color',    new T.BufferAttribute(new Float32Array([1,0.82,0.22]),3));
+    this._nucleusRingSprite = new T.Points(ringGeo, new T.PointsMaterial({
+      map: this._ringTex,
+      vertexColors: true,
+      size: 3.2,
+      sizeAttenuation: true,
+      transparent: true,
+      opacity: 0.55,
+      blending: T.AdditiveBlending,
+      depthWrite: false,
+      alphaTest: 0.001,
+    }));
+    this._group.add(this._nucleusRingSprite);
+
+    // Mega halo diffus autour du noyau
+    const megaGeo = new T.BufferGeometry();
+    megaGeo.setAttribute('position', new T.BufferAttribute(new Float32Array([0,0,0]),3));
+    megaGeo.setAttribute('color',    new T.BufferAttribute(new Float32Array([1,0.78,0.15]),3));
+    this._nucleusMegaSprite = new T.Points(megaGeo, new T.PointsMaterial({
+      map: this._glowTex,
+      vertexColors: true,
+      size: 6.5,
+      sizeAttenuation: true,
+      transparent: true,
+      opacity: 0.18,
+      blending: T.AdditiveBlending,
+      depthWrite: false,
+      alphaTest: 0.001,
+    }));
+    this._group.add(this._nucleusMegaSprite);
   }
 
   _buildOrbitalRings() {
@@ -327,8 +446,10 @@ class Scene3D {
     geo.setAttribute('position', new T.BufferAttribute(pos,3));
     geo.setAttribute('color',    new T.BufferAttribute(col,3));
     this._energyParticles = new T.Points(geo, new T.PointsMaterial({
-      vertexColors:true, size:0.05, transparent:true, opacity:0.42,
+      map: this._nodeTex,
+      vertexColors:true, size:0.07, transparent:true, opacity:0.42,
       blending:T.AdditiveBlending, depthWrite:false, sizeAttenuation:true,
+      alphaTest: 0.001,
     }));
     this._energyPhase = phase;
     this._group.add(this._energyParticles);
@@ -373,10 +494,10 @@ class Scene3D {
   }
 
   _clearNodes() {
-    [this.nodeMesh, this._glowLayer, this._epicGlow, this.constellations].filter(Boolean).forEach(o => {
+    [this.nodeMesh, this._glowLayer, this._epicGlow, this._megaGlow, this.constellations].filter(Boolean).forEach(o => {
       this._group.remove(o); o.geometry?.dispose(); o.material?.dispose();
     });
-    this.nodeMesh = this._glowLayer = this._epicGlow = this.constellations = null;
+    this.nodeMesh = this._glowLayer = this._epicGlow = this._megaGlow = this.constellations = null;
     this.nodeData = [];
   }
 
@@ -385,65 +506,144 @@ class Scene3D {
     const n = nodeData.length; if (!n) return;
     this.nodeData = nodeData;
 
+    const T = this.T;
     const otherItems = nodeData.filter(d => d.slot?.tier !== 'epicenter');
-    const epicItems = nodeData.filter(d => d.slot?.tier === 'epicenter');
+    const epicItems  = nodeData.filter(d => d.slot?.tier === 'epicenter');
 
     if (otherItems.length) {
       const no = otherItems.length;
-      const pos = new Float32Array(no*3), col = new Float32Array(no*3);
+
+      // Taille de sprite par tier (world-units)
+      const NODE_SZ = { prestige:0.58, elite:0.38, business:0.24, standard:0.16, viral:0.10 };
+      // Halo diffus (2.5× le sprite dur)
+      const HALO_SZ = { prestige:1.80, elite:1.15, business:0.70, standard:0.44, viral:0.28 };
+      // Anneau d'aura pour noeuds occupés
+      const RING_SZ = { prestige:1.20, elite:0.76, business:0.50, standard:0.34, viral:0.22 };
+
+      const pos  = new Float32Array(no*3);
+      const col  = new Float32Array(no*3);   // couleur saturée × brightess
+      const colH = new Float32Array(no*3);   // couleur halo (même teinte, plus douce)
+      const sz   = new Float32Array(no);     // taille noeud dur
+      const szH  = new Float32Array(no);     // taille halo
+      const szR  = new Float32Array(no);     // taille anneau
+
       for (let i=0; i<no; i++) {
         const {slot, pos:p} = otherItems[i];
         pos[i*3]=p[0]; pos[i*3+1]=p[1]; pos[i*3+2]=p[2];
-        const base = (slot?.occ && slot?.tenant?.c) ? slot.tenant.c : TIER_COLOR[slot?.tier] || '#334';
+
+        const tier = slot?.tier || 'viral';
+        const base = (slot?.occ && slot?.tenant?.c) ? slot.tenant.c : TIER_COLOR[tier] || '#334';
         const [r,g,b] = hexToVec3(base);
-        const br = slot?.occ ? 1.0 : 0.28;
-        col[i*3]=r*br; col[i*3+1]=g*br; col[i*3+2]=b*br;
+
+        // Noeud occupé = pleine luminosité ; vide = très atténué
+        const br  = slot?.occ ? 1.0  : 0.30;
+        const brH = slot?.occ ? 0.65 : 0.12;
+        col[i*3]=r*br;   col[i*3+1]=g*br;   col[i*3+2]=b*br;
+        colH[i*3]=r*brH; colH[i*3+1]=g*brH; colH[i*3+2]=b*brH;
+
+        sz[i]  = (NODE_SZ[tier] || 0.12) * (slot?.occ ? 1.0 : 0.7);
+        szH[i] = (HALO_SZ[tier] || 0.30) * (slot?.occ ? 1.0 : 0.5);
+        szR[i] = (RING_SZ[tier] || 0.22);
       }
-      const T = this.T;
-      const geo = new T.BufferGeometry();
-      geo.setAttribute('position', new T.BufferAttribute(pos,3));
-      geo.setAttribute('color',    new T.BufferAttribute(col,3));
 
-      this.nodeMesh = new T.Points(geo, new T.PointsMaterial({
-        vertexColors:true, size:0.26, sizeAttenuation:true,
-        transparent:true, opacity:0.98,
-        blending:T.AdditiveBlending, depthWrite:false,
-      }));
-      this._group.add(this.nodeMesh);
-
-      const gGeo = new T.BufferGeometry();
-      gGeo.setAttribute('position', new T.BufferAttribute(pos.slice(),3));
-      gGeo.setAttribute('color',    new T.BufferAttribute(col.slice(),3));
-      this._glowLayer = new T.Points(gGeo, new T.PointsMaterial({
-        vertexColors:true, size:1.1, sizeAttenuation:true,
-        transparent:true, opacity:0.11,
-        blending:T.AdditiveBlending, depthWrite:false,
+      // ── Couche 1 : halo diffus large (rendu en premier, blending additif) ──
+      const hGeo = new T.BufferGeometry();
+      hGeo.setAttribute('position', new T.BufferAttribute(pos.slice(),3));
+      hGeo.setAttribute('color',    new T.BufferAttribute(colH,3));
+      // On encode la taille dans un attribute custom pour un "pseudo size per-point"
+      // Three.js PointsMaterial ne supporte pas size per-point nativement,
+      // on utilise donc 3 passes avec tailles moyennées par tier
+      this._glowLayer = new T.Points(hGeo, new T.PointsMaterial({
+        map: this._glowTex,
+        vertexColors: true,
+        size: 1.40,              // taille monde du halo diffus (grande)
+        sizeAttenuation: true,
+        transparent: true,
+        opacity: 0.22,
+        blending: T.AdditiveBlending,
+        depthWrite: false,
+        alphaTest: 0.001,
       }));
       this._group.add(this._glowLayer);
 
-      const presItems = otherItems.filter(d => d.slot?.occ && d.slot.tier==='prestige');
-      if (presItems.length) {
-        const tp = new Float32Array(presItems.length*3), tc = new Float32Array(presItems.length*3);
-        presItems.forEach(({slot,pos:p},j) => {
+      // ── Couche 2 : noeud dur circulaire avec sprite glow ──
+      const nGeo = new T.BufferGeometry();
+      nGeo.setAttribute('position', new T.BufferAttribute(pos,3));
+      nGeo.setAttribute('color',    new T.BufferAttribute(col,3));
+      this.nodeMesh = new T.Points(nGeo, new T.PointsMaterial({
+        map: this._nodeTex,
+        vertexColors: true,
+        size: 0.30,
+        sizeAttenuation: true,
+        transparent: true,
+        opacity: 1.0,
+        blending: T.AdditiveBlending,
+        depthWrite: false,
+        alphaTest: 0.001,
+      }));
+      this._group.add(this.nodeMesh);
+
+      // ── Couche 3 : anneau aura pour les noeuds OCCUPÉS (prestige+) ──
+      const occItems = otherItems.filter(d => d.slot?.occ &&
+        (d.slot.tier==='prestige'||d.slot.tier==='elite'));
+      if (occItems.length) {
+        const tp = new Float32Array(occItems.length*3);
+        const tc = new Float32Array(occItems.length*3);
+        occItems.forEach(({slot,pos:p},j) => {
           tp[j*3]=p[0]; tp[j*3+1]=p[1]; tp[j*3+2]=p[2];
           const c = hexToVec3((slot.tenant?.c)||TIER_COLOR[slot.tier]||'#fff');
-          tc[j*3]=c[0]; tc[j*3+1]=c[1]; tc[j*3+2]=c[2];
+          // anneau plus brillant pour prestige
+          const br = slot.tier==='prestige' ? 0.85 : 0.55;
+          tc[j*3]=c[0]*br; tc[j*3+1]=c[1]*br; tc[j*3+2]=c[2]*br;
         });
-        const tGeo = new T.BufferGeometry();
-        tGeo.setAttribute('position', new T.BufferAttribute(tp,3));
-        tGeo.setAttribute('color',    new T.BufferAttribute(tc,3));
-        this._epicGlow = new T.Points(tGeo, new T.PointsMaterial({
-          vertexColors:true, size:3.5, sizeAttenuation:true,
-          transparent:true, opacity:0.18,
-          blending:T.AdditiveBlending, depthWrite:false,
+        const rGeo = new T.BufferGeometry();
+        rGeo.setAttribute('position', new T.BufferAttribute(tp,3));
+        rGeo.setAttribute('color',    new T.BufferAttribute(tc,3));
+        this._epicGlow = new T.Points(rGeo, new T.PointsMaterial({
+          map: this._ringTex,
+          vertexColors: true,
+          size: 1.60,
+          sizeAttenuation: true,
+          transparent: true,
+          opacity: 0.55,
+          blending: T.AdditiveBlending,
+          depthWrite: false,
+          alphaTest: 0.001,
         }));
         this._group.add(this._epicGlow);
+      }
+
+      // ── Couche 4 : méga-halo très diffus pour prestige occupés ──
+      const megaItems = otherItems.filter(d => d.slot?.occ && d.slot.tier==='prestige');
+      if (megaItems.length) {
+        const mp = new Float32Array(megaItems.length*3);
+        const mc = new Float32Array(megaItems.length*3);
+        megaItems.forEach(({slot,pos:p},j) => {
+          mp[j*3]=p[0]; mp[j*3+1]=p[1]; mp[j*3+2]=p[2];
+          const c = hexToVec3((slot.tenant?.c)||TIER_COLOR[slot.tier]||'#fff');
+          mc[j*3]=c[0]*0.4; mc[j*3+1]=c[1]*0.4; mc[j*3+2]=c[2]*0.4;
+        });
+        const mGeo = new T.BufferGeometry();
+        mGeo.setAttribute('position', new T.BufferAttribute(mp,3));
+        mGeo.setAttribute('color',    new T.BufferAttribute(mc,3));
+        this._megaGlow = new T.Points(mGeo, new T.PointsMaterial({
+          map: this._glowTex,
+          vertexColors: true,
+          size: 3.80,
+          sizeAttenuation: true,
+          transparent: true,
+          opacity: 0.14,
+          blending: T.AdditiveBlending,
+          depthWrite: false,
+          alphaTest: 0.001,
+        }));
+        this._group.add(this._megaGlow);
       }
 
       this._buildConstellations(otherItems, T);
     }
 
-    // Mettre à jour l'intensité du noyau
+    // Mettre à jour l'intensité du noyau selon occupation épicentre
     const hasOccEpic = epicItems.some(d => d.slot?.occ);
     if (this._nucleus) this._nucleus.material.emissiveIntensity = hasOccEpic ? 5.0 : 3.2;
     if (this._nucleusGlow) this._nucleusGlow.material.opacity = hasOccEpic ? 0.16 : 0.08;
@@ -549,6 +749,16 @@ class Scene3D {
       this._nucleusAura.rotation.y = -t*0.22;
       this._nucleusAura.rotation.x = t*0.14;
     }
+    if (this._nucleusRingSprite) {
+      this._nucleusRingSprite.material.opacity = 0.42 + Math.sin(t*1.4)*0.20;
+      const rs = 1.0 + Math.sin(t*1.8)*0.08;
+      this._nucleusRingSprite.scale.setScalar(rs);
+    }
+    if (this._nucleusMegaSprite) {
+      this._nucleusMegaSprite.material.opacity = 0.12 + Math.sin(t*0.6)*0.06;
+      const ms = 1.0 + Math.sin(t*0.9)*0.05;
+      this._nucleusMegaSprite.scale.setScalar(ms);
+    }
     if (this._corona) {
       this._corona.rotation.y = t*0.35;
       this._corona.material.opacity = 0.40 + Math.sin(t*2.1)*0.18;
@@ -589,8 +799,9 @@ class Scene3D {
       this.particleMesh.scale.set(s,s,s);
       this.particleMesh.material.opacity = 0.17+Math.sin(t*0.35)*0.05;
     }
-    if (this._glowLayer) this._glowLayer.material.opacity = 0.09+Math.sin(t*0.65)*0.04;
-    if (this._epicGlow)  this._epicGlow.material.opacity  = 0.14+Math.sin(t*1.3)*0.08;
+    if (this._glowLayer) this._glowLayer.material.opacity = 0.18+Math.sin(t*0.65)*0.06;
+    if (this._epicGlow)  this._epicGlow.material.opacity  = 0.45+Math.sin(t*1.8)*0.18;
+    if (this._megaGlow)  this._megaGlow.material.opacity  = 0.10+Math.sin(t*0.9)*0.06;
 
     this.zoomCurrent += (this.zoomTarget - this.zoomCurrent) * 0.07;
     this.camera.position.z = this.zoomCurrent;
