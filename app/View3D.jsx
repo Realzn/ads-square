@@ -1,1264 +1,860 @@
 'use client';
 /**
- * ─── ADS·SQUARE — View3D.jsx ───────────────────────────────────────────────
+ * ─── ADS·SQUARE — View3D ────────────────────────────────────────────────────
+ * Sphère Évolutive Cosmique — 1 face = 1 bloc
  *
- * Vue 3D interactive des 1296 blocs publicitaires.
- * Niveau 0 = grille 2D (composant PublicView existant)
- * Niveaux 1-6 = formes 3D progressivement plus complexes via Three.js
+ * Niveau 0 : Grille 2D existante
+ * Niveau 1 : Cube        →   6 faces
+ * Niveau 2 : Octaèdre    →   8 faces
+ * Niveau 3 : Icosaèdre   →  20 faces
+ * Niveau 4 : Sphère I    →  80 faces
+ * Niveau 5 : Sphère II   → 320 faces
+ * Niveau 6 : Cosmos      → 1280 faces
  *
- * Géométries :
- *   1 → Cube subdivisé (6 × 6×6 = 216 faces groupées)
- *   2 → Octaèdre subdivié (8 × 14 = ~112)
- *   3 → Icosaèdre (20 faces)
- *   4 → Icosphère ordre 1 (80 faces)
- *   5 → Icosphère ordre 2 (320 faces)
- *   6 → Icosphère ordre 3 (1280 faces ≈ 1296 blocs)
- *
- * Dépendances à installer :
- *   npm install three gsap
- *
- * Intégration dans app/page.js :
- *   import View3D from '../components/View3D';
- *   // Remplacer <PublicView ...> par <View3D slots={slots} isLive={isLive} ...>
- * ───────────────────────────────────────────────────────────────────────────
+ * Molette = zoom | Dots / Touches 0–6 = changement de niveau
+ * deps: npm install three gsap
  */
+import { useRef, useEffect, useState, useCallback, useMemo, memo } from 'react';
+import { TIER_COLOR, TIER_LABEL, TIER_PRICE } from '../lib/grid';
 
-import {
-  useRef, useEffect, useState, useCallback, useMemo, memo,
-} from 'react';
-import { TIER_COLOR, TIER_LABEL, TIER_PRICE, CENTER_X, CENTER_Y, GRID_COLS, GRID_ROWS } from '../lib/grid';
-import { recordClick, fetchSlotStats } from '../lib/supabase';
-
-// ─── Design tokens (mêmes que page.js) ────────────────────────────────────
+// ── Design tokens ─────────────────────────────────────────────────────────────
 const U = {
-  bg: '#080808', s1: '#0f0f0f', s2: '#151515', card: '#1a1a1a',
-  border: 'rgba(255,255,255,0.07)', border2: 'rgba(255,255,255,0.13)',
-  text: '#f0f0f0', muted: 'rgba(255,255,255,0.36)', faint: 'rgba(255,255,255,0.04)',
-  accent: '#d4a84b', accentFg: '#080808', err: '#e05252',
+  bg: '#020408', text: '#f0f0f0', muted: 'rgba(255,255,255,0.38)',
+  accent: '#d4a84b', accentFg: '#080808',
+  border: 'rgba(255,255,255,0.09)', border2: 'rgba(255,255,255,0.16)',
+  err: '#e05252',
 };
 const F = {
   h: "'Clash Display','Syne',sans-serif",
   b: "'DM Sans','Inter',sans-serif",
 };
-const priceEur = tier => (TIER_PRICE[tier] || 100) / 100;
+const priceEur = tier => ((TIER_PRICE[tier] || 100) / 100).toLocaleString('fr-FR');
 
-// ─── Tier 3D scale & visual weight ───────────────────────────────────────
-const TIER_3D_SCALE = {
-  epicenter: 3.5, prestige: 2.2, elite: 1.5,
-  business: 0.9, standard: 0.65, viral: 0.45,
-};
-const TIER_GLOW = {
-  epicenter: 1.0, prestige: 0.7, elite: 0.5,
-  business: 0.3, standard: 0.2, viral: 0.12,
-};
+// ── Tier ordering (pole → equator) ───────────────────────────────────────────
+const TIER_ORDER = ['epicenter', 'prestige', 'elite', 'business', 'standard', 'viral'];
 
-// ─── Tier sort order (pole → equator) ────────────────────────────────────
-const TIER_PRIORITY = {
-  epicenter: 0, prestige: 1, elite: 2,
-  business: 3, standard: 4, viral: 5,
-};
-
-// ─── Level descriptors ────────────────────────────────────────────────────
-const LEVEL_INFO = [
-  { name: 'Grille 2D',    shape: 'Carte',        icon: '◫' },
-  { name: 'Cube',         shape: 'Cube',          icon: '⬛' },
-  { name: 'Octaèdre',     shape: 'Octaèdre',     icon: '◆' },
-  { name: 'Icosaèdre',    shape: 'Icosaèdre',    icon: '⬡' },
-  { name: 'Sphère I',     shape: 'Sphère ×80',   icon: '◎' },
-  { name: 'Sphère II',    shape: 'Sphère ×320',  icon: '◉' },
-  { name: 'Sphère Dense', shape: '~1296 faces',  icon: '●' },
+// ── Level config ──────────────────────────────────────────────────────────────
+const LEVELS = [
+  { n: 0, name: 'Grille 2D',   icon: '◫', faces: 0    },
+  { n: 1, name: 'Cube',        icon: '⬛', faces: 6    },
+  { n: 2, name: 'Octaèdre',    icon: '◆', faces: 8    },
+  { n: 3, name: 'Icosaèdre',   icon: '⬡', faces: 20   },
+  { n: 4, name: 'Sphère I',    icon: '◎', faces: 80   },
+  { n: 5, name: 'Sphère II',   icon: '◉', faces: 320  },
+  { n: 6, name: 'Cosmos',      icon: '●', faces: 1280 },
 ];
 
-// ─────────────────────────────────────────────────────────────────────────
-// GEOMETRY HELPERS
-// ─────────────────────────────────────────────────────────────────────────
+const SPHERE_R = 6;
 
-/**
- * Build icosphere face centroids, projected on unit sphere.
- * subdivision: 0→20 faces, 1→80, 2→320, 3→1280
- */
-function buildIcosphereFaces(subdivisions) {
-  const phi = (1 + Math.sqrt(5)) / 2;
-  // 12 icosahedron vertices
-  const verts = [
-    [-1, phi, 0], [1, phi, 0], [-1, -phi, 0], [1, -phi, 0],
-    [0, -1, phi], [0, 1, phi], [0, -1, -phi], [0, 1, -phi],
-    [phi, 0, -1], [phi, 0, 1], [-phi, 0, -1], [-phi, 0, 1],
-  ].map(v => {
-    const len = Math.sqrt(v[0] ** 2 + v[1] ** 2 + v[2] ** 2);
-    return v.map(c => c / len);
+// ─────────────────────────────────────────────────────────────────────────────
+// GEOMETRY BUILDERS
+// Chaque builder retourne un tableau de { verts, centroid, isQuad }
+// ─────────────────────────────────────────────────────────────────────────────
+
+function buildCubeFaces() {
+  const a = SPHERE_R / Math.sqrt(3);
+  // 6 faces en quads — ordonnées par centroid.y décroissant (top = epicenter)
+  const raw = [
+    [[-a, a,-a],[-a, a, a],[ a, a, a],[ a, a,-a]],   // +Y top
+    [[ a,-a,-a],[ a,-a, a],[-a,-a, a],[-a,-a,-a]],   // -Y bottom
+    [[-a,-a, a],[ a,-a, a],[ a, a, a],[-a, a, a]],   // +Z front
+    [[ a,-a,-a],[-a,-a,-a],[-a, a,-a],[ a, a,-a]],   // -Z back
+    [[ a,-a, a],[ a, a, a],[ a, a,-a],[ a,-a,-a]],   // +X right
+    [[-a,-a,-a],[-a, a,-a],[-a, a, a],[-a,-a, a]],   // -X left
+  ];
+  return raw.map(vs => ({
+    verts: vs,
+    centroid: [
+      vs.reduce((s,v)=>s+v[0],0)/4,
+      vs.reduce((s,v)=>s+v[1],0)/4,
+      vs.reduce((s,v)=>s+v[2],0)/4,
+    ],
+    isQuad: true,
+  }));
+}
+
+function buildOctaFaces() {
+  const R = SPHERE_R;
+  const v = [
+    [ R, 0, 0], [-R, 0, 0], // 0=+X  1=-X
+    [ 0, R, 0], [ 0,-R, 0], // 2=+Y  3=-Y
+    [ 0, 0, R], [ 0, 0,-R], // 4=+Z  5=-Z
+  ];
+  const fi = [
+    [2,0,4],[2,4,1],[2,1,5],[2,5,0],  // upper (+Y)
+    [3,4,0],[3,1,4],[3,5,1],[3,0,5],  // lower (-Y)
+  ];
+  return fi.map(([a,b,c]) => {
+    const vs = [v[a],v[b],v[c]];
+    return {
+      verts: vs,
+      centroid: [(vs[0][0]+vs[1][0]+vs[2][0])/3, (vs[0][1]+vs[1][1]+vs[2][1])/3, (vs[0][2]+vs[1][2]+vs[2][2])/3],
+      isQuad: false,
+    };
   });
+}
 
-  // 20 icosahedron faces
-  const faces = [
+function midOnSphere(a, b) {
+  const m = a.map((c,i) => (c+b[i])/2);
+  const l = Math.hypot(...m);
+  return m.map(c => c/l);
+}
+
+function buildIcoFaces(subdivisions) {
+  const phi = (1+Math.sqrt(5))/2;
+  const rawV = [
+    [-1,phi,0],[1,phi,0],[-1,-phi,0],[1,-phi,0],
+    [0,-1,phi],[0,1,phi],[0,-1,-phi],[0,1,-phi],
+    [phi,0,-1],[phi,0,1],[-phi,0,-1],[-phi,0,1],
+  ].map(v => { const l=Math.hypot(...v); return v.map(c=>c/l); });
+
+  let faces = [
     [0,11,5],[0,5,1],[0,1,7],[0,7,10],[0,10,11],
     [1,5,9],[5,11,4],[11,10,2],[10,7,6],[7,1,8],
     [3,9,4],[3,4,2],[3,2,6],[3,6,8],[3,8,9],
     [4,9,5],[2,4,11],[6,2,10],[8,6,7],[9,8,1],
-  ];
+  ].map(f => f.map(i => rawV[i]));
 
-  function midpoint(a, b) {
-    const m = [(a[0]+b[0])/2, (a[1]+b[1])/2, (a[2]+b[2])/2];
-    const len = Math.sqrt(m[0]**2 + m[1]**2 + m[2]**2);
-    return m.map(c => c / len);
-  }
-
-  let currentFaces = faces.map(f => f.map(i => verts[i]));
-
-  for (let s = 0; s < subdivisions; s++) {
-    const next = [];
-    for (const [a, b, c] of currentFaces) {
-      const ab = midpoint(a, b);
-      const bc = midpoint(b, c);
-      const ca = midpoint(c, a);
-      next.push([a, ab, ca], [ab, b, bc], [ca, bc, c], [ab, bc, ca]);
-    }
-    currentFaces = next;
-  }
-
-  // Return face centroids (average of 3 vertices, normalized)
-  return currentFaces.map(([a, b, c]) => {
-    const cx = (a[0] + b[0] + c[0]) / 3;
-    const cy = (a[1] + b[1] + c[1]) / 3;
-    const cz = (a[2] + b[2] + c[2]) / 3;
-    const len = Math.sqrt(cx**2 + cy**2 + cz**2);
-    return { x: cx / len, y: cy / len, z: cz / len };
-  });
-}
-
-/** Build cube face positions: N×N grid on each face, all positions normalized to sphere */
-function buildCubeFaces(n) {
-  const positions = [];
-  // 6 faces: ±X, ±Y, ±Z
-  const faces = [
-    { u: [0,0,1], v: [0,1,0], n: [1,0,0], sign: 1 },
-    { u: [0,0,1], v: [0,1,0], n: [1,0,0], sign: -1 },
-    { u: [1,0,0], v: [0,0,1], n: [0,1,0], sign: 1 },
-    { u: [1,0,0], v: [0,0,1], n: [0,1,0], sign: -1 },
-    { u: [1,0,0], v: [0,1,0], n: [0,0,1], sign: 1 },
-    { u: [1,0,0], v: [0,1,0], n: [0,0,1], sign: -1 },
-  ];
-  for (const face of faces) {
-    for (let i = 0; i < n; i++) {
-      for (let j = 0; j < n; j++) {
-        const s = (i / (n - 1)) * 2 - 1;
-        const t = (j / (n - 1)) * 2 - 1;
-        const x = face.n[0] * face.sign + face.u[0] * s + face.v[0] * t;
-        const y = face.n[1] * face.sign + face.u[1] * s + face.v[1] * t;
-        const z = face.n[2] * face.sign + face.u[2] * s + face.v[2] * t;
-        // Project onto sphere surface
-        const len = Math.sqrt(x**2 + y**2 + z**2);
-        positions.push({ x: x/len, y: y/len, z: z/len });
-      }
-    }
-  }
-  return positions;
-}
-
-/** Build octahedron face positions */
-function buildOctahedronFaces(subdiv) {
-  const v = [
-    [1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]
-  ];
-  const faces = [
-    [0,2,4],[0,4,3],[0,3,5],[0,5,2],
-    [1,4,2],[1,3,4],[1,5,3],[1,2,5],
-  ];
-  function mid(a, b) {
-    const m = [(a[0]+b[0])/2,(a[1]+b[1])/2,(a[2]+b[2])/2];
-    const l = Math.sqrt(m[0]**2+m[1]**2+m[2]**2);
-    return m.map(c=>c/l);
-  }
-  let curr = faces.map(f=>f.map(i=>v[i]));
-  for (let s=0;s<subdiv;s++){
+  for (let s=0; s<subdivisions; s++) {
     const next=[];
-    for(const[a,b,c] of curr){
-      const ab=mid(a,b),bc=mid(b,c),ca=mid(c,a);
+    for (const [a,b,c] of faces) {
+      const ab=midOnSphere(a,b), bc=midOnSphere(b,c), ca=midOnSphere(c,a);
       next.push([a,ab,ca],[ab,b,bc],[ca,bc,c],[ab,bc,ca]);
     }
-    curr=next;
+    faces=next;
   }
-  return curr.map(([a,b,c])=>{
-    const cx=(a[0]+b[0]+c[0])/3,cy=(a[1]+b[1]+c[1])/3,cz=(a[2]+b[2]+c[2])/3;
-    const l=Math.sqrt(cx**2+cy**2+cz**2);
-    return{x:cx/l,y:cy/l,z:cz/l};
+
+  const R=SPHERE_R;
+  return faces.map(([a,b,c]) => {
+    const vs=[[a[0]*R,a[1]*R,a[2]*R],[b[0]*R,b[1]*R,b[2]*R],[c[0]*R,c[1]*R,c[2]*R]];
+    return {
+      verts: vs,
+      centroid: [(vs[0][0]+vs[1][0]+vs[2][0])/3,(vs[0][1]+vs[1][1]+vs[2][1])/3,(vs[0][2]+vs[1][2]+vs[2][2])/3],
+      isQuad: false,
+    };
   });
 }
 
-// ─────────────────────────────────────────────────────────────────────────
-// BLOCK POSITION MAPPING
-// ─────────────────────────────────────────────────────────────────────────
+function getFacesForLevel(level) {
+  switch(level) {
+    case 1: return buildCubeFaces();
+    case 2: return buildOctaFaces();
+    case 3: return buildIcoFaces(0);
+    case 4: return buildIcoFaces(1);
+    case 5: return buildIcoFaces(2);
+    case 6: return buildIcoFaces(3);
+    default: return [];
+  }
+}
 
-/**
- * Sort slots by tier priority (epicenter first, viral last)
- * Returns slots in order that maps to "sphere top → bottom"
- */
-function sortSlotsByTierAndPosition(slots) {
-  return [...slots].sort((a, b) => {
-    const tp = TIER_PRIORITY[a.tier] - TIER_PRIORITY[b.tier];
-    if (tp !== 0) return tp;
-    // Within tier: sort by distance from center
-    const da = Math.abs(a.x - CENTER_X) + Math.abs(a.y - CENTER_Y);
-    const db = Math.abs(b.x - CENTER_X) + Math.abs(b.y - CENTER_Y);
-    return da - db;
+// ─────────────────────────────────────────────────────────────────────────────
+// SLOT & COLOR HELPERS
+// ─────────────────────────────────────────────────────────────────────────────
+
+function sortSlotsByTier(slots) {
+  return [...(slots||[])].filter(Boolean).sort((a,b) => {
+    const diff = TIER_ORDER.indexOf(a.tier) - TIER_ORDER.indexOf(b.tier);
+    if (diff!==0) return diff;
+    return (b.occ?1:0)-(a.occ?1:0);
   });
 }
 
-/**
- * Sort sphere positions by Y (top→bottom), then by angle
- * Maps epicenter to top pole, viral to equator/bottom
- */
-function sortPosByPole(positions) {
-  return [...positions].sort((a, b) => {
-    // Sort by y descending (top first), then by angle
-    if (Math.abs(a.y - b.y) > 0.01) return b.y - a.y;
-    return Math.atan2(a.z, a.x) - Math.atan2(b.z, b.x);
-  });
+function sortFacesByPole(faces) {
+  return [...faces].sort((a,b) => b.centroid[1]-a.centroid[1]);
 }
 
-/**
- * Compute all 7 level target positions for each slot.
- * Returns Float32Array of length 1296 × 7 × 3 (x, y, z per level per slot)
- * Plus scale array: Float32Array of length 1296 × 7
- */
-function computeAllLevelPositions(slots) {
-  const N = slots.length; // 1296
-  const SPHERE_R = 7;
+function hexToRgb(hex) {
+  const h=(hex||'#888888').replace('#','');
+  return [parseInt(h.slice(0,2),16)/255, parseInt(h.slice(2,4),16)/255, parseInt(h.slice(4,6),16)/255];
+}
 
-  // Build all target position sets, sorted pole-first
-  const pos = {
-    flat:   sortSlotsByTierAndPosition(slots), // original
-    cube:   sortPosByPole(buildCubeFaces(15).slice(0, Math.max(N, 1350))),
-    octa:   sortPosByPole(buildOctahedronFaces(3)), // 8×64=512 < 1296, repeat
-    ico:    sortPosByPole(buildIcosphereFaces(2)), // 320 faces, tile
-    ico1:   sortPosByPole(buildIcosphereFaces(3)), // 1280 faces
-    ico2:   sortPosByPole(buildIcosphereFaces(3)), // same, larger R
+function faceColor(slot) {
+  if (!slot) return [0.012,0.015,0.025];
+  const [r,g,b]=hexToRgb(TIER_COLOR[slot.tier]||'#555');
+  const br=slot.occ?1.0:0.15;
+  return [r*br, g*br, b*br];
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// BUFFER GEOMETRY BUILDER
+// ─────────────────────────────────────────────────────────────────────────────
+
+function buildBufferData(assignedFaces) {
+  let nTris=0;
+  for (const f of assignedFaces) nTris += f.isQuad ? 2 : 1;
+
+  const positions = new Float32Array(nTris*9);
+  const colors    = new Float32Array(nTris*9);
+  const triToFace = new Int32Array(nTris);
+  let v=0, t=0;
+
+  const push=(x,y,z,r,g,b)=>{
+    const i=v*3;
+    positions[i]=x; positions[i+1]=y; positions[i+2]=z;
+    colors[i]=r;    colors[i+1]=g;    colors[i+2]=b;
+    v++;
   };
 
-  // Level 0: flat 2D grid positions
-  // Level 1-6: sphere projections at increasing radius
-  const LEVELS_CONFIG = [
-    { key: 'flat',  R: 0,        flat: true  },  // L0: 2D
-    { key: 'cube',  R: SPHERE_R, flat: false },   // L1: Cube
-    { key: 'octa',  R: SPHERE_R, flat: false },   // L2: Octa
-    { key: 'ico',   R: SPHERE_R, flat: false },   // L3: Ico20
-    { key: 'ico1',  R: SPHERE_R * 0.9, flat: false }, // L4: Ico80 (smaller)
-    { key: 'ico1',  R: SPHERE_R, flat: false },   // L5: Ico320
-    { key: 'ico1',  R: SPHERE_R, flat: false },   // L6: Ico1280
-  ];
-
-  const sortedSlots = sortSlotsByTierAndPosition(slots);
-
-  // For each slot, store its sorted-rank
-  const rankMap = {};
-  sortedSlots.forEach((slot, rank) => { rankMap[slot.id] = rank; });
-
-  // Build result arrays indexed by slot index (0..N-1)
-  // positions[slotIndex][level] = {x,y,z}
-  const positions = slots.map((slot, slotIdx) => {
-    const rank = rankMap[slot.id];
-    const levelPositions = [];
-
-    for (let lvl = 0; lvl < 7; lvl++) {
-      if (lvl === 0) {
-        // Flat 2D: use grid coordinates centered at origin
-        const scale = 0.18;
-        levelPositions.push({
-          x: (slot.x - CENTER_X) * scale,
-          y: -(slot.y - CENTER_Y) * scale,
-          z: 0,
-        });
-      } else {
-        const cfg = LEVELS_CONFIG[lvl];
-        let shapePosArr;
-        if (cfg.key === 'cube') shapePosArr = pos.cube;
-        else if (cfg.key === 'octa') shapePosArr = pos.octa;
-        else if (cfg.key === 'ico') {
-          // For L3 (icosahedron 20 faces), tile positions
-          shapePosArr = buildIcosphereFaces(0); // 20 faces
-        }
-        else shapePosArr = pos.ico1;
-
-        // Map rank → sphere position, wrapping if needed
-        const p = shapePosArr[rank % shapePosArr.length];
-        levelPositions.push({
-          x: p.x * cfg.R,
-          y: p.y * cfg.R,
-          z: p.z * cfg.R,
-        });
-      }
+  assignedFaces.forEach((face,fi)=>{
+    const [r,g,b]=face.color;
+    const vs=face.verts;
+    push(vs[0][0],vs[0][1],vs[0][2],r,g,b);
+    push(vs[1][0],vs[1][1],vs[1][2],r,g,b);
+    push(vs[2][0],vs[2][1],vs[2][2],r,g,b);
+    triToFace[t++]=fi;
+    if (face.isQuad) {
+      push(vs[0][0],vs[0][1],vs[0][2],r,g,b);
+      push(vs[2][0],vs[2][1],vs[2][2],r,g,b);
+      push(vs[3][0],vs[3][1],vs[3][2],r,g,b);
+      triToFace[t++]=fi;
     }
-    return levelPositions;
   });
 
-  return positions; // positions[slotIdx][level] = {x,y,z}
+  return { positions, colors, triToFace };
 }
 
-// ─────────────────────────────────────────────────────────────────────────
-// THREE.JS SCENE MANAGER
-// ─────────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// SCENE 3D CLASS
+// ─────────────────────────────────────────────────────────────────────────────
 
 class Scene3D {
-  constructor(canvas, slots, allLevelPositions) {
-    this.canvas = canvas;
-    this.slots = slots;
-    this.allLevelPositions = allLevelPositions;
-    this.currentLevel = 1;
-    this.targetLevel = 1;
-    this.lerpT = 1;
-    this.THREE = null;
-    this.scene = null;
-    this.camera = null;
-    this.renderer = null;
-    this.instancedMesh = null;
-    this.instancedMeshGlow = null;
-    this.animFrame = null;
-    this.destroyed = false;
-
-    // Interaction state
-    this.isDragging = false;
-    this.lastMouse = { x: 0, y: 0 };
-    this.velocity = { x: 0, y: 0 };
-    this.rotation = { x: 0.3, y: 0 };
-    this.pivot = null;
-
-    // Callbacks
-    this.onBlockClick = null;
-    this.onLevelChange = null;
-
-    // GSAP ref
-    this.gsap = null;
+  constructor(canvas) {
+    this.canvas=canvas; this.T=null; this.G=null;
+    this.renderer=null; this.scene=null; this.camera=null;
+    this.mesh=null; this.stars=null; this.atmo=null; this.epicLight=null;
+    this.raycaster=null; this.triToFace=null; this.faceSlots=[];
+    this.rot={x:0.25,y:0}; this.vel={x:0,y:0};
+    this.isDragging=false; this.touchStart=null; this.pinchDist=null;
+    this.zoomTarget=22; this.zoomCurrent=22;
+    this.animId=null; this.transitioning=false;
+    this.onFaceClick=null; this._h={};
   }
 
-  async init() {
-    // Dynamic imports (Next.js compatible)
-    const [threeModule, gsapModule] = await Promise.all([
-      import('three'),
-      import('gsap').catch(() => null),
-    ]);
-    this.THREE = threeModule;
-    this.gsap = gsapModule?.gsap || gsapModule?.default || null;
-
-    const THREE = this.THREE;
-
-    // Scene
-    this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color(0x080808);
-    this.scene.fog = new THREE.FogExp2(0x080808, 0.03);
-
-    // Camera
-    const w = this.canvas.clientWidth || 800;
-    const h = this.canvas.clientHeight || 600;
-    this.camera = new THREE.PerspectiveCamera(60, w / h, 0.1, 200);
-    this.camera.position.set(0, 0, 18);
+  async init(THREE, GSAP) {
+    this.T=THREE; this.G=GSAP;
+    const W=this.canvas.clientWidth||window.innerWidth;
+    const H=this.canvas.clientHeight||window.innerHeight;
 
     // Renderer
-    this.renderer = new THREE.WebGLRenderer({
-      canvas: this.canvas,
-      antialias: true,
-      alpha: false,
-      powerPreference: 'high-performance',
-    });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    this.renderer.setSize(w, h);
-    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.2;
+    this.renderer=new THREE.WebGLRenderer({canvas:this.canvas,antialias:true});
+    this.renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+    this.renderer.setSize(W,H,false);
+    this.renderer.setClearColor(0x020408,1);
+
+    // Scene + fog
+    this.scene=new THREE.Scene();
+    this.scene.fog=new THREE.FogExp2(0x020408,0.015);
+
+    // Camera
+    this.camera=new THREE.PerspectiveCamera(45,W/H,0.1,600);
+    this.camera.position.z=this.zoomCurrent;
+
+    // Raycaster
+    this.raycaster=new THREE.Raycaster();
 
     // Lights
-    const ambient = new THREE.AmbientLight(0xffffff, 0.4);
-    this.scene.add(ambient);
-    const sun = new THREE.DirectionalLight(0xffd4a8, 1.2);
-    sun.position.set(5, 10, 8);
+    this.scene.add(new THREE.AmbientLight(0x080c1a,2.5));
+
+    const sun=new THREE.DirectionalLight(0xffffff,2.0);
+    sun.position.set(12,18,14);
     this.scene.add(sun);
-    const rim = new THREE.DirectionalLight(0x4488ff, 0.6);
-    rim.position.set(-8, -5, -10);
+
+    const fill=new THREE.PointLight(0x2244bb,1.0,140);
+    fill.position.set(-20,-8,-15);
+    this.scene.add(fill);
+
+    const rim=new THREE.PointLight(0x7722cc,0.7,90);
+    rim.position.set(5,-15,20);
     this.scene.add(rim);
 
-    // Stars background
+    // Epicenter gold light — north pole
+    this.epicLight=new THREE.PointLight(0xd4a84b,0,35);
+    this.epicLight.position.set(0,8,0);
+    this.scene.add(this.epicLight);
+
     this._buildStars();
-
-    // Instanced mesh (1 per slot)
-    this._buildInstancedMesh();
-
-    // Pivot for rotation
-    this.pivot = new THREE.Group();
-    this.pivot.add(this.instancedMesh);
-    if (this.instancedMeshGlow) this.pivot.add(this.instancedMeshGlow);
-    this.scene.add(this.pivot);
-
-    // Set initial positions (level 1)
-    this._applyPositions(1, 1);
-
-    // Events
+    this._buildAtmosphere();
     this._bindEvents();
-
-    // Start loop
-    this._loop();
+    this._animate();
   }
 
   _buildStars() {
-    const THREE = this.THREE;
-    const starGeo = new THREE.BufferGeometry();
-    const starCount = 2000;
-    const positions = new Float32Array(starCount * 3);
-    for (let i = 0; i < starCount * 3; i++) {
-      positions[i] = (Math.random() - 0.5) * 200;
+    const T=this.T, N=4500;
+    const pos=new Float32Array(N*3), col=new Float32Array(N*3);
+    for (let i=0;i<N;i++) {
+      const theta=Math.random()*Math.PI*2, phi=Math.acos(2*Math.random()-1);
+      const r=80+Math.random()*160;
+      pos[i*3]=r*Math.sin(phi)*Math.cos(theta);
+      pos[i*3+1]=r*Math.sin(phi)*Math.sin(theta);
+      pos[i*3+2]=r*Math.cos(phi);
+      const t=Math.random();
+      col[i*3]=0.7+t*0.3; col[i*3+1]=0.75+t*0.15; col[i*3+2]=0.88+t*0.12;
     }
-    starGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-    const starMat = new THREE.PointsMaterial({
-      color: 0xffffff, size: 0.08, transparent: true, opacity: 0.5,
-    });
-    this.scene.add(new THREE.Points(starGeo, starMat));
+    const geo=new T.BufferGeometry();
+    geo.setAttribute('position',new T.BufferAttribute(pos,3));
+    geo.setAttribute('color',new T.BufferAttribute(col,3));
+    this.stars=new T.Points(geo,new T.PointsMaterial({
+      size:0.2,vertexColors:true,transparent:true,opacity:0.88,sizeAttenuation:true,
+    }));
+    this.scene.add(this.stars);
   }
 
-  _buildInstancedMesh() {
-    const THREE = this.THREE;
-    const N = this.slots.length;
-    // Block geometry: rounded box
-    const geo = new THREE.BoxGeometry(0.18, 0.18, 0.04, 1, 1, 1);
-
-    // Per-instance color material
-    const mat = new THREE.MeshStandardMaterial({
-      vertexColors: false,
-      roughness: 0.3,
-      metalness: 0.6,
-      envMapIntensity: 1.0,
-    });
-
-    this.instancedMesh = new THREE.InstancedMesh(geo, mat, N);
-    this.instancedMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-
-    // Set per-instance color
-    const color = new THREE.Color();
-    this.slots.forEach((slot, i) => {
-      const hex = TIER_COLOR[slot.tier] || '#ffffff';
-      color.set(hex);
-      // Occupied blocks are brighter
-      if (slot.occ) {
-        color.multiplyScalar(1.3);
-      } else {
-        color.multiplyScalar(0.35);
-      }
-      this.instancedMesh.setColorAt(i, color);
-    });
-    this.instancedMesh.instanceColor.needsUpdate = true;
-
-    // Glow mesh (additive blend, slightly larger)
-    const glowGeo = new THREE.BoxGeometry(0.22, 0.22, 0.06);
-    const glowMat = new THREE.MeshBasicMaterial({
-      color: 0xffffff,
-      transparent: true,
-      opacity: 0.0,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-    });
-    this.instancedMeshGlow = new THREE.InstancedMesh(glowGeo, glowMat, N);
-    this.instancedMeshGlow.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-    // Set glow color
-    this.slots.forEach((slot, i) => {
-      const hex = TIER_COLOR[slot.tier] || '#ffffff';
-      color.set(hex);
-      this.instancedMeshGlow.setColorAt(i, color);
-    });
-    this.instancedMeshGlow.instanceColor.needsUpdate = true;
+  _buildAtmosphere() {
+    const T=this.T;
+    // Inner glow sphere
+    this.atmo=new T.Mesh(
+      new T.SphereGeometry(SPHERE_R+0.22,48,48),
+      new T.MeshBasicMaterial({color:0x1a3080,transparent:true,opacity:0.10,side:T.BackSide})
+    );
+    this.scene.add(this.atmo);
+    // Outer halo
+    this.scene.add(new T.Mesh(
+      new T.SphereGeometry(SPHERE_R+1.4,24,24),
+      new T.MeshBasicMaterial({color:0x080d28,transparent:true,opacity:0.05,side:T.BackSide})
+    ));
   }
 
-  _applyPositions(fromLevel, toLevel, t = 1.0) {
-    const THREE = this.THREE;
-    const matrix = new THREE.Matrix4();
-    const pos = new THREE.Vector3();
-    const rot = new THREE.Quaternion();
-    const scl = new THREE.Vector3();
+  _buildMesh(assignedFaces) {
+    const T=this.T;
+    if (this.mesh) {
+      this.scene.remove(this.mesh);
+      this.mesh.geometry.dispose();
+      this.mesh.material.dispose();
+      this.mesh=null;
+    }
+    if (!assignedFaces?.length) return;
 
-    this.slots.forEach((slot, i) => {
-      const fromPos = this.allLevelPositions[i][Math.round(fromLevel)];
-      const toPos = this.allLevelPositions[i][Math.round(toLevel)];
+    this.faceSlots=assignedFaces.map(f=>f.slot||null);
+    const {positions,colors,triToFace}=buildBufferData(assignedFaces);
+    this.triToFace=triToFace;
 
-      // Lerp positions
-      const x = fromPos.x + (toPos.x - fromPos.x) * t;
-      const y = fromPos.y + (toPos.y - fromPos.y) * t;
-      const z = fromPos.z + (toPos.z - fromPos.z) * t;
+    const geo=new T.BufferGeometry();
+    geo.setAttribute('position',new T.BufferAttribute(positions,3));
+    geo.setAttribute('color',new T.BufferAttribute(colors,3));
+    geo.computeVertexNormals();
 
-      const baseScale = TIER_3D_SCALE[slot.tier] * 0.5;
-      const s = baseScale * (0.7 + 0.3 * t);
-
-      // Orient outward from origin (for sphere levels)
-      if (toLevel > 0 && t > 0.3) {
-        const forward = new THREE.Vector3(toPos.x, toPos.y, toPos.z).normalize();
-        rot.setFromUnitVectors(new THREE.Vector3(0, 0, 1), forward);
-        matrix.compose(
-          pos.set(x, y, z),
-          rot,
-          scl.set(s, s, s * 0.3)
-        );
-      } else {
-        matrix.compose(
-          pos.set(x, y, z),
-          rot.identity(),
-          scl.set(s, s, s * 0.3)
-        );
-      }
-
-      this.instancedMesh.setMatrixAt(i, matrix);
-      this.instancedMeshGlow.setMatrixAt(i, matrix);
+    const mat=new T.MeshPhongMaterial({
+      vertexColors:true,
+      flatShading:true,
+      side:T.DoubleSide,
+      shininess:50,
+      specular:new T.Color(0x1a2840),
     });
 
-    this.instancedMesh.instanceMatrix.needsUpdate = true;
-    this.instancedMeshGlow.instanceMatrix.needsUpdate = true;
+    this.mesh=new T.Mesh(geo,mat);
+    this.mesh.rotation.x=this.rot.x;
+    this.mesh.rotation.y=this.rot.y;
+    this.scene.add(this.mesh);
+
+    // Epicenter pulse light
+    const hasEpic=assignedFaces[0]?.slot?.tier==='epicenter';
+    this.epicLight.intensity=hasEpic?1.5:0;
   }
 
-  _loop() {
-    if (this.destroyed) return;
-    this.animFrame = requestAnimationFrame(() => this._loop());
+  setFaces(assignedFaces,animate=false) {
+    if (!animate) { this._buildMesh(assignedFaces); return; }
+    if (this.transitioning) { this._buildMesh(assignedFaces); return; }
+    this.transitioning=true;
+    const G=this.G;
 
-    // Apply inertia
-    if (!this.isDragging) {
-      this.rotation.x += this.velocity.x;
-      this.rotation.y += this.velocity.y;
-      this.velocity.x *= 0.94;
-      this.velocity.y *= 0.94;
-    }
+    const doSwap=()=>{
+      this._buildMesh(assignedFaces);
+      if (this.mesh) {
+        this.mesh.scale.set(0,0,0);
+        G.to(this.mesh.scale,{x:1,y:1,z:1,duration:0.45,ease:'back.out(1.7)',
+          onComplete:()=>{this.transitioning=false;}});
+      } else { this.transitioning=false; }
+    };
 
-    // Clamp X rotation
-    this.rotation.x = Math.max(-Math.PI / 2.5, Math.min(Math.PI / 2.5, this.rotation.x));
-
-    // Apply rotation to pivot
-    if (this.pivot) {
-      this.pivot.rotation.x = this.rotation.x;
-      this.pivot.rotation.y = this.rotation.y;
-    }
-
-    // Auto-rotation when no drag input
-    if (!this.isDragging && Math.abs(this.velocity.x) < 0.001 && Math.abs(this.velocity.y) < 0.001) {
-      this.rotation.y += 0.002;
-    }
-
-    // Lerp level transitions
-    if (this.lerpT < 1) {
-      this.lerpT = Math.min(1, this.lerpT + 0.04);
-      this._applyPositions(this.currentLevel, this.targetLevel, this._ease(this.lerpT));
-      if (this.lerpT >= 1) {
-        this.currentLevel = this.targetLevel;
-      }
-    }
-
-    this.renderer.render(this.scene, this.camera);
+    if (this.mesh) {
+      G.to(this.mesh.scale,{x:0,y:0,z:0,duration:0.22,ease:'power2.in',onComplete:doSwap});
+    } else { doSwap(); }
   }
 
-  _ease(t) {
-    return t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
+  zoom(deltaY) {
+    this.zoomTarget=Math.max(9,Math.min(48,this.zoomTarget+deltaY*0.013));
   }
 
-  transitionToLevel(newLevel) {
-    if (newLevel === this.targetLevel) return;
-    this.currentLevel = this.targetLevel;
-    this.targetLevel = newLevel;
-    this.lerpT = 0;
-    if (this.onLevelChange) this.onLevelChange(newLevel);
-  }
-
-  /**
-   * Raycast click: find which block was clicked, call onBlockClick
-   */
-  raycast(clientX, clientY) {
-    if (!this.camera || !this.instancedMesh) return null;
-    const THREE = this.THREE;
-    const rect = this.canvas.getBoundingClientRect();
-    const ndcX = ((clientX - rect.left) / rect.width) * 2 - 1;
-    const ndcY = -((clientY - rect.top) / rect.height) * 2 + 1;
-
-    const raycaster = new THREE.Raycaster();
-    raycaster.setFromCamera(new THREE.Vector2(ndcX, ndcY), this.camera);
-
-    const hits = raycaster.intersectObject(this.instancedMesh);
-    if (hits.length > 0) {
-      const idx = hits[0].instanceId;
-      if (idx !== undefined && this.slots[idx]) {
-        return this.slots[idx];
-      }
-    }
-    return null;
-  }
-
-  /**
-   * Zoom camera to face a specific slot (GSAP-powered)
-   */
-  zoomToSlot(slotIdx) {
-    if (!this.camera || !this.allLevelPositions[slotIdx]) return;
-    const THREE = this.THREE;
-    const targetPos = this.allLevelPositions[slotIdx][this.targetLevel];
-    if (!targetPos) return;
-
-    // Direction from origin to block position
-    const dir = new THREE.Vector3(targetPos.x, targetPos.y, targetPos.z).normalize();
-    const distance = 12;
-    const camTarget = dir.multiplyScalar(distance);
-
-    if (this.gsap) {
-      this.gsap.to(this.camera.position, {
-        x: camTarget.x, y: camTarget.y, z: camTarget.z,
-        duration: 1.2,
-        ease: 'power3.inOut',
-        onUpdate: () => this.camera.lookAt(0, 0, 0),
-      });
-    } else {
-      this.camera.position.set(camTarget.x, camTarget.y, camTarget.z);
-      this.camera.lookAt(0, 0, 0);
-    }
-  }
-
-  resetCamera() {
-    if (this.gsap) {
-      this.gsap.to(this.camera.position, {
-        x: 0, y: 0, z: 18,
-        duration: 0.9,
-        ease: 'power2.inOut',
-        onUpdate: () => this.camera.lookAt(0, 0, 0),
-      });
-    } else {
-      this.camera.position.set(0, 0, 18);
-      this.camera.lookAt(0, 0, 0);
+  handleClick(cx,cy) {
+    if (!this.mesh||!this.onFaceClick) return;
+    const rect=this.canvas.getBoundingClientRect();
+    const x=((cx-rect.left)/rect.width)*2-1;
+    const y=-((cy-rect.top)/rect.height)*2+1;
+    this.raycaster.setFromCamera({x,y},this.camera);
+    const hits=this.raycaster.intersectObject(this.mesh);
+    if (hits.length>0) {
+      const fi=this.triToFace?.[hits[0].faceIndex]??hits[0].faceIndex;
+      const slot=this.faceSlots[fi]||null;
+      if (slot) this.onFaceClick(slot);
     }
   }
 
   _bindEvents() {
-    const canvas = this.canvas;
+    const canvas=this.canvas, h=this._h;
+    let lx=0,ly=0,moved=false;
 
-    // Mouse
-    canvas.addEventListener('mousedown', this._onMouseDown = (e) => {
-      this.isDragging = true;
-      this.lastMouse = { x: e.clientX, y: e.clientY };
-      this.velocity = { x: 0, y: 0 };
-      canvas.style.cursor = 'grabbing';
-    });
-
-    window.addEventListener('mousemove', this._onMouseMove = (e) => {
+    h.md=(e)=>{ this.isDragging=true; moved=false; lx=e.clientX; ly=e.clientY; this.vel={x:0,y:0}; };
+    h.mm=(e)=>{
       if (!this.isDragging) return;
-      const dx = e.clientX - this.lastMouse.x;
-      const dy = e.clientY - this.lastMouse.y;
-      this.rotation.y += dx * 0.008;
-      this.rotation.x += dy * 0.008;
-      this.velocity.x = dy * 0.003;
-      this.velocity.y = dx * 0.003;
-      this.lastMouse = { x: e.clientX, y: e.clientY };
-    });
+      const dx=e.clientX-lx, dy=e.clientY-ly;
+      if (Math.abs(dx)>1||Math.abs(dy)>1) moved=true;
+      this.rot.y+=dx*0.005; this.rot.x+=dy*0.005;
+      this.rot.x=Math.max(-1.4,Math.min(1.4,this.rot.x));
+      this.vel={x:dx*0.005,y:dy*0.005};
+      lx=e.clientX; ly=e.clientY;
+    };
+    h.mu=(e)=>{ if(!moved) this.handleClick(e.clientX,e.clientY); this.isDragging=false; };
 
-    window.addEventListener('mouseup', this._onMouseUp = (e) => {
-      if (!this.isDragging) return;
-      this.isDragging = false;
-      canvas.style.cursor = 'grab';
+    canvas.addEventListener('mousedown',h.md);
+    window.addEventListener('mousemove',h.mm);
+    window.addEventListener('mouseup',h.mu);
 
-      // Check if it was a click (not a drag)
-      const dx = e.clientX - this.lastMouse.x;
-      const dy = e.clientY - this.lastMouse.y;
-      if (Math.abs(dx) < 4 && Math.abs(dy) < 4) {
-        const slot = this.raycast(e.clientX, e.clientY);
-        if (slot && this.onBlockClick) this.onBlockClick(slot);
+    h.ts=(e)=>{
+      if (e.touches.length===1) {
+        this.isDragging=true; moved=false;
+        lx=e.touches[0].clientX; ly=e.touches[0].clientY;
+        this.touchStart={x:lx,y:ly}; this.pinchDist=null;
+      } else if (e.touches.length===2) {
+        this.isDragging=false;
+        const dx=e.touches[0].clientX-e.touches[1].clientX;
+        const dy=e.touches[0].clientY-e.touches[1].clientY;
+        this.pinchDist=Math.sqrt(dx*dx+dy*dy);
       }
-    });
-
-    // Touch
-    canvas.addEventListener('touchstart', this._onTouchStart = (e) => {
-      if (e.touches.length === 1) {
-        this.isDragging = true;
-        this.lastMouse = { x: e.touches[0].clientX, y: e.touches[0].clientY };
-        this.velocity = { x: 0, y: 0 };
+    };
+    h.tm=(e)=>{
+      e.preventDefault();
+      if (e.touches.length===1&&this.isDragging) {
+        const dx=e.touches[0].clientX-lx, dy=e.touches[0].clientY-ly;
+        if (Math.abs(dx)>2||Math.abs(dy)>2) moved=true;
+        this.rot.y+=dx*0.005; this.rot.x+=dy*0.005;
+        this.rot.x=Math.max(-1.4,Math.min(1.4,this.rot.x));
+        this.vel={x:dx*0.005,y:dy*0.005};
+        lx=e.touches[0].clientX; ly=e.touches[0].clientY;
+      } else if (e.touches.length===2&&this.pinchDist!==null) {
+        const dx=e.touches[0].clientX-e.touches[1].clientX;
+        const dy=e.touches[0].clientY-e.touches[1].clientY;
+        const d=Math.sqrt(dx*dx+dy*dy);
+        this.zoom((this.pinchDist-d)*3);
+        this.pinchDist=d;
       }
-    }, { passive: true });
+    };
+    h.te=(e)=>{
+      if (e.changedTouches.length===1&&!moved&&this.touchStart)
+        this.handleClick(e.changedTouches[0].clientX,e.changedTouches[0].clientY);
+      this.isDragging=false;
+    };
 
-    canvas.addEventListener('touchmove', this._onTouchMove = (e) => {
-      if (!this.isDragging || e.touches.length !== 1) return;
-      const dx = e.touches[0].clientX - this.lastMouse.x;
-      const dy = e.touches[0].clientY - this.lastMouse.y;
-      this.rotation.y += dx * 0.008;
-      this.rotation.x += dy * 0.008;
-      this.velocity.x = dy * 0.003;
-      this.velocity.y = dx * 0.003;
-      this.lastMouse = { x: e.touches[0].clientX, y: e.touches[0].clientY };
-    }, { passive: true });
+    canvas.addEventListener('touchstart',h.ts,{passive:false});
+    canvas.addEventListener('touchmove',h.tm,{passive:false});
+    canvas.addEventListener('touchend',h.te);
+  }
 
-    canvas.addEventListener('touchend', this._onTouchEnd = (e) => {
-      this.isDragging = false;
-      if (e.changedTouches.length === 1) {
-        const t = e.changedTouches[0];
-        const slot = this.raycast(t.clientX, t.clientY);
-        if (slot && this.onBlockClick) this.onBlockClick(slot);
-      }
-    });
+  _animate() {
+    this.animId=requestAnimationFrame(()=>this._animate());
+    const t=Date.now()*0.001;
 
-    // Resize
-    window.addEventListener('resize', this._onResize = () => {
-      if (!this.canvas || !this.camera || !this.renderer) return;
-      const w = this.canvas.clientWidth;
-      const h = this.canvas.clientHeight;
-      this.camera.aspect = w / h;
-      this.camera.updateProjectionMatrix();
-      this.renderer.setSize(w, h);
-    });
+    if (!this.isDragging) {
+      this.rot.y+=this.vel.x; this.rot.x+=this.vel.y;
+      this.vel.x*=0.93; this.vel.y*=0.93;
+      this.rot.y+=0.0007; // auto-rotate
+    }
+
+    if (this.mesh) { this.mesh.rotation.x=this.rot.x; this.mesh.rotation.y=this.rot.y; }
+    if (this.atmo)  this.atmo.rotation.y=t*0.003;
+    if (this.stars) { this.stars.rotation.y=t*0.0012; this.stars.rotation.x=Math.sin(t*0.0002)*0.04; }
+
+    // Smooth zoom
+    this.zoomCurrent+=(this.zoomTarget-this.zoomCurrent)*0.07;
+    this.camera.position.z=this.zoomCurrent;
+
+    // Epicenter pulse
+    if (this.epicLight?.intensity>0) {
+      this.epicLight.intensity=1.2+Math.sin(t*1.8)*0.6;
+    }
+
+    this.renderer.render(this.scene,this.camera);
+  }
+
+  resize() {
+    const W=this.canvas.clientWidth, H=this.canvas.clientHeight;
+    if (!W||!H) return;
+    this.camera.aspect=W/H; this.camera.updateProjectionMatrix();
+    this.renderer.setSize(W,H,false);
   }
 
   destroy() {
-    this.destroyed = true;
-    cancelAnimationFrame(this.animFrame);
-    window.removeEventListener('mousemove', this._onMouseMove);
-    window.removeEventListener('mouseup', this._onMouseUp);
-    window.removeEventListener('resize', this._onResize);
-    this.renderer?.dispose();
+    cancelAnimationFrame(this.animId);
+    const h=this._h;
+    this.canvas.removeEventListener('mousedown',h.md);
+    window.removeEventListener('mousemove',h.mm);
+    window.removeEventListener('mouseup',h.mu);
+    this.canvas.removeEventListener('touchstart',h.ts);
+    this.canvas.removeEventListener('touchmove',h.tm);
+    this.canvas.removeEventListener('touchend',h.te);
+    if (this.mesh) { this.mesh.geometry.dispose(); this.mesh.material.dispose(); }
+    if (this.renderer) this.renderer.dispose();
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────
-// OVERLAY: Block Detail Modal (2D sur le canvas 3D)
-// ─────────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// UI COMPONENTS
+// ─────────────────────────────────────────────────────────────────────────────
 
-function BlockOverlay3D({ slot, onClose, onRent, onBuyout }) {
-  const [entered, setEntered] = useState(false);
-  useEffect(() => {
-    const id = requestAnimationFrame(() => setEntered(true));
-    return () => cancelAnimationFrame(id);
-  }, []);
-  useEffect(() => {
-    const fn = e => { if (e.key === 'Escape') onClose(); };
-    window.addEventListener('keydown', fn);
-    return () => window.removeEventListener('keydown', fn);
-  }, [onClose]);
-
-  if (!slot) return null;
-  const c = TIER_COLOR[slot.tier];
-  const price = priceEur(slot.tier);
-
-  return (
-    <div
-      onClick={onClose}
-      style={{
-        position: 'absolute', inset: 0, zIndex: 50,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        background: 'rgba(0,0,0,0.72)',
-        backdropFilter: 'blur(12px)',
-        opacity: entered ? 1 : 0,
-        transition: 'opacity 0.2s ease',
-      }}
-    >
-      <div
-        onClick={e => e.stopPropagation()}
-        style={{
-          width: 'min(92vw, 380px)',
-          background: U.s1,
-          border: `1px solid ${c}30`,
-          borderRadius: 20,
-          padding: '32px 28px 28px',
-          boxShadow: `0 0 60px ${c}20, 0 32px 80px rgba(0,0,0,0.8)`,
-          transform: entered ? 'scale(1) translateY(0)' : 'scale(0.92) translateY(12px)',
-          transition: 'transform 0.3s cubic-bezier(0.22,1,0.36,1)',
-        }}
-      >
-        {/* Close */}
-        <button
-          onClick={onClose}
-          style={{
-            position: 'absolute', top: 14, right: 14,
-            width: 28, height: 28, borderRadius: '50%',
-            border: `1px solid ${U.border}`, background: U.faint,
-            color: U.muted, cursor: 'pointer', fontSize: 15,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-          }}
-        >×</button>
-
-        {/* Tier badge */}
-        <div style={{
-          display: 'inline-flex', alignItems: 'center', gap: 6,
-          padding: '3px 10px', borderRadius: 20,
-          background: `${c}15`, border: `1px solid ${c}30`,
-          color: c, fontSize: 10, fontWeight: 700, letterSpacing: '0.08em',
-          marginBottom: 16,
-        }}>
-          <div style={{ width: 5, height: 5, borderRadius: 1, background: c }} />
-          {TIER_LABEL[slot.tier].toUpperCase()}
-        </div>
-
-        {/* Block visual */}
-        <div style={{
-          width: 72, height: 72, borderRadius: 14, margin: '0 auto 20px',
-          background: slot.occ ? (slot.tenant?.b || U.s2) : `${c}12`,
-          border: `2px solid ${c}40`,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          boxShadow: `0 0 32px ${c}30`,
-          position: 'relative',
-          overflow: 'hidden',
-        }}>
-          {slot.occ && slot.tenant?.img && (
-            <img src={slot.tenant.img} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', opacity: 0.8 }} />
-          )}
-          <span style={{ color: c, fontSize: 28, fontWeight: 900, fontFamily: F.h, position: 'relative', zIndex: 1 }}>
-            {slot.occ ? slot.tenant?.l : '+'}
-          </span>
-        </div>
-
-        {/* Info */}
-        <div style={{ textAlign: 'center', marginBottom: 20 }}>
-          {slot.occ ? (
-            <>
-              <div style={{ color: U.text, fontWeight: 700, fontSize: 18, fontFamily: F.h, marginBottom: 6 }}>
-                {slot.tenant?.name || 'Annonceur'}
-              </div>
-              {slot.tenant?.slogan && (
-                <div style={{ color: U.muted, fontSize: 13, lineHeight: 1.5 }}>{slot.tenant.slogan}</div>
-              )}
-            </>
-          ) : (
-            <>
-              <div style={{ color: U.text, fontWeight: 700, fontSize: 18, fontFamily: F.h, marginBottom: 6 }}>
-                Bloc disponible
-              </div>
-              <div style={{ color: U.muted, fontSize: 13 }}>
-                Position ({slot.x}, {slot.y})
-              </div>
-            </>
-          )}
-        </div>
-
-        {/* Price tag */}
-        <div style={{
-          display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 8,
-          padding: '10px 16px', borderRadius: 10,
-          background: `${c}08`, border: `1px solid ${c}20`,
-          marginBottom: 20,
-        }}>
-          <span style={{ color: c, fontWeight: 800, fontSize: 22, fontFamily: F.h }}>€{price}</span>
-          <span style={{ color: U.muted, fontSize: 11 }}>/jour</span>
-          <span style={{ color: U.muted, opacity: 0.4 }}>·</span>
-          <span style={{ color: U.muted, fontSize: 11 }}>({slot.x},{slot.y})</span>
-        </div>
-
-        {/* CTA */}
-        {slot.occ ? (
-          <>
-            {slot.tenant?.url && (
-              <a
-                href={slot.tenant.url}
-                target="_blank" rel="noopener noreferrer"
-                onClick={() => recordClick(slot.x, slot.y, slot.tenant?.bookingId)}
-                style={{
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                  width: '100%', padding: '12px', borderRadius: 10,
-                  background: c, color: U.accentFg, fontWeight: 700, fontSize: 13,
-                  textDecoration: 'none', fontFamily: F.b, marginBottom: 8,
-                  boxShadow: `0 0 20px ${c}40`,
-                }}
-              >
-                {slot.tenant.cta || 'Visiter'} →
-              </a>
-            )}
-            <button
-              onClick={() => onBuyout?.(slot)}
-              style={{
-                width: '100%', padding: '10px', borderRadius: 10,
-                background: 'transparent', border: `1px solid ${U.border2}`,
-                color: U.muted, fontFamily: F.b, cursor: 'pointer', fontSize: 12,
-              }}
-            >
-              Faire une offre de rachat
-            </button>
-          </>
-        ) : (
-          <button
-            onClick={() => onRent?.(slot)}
-            style={{
-              width: '100%', padding: '13px', borderRadius: 10,
-              background: c, border: 'none', color: U.accentFg,
-              fontWeight: 700, fontSize: 14, fontFamily: F.b, cursor: 'pointer',
-              boxShadow: `0 0 22px ${c}50`,
-            }}
-          >
-            Réserver ce bloc →
-          </button>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────────────────
-// LEVEL NAVIGATION HUD
-// ─────────────────────────────────────────────────────────────────────────
-
-function LevelHUD({ level, onLevelChange, onBack2D }) {
+const LevelDots = memo(function LevelDots({ level, onLevel }) {
   return (
     <div style={{
-      position: 'absolute', bottom: 28, left: '50%', transform: 'translateX(-50%)',
-      display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12,
-      zIndex: 10, pointerEvents: 'none',
+      position:'absolute', bottom:20, left:'50%', transform:'translateX(-50%)',
+      display:'flex', alignItems:'center', gap:5, zIndex:30,
+      padding:'7px 14px', borderRadius:40,
+      background:'rgba(2,4,8,0.78)', backdropFilter:'blur(14px)',
+      border:'1px solid rgba(255,255,255,0.07)',
     }}>
-      {/* Level name */}
-      <div style={{
-        padding: '5px 14px', borderRadius: 20,
-        background: 'rgba(0,0,0,0.75)', border: `1px solid rgba(255,255,255,0.12)`,
-        backdropFilter: 'blur(10px)',
-        color: U.accent, fontSize: 11, fontWeight: 700, letterSpacing: '0.08em',
-        pointerEvents: 'none',
-      }}>
-        {LEVEL_INFO[level]?.icon} {LEVEL_INFO[level]?.name}
-      </div>
-
-      {/* Level dots */}
-      <div style={{ display: 'flex', gap: 8, pointerEvents: 'auto' }}>
-        {LEVEL_INFO.map((info, idx) => (
-          <button
-            key={idx}
-            onClick={() => onLevelChange(idx)}
-            title={info.name}
+      {LEVELS.map(lv=>{
+        const active=lv.n===level;
+        const c=active?U.accent:'rgba(255,255,255,0.25)';
+        return (
+          <button key={lv.n} onClick={()=>onLevel(lv.n)}
+            title={`${lv.icon} ${lv.name}${lv.faces?` · ${lv.faces} blocs`:''}`}
             style={{
-              width: idx === level ? 28 : 8,
-              height: 8,
-              borderRadius: 4,
-              background: idx === level ? U.accent : 'rgba(255,255,255,0.2)',
-              border: 'none', cursor: 'pointer',
-              transition: 'all 0.3s cubic-bezier(0.34,1.56,0.64,1)',
-              boxShadow: idx === level ? `0 0 10px ${U.accent}` : 'none',
+              width:active?28:17, height:active?28:17,
+              borderRadius:'50%', border:`1.5px solid ${c}`,
+              background:active?`${U.accent}18`:'transparent',
+              color:c, fontSize:active?10:8, fontWeight:700,
+              cursor:'pointer', transition:'all 0.22s cubic-bezier(.34,1.56,.64,1)',
+              display:'flex', alignItems:'center', justifyContent:'center',
+              fontFamily:F.b, boxShadow:active?`0 0 14px ${U.accent}55`:'none',
+              padding:0, flexShrink:0,
             }}
-          />
-        ))}
-      </div>
+          >
+            {active?lv.icon:lv.n}
+          </button>
+        );
+      })}
+    </div>
+  );
+});
 
-      {/* Scroll hint */}
-      <div style={{
-        fontSize: 9, color: 'rgba(255,255,255,0.25)',
-        letterSpacing: '0.08em', pointerEvents: 'none',
+const TierLegend = memo(function TierLegend({ level, faceCount }) {
+  return (
+    <div style={{ position:'absolute', top:12, right:12, zIndex:30, display:'flex', flexDirection:'column', gap:3 }}>
+      {level>0 && (
+        <div style={{
+          padding:'3px 10px', borderRadius:20, marginBottom:4,
+          background:'rgba(2,4,8,0.78)', backdropFilter:'blur(10px)',
+          border:`1px solid ${U.accent}28`,
+          color:U.accent, fontSize:9, fontWeight:700, letterSpacing:'0.08em', textAlign:'right',
+        }}>
+          {LEVELS[level]?.icon} {LEVELS[level]?.name}
+          <span style={{color:U.muted,fontWeight:400}}> · {faceCount} blocs</span>
+        </div>
+      )}
+      {TIER_ORDER.filter(t=>TIER_COLOR[t]).map(tier=>(
+        <div key={tier} style={{
+          display:'flex', alignItems:'center', gap:6, padding:'3px 10px', borderRadius:20,
+          background:'rgba(2,4,8,0.72)', backdropFilter:'blur(8px)',
+          border:`1px solid ${TIER_COLOR[tier]}18`,
+        }}>
+          <div style={{width:7,height:7,borderRadius:2,background:TIER_COLOR[tier],boxShadow:`0 0 5px ${TIER_COLOR[tier]}99`,flexShrink:0}} />
+          <span style={{color:'rgba(255,255,255,0.42)',fontSize:9,fontWeight:600,letterSpacing:'0.05em'}}>{TIER_LABEL[tier]}</span>
+          <span style={{color:TIER_COLOR[tier],fontSize:9,fontWeight:700}}>€{priceEur(tier)}/j</span>
+        </div>
+      ))}
+    </div>
+  );
+});
+
+function ZoomHint() {
+  const [vis, setVis] = useState(true);
+  useEffect(()=>{ const t=setTimeout(()=>setVis(false),4500); return()=>clearTimeout(t); },[]);
+  return (
+    <div style={{
+      position:'absolute', bottom:60, left:'50%', transform:'translateX(-50%)',
+      color:'rgba(255,255,255,0.3)', fontSize:10, letterSpacing:'0.06em', zIndex:20,
+      opacity:vis?1:0, transition:'opacity 1s', fontFamily:F.b, pointerEvents:'none',
+      whiteSpace:'nowrap',
+    }}>
+      ↕ molette = zoom · glisser = tourner · clic = détails
+    </div>
+  );
+}
+
+function BlockOverlay3D({ slot, onClose, onRent, onBuyout }) {
+  if (!slot) return null;
+  const color=TIER_COLOR[slot.tier]||U.accent;
+  const label=TIER_LABEL[slot.tier]||slot.tier;
+  const price=priceEur(slot.tier);
+
+  return (
+    <div onClick={onClose} style={{
+      position:'absolute', inset:0, zIndex:50,
+      background:'rgba(0,0,0,0.78)', backdropFilter:'blur(20px)',
+      display:'flex', alignItems:'center', justifyContent:'center',
+    }}>
+      <div onClick={e=>e.stopPropagation()} style={{
+        width:288, borderRadius:22, overflow:'hidden',
+        background:'rgba(8,10,20,0.97)',
+        border:`1px solid ${color}28`,
+        boxShadow:`0 0 70px ${color}18, 0 28px 70px rgba(0,0,0,0.8)`,
       }}>
-        MOLETTE · FLÈCHES · GLISSER
+        {/* Color bar */}
+        <div style={{height:5,background:`linear-gradient(90deg,${color},${color}44)`}} />
+
+        <div style={{padding:'18px 20px 22px'}}>
+          {/* Header */}
+          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:14}}>
+            <div style={{
+              display:'inline-flex',alignItems:'center',gap:6,
+              padding:'3px 11px',borderRadius:20,
+              background:`${color}12`,border:`1px solid ${color}30`,
+            }}>
+              <div style={{width:7,height:7,borderRadius:2,background:color,boxShadow:`0 0 6px ${color}`}} />
+              <span style={{color,fontSize:10,fontWeight:800,letterSpacing:'0.07em',fontFamily:F.b}}>{label}</span>
+            </div>
+            <button onClick={onClose} style={{
+              width:26,height:26,borderRadius:'50%',
+              background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.10)',
+              color:U.muted,fontSize:14,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',
+            }}>×</button>
+          </div>
+
+          {/* Icon */}
+          <div style={{
+            width:54,height:54,borderRadius:14,marginBottom:14,
+            background:slot.occ?`${color}15`:'rgba(255,255,255,0.025)',
+            border:`2px solid ${color}${slot.occ?'45':'18'}`,
+            display:'flex',alignItems:'center',justifyContent:'center',
+            fontSize:20,fontWeight:900,color,fontFamily:F.h,
+            boxShadow:slot.occ?`0 0 22px ${color}28`:'none',
+          }}>
+            {slot.tenant?.l||(slot.occ?'◉':'○')}
+          </div>
+
+          <div style={{color:U.text,fontSize:14,fontWeight:700,fontFamily:F.h,marginBottom:4}}>
+            {slot.occ?(slot.tenant?.name||`Bloc ${label}`):`Emplacement ${label} disponible`}
+          </div>
+          <div style={{color:U.muted,fontSize:11,marginBottom:16,fontFamily:F.b}}>
+            {slot.occ?(slot.tenant?.cta||'Bloc occupé'): `Visible de toute la grille · À partir de €${price}/jour`}
+          </div>
+
+          {/* Price */}
+          <div style={{display:'flex',alignItems:'baseline',gap:4,marginBottom:18}}>
+            <span style={{color,fontSize:24,fontWeight:800,fontFamily:F.h}}>€{price}</span>
+            <span style={{color:U.muted,fontSize:11,fontFamily:F.b}}>/jour</span>
+          </div>
+
+          {/* CTA */}
+          {!slot.occ ? (
+            <button onClick={()=>onRent(slot)} style={{
+              width:'100%',padding:'12px 0',borderRadius:12,
+              background:`linear-gradient(135deg,${color},${color}99)`,
+              border:'none',color:U.accentFg,fontSize:13,fontWeight:800,
+              fontFamily:F.b,cursor:'pointer',boxShadow:`0 0 24px ${color}45`,
+            }}>
+              Réserver ce bloc →
+            </button>
+          ) : (
+            <button onClick={()=>onBuyout(slot)} style={{
+              width:'100%',padding:'12px 0',borderRadius:12,
+              background:'rgba(255,255,255,0.04)',
+              border:`1px solid ${color}25`,color:U.muted,
+              fontSize:12,fontWeight:600,fontFamily:F.b,cursor:'pointer',
+            }}>
+              Faire une offre de rachat
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );
 }
 
-function LevelArrows({ level, maxLevel, onLevelChange }) {
-  return (
-    <>
-      {level > 1 && (
-        <button
-          onClick={() => onLevelChange(level - 1)}
-          style={{
-            position: 'absolute', left: 16, top: '50%', transform: 'translateY(-50%)',
-            width: 44, height: 44, borderRadius: '50%', zIndex: 10,
-            background: 'rgba(0,0,0,0.6)', border: `1px solid rgba(255,255,255,0.12)`,
-            backdropFilter: 'blur(10px)',
-            color: U.text, fontSize: 22, cursor: 'pointer',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-          }}
-        >‹</button>
-      )}
-      {level < maxLevel && (
-        <button
-          onClick={() => onLevelChange(level + 1)}
-          style={{
-            position: 'absolute', right: 16, top: '50%', transform: 'translateY(-50%)',
-            width: 44, height: 44, borderRadius: '50%', zIndex: 10,
-            background: 'rgba(0,0,0,0.6)', border: `1px solid rgba(255,255,255,0.12)`,
-            backdropFilter: 'blur(10px)',
-            color: U.text, fontSize: 22, cursor: 'pointer',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-          }}
-        >›</button>
-      )}
-    </>
-  );
-}
+// ─────────────────────────────────────────────────────────────────────────────
+// MAIN COMPONENT
+// ─────────────────────────────────────────────────────────────────────────────
 
-// ─────────────────────────────────────────────────────────────────────────
-// MAIN COMPONENT: View3D
-// ─────────────────────────────────────────────────────────────────────────
-
-/**
- * View3D — drop-in replacement for PublicView in app/page.js
- *
- * Props:
- *   slots      — from useGridData() (same as PublicView)
- *   isLive     — boolean
- *   onGoAdvertiser — () => void
- *   onWaitlist    — () => void
- *   onCheckout    — (slot) => void
- *   onBuyout      — (slot) => void
- *   ExistingPublicView — the original PublicView component (passed in)
- */
 export default function View3D({
-  slots,
-  isLive,
-  onGoAdvertiser,
-  onWaitlist,
-  onCheckout,
-  onBuyout,
+  slots=[], isLive=false,
+  onGoAdvertiser, onWaitlist, onCheckout, onBuyout,
   ExistingPublicView,
 }) {
-  const canvasRef = useRef(null);
-  const sceneRef = useRef(null);
-  const positionsRef = useRef(null);
-  const [level, setLevel] = useState(1);        // 0=2D, 1-6=3D
+  const canvasRef  = useRef(null);
+  const sceneRef   = useRef(null);
+  const [level, setLevel]       = useState(1);
+  const [loading, setLoading]   = useState(true);
+  const [error, setError]       = useState(null);
   const [focusSlot, setFocusSlot] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
 
-  // Compute level positions once when slots are ready
-  const computedPositions = useMemo(() => {
-    if (!slots || slots.length === 0) return null;
-    try {
-      return computeAllLevelPositions(slots);
-    } catch (e) {
-      console.error('View3D: position computation failed', e);
-      return null;
-    }
-  }, [slots.length]);
+  // Slots triés une fois
+  const sortedSlots = useMemo(()=>sortSlotsByTier(slots),[slots]);
 
-  // Initialize Three.js scene
-  useEffect(() => {
-    if (!computedPositions || !canvasRef.current || level === 0) return;
+  // Faces assignées pour le niveau courant
+  const assignedFaces = useMemo(()=>{
+    if (level===0) return [];
+    const poleFaces=sortFacesByPole(getFacesForLevel(level));
+    return poleFaces.map((face,i)=>({
+      ...face,
+      slot:sortedSlots[i]||null,
+      color:faceColor(sortedSlots[i]||null),
+    }));
+  },[level,sortedSlots]);
 
-    setLoading(true);
-    const scene = new Scene3D(canvasRef.current, slots, computedPositions);
-    scene.onBlockClick = (slot) => setFocusSlot(slot);
-    scene.onLevelChange = (lvl) => setLevel(lvl);
+  // Init Three.js (une seule fois quand on passe en mode 3D)
+  useEffect(()=>{
+    if (level===0||!canvasRef.current) return;
+    let scene;
+    Promise.all([
+      import('three'),
+      import('gsap').then(m=>m.gsap||m.default),
+    ]).then(([THREE,GSAP])=>{
+      scene=new Scene3D(canvasRef.current);
+      sceneRef.current=scene;
+      scene.onFaceClick=(slot)=>setFocusSlot(slot);
+      return scene.init(THREE,GSAP);
+    }).then(()=>{
+      sceneRef.current.setFaces(assignedFaces,false);
+      setLoading(false);
+    }).catch(err=>{
+      console.error('View3D:',err);
+      setError('Three.js non disponible — npm install three gsap');
+      setLoading(false);
+    });
+    return ()=>{ if(scene){scene.destroy();} sceneRef.current=null; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[level===0]);
 
-    scene.init()
-      .then(() => {
-        sceneRef.current = scene;
-        positionsRef.current = computedPositions;
-        setLoading(false);
-      })
-      .catch(err => {
-        console.error('View3D init error:', err);
-        setError('Three.js unavailable — npm install three gsap');
-        setLoading(false);
-      });
+  // Mettre à jour les faces quand niveau ou slots changent
+  useEffect(()=>{
+    if (!sceneRef.current||level===0) return;
+    sceneRef.current.setFaces(assignedFaces,true);
+  },[assignedFaces,level]);
 
-    return () => {
-      scene.destroy();
-      sceneRef.current = null;
+  // Clavier
+  useEffect(()=>{
+    const fn=(e)=>{
+      if (e.key>='0'&&e.key<='6') setLevel(parseInt(e.key));
+      else if (e.key==='ArrowRight'||e.key==='ArrowUp')  setLevel(l=>Math.min(6,l+1));
+      else if (e.key==='ArrowLeft' ||e.key==='ArrowDown') setLevel(l=>Math.max(1,l-1));
+      else if (e.key==='Escape') setFocusSlot(null);
     };
-  }, [computedPositions, level === 0]);
+    window.addEventListener('keydown',fn);
+    return()=>window.removeEventListener('keydown',fn);
+  },[]);
 
-  // Sync level changes to scene
-  useEffect(() => {
-    if (sceneRef.current && level > 0) {
-      sceneRef.current.transitionToLevel(level);
-    }
-  }, [level]);
+  // Molette = zoom uniquement
+  useEffect(()=>{
+    const fn=(e)=>{ e.preventDefault(); sceneRef.current?.zoom(e.deltaY); };
+    const canvas=canvasRef.current;
+    if (canvas) canvas.addEventListener('wheel',fn,{passive:false});
+    return()=>{ if(canvas) canvas.removeEventListener('wheel',fn); };
+  },[level]);
 
-  // Keyboard navigation
-  useEffect(() => {
-    const fn = (e) => {
-      if (e.key === 'ArrowRight' || e.key === 'ArrowUp') {
-        setLevel(l => Math.min(6, l + 1));
-      }
-      if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') {
-        setLevel(l => Math.max(0, l - 1));
-      }
-      if (e.key === 'Escape') {
-        setFocusSlot(null);
-        sceneRef.current?.resetCamera();
-      }
-    };
-    window.addEventListener('keydown', fn);
-    return () => window.removeEventListener('keydown', fn);
-  }, []);
+  // Resize observer
+  useEffect(()=>{
+    if (!canvasRef.current) return;
+    const ro=new ResizeObserver(()=>sceneRef.current?.resize());
+    ro.observe(canvasRef.current);
+    return()=>ro.disconnect();
+  },[]);
 
-  // Mouse wheel navigation between levels
-  const wheelTimeout = useRef(null);
-  useEffect(() => {
-    const fn = (e) => {
-      if (focusSlot) return;
-      e.preventDefault();
-      clearTimeout(wheelTimeout.current);
-      wheelTimeout.current = setTimeout(() => {
-        setLevel(l => e.deltaY > 0 ? Math.min(6, l + 1) : Math.max(0, l - 1));
-      }, 60);
-    };
-    const canvas = canvasRef.current;
-    if (canvas) canvas.addEventListener('wheel', fn, { passive: false });
-    return () => {
-      if (canvas) canvas.removeEventListener('wheel', fn);
-    };
-  }, [focusSlot]);
+  const handleLevel = useCallback((n)=>{ setFocusSlot(null); setLevel(n); },[]);
 
-  const handleLevelChange = useCallback((newLevel) => {
-    setFocusSlot(null);
-    sceneRef.current?.resetCamera();
-    setLevel(newLevel);
-  }, []);
-
-  const handleBlockClick = useCallback((slot) => {
-    setFocusSlot(slot);
-    // Find slot index to zoom camera
-    const idx = slots.findIndex(s => s.id === slot.id);
-    if (idx !== -1) sceneRef.current?.zoomToSlot(idx);
-  }, [slots]);
-
-  const handleCloseOverlay = useCallback(() => {
-    setFocusSlot(null);
-    sceneRef.current?.resetCamera();
-  }, []);
-
-  // ── Level 0: render existing PublicView ─────────────────────────────
-  if (level === 0) {
+  // ── Niveau 0 : grille 2D ────────────────────────────────────────────────────
+  if (level===0) {
     return (
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', position: 'relative', overflow: 'hidden' }}>
-        {/* Switch to 3D button */}
-        <div style={{
-          position: 'absolute', top: 10, right: 10, zIndex: 100,
+      <div style={{flex:1,display:'flex',flexDirection:'column',position:'relative',overflow:'hidden'}}>
+        <button onClick={()=>handleLevel(1)} style={{
+          position:'absolute',top:10,right:10,zIndex:100,
+          display:'flex',alignItems:'center',gap:7,
+          padding:'7px 16px',borderRadius:20,
+          background:'rgba(0,0,0,0.88)',border:`1px solid ${U.accent}40`,
+          backdropFilter:'blur(10px)',color:U.accent,
+          fontSize:11,fontWeight:700,cursor:'pointer',fontFamily:F.b,
+          boxShadow:`0 0 22px ${U.accent}25`,
         }}>
-          <button
-            onClick={() => setLevel(1)}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 7,
-              padding: '7px 14px', borderRadius: 20,
-              background: 'rgba(0,0,0,0.8)', border: `1px solid ${U.accent}40`,
-              backdropFilter: 'blur(10px)',
-              color: U.accent, fontSize: 11, fontWeight: 700, cursor: 'pointer',
-              fontFamily: F.b, boxShadow: `0 0 20px ${U.accent}20`,
-            }}
-          >
-            ● Vue 3D
-          </button>
-        </div>
-
-        {/* Existing 2D grid — pass all original props through */}
-        {ExistingPublicView && (
-          <ExistingPublicView
-            slots={slots}
-            isLive={isLive}
-            onGoAdvertiser={onGoAdvertiser}
-            onWaitlist={onWaitlist}
-          />
+          ● Vue Cosmos 3D
+        </button>
+        {ExistingPublicView&&(
+          <ExistingPublicView slots={slots} isLive={isLive} onGoAdvertiser={onGoAdvertiser} onWaitlist={onWaitlist}/>
         )}
       </div>
     );
   }
 
-  // ── Levels 1-6: Three.js canvas ────────────────────────────────────────
+  // ── Niveaux 1–6 : Three.js ──────────────────────────────────────────────────
+  const faceCount=LEVELS[level]?.faces||0;
+
   return (
-    <div style={{
-      flex: 1, position: 'relative', overflow: 'hidden', background: U.bg,
-    }}>
-      {/* Three.js canvas */}
+    <div style={{flex:1,position:'relative',overflow:'hidden',background:U.bg}}>
       <canvas
         ref={canvasRef}
         style={{
-          width: '100%', height: '100%', display: 'block',
-          cursor: 'grab', outline: 'none',
-          opacity: loading ? 0 : 1,
-          transition: 'opacity 0.4s ease',
+          width:'100%',height:'100%',display:'block',outline:'none',
+          cursor:focusSlot?'default':'grab',
+          opacity:loading?0:1,transition:'opacity 0.5s ease',
         }}
       />
 
-      {/* Loading state */}
-      {loading && (
+      {/* Loading */}
+      {loading&&!error&&(
         <div style={{
-          position: 'absolute', inset: 0,
-          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-          gap: 16,
+          position:'absolute',inset:0,display:'flex',flexDirection:'column',
+          alignItems:'center',justifyContent:'center',gap:16,background:U.bg,
         }}>
           <div style={{
-            width: 40, height: 40, borderRadius: '50%',
-            border: `3px solid ${U.border2}`, borderTopColor: U.accent,
-            animation: 'spin 0.8s linear infinite',
-          }} />
-          <div style={{ color: U.muted, fontSize: 12, letterSpacing: '0.06em' }}>
-            INITIALISATION 3D…
-          </div>
+            width:36,height:36,borderRadius:'50%',
+            border:'2px solid rgba(255,255,255,0.07)',borderTopColor:U.accent,
+            animation:'spin3d 0.9s linear infinite',
+          }}/>
+          <div style={{color:U.muted,fontSize:11,letterSpacing:'0.1em',fontFamily:F.b}}>INITIALISATION COSMOS…</div>
         </div>
       )}
 
       {/* Error */}
-      {error && (
+      {error&&(
         <div style={{
-          position: 'absolute', inset: 0,
-          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-          gap: 12, padding: 24,
+          position:'absolute',inset:0,display:'flex',flexDirection:'column',
+          alignItems:'center',justifyContent:'center',gap:12,padding:24,background:U.bg,
         }}>
-          <div style={{ color: U.err, fontSize: 14, fontWeight: 700 }}>⚠ {error}</div>
-          <button onClick={() => setLevel(0)} style={{
-            padding: '10px 20px', borderRadius: 10,
-            background: U.accent, border: 'none', color: U.accentFg,
-            fontWeight: 700, cursor: 'pointer', fontFamily: F.b,
-          }}>
-            Revenir à la grille 2D
-          </button>
+          <div style={{color:U.err,fontSize:13,fontWeight:700}}>⚠ {error}</div>
+          <button onClick={()=>handleLevel(0)} style={{
+            padding:'10px 20px',borderRadius:10,background:U.accent,
+            border:'none',color:U.accentFg,fontWeight:700,cursor:'pointer',fontFamily:F.b,
+          }}>Revenir à la grille 2D</button>
         </div>
       )}
 
-      {/* Top-left: return to 2D */}
-      <button
-        onClick={() => handleLevelChange(0)}
-        style={{
-          position: 'absolute', top: 12, left: 12, zIndex: 20,
-          display: 'flex', alignItems: 'center', gap: 6,
-          padding: '6px 12px', borderRadius: 20,
-          background: 'rgba(0,0,0,0.7)', border: `1px solid ${U.border2}`,
-          backdropFilter: 'blur(10px)',
-          color: U.muted, fontSize: 10, fontWeight: 600, cursor: 'pointer',
-          fontFamily: F.b, letterSpacing: '0.04em',
-        }}
-      >
-        ◫ 2D
+      {/* Top-left: retour 2D */}
+      <button onClick={()=>handleLevel(0)} style={{
+        position:'absolute',top:12,left:12,zIndex:30,
+        display:'flex',alignItems:'center',gap:6,
+        padding:'6px 13px',borderRadius:20,
+        background:'rgba(2,4,8,0.78)',border:`1px solid ${U.border2}`,
+        backdropFilter:'blur(10px)',color:U.muted,
+        fontSize:10,fontWeight:600,cursor:'pointer',fontFamily:F.b,letterSpacing:'0.04em',
+      }}>
+        ◫ Vue 2D
       </button>
 
-      {/* Top-right: tier legend */}
-      <div style={{
-        position: 'absolute', top: 12, right: 12, zIndex: 20,
-        display: 'flex', flexDirection: 'column', gap: 4,
-      }}>
-        {Object.entries(TIER_COLOR).map(([tier, color]) => (
-          tier !== 'corner_ten' && (
-            <div key={tier} style={{
-              display: 'flex', alignItems: 'center', gap: 6,
-              padding: '3px 10px', borderRadius: 20,
-              background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(8px)',
-              border: `1px solid ${color}25`,
-            }}>
-              <div style={{ width: 8, height: 8, borderRadius: 2, background: color, boxShadow: `0 0 6px ${color}` }} />
-              <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: 9, fontWeight: 600, letterSpacing: '0.06em' }}>
-                {TIER_LABEL[tier]}
-              </span>
-              <span style={{ color: color, fontSize: 9, fontWeight: 700 }}>
-                €{priceEur(tier)}/j
-              </span>
-            </div>
-          )
-        ))}
-      </div>
+      {/* Légende tiers + nom du niveau */}
+      <TierLegend level={level} faceCount={faceCount}/>
 
-      {/* Arrow navigation */}
-      <LevelArrows
-        level={level}
-        maxLevel={6}
-        onLevelChange={handleLevelChange}
-      />
+      {/* Dots de navigation */}
+      <LevelDots level={level} onLevel={handleLevel}/>
 
-      {/* Bottom HUD */}
-      <LevelHUD
-        level={level}
-        onLevelChange={handleLevelChange}
-        onBack2D={() => handleLevelChange(0)}
-      />
+      {/* Hint zoom (disparaît après 4.5s) */}
+      {!loading&&<ZoomHint/>}
 
-      {/* Block detail overlay */}
-      {focusSlot && (
+      {/* Overlay détail bloc */}
+      {focusSlot&&(
         <BlockOverlay3D
           slot={focusSlot}
-          onClose={handleCloseOverlay}
-          onRent={(slot) => {
-            handleCloseOverlay();
-            onCheckout?.(slot);
-          }}
-          onBuyout={(slot) => {
-            handleCloseOverlay();
-            onBuyout?.(slot);
-          }}
+          onClose={()=>setFocusSlot(null)}
+          onRent={(s)=>{ setFocusSlot(null); onCheckout?.(s); }}
+          onBuyout={(s)=>{ setFocusSlot(null); onBuyout?.(s); }}
         />
       )}
 
-      {/* Spin keyframe */}
-      <style>{`
-        @keyframes spin { to { transform: rotate(360deg); } }
-      `}</style>
+      <style>{`@keyframes spin3d{to{transform:rotate(360deg);}}`}</style>
     </div>
   );
 }
