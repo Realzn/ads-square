@@ -1678,7 +1678,7 @@ const BlockCell = memo(({ slot, isSelected, onSelect, onFocus, sz: szProp, w, h,
   const ref = useRef(null);
   useEffect(() => {
     if (!occ || !tenant?.bookingId) return;
-    const sessionKey = `imp_${tenant.bookingId}`;
+    const sessionKey = `imp_${tenant?.bookingId}`;
     if (sessionStorage.getItem(sessionKey)) return; // already tracked this session
     const el = ref.current;
     if (!el) return;
@@ -1688,7 +1688,7 @@ const BlockCell = memo(({ slot, isSelected, onSelect, onFocus, sz: szProp, w, h,
         fetch('/api/track', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ slotX: slot.x, slotY: slot.y, bookingId: tenant.bookingId, event: 'impression' }),
+          body: JSON.stringify({ slotX: slot.x, slotY: slot.y, bookingId: tenant?.bookingId, event: 'impression' }),
         }).catch(() => {});
         obs.disconnect();
       }
@@ -1944,7 +1944,7 @@ function AdvertiserProfileModal({ advertiserId, slots, onClose, onOpenSlot }) {
   const tenant   = mainSlot?.tenant;
   if (!tenant) { onClose(); return null; }
 
-  const c = tenant.c || U.accent;
+  const c = tenant?.c || U.accent;
 
   // Animation entrée
   useEffect(() => {
@@ -1980,7 +1980,7 @@ function AdvertiserProfileModal({ advertiserId, slots, onClose, onOpenSlot }) {
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
     if (!url || !key) return;
-    const ids = advertiserSlots.map(s => s.tenant.bookingId).filter(Boolean);
+    const ids = advertiserSlots.map(s => s.tenant?.bookingId).filter(Boolean);
     if (!ids.length) return;
     fetch(`${url}/rest/v1/booking_stats?booking_id=in.(${ids.join(',')})&select=clicks,impressions,ctr_pct,clicks_7d,impressions_7d`, {
       headers: { apikey: key, Authorization: `Bearer ${key}` },
@@ -2015,11 +2015,11 @@ function AdvertiserProfileModal({ advertiserId, slots, onClose, onOpenSlot }) {
     soundcloud:  { label: 'SoundCloud',  icon: '☁', color: '#ff5500', prefix: 'https://soundcloud.com/' },
     deezer:      { label: 'Deezer',      icon: '♬', color: '#00c7f2', prefix: 'https://deezer.com/artist/' },
   };
-  const socialMeta = SOCIAL_META[tenant.social];
-  const musicMeta  = MUSIC_META[tenant.music];
+  const socialMeta = SOCIAL_META[tenant?.social];
+  const musicMeta  = MUSIC_META[tenant?.music];
 
   const BADGE_LABELS = { 'CRÉATEUR': 'Créateur·ice', 'FREELANCE': 'Auto-entrepreneur', 'MARQUE': 'Marque' };
-  const profileLabel = BADGE_LABELS[tenant.badge] || tenant.badge || '';
+  const profileLabel = BADGE_LABELS[tenant?.badge] || tenant?.badge || '';
 
   // Couleur de texte sur fond coloré (lisibilité)
   const isDark = (hex) => {
@@ -2089,9 +2089,9 @@ function AdvertiserProfileModal({ advertiserId, slots, onClose, onOpenSlot }) {
           flexShrink: 0,
         }}>
           {/* Fond : photo ou dégradé couleur */}
-          {tenant.img ? (
+          {tenant?.img ? (
             <img
-              src={tenant.img} alt=""
+              src={tenant?.img} alt=""
               style={{
                 position: 'absolute', inset: 0,
                 width: '100%', height: '100%',
@@ -2123,7 +2123,7 @@ function AdvertiserProfileModal({ advertiserId, slots, onClose, onOpenSlot }) {
                 letterSpacing: '-0.05em',
                 lineHeight: 1,
                 userSelect: 'none',
-              }}>{tenant.l}</div>
+              }}>{tenant?.l}</div>
             </div>
           )}
 
@@ -2211,11 +2211,11 @@ function AdvertiserProfileModal({ advertiserId, slots, onClose, onOpenSlot }) {
               textShadow: '0 2px 24px rgba(0,0,0,0.7)',
               marginBottom: 8,
             }}>
-              {tenant.name}
+              {tenant?.name}
             </div>
 
             {/* Slogan — citation personnelle, pas un tagline produit */}
-            {tenant.slogan && (
+            {tenant?.slogan && (
               <div style={{
                 display: 'flex', alignItems: 'flex-start', gap: 7,
               }}>
@@ -2231,7 +2231,7 @@ function AdvertiserProfileModal({ advertiserId, slots, onClose, onOpenSlot }) {
                   fontStyle: 'italic',
                   maxWidth: 320,
                 }}>
-                  {tenant.slogan}
+                  {tenant?.slogan}
                 </span>
               </div>
             )}
@@ -2251,22 +2251,22 @@ function AdvertiserProfileModal({ advertiserId, slots, onClose, onOpenSlot }) {
           }}>
             {/* Réseaux sociaux du profil annonceur */}
             {[
-              tenant.instagramUrl && { href: tenant.instagramUrl, label: 'Instagram', icon: '📸', color: '#e1306c' },
-              tenant.tiktokUrl    && { href: tenant.tiktokUrl,    label: 'TikTok',    icon: '🎵', color: '#00f2ea' },
-              tenant.twitterUrl   && { href: tenant.twitterUrl,   label: 'X',         icon: '𝕏',  color: '#e7e9ea' },
-              tenant.youtubeUrl   && { href: tenant.youtubeUrl,   label: 'YouTube',   icon: '▶',  color: '#ff0000' },
-              tenant.linkedinUrl  && { href: tenant.linkedinUrl,  label: 'LinkedIn',  icon: 'in', color: '#0077b5' },
+              tenant?.instagramUrl && { href: tenant?.instagramUrl, label: 'Instagram', icon: '📸', color: '#e1306c' },
+              tenant?.tiktokUrl    && { href: tenant?.tiktokUrl,    label: 'TikTok',    icon: '🎵', color: '#00f2ea' },
+              tenant?.twitterUrl   && { href: tenant?.twitterUrl,   label: 'X',         icon: '𝕏',  color: '#e7e9ea' },
+              tenant?.youtubeUrl   && { href: tenant?.youtubeUrl,   label: 'YouTube',   icon: '▶',  color: '#ff0000' },
+              tenant?.linkedinUrl  && { href: tenant?.linkedinUrl,  label: 'LinkedIn',  icon: 'in', color: '#0077b5' },
               // Fallback : réseau lié au bloc (ancien comportement)
-              !tenant.instagramUrl && !tenant.tiktokUrl && !tenant.twitterUrl && !tenant.youtubeUrl && !tenant.linkedinUrl
-                && socialMeta && tenant.social && {
-                  href: `${socialMeta.prefix}${tenant.social.replace('@', '')}`,
-                  label: `@${tenant.social.replace('@', '')}`,
+              !tenant?.instagramUrl && !tenant?.tiktokUrl && !tenant?.twitterUrl && !tenant?.youtubeUrl && !tenant?.linkedinUrl
+                && socialMeta && tenant?.social && {
+                  href: `${socialMeta.prefix}${tenant?.social.replace('@', '')}`,
+                  label: `@${tenant?.social.replace('@', '')}`,
                   icon: socialMeta.icon,
                   color: socialMeta.color,
                 },
-              !tenant.instagramUrl && !tenant.tiktokUrl && !tenant.twitterUrl && !tenant.youtubeUrl && !tenant.linkedinUrl
-                && musicMeta && tenant.music && {
-                  href: `${musicMeta.prefix}${tenant.music.replace('@', '')}`,
+              !tenant?.instagramUrl && !tenant?.tiktokUrl && !tenant?.twitterUrl && !tenant?.youtubeUrl && !tenant?.linkedinUrl
+                && musicMeta && tenant?.music && {
+                  href: `${musicMeta.prefix}${tenant?.music.replace('@', '')}`,
                   label: musicMeta.label,
                   icon: musicMeta.icon,
                   color: musicMeta.color,
@@ -2341,7 +2341,7 @@ function AdvertiserProfileModal({ advertiserId, slots, onClose, onOpenSlot }) {
           }} />
 
           {/* ── Description — l'histoire de l'auteur ── */}
-          {tenant.description && (
+          {tenant?.description && (
             <div style={{ marginBottom: 24 }}>
               <p style={{
                 color: 'rgba(255,255,255,0.62)',
@@ -2351,7 +2351,7 @@ function AdvertiserProfileModal({ advertiserId, slots, onClose, onOpenSlot }) {
                 whiteSpace: 'pre-line',
                 // Limiter à 6 lignes sur mobile avec fade si trop long
               }}>
-                {tenant.description}
+                {tenant?.description}
               </p>
             </div>
           )}
@@ -2403,7 +2403,7 @@ function AdvertiserProfileModal({ advertiserId, slots, onClose, onOpenSlot }) {
                         width: 46, height: 46, borderRadius: 11,
                         flexShrink: 0,
                         background: s.tenant?.img
-                          ? `url(${s.tenant.img}) center/cover`
+                          ? `url(${s.tenant?.img}) center/cover`
                           : `linear-gradient(140deg, ${sc}30, ${sc}10)`,
                         border: `1.5px solid ${sc}35`,
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -2486,11 +2486,11 @@ function AdvertiserProfileModal({ advertiserId, slots, onClose, onOpenSlot }) {
           )}
 
           {/* ── CTA — invitation, pas conversion ── */}
-          {tenant.url && tenant.url !== '#' && (
+          {tenant?.url && tenant?.url !== '#' && (
             <a
-              href={tenant.url}
+              href={tenant?.url}
               target="_blank" rel="noopener noreferrer"
-              onClick={() => recordClick(mainSlot.x, mainSlot.y, tenant.bookingId)}
+              onClick={() => recordClick(mainSlot.x, mainSlot.y, tenant?.bookingId)}
               style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
                 width: '100%', padding: '14px 20px',
@@ -2512,7 +2512,7 @@ function AdvertiserProfileModal({ advertiserId, slots, onClose, onOpenSlot }) {
                 e.currentTarget.style.boxShadow = `0 4px 28px ${ctaBg}38`;
               }}
             >
-              {tenant.cta || 'Découvrir son univers'}
+              {tenant?.cta || 'Découvrir son univers'}
               <span style={{ fontSize: 17, lineHeight: 1 }}>→</span>
             </a>
           )}
@@ -2712,7 +2712,7 @@ function FocusModal({ slot, allSlots, onClose, onNavigate, onGoAdvertiser, onVie
     fetch('/api/track', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ slotX: slot.x, slotY: slot.y, bookingId: slot.tenant.bookingId, event: 'impression' }),
+      body: JSON.stringify({ slotX: slot.x, slotY: slot.y, bookingId: slot.tenant?.bookingId, event: 'impression' }),
     }).catch(() => {});
   }, [slot?.id]);
   useEffect(() => {
@@ -2722,7 +2722,7 @@ function FocusModal({ slot, allSlots, onClose, onNavigate, onGoAdvertiser, onVie
 
   if (!slot) return null;
   const { tier, occ, tenant } = slot;
-  const c = occ ? tenant.c : TIER_COLOR[tier];
+  const c = occ ? (tenant?.c || TIER_COLOR[tier]) : TIER_COLOR[tier];
 
   return (
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.82)', backdropFilter: 'blur(16px)', display: 'flex', alignItems: isMobile ? 'flex-end' : 'center', justifyContent: 'center', opacity: entered ? 1 : 0, transition: 'opacity 0.2s ease' }}>
@@ -2752,11 +2752,11 @@ function FocusModal({ slot, allSlots, onClose, onNavigate, onGoAdvertiser, onVie
 
         {/* Hero — adapté selon content_type */}
         {occ && tenant && tier !== 'viral' && (() => {
-          const yt = tenant.url?.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([A-Za-z0-9_-]+)/);
-          const vimeo = tenant.url?.match(/vimeo\.com\/(\d+)/);
+          const yt = tenant?.url?.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([A-Za-z0-9_-]+)/);
+          const vimeo = tenant?.url?.match(/vimeo\.com\/(\d+)/);
 
           // ▶ Vidéo : embed YouTube/Vimeo remplace l'image hero
-          if (tenant.t === 'video' && (yt || vimeo)) {
+          if (tenant?.t === 'video' && (yt || vimeo)) {
             const embedSrc = yt
               ? `https://www.youtube.com/embed/${yt[1]}?autoplay=0&rel=0&modestbranding=1`
               : `https://player.vimeo.com/video/${vimeo[1]}?autoplay=0`;
@@ -2768,10 +2768,10 @@ function FocusModal({ slot, allSlots, onClose, onNavigate, onGoAdvertiser, onVie
               </div>
             );
           }
-          if (tenant.t === 'video') {
+          if (tenant?.t === 'video') {
             return (
-              <div style={{ position:'relative', height: isMobile ? 180 : 240, overflow:'hidden', background:tenant.b||'#0a0a0a' }}>
-                {tenant.img && <img src={tenant.img} alt="" style={{ width:'100%', height:'100%', objectFit:'cover', opacity:0.55 }} />}
+              <div style={{ position:'relative', height: isMobile ? 180 : 240, overflow:'hidden', background:tenant?.b||'#0a0a0a' }}>
+                {tenant?.img && <img src={tenant?.img} alt="" style={{ width:'100%', height:'100%', objectFit:'cover', opacity:0.55 }} />}
                 <div style={{ position:'absolute', inset:0, background:'linear-gradient(to bottom, rgba(0,0,0,0.1), rgba(0,0,0,0.65))' }} />
                 <div style={{ position:'absolute', inset:0, display:'flex', alignItems:'center', justifyContent:'center' }}>
                   <div style={{ width:64, height:64, borderRadius:'50%', background:'rgba(0,0,0,0.7)', border:`2.5px solid ${c}`, display:'flex', alignItems:'center', justifyContent:'center', backdropFilter:'blur(8px)', boxShadow:`0 0 40px ${c}60, 0 0 80px ${c}25` }}>
@@ -2783,7 +2783,7 @@ function FocusModal({ slot, allSlots, onClose, onNavigate, onGoAdvertiser, onVie
           }
 
           // ≡ Publication : barre colorée fine (pas de hero), typographie éditoriale
-          if (tenant.t === 'text') {
+          if (tenant?.t === 'text') {
             return (
               <div style={{ padding:'20px 28px 0' }}>
                 <div style={{ height:3, borderRadius:2, background:`linear-gradient(90deg, ${c}, ${c}60, transparent)`, marginBottom:2 }} />
@@ -2792,28 +2792,28 @@ function FocusModal({ slot, allSlots, onClose, onNavigate, onGoAdvertiser, onVie
           }
 
           // ⬡ App : fond dégradé + app icon grande centrée avec ombre
-          if (tenant.t === 'app') {
-            const storeCol = APP_STORE_COLORS[tenant.appStore] || c;
+          if (tenant?.t === 'app') {
+            const storeCol = APP_STORE_COLORS[tenant?.appStore] || c;
             return (
-              <div style={{ height: isMobile ? 130 : 160, background:`linear-gradient(135deg, ${tenant.b||U.s2} 0%, ${U.s2} 100%)`, display:'flex', alignItems:'center', justifyContent:'center', position:'relative', overflow:'hidden' }}>
+              <div style={{ height: isMobile ? 130 : 160, background:`linear-gradient(135deg, ${tenant?.b||U.s2} 0%, ${U.s2} 100%)`, display:'flex', alignItems:'center', justifyContent:'center', position:'relative', overflow:'hidden' }}>
                 <div style={{ position:'absolute', inset:0, background:`radial-gradient(ellipse at 50% 110%, ${storeCol}30, transparent 65%)` }} />
-                {tenant.img
-                  ? <img src={tenant.img} alt="" style={{ width:88, height:88, borderRadius:22, objectFit:'cover', border:`2.5px solid ${storeCol}50`, boxShadow:`0 16px 48px rgba(0,0,0,0.6), 0 0 32px ${storeCol}35`, position:'relative' }} />
-                  : <div style={{ width:88, height:88, borderRadius:22, background:`${storeCol}22`, border:`2.5px solid ${storeCol}55`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:36, fontWeight:900, color:storeCol, fontFamily:F.h, boxShadow:`0 16px 48px rgba(0,0,0,0.5), 0 0 32px ${storeCol}30`, position:'relative' }}>{tenant.l}</div>
+                {tenant?.img
+                  ? <img src={tenant?.img} alt="" style={{ width:88, height:88, borderRadius:22, objectFit:'cover', border:`2.5px solid ${storeCol}50`, boxShadow:`0 16px 48px rgba(0,0,0,0.6), 0 0 32px ${storeCol}35`, position:'relative' }} />
+                  : <div style={{ width:88, height:88, borderRadius:22, background:`${storeCol}22`, border:`2.5px solid ${storeCol}55`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:36, fontWeight:900, color:storeCol, fontFamily:F.h, boxShadow:`0 16px 48px rgba(0,0,0,0.5), 0 0 32px ${storeCol}30`, position:'relative' }}>{tenant?.l}</div>
                 }
                 {/* Badge store */}
                 <div style={{ position:'absolute', bottom:10, left:'50%', transform:'translateX(-50%)', display:'flex', alignItems:'center', gap:5, padding:'4px 12px', borderRadius:20, background:'rgba(0,0,0,0.6)', border:`1px solid ${storeCol}40`, backdropFilter:'blur(8px)' }}>
-                  <span style={{ fontSize:12 }}>{tenant.appStore==='app_store'?'🍎':tenant.appStore==='google_play'?'▶':'🌐'}</span>
-                  <span style={{ color:storeCol, fontSize:11, fontWeight:700 }}>{tenant.appStore==='app_store'?'App Store':tenant.appStore==='google_play'?'Google Play':'Web'}</span>
+                  <span style={{ fontSize:12 }}>{tenant?.appStore==='app_store'?'🍎':tenant?.appStore==='google_play'?'▶':'🌐'}</span>
+                  <span style={{ color:storeCol, fontSize:11, fontWeight:700 }}>{tenant?.appStore==='app_store'?'App Store':tenant?.appStore==='google_play'?'Google Play':'Web'}</span>
                 </div>
               </div>
             );
           }
 
           // ⊕ Réseaux : bannière couleur plateforme + grande icône
-          if (tenant.t === 'social') {
-            const col = SOCIAL_COLORS_MAP[tenant.social] || c;
-            const ico = SOCIAL_ICONS_MAP[tenant.social] || '⊕';
+          if (tenant?.t === 'social') {
+            const col = SOCIAL_COLORS_MAP[tenant?.social] || c;
+            const ico = SOCIAL_ICONS_MAP[tenant?.social] || '⊕';
             return (
               <div style={{ height: isMobile ? 110 : 140, background:`linear-gradient(135deg, ${col}25 0%, ${col}06 100%)`, display:'flex', alignItems:'center', justifyContent:'center', gap:16, position:'relative', overflow:'hidden' }}>
                 <div style={{ position:'absolute', inset:0, background:`radial-gradient(ellipse at 35% 50%, ${col}35, transparent 65%)` }} />
@@ -2824,14 +2824,14 @@ function FocusModal({ slot, allSlots, onClose, onNavigate, onGoAdvertiser, onVie
           }
 
           // ♪ Musique : image album en fond flouté + miniature centrée, puis lecteur audio
-          if (tenant.t === 'music') {
-            const col = MUSIC_COLORS_MAP[tenant.music] || c;
-            const icon = MUSIC_ICONS_MAP[tenant.music] || '🎵';
-            if (tenant.img) return (
+          if (tenant?.t === 'music') {
+            const col = MUSIC_COLORS_MAP[tenant?.music] || c;
+            const icon = MUSIC_ICONS_MAP[tenant?.music] || '🎵';
+            if (tenant?.img) return (
               <div style={{ position:'relative', height: isMobile ? 170 : 210, overflow:'hidden', background:U.s2 }}>
-                <img src={tenant.img} alt="" style={{ width:'100%', height:'100%', objectFit:'cover', opacity:0.5, filter:'blur(3px)', transform:'scale(1.08)' }} />
+                <img src={tenant?.img} alt="" style={{ width:'100%', height:'100%', objectFit:'cover', opacity:0.5, filter:'blur(3px)', transform:'scale(1.08)' }} />
                 <div style={{ position:'absolute', inset:0, background:`linear-gradient(to top, ${U.s1} 0%, ${col}08 40%, transparent 80%)` }} />
-                <img src={tenant.img} alt="" style={{ position:'absolute', top:'50%', left:'50%', transform:'translate(-50%,-55%)', width:88, height:88, borderRadius:14, objectFit:'cover', border:`2px solid ${col}70`, boxShadow:`0 12px 40px rgba(0,0,0,0.7), 0 0 24px ${col}40` }} />
+                <img src={tenant?.img} alt="" style={{ position:'absolute', top:'50%', left:'50%', transform:'translate(-50%,-55%)', width:88, height:88, borderRadius:14, objectFit:'cover', border:`2px solid ${col}70`, boxShadow:`0 12px 40px rgba(0,0,0,0.7), 0 0 24px ${col}40` }} />
                 {/* Mini barres égaliseur en bas de l'image */}
                 <div style={{ position:'absolute', bottom:10, left:'50%', transform:'translateX(-50%)', display:'flex', alignItems:'flex-end', gap:3, height:14 }}>
                   {[0.55,1,0.7,0.9,0.45,0.8].map((h,i)=>(
@@ -2854,23 +2854,23 @@ function FocusModal({ slot, allSlots, onClose, onNavigate, onGoAdvertiser, onVie
           }
 
           // ◎ Vêtements : badge prix en overlay sur la photo
-          if (tenant.img && tenant.t === 'clothing') return (
+          if (tenant?.img && tenant?.t === 'clothing') return (
             <div style={{ position:'relative', height: isMobile ? 180 : 230, overflow:'hidden', background:U.s2 }}>
-              <img src={tenant.img} alt={tenant.name} style={{ width:'100%', height:'100%', objectFit:'cover', opacity:0.85 }} />
+              <img src={tenant?.img} alt={tenant?.name} style={{ width:'100%', height:'100%', objectFit:'cover', opacity:0.85 }} />
               <div style={{ position:'absolute', inset:0, background:`linear-gradient(to top, ${U.s1} 0%, transparent 55%)` }} />
-              {tenant.slogan && (
-                <div style={{ position:'absolute', top:14, right:14, padding:'7px 16px', borderRadius:24, background:'rgba(0,0,0,0.82)', color:'#fff', fontSize:14, fontWeight:900, backdropFilter:'blur(10px)', border:'1.5px solid rgba(255,255,255,0.2)', boxShadow:'0 4px 20px rgba(0,0,0,0.4)' }}>{tenant.slogan}</div>
+              {tenant?.slogan && (
+                <div style={{ position:'absolute', top:14, right:14, padding:'7px 16px', borderRadius:24, background:'rgba(0,0,0,0.82)', color:'#fff', fontSize:14, fontWeight:900, backdropFilter:'blur(10px)', border:'1.5px solid rgba(255,255,255,0.2)', boxShadow:'0 4px 20px rgba(0,0,0,0.4)' }}>{tenant?.slogan}</div>
               )}
             </div>
           );
 
           // Image / Lifestyle / Marque / Lien avec image
-          if (tenant.img) return (
+          if (tenant?.img) return (
             <div style={{ position:'relative', height: isMobile ? 170 : 220, overflow:'hidden', background:U.s2 }}>
-              <img src={tenant.img} alt={tenant.name} style={{ width:'100%', height:'100%', objectFit:'cover', opacity:0.8 }} />
+              <img src={tenant?.img} alt={tenant?.name} style={{ width:'100%', height:'100%', objectFit:'cover', opacity:0.8 }} />
               <div style={{ position:'absolute', inset:0, background:`linear-gradient(to top, ${U.s1} 0%, ${c}06 40%, transparent 65%)` }} />
-              {tenant.t === 'lifestyle' && tenant.name && (
-                <div style={{ position:'absolute', bottom:16, left:20, right:20, color:'#fff', fontSize:16, fontWeight:700, textShadow:'0 2px 8px rgba(0,0,0,0.8)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{tenant.name}</div>
+              {tenant?.t === 'lifestyle' && tenant?.name && (
+                <div style={{ position:'absolute', bottom:16, left:20, right:20, color:'#fff', fontSize:16, fontWeight:700, textShadow:'0 2px 8px rgba(0,0,0,0.8)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{tenant?.name}</div>
               )}
             </div>
           );
@@ -2882,26 +2882,26 @@ function FocusModal({ slot, allSlots, onClose, onNavigate, onGoAdvertiser, onVie
           <div style={{ padding: isMobile ? '16px 20px 28px' : '24px 28px 32px' }}>
             <div style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 4, background: `${TIER_COLOR[tier]}15`, border: `1px solid ${TIER_COLOR[tier]}30`, color: TIER_COLOR[tier], fontSize: 9, fontWeight: 700, letterSpacing: '0.06em', marginBottom: 14 }}>{TIER_LABEL[tier]} · €{priceEur(tier)}/j</div>
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14, marginBottom: 18 }}>
-              <div style={{ width: 52, height: 52, borderRadius: 12, flexShrink: 0, background: tenant.img ? `url(${tenant.img}) center/cover` : `${c}18`, border: `1px solid ${c}30`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, fontWeight: 900, color: c, fontFamily: F.h, overflow:'hidden' }}>
-                {!tenant.img && tenant.l}
+              <div style={{ width: 52, height: 52, borderRadius: 12, flexShrink: 0, background: tenant?.img ? `url(${tenant?.img}) center/cover` : `${c}18`, border: `1px solid ${c}30`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, fontWeight: 900, color: c, fontFamily: F.h, overflow:'hidden' }}>
+                {!tenant?.img && tenant?.l}
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <button
-                  onClick={() => onViewProfile && onViewProfile(tenant.advertiserId)}
+                  onClick={() => onViewProfile && onViewProfile(tenant?.advertiserId)}
                   style={{ background:'none', border:'none', cursor:'pointer', padding:0, textAlign:'left', display:'block' }}
                   title="Voir le profil de l'annonceur"
                 >
                   <div style={{ display:'flex', alignItems:'center', gap:7, marginBottom:3 }}>
-                    <div style={{ color: U.text, fontWeight: 700, fontSize: 19, fontFamily: F.h, letterSpacing: '-0.02em' }}>{tenant.name}</div>
+                    <div style={{ color: U.text, fontWeight: 700, fontSize: 19, fontFamily: F.h, letterSpacing: '-0.02em' }}>{tenant?.name}</div>
                     <div style={{ color:c, fontSize:11, opacity:0.7, flexShrink:0 }}>↗ profil</div>
                   </div>
                 </button>
-                <div style={{ color: U.muted, fontSize: 13, lineHeight: 1.5 }}>{tenant.slogan}</div>
+                <div style={{ color: U.muted, fontSize: 13, lineHeight: 1.5 }}>{tenant?.slogan}</div>
               </div>
             </div>
 
             {/* Réseaux sociaux / plateforme si renseignés */}
-            {(tenant.social || tenant.music) && (() => {
+            {(tenant?.social || tenant?.music) && (() => {
               const SOCIAL_META = {
                 instagram: { label:'Instagram', icon:'📸', color:'#e1306c', prefix:'https://instagram.com/' },
                 tiktok:    { label:'TikTok',    icon:'🎵', color:'#00f2ea', prefix:'https://tiktok.com/@' },
@@ -2918,12 +2918,12 @@ function FocusModal({ slot, allSlots, onClose, onNavigate, onGoAdvertiser, onVie
                 soundcloud: { label:'SoundCloud',   icon:'☁', color:'#ff5500', prefix:'https://soundcloud.com/' },
                 deezer:     { label:'Deezer',       icon:'≋', color:'#00c7f2', prefix:'https://deezer.com/' },
               };
-              const socialMeta = SOCIAL_META[tenant.social];
-              const musicMeta  = MUSIC_META[tenant.music];
+              const socialMeta = SOCIAL_META[tenant?.social];
+              const musicMeta  = MUSIC_META[tenant?.music];
               return (
                 <div style={{ display:'flex', gap:8, marginBottom:16, flexWrap:'wrap' }}>
                   {socialMeta && (
-                    <a href={tenant.url?.includes(socialMeta.prefix?.split('//')[1]?.split('/')[0]) ? tenant.url : tenant.url}
+                    <a href={tenant?.url?.includes(socialMeta.prefix?.split('//')[1]?.split('/')[0]) ? tenant?.url : tenant?.url}
                        target="_blank" rel="noopener noreferrer"
                        onClick={e => { e.stopPropagation(); recordClick(slot.x, slot.y, slot.bookingId); }}
                        style={{ display:'flex', alignItems:'center', gap:6, padding:'7px 12px', borderRadius:8, background:`${socialMeta.color}15`, border:`1px solid ${socialMeta.color}40`, color:socialMeta.color, textDecoration:'none', fontSize:12, fontWeight:700 }}>
@@ -2931,7 +2931,7 @@ function FocusModal({ slot, allSlots, onClose, onNavigate, onGoAdvertiser, onVie
                     </a>
                   )}
                   {musicMeta && (
-                    <a href={tenant.url} target="_blank" rel="noopener noreferrer"
+                    <a href={tenant?.url} target="_blank" rel="noopener noreferrer"
                        onClick={e => { e.stopPropagation(); recordClick(slot.x, slot.y, slot.bookingId); }}
                        style={{ display:'flex', alignItems:'center', gap:6, padding:'7px 12px', borderRadius:8, background:`${musicMeta.color}15`, border:`1px solid ${musicMeta.color}40`, color:musicMeta.color, textDecoration:'none', fontSize:12, fontWeight:700 }}>
                       <span style={{ fontSize:14 }}>{musicMeta.icon}</span> {musicMeta.label}
@@ -2942,19 +2942,19 @@ function FocusModal({ slot, allSlots, onClose, onNavigate, onGoAdvertiser, onVie
             })()}
 
             {/* ── PreviewPlayer 30s — vidéo & musique ── */}
-            {(tenant.t === 'video' || tenant.t === 'music') && (
+            {(tenant?.t === 'video' || tenant?.t === 'music') && (
               <PreviewPlayer tenant={tenant} isMobile={isMobile} />
             )}
 
             {/* Badge promo */}
-            {tenant.badge && (
+            {tenant?.badge && (
               <div style={{ marginBottom:14, padding:'6px 12px', borderRadius:7, background:`${c}10`, border:`1px solid ${c}20`, display:'inline-flex', alignItems:'center', gap:6, fontSize:11, color:c, fontWeight:700 }}>
-                ✦ {tenant.badge}
+                ✦ {tenant?.badge}
               </div>
             )}
 
             {/* Description — histoire ou incitation au clic */}
-            {tenant.description && (
+            {tenant?.description && (
               <div style={{
                 marginBottom: 16,
                 padding: '12px 14px',
@@ -2977,7 +2977,7 @@ function FocusModal({ slot, allSlots, onClose, onNavigate, onGoAdvertiser, onVie
                   lineHeight: 1.7,
                   whiteSpace: 'pre-line',
                 }}>
-                  {tenant.description}
+                  {tenant?.description}
                 </p>
               </div>
             )}
@@ -3001,11 +3001,11 @@ function FocusModal({ slot, allSlots, onClose, onNavigate, onGoAdvertiser, onVie
               </div>
             )}
 
-            <a href={tenant.url} target="_blank" rel="noopener noreferrer" onClick={e => { e.stopPropagation(); recordClick(slot.x, slot.y, slot.bookingId); }} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '13px 20px', borderRadius: 10, background: c, color: U.accentFg, fontWeight: 700, fontSize: 14, fontFamily: F.b, textDecoration: 'none', boxShadow: `0 0 22px ${c}50`, transition: 'opacity 0.15s', marginBottom: 10 }}>
-              {tenant.cta} →
+            <a href={tenant?.url} target="_blank" rel="noopener noreferrer" onClick={e => { e.stopPropagation(); recordClick(slot.x, slot.y, slot.bookingId); }} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '13px 20px', borderRadius: 10, background: c, color: U.accentFg, fontWeight: 700, fontSize: 14, fontFamily: F.b, textDecoration: 'none', boxShadow: `0 0 22px ${c}50`, transition: 'opacity 0.15s', marginBottom: 10 }}>
+              {tenant?.cta} →
             </a>
             {/* ── Bouton partager ── */}
-            <ShareBlocButton x={slot.x} y={slot.y} name={tenant.name} slogan={tenant.slogan} />
+            <ShareBlocButton x={slot.x} y={slot.y} name={tenant?.name} slogan={tenant?.slogan} />
           </div>
         ) : (() => {
           const isAvail = isTierAvailable(tier);
@@ -3104,14 +3104,14 @@ function TikTokFeed({ slots, isLive }) {
     <div ref={feedRef} style={{ flex: 1, overflowY: 'scroll', overflowX: 'hidden', scrollSnapType: 'y mandatory', WebkitOverflowScrolling: 'touch', position: 'relative' }}>
       {feedSlots.map((slot, idx) => {
         const { tier, occ, tenant } = slot;
-        const c = occ ? tenant.c : TIER_COLOR[tier];
+        const c = occ ? (tenant?.c || TIER_COLOR[tier]) : TIER_COLOR[tier];
         const isActive = currentIdx === idx;
         return (
           <div key={slot.id} data-card={idx} style={{ scrollSnapAlign: 'start', width: '100%', height: '100%', minHeight: '100%', position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: isMobile ? 20 : 28, padding: isMobile ? '16px 16px 16px 8px' : '24px 60px 24px 24px', boxSizing: 'border-box', overflow: 'hidden', background: U.bg }}>
 
             {occ && tenant?.img && (<>
               <div style={{ position: 'absolute', inset: 0, overflow: 'hidden' }}>
-                <img src={tenant.img} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: 0.05, filter: 'blur(32px)', transform: 'scale(1.15)' }} onError={e => e.target.style.display='none'} />
+                <img src={tenant?.img} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: 0.05, filter: 'blur(32px)', transform: 'scale(1.15)' }} onError={e => e.target.style.display='none'} />
               </div>
               <div style={{ position: 'absolute', inset: 0, background: `linear-gradient(180deg, ${U.bg}cc 0%, transparent 40%, ${U.bg}ee 100%)` }} />
             </>)}
@@ -3128,13 +3128,13 @@ function TikTokFeed({ slots, isLive }) {
             )}
 
             {/* Block visual */}
-            <div style={{ position: 'relative', zIndex: 1, width: isMobile ? 176 : 232, height: isMobile ? 176 : 232, borderRadius: tier === 'epicenter' ? 24 : 18, background: occ ? (tenant.b || U.s2) : U.s2, border: `1px solid ${c}30`, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'border-color 0.4s, box-shadow 0.4s', boxShadow: isActive ? `0 0 48px ${c}30, 0 0 12px ${c}18` : `0 0 16px ${c}08` }}>
-              {occ && tenant?.img && <img src={tenant.img} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', opacity: 0.55 }} onError={e => e.target.style.display='none'} />}
+            <div style={{ position: 'relative', zIndex: 1, width: isMobile ? 176 : 232, height: isMobile ? 176 : 232, borderRadius: tier === 'epicenter' ? 24 : 18, background: occ ? (tenant?.b || U.s2) : U.s2, border: `1px solid ${c}30`, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'border-color 0.4s, box-shadow 0.4s', boxShadow: isActive ? `0 0 48px ${c}30, 0 0 12px ${c}18` : `0 0 16px ${c}08` }}>
+              {occ && tenant?.img && <img src={tenant?.img} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', opacity: 0.55 }} onError={e => e.target.style.display='none'} />}
               <div style={{ position: 'relative', zIndex: 1, textAlign: 'center', padding: 16 }}>
                 {occ ? (
                   <>
-                    <div style={{ fontSize: tier === 'epicenter' ? 52 : 36, fontWeight: 900, color: c, fontFamily: F.h, lineHeight: 1, marginBottom: 6 }}>{tenant.l}</div>
-                    {tier !== 'viral' && <div style={{ color: `${c}cc`, fontSize: tier === 'epicenter' ? 13 : 10, fontWeight: 700 }}>{tenant.name}</div>}
+                    <div style={{ fontSize: tier === 'epicenter' ? 52 : 36, fontWeight: 900, color: c, fontFamily: F.h, lineHeight: 1, marginBottom: 6 }}>{tenant?.l}</div>
+                    {tier !== 'viral' && <div style={{ color: `${c}cc`, fontSize: tier === 'epicenter' ? 13 : 10, fontWeight: 700 }}>{tenant?.name}</div>}
                   </>
                 ) : (
                   <>
@@ -3150,14 +3150,14 @@ function TikTokFeed({ slots, isLive }) {
             <div style={{ position: 'relative', zIndex: 1, width: '100%', maxWidth: isMobile ? '92vw' : 400, padding: isMobile ? '16px' : '20px 22px', borderRadius: 14, background: U.s1, border: `1px solid ${U.border2}` }}>
               {occ ? (<>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-                  <div style={{ width: 40, height: 40, borderRadius: 10, background: `${c}18`, border: `1px solid ${c}30`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, fontWeight: 900, color: c, fontFamily: F.h, flexShrink: 0 }}>{tenant.l}</div>
+                  <div style={{ width: 40, height: 40, borderRadius: 10, background: `${c}18`, border: `1px solid ${c}30`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, fontWeight: 900, color: c, fontFamily: F.h, flexShrink: 0 }}>{tenant?.l}</div>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ color: U.text, fontWeight: 700, fontSize: 15, fontFamily: F.h, letterSpacing: '-0.02em' }}>{tenant.name}</div>
-                    <div style={{ color: U.muted, fontSize: 11, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tenant.slogan}</div>
+                    <div style={{ color: U.text, fontWeight: 700, fontSize: 15, fontFamily: F.h, letterSpacing: '-0.02em' }}>{tenant?.name}</div>
+                    <div style={{ color: U.muted, fontSize: 11, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tenant?.slogan}</div>
                   </div>
                 </div>
-                <a href={tenant.url} target="_blank" rel="noopener noreferrer" onClick={() => recordClick(slot.x, slot.y, slot.bookingId)} style={{ display: 'block', padding: '10px 14px', borderRadius: 9, background: c, color: U.accentFg, fontWeight: 700, fontSize: 12, fontFamily: F.b, textDecoration: 'none', textAlign: 'center', boxShadow: `0 0 18px ${c}50` }}>
-                  {tenant.cta}{' ->'}
+                <a href={tenant?.url} target="_blank" rel="noopener noreferrer" onClick={() => recordClick(slot.x, slot.y, slot.bookingId)} style={{ display: 'block', padding: '10px 14px', borderRadius: 9, background: c, color: U.accentFg, fontWeight: 700, fontSize: 12, fontFamily: F.b, textDecoration: 'none', textAlign: 'center', boxShadow: `0 0 18px ${c}50` }}>
+                  {tenant?.cta}{' ->'}
                 </a>
               </>) : null}
             </div>
@@ -3253,7 +3253,7 @@ function FeedInvitePanel({ slots, onSwitchToFeed, onDismiss }) {
                     <div style={{
                       width: 34, height: 34, borderRadius: 8, flexShrink: 0,
                       background: slot.tenant?.img
-                        ? `url(${slot.tenant.img}) center/cover`
+                        ? `url(${slot.tenant?.img}) center/cover`
                         : `${c2}20`,
                       border: `1.5px solid ${c2}40`,
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -3385,14 +3385,14 @@ function BoostTicker({ slots, authUser, userBookings, onBoost, onGoAdvertiser })
           <div style={{ display: 'flex', alignItems: 'center', gap: 0, animation: 'tickerScroll 40s linear infinite', width: 'max-content', willChange: 'transform' }}>
             {[...boosted, ...boosted].map((slot, i) => {
               const theme = getSlotTheme(slot);
-              const c = theme?.color || slot.tenant.c || U.accent;
+              const c = theme?.color || slot.tenant?.c || U.accent;
               return (
                 <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '0 18px', borderRight: `1px solid ${U.border}`, height: 30, cursor: 'pointer', flexShrink: 0 }}
-                  onClick={() => window.open(slot.tenant.url, '_blank')}>
-                  <span style={{ width: 16, height: 16, borderRadius: 4, background: `${c}22`, border: `1px solid ${c}50`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 8, fontWeight: 900, color: c, fontFamily: 'monospace', flexShrink: 0 }}>{slot.tenant.l?.charAt(0)}</span>
-                  <span style={{ color: 'rgba(255,255,255,0.7)', fontSize: 10, fontWeight: 600, whiteSpace: 'nowrap' }}>{slot.tenant.name}</span>
+                  onClick={() => window.open(slot.tenant?.url, '_blank')}>
+                  <span style={{ width: 16, height: 16, borderRadius: 4, background: `${c}22`, border: `1px solid ${c}50`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 8, fontWeight: 900, color: c, fontFamily: 'monospace', flexShrink: 0 }}>{slot.tenant?.l?.charAt(0)}</span>
+                  <span style={{ color: 'rgba(255,255,255,0.7)', fontSize: 10, fontWeight: 600, whiteSpace: 'nowrap' }}>{slot.tenant?.name}</span>
                   {theme && <span style={{ color: c, fontSize: 8, opacity: 0.7 }}>{theme.icon}</span>}
-                  <span style={{ color: 'rgba(255,255,255,0.28)', fontSize: 9, whiteSpace: 'nowrap' }}>{slot.tenant.cta}</span>
+                  <span style={{ color: 'rgba(255,255,255,0.28)', fontSize: 9, whiteSpace: 'nowrap' }}>{slot.tenant?.cta}</span>
                 </div>
               );
             })}
@@ -3782,7 +3782,7 @@ const AdvSlotWrapper = memo(({
         }}>
           {slot.tenant?.name && (
             <div style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.85)', marginBottom: 7, letterSpacing: '-0.01em' }}>
-              {slot.tenant.name}
+              {slot.tenant?.name}
             </div>
           )}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -3939,8 +3939,8 @@ const AnonBlock = memo(({ slot, chosenSlot, activeTier, onChoose, sz: szProp, w,
   if (occ) return (
     <div onClick={() => onChoose(slot)} style={{ width: bw, height: bh, borderRadius: r, background: slot.tenant?.b || U.s2, border: `1px solid ${isTierHighlighted ? c + '50' : isChosen ? c + '80' : c + '25'}`, position: 'relative', overflow: 'hidden', flexShrink: 0, cursor: 'pointer', outline: isChosen ? `2px solid ${c}` : 'none', outlineOffset: 1, transition: 'box-shadow 0.25s', boxShadow: isChosen ? `0 0 0 2px ${c}55, 0 0 ${sz * 0.5}px ${c}35` : isTierHighlighted ? `0 0 ${sz * 0.4}px ${c}18` : 'none' }}>
       {sz >= 12 && slot.tenant && (
-        <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: slot.tenant.b || U.s2 }}>
-          {sz >= 24 && <span style={{ color: slot.tenant.c, fontSize: Math.min(sz * 0.38, 28), fontWeight: 900, fontFamily: F.h, lineHeight: 1 }}>{slot.tenant.l}</span>}
+        <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: slot.tenant?.b || U.s2 }}>
+          {sz >= 24 && <span style={{ color: slot.tenant?.c, fontSize: Math.min(sz * 0.38, 28), fontWeight: 900, fontFamily: F.h, lineHeight: 1 }}>{slot.tenant?.l}</span>}
         </div>
       )}
     </div>
