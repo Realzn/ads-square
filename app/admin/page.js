@@ -27,19 +27,54 @@ const F = {
   b: "'DM Sans','Inter',sans-serif",
   m: "'Courier New',monospace",
 };
-const TIER_COLOR = { one:'#f0b429', ten:'#ff4d8f', corner_ten:'#f0b429', hundred:'#00d9f5', thousand:'#00e8a2' };
-const TIER_LABEL = { one:'ÉPICENTRE', ten:'PRESTIGE', corner_ten:'CORNER', hundred:'BUSINESS', thousand:'VIRAL' };
+
+// ── Tiers alignés sur lib/grid.js ────────────────────────────────────────────
+const TIER_ORDER = ['epicenter','prestige','elite','business','standard','viral'];
+const TIER_COLOR = {
+  epicenter: '#f0b429',
+  prestige:  '#ff4d8f',
+  elite:     '#a855f7',
+  business:  '#00d9f5',
+  standard:  '#38bdf8',
+  viral:     '#00e8a2',
+};
+const TIER_LABEL = {
+  epicenter: 'ÉPICENTRE',
+  prestige:  'PRESTIGE',
+  elite:     'ELITE',
+  business:  'BUSINESS',
+  standard:  'STANDARD',
+  viral:     'VIRAL',
+};
+const TIER_PRICE_DISPLAY = {
+  epicenter: '€1 000/j',
+  prestige:  '€100/j',
+  elite:     '€50/j',
+  business:  '€10/j',
+  standard:  '€3/j',
+  viral:     '€1/j',
+};
+// Nombre de blocs par tier (grille 36×36, distance de Chebyshev)
+const TIER_COUNT = {
+  epicenter: 1,    // d=0
+  prestige:  8,    // d=1 → 3×3-1
+  elite:     40,   // d≤3 → 7×7-3×3
+  business:  176,  // d≤7 → 15×15-7×7
+  standard:  400,  // d≤12 → 25×25-15×15
+  viral:     671,  // d>12 → 36×36-25×25
+};
+const GRID_TOTAL = 1296; // 36×36
 
 // ─── Helpers UI ────────────────────────────────────────────────────────────
-const fmt = (cents) => `€${(cents / 100).toLocaleString('fr-FR', { minimumFractionDigits: 0 })}`;
+const fmt  = (c) => `€${(c / 100).toLocaleString('fr-FR', { minimumFractionDigits: 0 })}`;
 const fmtN = (n) => (n || 0).toLocaleString('fr-FR');
-const ago = (dt) => {
+const ago  = (dt) => {
   if (!dt) return '—';
   const s = Math.floor((Date.now() - new Date(dt)) / 1000);
-  if (s < 60) return 'il y a ' + s + 's';
-  if (s < 3600) return 'il y a ' + Math.floor(s/60) + 'min';
-  if (s < 86400) return 'il y a ' + Math.floor(s/3600) + 'h';
-  return 'il y a ' + Math.floor(s/86400) + 'j';
+  if (s < 60) return `il y a ${s}s`;
+  if (s < 3600) return `il y a ${Math.floor(s/60)}min`;
+  if (s < 86400) return `il y a ${Math.floor(s/3600)}h`;
+  return `il y a ${Math.floor(s/86400)}j`;
 };
 
 function Badge({ label, color = A.muted, bg }) {
@@ -52,7 +87,6 @@ function Badge({ label, color = A.muted, bg }) {
     }}>{label}</span>
   );
 }
-
 function StatusBadge({ status }) {
   const map = {
     active:    { label: 'ACTIF',      color: A.green },
@@ -65,12 +99,10 @@ function StatusBadge({ status }) {
   const { label, color } = map[status] || { label: status?.toUpperCase(), color: A.muted };
   return <Badge label={label} color={color} />;
 }
-
 function TierBadge({ tier }) {
   const c = TIER_COLOR[tier] || A.muted;
   return <Badge label={TIER_LABEL[tier] || tier?.toUpperCase()} color={c} />;
 }
-
 function Btn({ children, onClick, variant = 'primary', size = 'md', disabled, style: extra }) {
   const base = {
     display: 'inline-flex', alignItems: 'center', gap: 6,
@@ -82,11 +114,11 @@ function Btn({ children, onClick, variant = 'primary', size = 'md', disabled, st
     fontSize: size === 'sm' ? 12 : size === 'xs' ? 11 : 13,
   };
   const variants = {
-    primary:  { background: A.accent, color: A.accentFg },
-    ghost:    { background: A.faint,  color: A.text,  border: `1px solid ${A.border2}` },
-    danger:   { background: 'rgba(239,68,68,0.12)', color: A.red, border: '1px solid rgba(239,68,68,0.3)' },
-    success:  { background: 'rgba(34,197,94,0.12)', color: A.green, border: '1px solid rgba(34,197,94,0.3)' },
-    blue:     { background: 'rgba(59,130,246,0.12)', color: A.blue, border: '1px solid rgba(59,130,246,0.3)' },
+    primary: { background: A.accent, color: A.accentFg },
+    ghost:   { background: A.faint,  color: A.text,  border: `1px solid ${A.border2}` },
+    danger:  { background: 'rgba(239,68,68,0.12)', color: A.red,   border: '1px solid rgba(239,68,68,0.3)' },
+    success: { background: 'rgba(34,197,94,0.12)',  color: A.green, border: '1px solid rgba(34,197,94,0.3)' },
+    blue:    { background: 'rgba(59,130,246,0.12)', color: A.blue,  border: '1px solid rgba(59,130,246,0.3)' },
   };
   return (
     <button onClick={onClick} disabled={disabled} style={{ ...base, ...variants[variant], ...extra }}>
@@ -94,40 +126,27 @@ function Btn({ children, onClick, variant = 'primary', size = 'md', disabled, st
     </button>
   );
 }
-
-function Input({ value, onChange, placeholder, style: extra }) {
+function Input({ value, onChange, placeholder, style: extra, type = 'text' }) {
   return (
-    <input
-      value={value} onChange={e => onChange(e.target.value)}
-      placeholder={placeholder}
+    <input type={type} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder}
       style={{
-        background: A.s1, border: `1px solid ${A.border2}`,
-        borderRadius: 7, color: A.text, fontFamily: F.b,
-        fontSize: 13, padding: '8px 12px', outline: 'none',
+        background: A.s1, border: `1px solid ${A.border2}`, borderRadius: 7,
+        color: A.text, fontFamily: F.b, fontSize: 13, padding: '8px 12px', outline: 'none',
         width: '100%', boxSizing: 'border-box', ...extra,
       }}
     />
   );
 }
-
 function Card({ children, style: extra }) {
   return (
-    <div style={{
-      background: A.card, border: `1px solid ${A.border}`,
-      borderRadius: 12, padding: 20, ...extra,
-    }}>
+    <div style={{ background: A.card, border: `1px solid ${A.border}`, borderRadius: 12, padding: 20, ...extra }}>
       {children}
     </div>
   );
 }
-
 function KPI({ label, value, sub, color = A.accent, icon }) {
   return (
-    <div style={{
-      background: A.card, border: `1px solid ${A.border}`,
-      borderRadius: 12, padding: '18px 20px',
-      display: 'flex', flexDirection: 'column', gap: 6,
-    }}>
+    <div style={{ background: A.card, border: `1px solid ${A.border}`, borderRadius: 12, padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: 6 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <div style={{ fontSize: 11, color: A.muted, fontWeight: 600, letterSpacing: '0.07em', textTransform: 'uppercase', fontFamily: F.b }}>{label}</div>
         {icon && <div style={{ fontSize: 18, opacity: 0.7 }}>{icon}</div>}
@@ -137,23 +156,12 @@ function KPI({ label, value, sub, color = A.accent, icon }) {
     </div>
   );
 }
-
 function Modal({ title, onClose, children, width = 520 }) {
   return (
-    <div style={{
-      position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)',
-      zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center',
-      padding: 20,
-    }} onClick={e => e.target === e.currentTarget && onClose()}>
-      <div style={{
-        background: A.card, border: `1px solid ${A.border2}`,
-        borderRadius: 14, width: '100%', maxWidth: width,
-        maxHeight: '90vh', overflow: 'auto',
-      }}>
-        <div style={{
-          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-          padding: '18px 22px', borderBottom: `1px solid ${A.border}`,
-        }}>
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
+      onClick={e => e.target === e.currentTarget && onClose()}>
+      <div style={{ background: A.card, border: `1px solid ${A.border2}`, borderRadius: 14, width: '100%', maxWidth: width, maxHeight: '90vh', overflow: 'auto' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '18px 22px', borderBottom: `1px solid ${A.border}` }}>
           <div style={{ fontWeight: 700, fontSize: 15, fontFamily: F.h, color: A.text }}>{title}</div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: A.muted, cursor: 'pointer', fontSize: 18, padding: 4 }}>✕</button>
         </div>
@@ -162,7 +170,6 @@ function Modal({ title, onClose, children, width = 520 }) {
     </div>
   );
 }
-
 function Toast({ msg, type, onDismiss }) {
   useEffect(() => { if (msg) { const t = setTimeout(onDismiss, 3000); return () => clearTimeout(t); } }, [msg]);
   if (!msg) return null;
@@ -176,14 +183,41 @@ function Toast({ msg, type, onDismiss }) {
     }}>{msg}</div>
   );
 }
+function SectionTitle({ children }) {
+  return <div style={{ fontSize: 11, fontWeight: 700, color: A.muted, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 12, fontFamily: F.b }}>{children}</div>;
+}
+function LoadingSpinner() {
+  return (
+    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 200 }}>
+      <div style={{ width: 32, height: 32, borderRadius: '50%', border: `3px solid ${A.border2}`, borderTopColor: A.accent, animation: 'spin 0.8s linear infinite' }} />
+    </div>
+  );
+}
+// Toggle switch component
+function Toggle({ on, onChange, loading }) {
+  return (
+    <div onClick={() => !loading && onChange(!on)} style={{
+      width: 48, height: 26, borderRadius: 13,
+      background: on ? A.green : 'rgba(255,255,255,0.12)',
+      position: 'relative', cursor: loading ? 'wait' : 'pointer',
+      transition: 'background 0.25s', flexShrink: 0,
+      opacity: loading ? 0.6 : 1,
+    }}>
+      <div style={{
+        position: 'absolute', top: 3, left: on ? 25 : 3,
+        width: 20, height: 20, borderRadius: '50%',
+        background: '#fff', transition: 'left 0.25s',
+        boxShadow: '0 1px 4px rgba(0,0,0,0.4)',
+      }} />
+    </div>
+  );
+}
 
 // ─── API Helper ────────────────────────────────────────────────────────────
 const useAdminAPI = (token) => {
   const call = useCallback(async (action, params = {}) => {
     const qs = new URLSearchParams({ action, ...params }).toString();
-    const res = await fetch(`/api/admin?${qs}`, {
-      headers: { 'x-admin-token': token },
-    });
+    const res = await fetch(`/api/admin?${qs}`, { headers: { 'x-admin-token': token } });
     if (!res.ok) throw new Error((await res.json()).error || 'Erreur API');
     return res.json();
   }, [token]);
@@ -207,16 +241,10 @@ const useAdminAPI = (token) => {
 function TabOverview({ api }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    api.call('stats').then(setData).finally(() => setLoading(false));
-  }, []);
-
+  useEffect(() => { api.call('stats').then(setData).finally(() => setLoading(false)); }, []);
   if (loading) return <LoadingSpinner />;
   const s = data?.stats || {};
   const tierStats = data?.tierStats || [];
-
-  // Calcul mini-graphe des 30 derniers jours
   const recent = data?.recentBookings || [];
   const dayMap = {};
   recent.forEach(b => {
@@ -227,62 +255,46 @@ function TabOverview({ api }) {
   });
   const days30 = Array.from({ length: 30 }, (_, i) => {
     const d = new Date(Date.now() - (29 - i) * 86400000).toISOString().slice(0, 10);
-    return { d, ...( dayMap[d] || { revenue: 0, count: 0 }) };
+    return { d, ...(dayMap[d] || { revenue: 0, count: 0 }) };
   });
   const maxRev = Math.max(...days30.map(d => d.revenue), 1);
+  const occPct = Math.round((s.occupied_slots || 0) / GRID_TOTAL * 100);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-
-      {/* KPIs Row 1 — Revenus */}
       <div>
         <SectionTitle>💰 Revenus</SectionTitle>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12 }}>
-          <KPI label="Revenu Total" value={fmt(s.total_revenue_cents || 0)} icon="💶" />
-          <KPI label="Ce mois" value={fmt(s.revenue_this_month_cents || 0)} color={A.green} icon="📈" />
-          <KPI label="MRR (blocs actifs)" value={fmt(s.mrr_cents || 0)} color={A.cyan} icon="🔄" />
-          <KPI label="Panier moyen" value={s.total_bookings > 0 ? fmt(Math.round((s.total_revenue_cents || 0) / s.total_bookings)) : '—'} color={A.purple} icon="🛒" />
+          <KPI label="Revenu Total"   value={fmt(s.total_revenue_cents || 0)} icon="💶" />
+          <KPI label="Ce mois"        value={fmt(s.revenue_this_month_cents || 0)} color={A.green} icon="📈" />
+          <KPI label="MRR"            value={fmt(s.mrr_cents || 0)} color={A.cyan} icon="🔄" />
+          <KPI label="Panier moyen"   value={s.total_bookings > 0 ? fmt(Math.round((s.total_revenue_cents || 0) / s.total_bookings)) : '—'} color={A.purple} icon="🛒" />
         </div>
       </div>
-
-      {/* Mini graphe revenus 30j */}
       <Card>
         <div style={{ fontSize: 12, fontWeight: 700, color: A.muted, letterSpacing: '0.07em', marginBottom: 14 }}>REVENUS — 30 DERNIERS JOURS</div>
         <div style={{ display: 'flex', alignItems: 'flex-end', gap: 3, height: 80 }}>
           {days30.map((d, i) => {
             const h = Math.max(2, Math.round((d.revenue / maxRev) * 72));
-            return (
-              <div key={i} title={`${d.d} — ${fmt(d.revenue)} (${d.count} booking${d.count > 1 ? 's' : ''})`}
-                style={{
-                  flex: 1, height: h, borderRadius: 3,
-                  background: d.revenue > 0
-                    ? `linear-gradient(to top, ${A.accent}, ${A.accent}80)`
-                    : A.border,
-                  cursor: 'default', transition: 'opacity 0.2s',
-                }}
-              />
-            );
+            return <div key={i} title={`${d.d} — ${fmt(d.revenue)} (${d.count} booking${d.count > 1 ? 's' : ''})`}
+              style={{ flex: 1, height: h, borderRadius: 3, background: d.revenue > 0 ? `linear-gradient(to top,${A.accent},${A.accent}80)` : A.border }} />;
           })}
         </div>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6, color: A.muted, fontSize: 10 }}>
           <span>-30j</span><span>aujourd'hui</span>
         </div>
       </Card>
-
-      {/* KPIs Row 2 — Plateforme */}
       <div>
         <SectionTitle>📊 Plateforme</SectionTitle>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12 }}>
-          <KPI label="Blocs Actifs" value={fmtN(s.active_bookings)} color={A.green} icon="🟢"
-               sub={`sur 1369 · ${Math.round((s.occupied_slots || 0) / 1369 * 100)}% d'occupation`} />
-          <KPI label="En attente" value={fmtN(s.pending_bookings)} color={A.accent} icon="⏳" />
-          <KPI label="Utilisateurs" value={fmtN(s.total_advertisers)} color={A.blue} icon="👤"
+          <KPI label="Blocs Actifs"  value={fmtN(s.active_bookings)} color={A.green} icon="🟢"
+               sub={`sur ${GRID_TOTAL} · ${occPct}% d'occupation`} />
+          <KPI label="En attente"    value={fmtN(s.pending_bookings)} color={A.accent} icon="⏳" />
+          <KPI label="Utilisateurs"  value={fmtN(s.total_advertisers)} color={A.blue} icon="👤"
                sub={`${s.active_advertisers} actifs`} />
-          <KPI label="Offres en attente" value={fmtN(s.pending_offers)} color={A.orange} icon="🤝" />
+          <KPI label="Offres en att" value={fmtN(s.pending_offers)} color={A.orange} icon="🤝" />
         </div>
       </div>
-
-      {/* Répartition par tier */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
         <Card>
           <div style={{ fontSize: 12, fontWeight: 700, color: A.muted, letterSpacing: '0.07em', marginBottom: 14 }}>OCCUPATION PAR TIER</div>
@@ -299,26 +311,22 @@ function TabOverview({ api }) {
                   <span style={{ color: c, fontSize: 12, fontWeight: 700 }}>{pct}%</span>
                 </div>
                 <div style={{ height: 5, borderRadius: 3, background: A.border }}>
-                  <div style={{ height: 5, borderRadius: 3, width: `${pct}%`, background: `linear-gradient(90deg, ${c}90, ${c})`, transition: 'width 0.5s' }} />
+                  <div style={{ height: 5, borderRadius: 3, width: `${pct}%`, background: `linear-gradient(90deg,${c}90,${c})`, transition: 'width 0.5s' }} />
                 </div>
               </div>
             );
           })}
         </Card>
-
         <Card>
           <div style={{ fontSize: 12, fontWeight: 700, color: A.muted, letterSpacing: '0.07em', marginBottom: 14 }}>ENGAGEMENT</div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
             {[
-              ['Clics totaux', fmtN(s.total_clicks), '🖱'],
-              ['Impressions', fmtN(s.total_impressions), '👁'],
-              ['CTR moyen', s.total_impressions > 0 ? `${((s.total_clicks / s.total_impressions) * 100).toFixed(2)}%` : '—', '📊'],
-              ['Bookings total', fmtN(s.total_bookings), '📋'],
+              ['Clics totaux',  fmtN(s.total_clicks),       '🖱'],
+              ['Impressions',   fmtN(s.total_impressions),   '👁'],
+              ['CTR moyen',     s.total_impressions > 0 ? `${((s.total_clicks / s.total_impressions) * 100).toFixed(2)}%` : '—', '📊'],
+              ['Bookings total',fmtN(s.total_bookings),      '📋'],
             ].map(([label, val, icon]) => (
-              <div key={label} style={{
-                padding: '12px', borderRadius: 8,
-                background: A.s2, border: `1px solid ${A.border}`,
-              }}>
+              <div key={label} style={{ padding: '12px', borderRadius: 8, background: A.s2, border: `1px solid ${A.border}` }}>
                 <div style={{ fontSize: 18, marginBottom: 4 }}>{icon}</div>
                 <div style={{ fontSize: 18, fontWeight: 800, color: A.text, fontFamily: F.h }}>{val}</div>
                 <div style={{ fontSize: 10, color: A.muted, marginTop: 2 }}>{label}</div>
@@ -335,29 +343,26 @@ function TabOverview({ api }) {
 // TAB : RÉSERVATIONS
 // ══════════════════════════════════════════════════════════════════════════
 function TabBookings({ api, onToast }) {
-  const [bookings, setBookings] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
-  const [tierFilter, setTierFilter] = useState('all');
-  const [selected, setSelected] = useState(null);
-  const [modal, setModal] = useState(null); // 'cancel' | 'extend' | 'activate'
-  const [reason, setReason] = useState('');
-  const [extraDays, setExtraDays] = useState('30');
-  const [actionLoading, setActionLoading] = useState(false);
+  const [bookings,       setBookings]       = useState([]);
+  const [loading,        setLoading]        = useState(true);
+  const [search,         setSearch]         = useState('');
+  const [statusFilter,   setStatusFilter]   = useState('all');
+  const [tierFilter,     setTierFilter]     = useState('all');
+  const [selected,       setSelected]       = useState(null);
+  const [modal,          setModal]          = useState(null);
+  const [reason,         setReason]         = useState('');
+  const [extraDays,      setExtraDays]      = useState('30');
+  const [actionLoading,  setActionLoading]  = useState(false);
 
   const load = useCallback(() => {
     setLoading(true);
-    api.call('bookings', { status: statusFilter, tier: tierFilter, search }).then(d => {
-      setBookings(d.bookings || []);
-    }).finally(() => setLoading(false));
+    api.call('bookings', { status: statusFilter, tier: tierFilter, search })
+      .then(d => setBookings(d.bookings || []))
+      .finally(() => setLoading(false));
   }, [statusFilter, tierFilter, search]);
 
   useEffect(() => { load(); }, [statusFilter, tierFilter]);
-  useEffect(() => {
-    const t = setTimeout(load, 350);
-    return () => clearTimeout(t);
-  }, [search]);
+  useEffect(() => { const t = setTimeout(load, 350); return () => clearTimeout(t); }, [search]);
 
   const doAction = async (action, extra = {}) => {
     setActionLoading(true);
@@ -372,8 +377,8 @@ function TabBookings({ api, onToast }) {
 
   const StatusFilter = ({ val, label }) => (
     <button onClick={() => setStatusFilter(val)} style={{
-      padding: '5px 12px', borderRadius: 6, fontSize: 12, fontWeight: 600,
-      cursor: 'pointer', fontFamily: F.b, border: 'none',
+      padding: '5px 12px', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer',
+      fontFamily: F.b, border: 'none',
       background: statusFilter === val ? A.accent : A.faint,
       color: statusFilter === val ? A.accentFg : A.muted,
     }}>{label}</button>
@@ -381,8 +386,6 @@ function TabBookings({ api, onToast }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-
-      {/* Filters */}
       <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
         <Input value={search} onChange={setSearch} placeholder="🔍 Nom, email…" style={{ maxWidth: 260 }} />
         <div style={{ display: 'flex', gap: 6, background: A.s1, padding: '4px', borderRadius: 8 }}>
@@ -391,7 +394,7 @@ function TabBookings({ api, onToast }) {
           )}
         </div>
         <div style={{ display: 'flex', gap: 6, background: A.s1, padding: '4px', borderRadius: 8 }}>
-          {[['all','Tiers'],['one','Épicentre'],['ten','Prestige'],['hundred','Business'],['thousand','Viral']].map(([v,l]) => (
+          {[['all','Tiers'],...TIER_ORDER.map(t => [t, TIER_LABEL[t]])].map(([v,l]) => (
             <button key={v} onClick={() => setTierFilter(v)} style={{
               padding: '5px 10px', borderRadius: 6, fontSize: 11, fontWeight: 600,
               cursor: 'pointer', fontFamily: F.b, border: 'none',
@@ -403,7 +406,6 @@ function TabBookings({ api, onToast }) {
         <div style={{ marginLeft: 'auto', color: A.muted, fontSize: 12 }}>{bookings.length} résultats</div>
       </div>
 
-      {/* Table */}
       <Card style={{ padding: 0, overflow: 'auto' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
           <thead>
@@ -441,9 +443,9 @@ function TabBookings({ api, onToast }) {
                   <div style={{ fontSize: 10 }}>{b.ctr_pct}% CTR</div>
                 </td>
                 <td style={{ padding: '10px 14px' }}>
-                  {b.pending_offers > 0 ? (
-                    <Badge label={`${b.pending_offers} offre${b.pending_offers > 1 ? 's' : ''}`} color={A.orange} />
-                  ) : <span style={{ color: A.muted }}>—</span>}
+                  {b.pending_offers > 0
+                    ? <Badge label={`${b.pending_offers} offre${b.pending_offers > 1 ? 's' : ''}`} color={A.orange} />
+                    : <span style={{ color: A.muted }}>—</span>}
                 </td>
                 <td style={{ padding: '10px 14px' }}>
                   <div style={{ display: 'flex', gap: 4 }} onClick={e => e.stopPropagation()}>
@@ -464,15 +466,14 @@ function TabBookings({ api, onToast }) {
         </table>
       </Card>
 
-      {/* Modals */}
       {modal === 'cancel' && selected && (
         <Modal title={`Annuler — ${selected.display_name}`} onClose={() => { setModal(null); setReason(''); }}>
-          <p style={{ color: A.muted, marginBottom: 16, fontSize: 13 }}>Cette action annule le booking. Le slot sera libéré immédiatement.</p>
+          <p style={{ color: A.muted, marginBottom: 16, fontSize: 13 }}>Le slot sera libéré immédiatement.</p>
           <Input value={reason} onChange={setReason} placeholder="Raison (optionnel)" style={{ marginBottom: 16 }} />
           <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
             <Btn variant="ghost" onClick={() => setModal(null)}>Annuler</Btn>
             <Btn variant="danger" onClick={() => doAction('cancel_booking')} disabled={actionLoading}>
-              {actionLoading ? '…' : 'Confirmer l\'annulation'}
+              {actionLoading ? '…' : "Confirmer l'annulation"}
             </Btn>
           </div>
         </Modal>
@@ -481,7 +482,7 @@ function TabBookings({ api, onToast }) {
         <Modal title={`Prolonger — ${selected.display_name}`} onClose={() => setModal(null)}>
           <p style={{ color: A.muted, marginBottom: 16, fontSize: 13 }}>Fin actuelle : <strong style={{ color: A.text }}>{selected.end_date}</strong></p>
           <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-            {[7, 14, 30, 60, 90].map(n => (
+            {[7,14,30,60,90].map(n => (
               <Btn key={n} size="sm" variant={extraDays === String(n) ? 'primary' : 'ghost'} onClick={() => setExtraDays(String(n))}>+{n}j</Btn>
             ))}
           </div>
@@ -495,7 +496,7 @@ function TabBookings({ api, onToast }) {
       )}
       {modal === 'activate' && selected && (
         <Modal title={`Forcer activation — ${selected.display_name}`} onClose={() => setModal(null)}>
-          <p style={{ color: A.muted, marginBottom: 20, fontSize: 13 }}>Passer ce booking de <strong style={{ color: A.accent }}>En attente</strong> à <strong style={{ color: A.green }}>Actif</strong> sans paiement Stripe.</p>
+          <p style={{ color: A.muted, marginBottom: 20, fontSize: 13 }}>Passer de <strong style={{ color: A.accent }}>En attente</strong> → <strong style={{ color: A.green }}>Actif</strong> sans paiement Stripe.</p>
           <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
             <Btn variant="ghost" onClick={() => setModal(null)}>Annuler</Btn>
             <Btn variant="success" onClick={() => doAction('activate_booking')} disabled={actionLoading}>
@@ -512,18 +513,17 @@ function TabBookings({ api, onToast }) {
 // TAB : UTILISATEURS
 // ══════════════════════════════════════════════════════════════════════════
 function TabUsers({ api, onToast }) {
-  const [users, setUsers] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
-  const [filter, setFilter] = useState('all');
-  const [selected, setSelected] = useState(null);
-  const [noteText, setNoteText] = useState('');
+  const [users,         setUsers]         = useState([]);
+  const [loading,       setLoading]       = useState(true);
+  const [search,        setSearch]        = useState('');
+  const [filter,        setFilter]        = useState('all');
+  const [selected,      setSelected]      = useState(null);
+  const [noteText,      setNoteText]      = useState('');
   const [actionLoading, setActionLoading] = useState(false);
 
   const load = useCallback(() => {
     api.call('users', { search, filter }).then(d => setUsers(d.users || [])).finally(() => setLoading(false));
   }, [search, filter]);
-
   useEffect(() => { load(); }, [filter]);
   useEffect(() => { const t = setTimeout(load, 350); return () => clearTimeout(t); }, [search]);
 
@@ -542,17 +542,14 @@ function TabUsers({ api, onToast }) {
 
   return (
     <div style={{ display: 'flex', gap: 16 }}>
-
-      {/* Liste */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 12 }}>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
           <Input value={search} onChange={setSearch} placeholder="🔍 Email, nom…" style={{ maxWidth: 280 }} />
-          {[['all','Tous'],['active','Actifs'],['suspended','Suspendus']].map(([v, l]) => (
+          {[['all','Tous'],['active','Actifs'],['suspended','Suspendus']].map(([v,l]) => (
             <Btn key={v} size="sm" variant={filter === v ? 'primary' : 'ghost'} onClick={() => setFilter(v)}>{l}</Btn>
           ))}
           <div style={{ marginLeft: 'auto', color: A.muted, fontSize: 12 }}>{users.length} utilisateurs</div>
         </div>
-
         <Card style={{ padding: 0, overflow: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
             <thead>
@@ -575,9 +572,7 @@ function TabUsers({ api, onToast }) {
                     <div style={{ fontWeight: 600, color: A.text }}>{u.display_name}</div>
                     <div style={{ color: A.muted, fontSize: 10 }}>{u.email}</div>
                   </td>
-                  <td style={{ padding: '10px 14px' }}>
-                    <Badge label={u.profile_type?.toUpperCase()} color={PROFILE_COLOR[u.profile_type] || A.muted} />
-                  </td>
+                  <td style={{ padding: '10px 14px' }}><Badge label={u.profile_type?.toUpperCase()} color={PROFILE_COLOR[u.profile_type] || A.muted} /></td>
                   <td style={{ padding: '10px 14px' }}>
                     <div style={{ color: A.text }}>{u.active_bookings} actifs</div>
                     <div style={{ color: A.muted, fontSize: 10 }}>{u.total_bookings} total</div>
@@ -585,7 +580,9 @@ function TabUsers({ api, onToast }) {
                   <td style={{ padding: '10px 14px', color: A.accent, fontWeight: 700, fontFamily: F.h }}>{fmt(u.lifetime_value_cents)}</td>
                   <td style={{ padding: '10px 14px', color: A.muted, fontSize: 11 }}>{ago(u.last_booking_at)}</td>
                   <td style={{ padding: '10px 14px' }}>
-                    {u.is_suspended ? <Badge label="SUSPENDU" color={A.red} /> : u.active_bookings > 0 ? <Badge label="ACTIF" color={A.green} /> : <Badge label="INACTIF" color={A.muted} />}
+                    {u.is_suspended ? <Badge label="SUSPENDU" color={A.red} />
+                      : u.active_bookings > 0 ? <Badge label="ACTIF" color={A.green} />
+                      : <Badge label="INACTIF" color={A.muted} />}
                   </td>
                 </tr>
               ))}
@@ -594,7 +591,6 @@ function TabUsers({ api, onToast }) {
         </Card>
       </div>
 
-      {/* Panel latéral détail */}
       {selected && (
         <div style={{ width: 300, flexShrink: 0 }}>
           <Card style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -605,62 +601,32 @@ function TabUsers({ api, onToast }) {
               </div>
               <button onClick={() => setSelected(null)} style={{ background: 'none', border: 'none', color: A.muted, cursor: 'pointer', fontSize: 16 }}>✕</button>
             </div>
-
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-              {[
-                ['LTV', fmt(selected.lifetime_value_cents)],
-                ['Bookings', `${selected.total_bookings}`],
-                ['Actifs', `${selected.active_bookings}`],
-                ['Expirés', `${selected.expired_bookings}`],
-              ].map(([l, v]) => (
+              {[['LTV',fmt(selected.lifetime_value_cents)],['Bookings',`${selected.total_bookings}`],['Actifs',`${selected.active_bookings}`],['Expirés',`${selected.expired_bookings}`]].map(([l,v]) => (
                 <div key={l} style={{ padding: '10px', background: A.s2, borderRadius: 8, border: `1px solid ${A.border}` }}>
                   <div style={{ fontSize: 10, color: A.muted, marginBottom: 3 }}>{l}</div>
                   <div style={{ fontWeight: 700, color: A.text, fontFamily: F.h }}>{v}</div>
                 </div>
               ))}
             </div>
-
             {selected.stripe_customer_id && (
               <div style={{ padding: '8px 10px', background: A.s2, borderRadius: 8, border: `1px solid ${A.border}` }}>
                 <div style={{ fontSize: 10, color: A.muted, marginBottom: 2 }}>Stripe Customer</div>
                 <a href={`https://dashboard.stripe.com/customers/${selected.stripe_customer_id}`} target="_blank" rel="noreferrer"
-                  style={{ color: A.cyan, fontSize: 11, fontFamily: F.m }}>
-                  {selected.stripe_customer_id.slice(0, 24)}…
-                </a>
+                  style={{ color: A.cyan, fontSize: 11, fontFamily: F.m }}>{selected.stripe_customer_id.slice(0, 24)}…</a>
               </div>
             )}
-
-            {/* Note admin */}
             <div>
               <div style={{ fontSize: 10, color: A.muted, marginBottom: 6, fontWeight: 600, letterSpacing: '0.07em' }}>NOTE ADMIN</div>
-              <textarea
-                value={noteText}
-                onChange={e => setNoteText(e.target.value)}
-                placeholder="Ajouter une note interne…"
-                style={{
-                  width: '100%', background: A.s1, border: `1px solid ${A.border2}`,
-                  borderRadius: 7, color: A.text, fontFamily: F.b,
-                  fontSize: 12, padding: '8px 10px', outline: 'none',
-                  resize: 'vertical', minHeight: 80, boxSizing: 'border-box',
-                }}
-              />
+              <textarea value={noteText} onChange={e => setNoteText(e.target.value)} placeholder="Ajouter une note interne…"
+                style={{ width: '100%', background: A.s1, border: `1px solid ${A.border2}`, borderRadius: 7, color: A.text, fontFamily: F.b, fontSize: 12, padding: '8px 10px', outline: 'none', resize: 'vertical', minHeight: 80, boxSizing: 'border-box' }} />
               <Btn size="sm" variant="ghost" style={{ marginTop: 6, width: '100%', justifyContent: 'center' }}
-                onClick={() => doAction('update_user_note')} disabled={actionLoading}>
-                Enregistrer la note
-              </Btn>
+                onClick={() => doAction('update_user_note')} disabled={actionLoading}>Enregistrer la note</Btn>
             </div>
-
-            {/* Actions */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {selected.is_suspended ? (
-                <Btn variant="success" onClick={() => doAction('unsuspend_user')} disabled={actionLoading}>
-                  ✓ Réactiver le compte
-                </Btn>
-              ) : (
-                <Btn variant="danger" onClick={() => doAction('suspend_user', { note: noteText })} disabled={actionLoading}>
-                  ⊗ Suspendre le compte
-                </Btn>
-              )}
+              {selected.is_suspended
+                ? <Btn variant="success" onClick={() => doAction('unsuspend_user')} disabled={actionLoading}>✓ Réactiver le compte</Btn>
+                : <Btn variant="danger" onClick={() => doAction('suspend_user', { note: noteText })} disabled={actionLoading}>⊗ Suspendre le compte</Btn>}
               <div style={{ fontSize: 10, color: A.muted, textAlign: 'center' }}>
                 Membre depuis {selected.created_at ? new Date(selected.created_at).toLocaleDateString('fr-FR') : '—'}
               </div>
@@ -679,13 +645,8 @@ function TabOffers({ api, onToast }) {
   const [offers, setOffers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
-
-  const load = () => {
-    setLoading(true);
-    api.call('offers').then(d => setOffers(d.offers || [])).finally(() => setLoading(false));
-  };
+  const load = () => { setLoading(true); api.call('offers').then(d => setOffers(d.offers || [])).finally(() => setLoading(false)); };
   useEffect(load, []);
-
   const resolve = async (offerId, resolution) => {
     setActionLoading(true);
     try {
@@ -695,66 +656,49 @@ function TabOffers({ api, onToast }) {
     } catch (e) { onToast({ msg: e.message, type: 'error' }); }
     finally { setActionLoading(false); }
   };
-
-  const statusOffers = { pending: [], accepted: [], rejected: [], expired: [], cancelled: [] };
-  offers.forEach(o => { if (statusOffers[o.status]) statusOffers[o.status].push(o); else statusOffers.pending.push(o); });
-
+  const groups = { pending: [], accepted: [], rejected: [], expired: [] };
+  offers.forEach(o => { (groups[o.status] || groups.pending).push(o); });
   const OfferCard = ({ offer }) => {
-    const booking = offer.bookings || {};
-    const tierKey = booking.slot_x != null ? null : null;
+    const b = offer.bookings || {};
     const isPending = offer.status === 'pending';
     const expiresIn = offer.expires_at ? Math.max(0, Math.floor((new Date(offer.expires_at) - Date.now()) / 3600000)) : null;
-
     return (
-      <div style={{
-        padding: '16px', borderRadius: 10,
-        background: A.s1, border: `1px solid ${isPending ? A.orange + '40' : A.border}`,
-        marginBottom: 10,
-      }}>
+      <div style={{ padding: '16px', borderRadius: 10, background: A.s1, border: `1px solid ${isPending ? A.orange + '40' : A.border}`, marginBottom: 10 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
           <div>
-            <div style={{ fontWeight: 700, fontSize: 14, color: A.text, fontFamily: F.h }}>
-              {fmt(offer.offer_amount_cents)}
-            </div>
-            <div style={{ color: A.muted, fontSize: 11, marginTop: 2 }}>
-              par {offer.buyer_name || offer.buyer_email}
-            </div>
+            <div style={{ fontWeight: 700, fontSize: 14, color: A.text, fontFamily: F.h }}>{fmt(offer.offer_amount_cents)}</div>
+            <div style={{ color: A.muted, fontSize: 11, marginTop: 2 }}>par {offer.buyer_name || offer.buyer_email}</div>
           </div>
           <StatusBadge status={offer.status} />
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 10, fontSize: 11 }}>
-          <div style={{ color: A.muted }}>Slot <span style={{ color: A.cyan, fontFamily: F.m }}>({booking.slot_x},{booking.slot_y})</span></div>
-          <div style={{ color: A.muted }}>Occupant : <span style={{ color: A.text }}>{booking.display_name}</span></div>
+          <div style={{ color: A.muted }}>Slot <span style={{ color: A.cyan, fontFamily: F.m }}>({b.slot_x},{b.slot_y})</span></div>
+          <div style={{ color: A.muted }}>Occupant : <span style={{ color: A.text }}>{b.display_name}</span></div>
           <div style={{ color: A.muted }}>Email : <span style={{ color: A.text, fontSize: 10 }}>{offer.buyer_email}</span></div>
           {expiresIn !== null && <div style={{ color: expiresIn < 6 ? A.red : A.muted }}>Expire dans : <span style={{ color: A.text }}>{expiresIn}h</span></div>}
         </div>
-        {offer.message && (
-          <div style={{ padding: '8px 10px', background: A.s2, borderRadius: 7, fontSize: 11, color: A.muted, marginBottom: 10, fontStyle: 'italic' }}>
-            "{offer.message}"
-          </div>
-        )}
+        {offer.message && <div style={{ padding: '8px 10px', background: A.s2, borderRadius: 7, fontSize: 11, color: A.muted, marginBottom: 10, fontStyle: 'italic' }}>"{offer.message}"</div>}
         {isPending && (
           <div style={{ display: 'flex', gap: 8 }}>
             <Btn size="sm" variant="success" onClick={() => resolve(offer.id, 'accepted')} disabled={actionLoading}>✓ Accepter</Btn>
-            <Btn size="sm" variant="danger" onClick={() => resolve(offer.id, 'rejected')} disabled={actionLoading}>✕ Rejeter</Btn>
+            <Btn size="sm" variant="danger"  onClick={() => resolve(offer.id, 'rejected')} disabled={actionLoading}>✕ Rejeter</Btn>
           </div>
         )}
         <div style={{ marginTop: 8, fontSize: 10, color: A.muted }}>{ago(offer.created_at)}</div>
       </div>
     );
   };
-
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
       <div>
-        <SectionTitle>⏳ En attente ({statusOffers.pending.length})</SectionTitle>
-        {loading ? <LoadingSpinner /> : statusOffers.pending.length === 0 ? (
-          <div style={{ color: A.muted, fontSize: 13, padding: 20, textAlign: 'center' }}>Aucune offre en attente</div>
-        ) : statusOffers.pending.map(o => <OfferCard key={o.id} offer={o} />)}
+        <SectionTitle>⏳ En attente ({groups.pending.length})</SectionTitle>
+        {loading ? <LoadingSpinner /> : groups.pending.length === 0
+          ? <div style={{ color: A.muted, fontSize: 13, padding: 20, textAlign: 'center' }}>Aucune offre en attente</div>
+          : groups.pending.map(o => <OfferCard key={o.id} offer={o} />)}
       </div>
       <div>
         <SectionTitle>📋 Historique</SectionTitle>
-        {[...statusOffers.accepted, ...statusOffers.rejected, ...statusOffers.expired].slice(0, 20).map(o => <OfferCard key={o.id} offer={o} />)}
+        {[...groups.accepted, ...groups.rejected, ...groups.expired].slice(0, 20).map(o => <OfferCard key={o.id} offer={o} />)}
       </div>
     </div>
   );
@@ -766,71 +710,50 @@ function TabOffers({ api, onToast }) {
 function TabRevenue({ api }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    api.call('revenue').then(setData).finally(() => setLoading(false));
-  }, []);
-
+  useEffect(() => { api.call('revenue').then(setData).finally(() => setLoading(false)); }, []);
   if (loading) return <LoadingSpinner />;
-
   const monthly = data?.monthly || [];
   const topSpenders = data?.topSpenders || [];
-
-  // Group by month
   const months = {};
   monthly.forEach(row => {
     const m = row.month?.slice(0, 7);
-    if (!months[m]) months[m] = { total: 0, byTier: {} };
+    if (!months[m]) months[m] = { total: 0 };
     months[m].total += row.revenue_cents || 0;
-    months[m].byTier[row.tier] = (months[m].byTier[row.tier] || 0) + (row.revenue_cents || 0);
   });
-  const monthEntries = Object.entries(months).sort((a, b) => b[0].localeCompare(a[0])).slice(0, 12);
-  const maxMonthly = Math.max(...monthEntries.map(([, v]) => v.total), 1);
-
-  const PROFILE_COLOR = { creator: A.cyan, freelance: A.green, brand: A.accent };
+  const monthEntries = Object.entries(months).sort((a,b) => b[0].localeCompare(a[0])).slice(0, 12);
+  const maxMonthly = Math.max(...monthEntries.map(([,v]) => v.total), 1);
+  const tierRevenue = monthly.reduce((acc, row) => { acc[row.tier] = (acc[row.tier] || 0) + (row.revenue_cents || 0); return acc; }, {});
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-
-      {/* Graphe mensuel */}
       <Card>
         <div style={{ fontSize: 12, fontWeight: 700, color: A.muted, letterSpacing: '0.07em', marginBottom: 16 }}>REVENU PAR MOIS</div>
         <div style={{ display: 'flex', gap: 6, alignItems: 'flex-end', height: 120 }}>
-          {monthEntries.map(([month, { total, byTier }]) => {
+          {monthEntries.map(([month, { total }]) => {
             const h = Math.max(4, Math.round((total / maxMonthly) * 112));
             return (
-              <div key={month} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}
-                   title={`${month} — ${fmt(total)}`}>
+              <div key={month} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }} title={`${month} — ${fmt(total)}`}>
                 <div style={{ fontSize: 9, color: A.muted }}>{fmt(total)}</div>
-                <div style={{ width: '100%', height: h, borderRadius: 4, background: `linear-gradient(to top, ${A.accent}, ${A.accent}70)` }} />
+                <div style={{ width: '100%', height: h, borderRadius: 4, background: `linear-gradient(to top,${A.accent},${A.accent}70)` }} />
                 <div style={{ fontSize: 9, color: A.muted }}>{month?.slice(5)}</div>
               </div>
             );
           })}
         </div>
       </Card>
-
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-        {/* Revenue par tier */}
         <Card>
           <div style={{ fontSize: 12, fontWeight: 700, color: A.muted, letterSpacing: '0.07em', marginBottom: 14 }}>REVENU PAR TIER</div>
-          {Object.entries(
-            monthly.reduce((acc, row) => {
-              acc[row.tier] = (acc[row.tier] || 0) + (row.revenue_cents || 0);
-              return acc;
-            }, {})
-          ).sort((a, b) => b[1] - a[1]).map(([tier, total]) => {
-            const c = TIER_COLOR[tier] || A.muted;
+          {TIER_ORDER.filter(t => tierRevenue[t]).map(tier => {
+            const c = TIER_COLOR[tier];
             return (
               <div key={tier} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, padding: '10px 12px', background: A.s2, borderRadius: 8, border: `1px solid ${c}20` }}>
                 <TierBadge tier={tier} />
-                <div style={{ fontWeight: 700, color: c, fontFamily: F.h }}>{fmt(total)}</div>
+                <div style={{ fontWeight: 700, color: c, fontFamily: F.h }}>{fmt(tierRevenue[tier])}</div>
               </div>
             );
           })}
         </Card>
-
-        {/* Top spenders */}
         <Card>
           <div style={{ fontSize: 12, fontWeight: 700, color: A.muted, letterSpacing: '0.07em', marginBottom: 14 }}>TOP 10 CLIENTS</div>
           {topSpenders.map((u, i) => (
@@ -855,18 +778,11 @@ function TabRevenue({ api }) {
 function TabAnalytics({ api }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    api.call('analytics').then(setData).finally(() => setLoading(false));
-  }, []);
-
+  useEffect(() => { api.call('analytics').then(setData).finally(() => setLoading(false)); }, []);
   if (loading) return <LoadingSpinner />;
-
   const topSlots = data?.topSlots || [];
   const clicksByDay = data?.clicksByDay || [];
   const topReferrers = data?.topReferrers || [];
-
-  // Group clicks by day
   const clickDayMap = {};
   clicksByDay.forEach(c => {
     const d = c.created_at?.slice(0, 10);
@@ -879,23 +795,17 @@ function TabAnalytics({ api }) {
     return { d, ...(clickDayMap[d] || { clicks: 0, impressions: 0 }) };
   });
   const maxClicks = Math.max(...days14.map(d => d.clicks), 1);
-
-  // Top referrer domains
   const refMap = {};
   topReferrers.forEach(r => {
     if (!r.referrer) return;
-    try {
-      const domain = new URL(r.referrer).hostname || r.referrer;
-      refMap[domain] = (refMap[domain] || 0) + 1;
-    } catch { refMap[r.referrer] = (refMap[r.referrer] || 0) + 1; }
+    try { const domain = new URL(r.referrer).hostname; refMap[domain] = (refMap[domain] || 0) + 1; }
+    catch { refMap[r.referrer] = (refMap[r.referrer] || 0) + 1; }
   });
-  const refEntries = Object.entries(refMap).sort((a, b) => b[1] - a[1]).slice(0, 10);
+  const refEntries = Object.entries(refMap).sort((a,b) => b[1]-a[1]).slice(0, 10);
   const maxRef = Math.max(...refEntries.map(r => r[1]), 1);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-
-      {/* Clics 14j */}
       <Card>
         <div style={{ fontSize: 12, fontWeight: 700, color: A.muted, letterSpacing: '0.07em', marginBottom: 16 }}>CLICS — 14 DERNIERS JOURS</div>
         <div style={{ display: 'flex', gap: 4, alignItems: 'flex-end', height: 80 }}>
@@ -903,52 +813,42 @@ function TabAnalytics({ api }) {
             const h = Math.max(2, Math.round((d.clicks / maxClicks) * 72));
             return (
               <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}
-                   title={`${d.d} — ${d.clicks} clics · ${d.impressions} impressions`}>
-                <div style={{ width: '100%', height: h, borderRadius: 3, background: `linear-gradient(to top, ${A.cyan}, ${A.cyan}60)` }} />
+                title={`${d.d} — ${d.clicks} clics · ${d.impressions} impressions`}>
+                <div style={{ width: '100%', height: h, borderRadius: 3, background: `linear-gradient(to top,${A.cyan},${A.cyan}60)` }} />
                 <div style={{ fontSize: 8, color: A.muted }}>{d.d.slice(8)}</div>
               </div>
             );
           })}
         </div>
       </Card>
-
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-        {/* Top slots */}
         <Card>
           <div style={{ fontSize: 12, fontWeight: 700, color: A.muted, letterSpacing: '0.07em', marginBottom: 14 }}>TOP 20 SLOTS PAR CTR</div>
-          {topSlots.length === 0 ? (
-            <div style={{ color: A.muted, fontSize: 12 }}>Pas de données</div>
-          ) : topSlots.map((s, i) => (
-            <div key={`${s.slot_x}-${s.slot_y}`} style={{
-              display: 'flex', alignItems: 'center', gap: 10,
-              padding: '8px 10px', borderRadius: 8, marginBottom: 6,
-              background: A.s2, border: `1px solid ${A.border}`,
-            }}>
-              <div style={{ width: 20, textAlign: 'right', color: A.muted, fontSize: 11, fontWeight: 700 }}>{i + 1}</div>
-              <div style={{ fontFamily: F.m, fontSize: 11, color: A.cyan }}>({s.slot_x},{s.slot_y})</div>
-              <div style={{ flex: 1, fontSize: 11, color: A.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.display_name}</div>
-              <div style={{ fontSize: 12, fontWeight: 700, color: A.green }}>{s.ctr_pct}%</div>
-              <div style={{ fontSize: 10, color: A.muted }}>{fmtN(s.clicks_7d)}c/7j</div>
-            </div>
-          ))}
+          {topSlots.length === 0 ? <div style={{ color: A.muted, fontSize: 12 }}>Pas de données</div>
+            : topSlots.map((s, i) => (
+              <div key={`${s.slot_x}-${s.slot_y}`} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', borderRadius: 8, marginBottom: 6, background: A.s2, border: `1px solid ${A.border}` }}>
+                <div style={{ width: 20, textAlign: 'right', color: A.muted, fontSize: 11, fontWeight: 700 }}>{i + 1}</div>
+                <div style={{ fontFamily: F.m, fontSize: 11, color: A.cyan }}>({s.slot_x},{s.slot_y})</div>
+                <div style={{ flex: 1, fontSize: 11, color: A.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.display_name}</div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: A.green }}>{s.ctr_pct}%</div>
+                <div style={{ fontSize: 10, color: A.muted }}>{fmtN(s.clicks_7d)}c/7j</div>
+              </div>
+            ))}
         </Card>
-
-        {/* Top referrers */}
         <Card>
           <div style={{ fontSize: 12, fontWeight: 700, color: A.muted, letterSpacing: '0.07em', marginBottom: 14 }}>TOP SOURCES (30j)</div>
-          {refEntries.length === 0 ? (
-            <div style={{ color: A.muted, fontSize: 12 }}>Pas encore de données referrer</div>
-          ) : refEntries.map(([domain, count]) => (
-            <div key={domain} style={{ marginBottom: 10 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                <div style={{ fontSize: 12, color: A.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '70%' }}>{domain}</div>
-                <div style={{ fontSize: 11, color: A.muted }}>{count} clics</div>
+          {refEntries.length === 0 ? <div style={{ color: A.muted, fontSize: 12 }}>Pas encore de données referrer</div>
+            : refEntries.map(([domain, count]) => (
+              <div key={domain} style={{ marginBottom: 10 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                  <div style={{ fontSize: 12, color: A.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '70%' }}>{domain}</div>
+                  <div style={{ fontSize: 11, color: A.muted }}>{count} clics</div>
+                </div>
+                <div style={{ height: 4, background: A.border, borderRadius: 2 }}>
+                  <div style={{ height: 4, borderRadius: 2, width: `${(count / maxRef) * 100}%`, background: A.purple }} />
+                </div>
               </div>
-              <div style={{ height: 4, background: A.border, borderRadius: 2 }}>
-                <div style={{ height: 4, borderRadius: 2, width: `${(count / maxRef) * 100}%`, background: A.purple }} />
-              </div>
-            </div>
-          ))}
+            ))}
         </Card>
       </div>
     </div>
@@ -956,109 +856,206 @@ function TabAnalytics({ api }) {
 }
 
 // ══════════════════════════════════════════════════════════════════════════
-// TAB : CONFIGURATION
+// TAB : CONFIGURATION — tiers + blocs individuels
 // ══════════════════════════════════════════════════════════════════════════
 function TabConfig({ api, onToast }) {
-  const [tiers, setTiers] = useState([]);
-  const [audit, setAudit] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [toggling, setToggling] = useState(null);
+  const [tiers,         setTiers]         = useState([]);
+  const [overrides,     setOverrides]     = useState([]); // blocs désactivés individuellement
+  const [audit,         setAudit]         = useState([]);
+  const [loading,       setLoading]       = useState(true);
+  const [toggling,      setToggling]      = useState(null); // tier en cours de toggle
+  // Formulaire ajout slot override
+  const [slotX,         setSlotX]         = useState('');
+  const [slotY,         setSlotY]         = useState('');
+  const [slotReason,    setSlotReason]    = useState('');
+  const [slotLoading,   setSlotLoading]   = useState(false);
+  const [removingSlot,  setRemovingSlot]  = useState(null); // 'x,y'
 
-  useEffect(() => {
-    Promise.all([api.call('config'), api.call('audit')]).then(([cfg, aud]) => {
-      setTiers(cfg.tiers || []);
-      setAudit(aud.actions || []);
-    }).finally(() => setLoading(false));
-  }, []);
+  const loadAll = () => {
+    setLoading(true);
+    Promise.all([api.call('config'), api.call('audit')])
+      .then(([cfg, aud]) => {
+        // Merge tier_config rows with defaults for any missing tiers
+        const dbTierMap = {};
+        (cfg.tiers || []).forEach(t => { dbTierMap[t.tier] = t; });
+        // Ensure all 6 tiers are shown even if not yet in DB
+        const merged = TIER_ORDER.map(tier => dbTierMap[tier] || {
+          tier,
+          available:   ['business','standard','viral'].includes(tier),
+          label:       TIER_LABEL[tier],
+          price_cents: { epicenter:100000,prestige:10000,elite:5000,business:1000,standard:300,viral:100 }[tier],
+        });
+        setTiers(merged);
+        setOverrides(cfg.overrides || []);
+        setAudit(aud.actions || []);
+      })
+      .finally(() => setLoading(false));
+  };
+  useEffect(loadAll, []);
 
   const toggleTier = async (tier, currentAvailable) => {
     setToggling(tier);
     try {
       await api.post({ action: 'update_tier', tier, available: !currentAvailable });
       setTiers(prev => prev.map(t => t.tier === tier ? { ...t, available: !currentAvailable } : t));
-      onToast({ msg: `Tier ${TIER_LABEL[tier]} ${!currentAvailable ? 'ouvert' : 'fermé'} ✓`, type: 'success' });
+      onToast({ msg: `Tier ${TIER_LABEL[tier]} ${!currentAvailable ? '🟢 ouvert' : '🔒 fermé'} ✓`, type: 'success' });
     } catch (e) { onToast({ msg: e.message, type: 'error' }); }
     finally { setToggling(null); }
   };
 
-  const TIER_PRICE_DISPLAY = { one: '1 000€/j', ten: '100€/j', corner_ten: '100€/j', hundred: '10€/j', thousand: '1€/j' };
-  const TIER_COUNT = { one: 1, ten: 48, corner_ten: 4, hundred: 576, thousand: 740 };
+  const disableSlot = async () => {
+    const x = parseInt(slotX), y = parseInt(slotY);
+    if (!x || !y || x < 1 || x > 36 || y < 1 || y > 36) {
+      onToast({ msg: 'Coordonnées invalides (1–36)', type: 'error' }); return;
+    }
+    setSlotLoading(true);
+    try {
+      await api.post({ action: 'disable_slot', slotX: x, slotY: y, reason: slotReason });
+      onToast({ msg: `Bloc (${x},${y}) désactivé ✓`, type: 'success' });
+      setSlotX(''); setSlotY(''); setSlotReason('');
+      loadAll();
+    } catch (e) { onToast({ msg: e.message, type: 'error' }); }
+    finally { setSlotLoading(false); }
+  };
+
+  const enableSlot = async (x, y) => {
+    const key = `${x},${y}`;
+    setRemovingSlot(key);
+    try {
+      await api.post({ action: 'enable_slot', slotX: x, slotY: y });
+      onToast({ msg: `Bloc (${x},${y}) réactivé ✓`, type: 'success' });
+      setOverrides(prev => prev.filter(o => !(o.slot_x === x && o.slot_y === y)));
+    } catch (e) { onToast({ msg: e.message, type: 'error' }); }
+    finally { setRemovingSlot(null); }
+  };
 
   if (loading) return <LoadingSpinner />;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
 
-      {/* Tier Availability */}
+      {/* ── Section 1 : Tiers ───────────────────────────────────── */}
       <Card>
-        <div style={{ fontSize: 12, fontWeight: 700, color: A.muted, letterSpacing: '0.07em', marginBottom: 20 }}>
-          DISPONIBILITÉ DES TIERS — OUVERTURE PROGRESSIVE
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+          <div>
+            <div style={{ fontSize: 14, fontWeight: 800, color: A.text, fontFamily: F.h, marginBottom: 2 }}>Ouverture progressive des tiers</div>
+            <div style={{ fontSize: 11, color: A.muted }}>Contrôle en temps réel — sans redéploiement</div>
+          </div>
+          <div style={{ display: 'flex', gap: 6, fontSize: 11, color: A.muted }}>
+            <span style={{ color: A.green, fontWeight: 700 }}>{tiers.filter(t => t.available).length}</span> ouverts ·
+            <span style={{ color: A.muted }}>{tiers.filter(t => !t.available).length} fermés</span>
+          </div>
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {[...tiers].sort((a, b) => (b.price_cents || 0) - (a.price_cents || 0)).map(t => {
-            const c = TIER_COLOR[t.tier] || A.muted;
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {tiers.map(t => {
+            const c         = TIER_COLOR[t.tier] || A.muted;
             const isToggling = toggling === t.tier;
+            const count     = TIER_COUNT[t.tier] || 0;
+            const price     = TIER_PRICE_DISPLAY[t.tier] || '?';
             return (
               <div key={t.tier} style={{
-                display: 'flex', alignItems: 'center', gap: 16,
-                padding: '16px 20px', borderRadius: 12,
-                background: A.s1,
-                border: `1px solid ${t.available ? c + '50' : A.border}`,
+                display: 'flex', alignItems: 'center', gap: 16, padding: '14px 18px', borderRadius: 10,
+                background: A.s1, border: `1px solid ${t.available ? c + '45' : A.border}`,
                 transition: 'border-color 0.3s',
               }}>
-                {/* Tier info */}
+                {/* Color dot */}
+                <div style={{ width: 12, height: 12, borderRadius: '50%', background: c, boxShadow: `0 0 8px ${c}80`, flexShrink: 0 }} />
+
+                {/* Info */}
                 <div style={{ flex: 1 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 3 }}>
                     <TierBadge tier={t.tier} />
-                    <span style={{ color: A.muted, fontSize: 11 }}>{TIER_PRICE_DISPLAY[t.tier]}</span>
-                    <span style={{ color: A.muted, fontSize: 11 }}>·</span>
-                    <span style={{ color: A.muted, fontSize: 11 }}>{TIER_COUNT[t.tier]} bloc{TIER_COUNT[t.tier] > 1 ? 's' : ''}</span>
+                    <span style={{ color: A.muted, fontSize: 11 }}>{price}</span>
+                    <span style={{ color: A.border, fontSize: 11 }}>·</span>
+                    <span style={{ color: A.muted, fontSize: 11 }}>{count} bloc{count > 1 ? 's' : ''}</span>
                   </div>
                   {t.updated_by && (
                     <div style={{ fontSize: 10, color: A.muted }}>
-                      Modifié par {t.updated_by} · {t.updated_at ? new Date(t.updated_at).toLocaleDateString('fr-FR') : '—'}
+                      Modifié par <span style={{ color: A.text }}>{t.updated_by}</span> · {t.updated_at ? new Date(t.updated_at).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—'}
                     </div>
                   )}
                 </div>
 
-                {/* Status */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <div style={{
-                    fontSize: 11, fontWeight: 700, color: t.available ? A.green : A.muted,
-                  }}>
-                    {t.available ? '🟢 OUVERT' : '🔒 PROCHAINEMENT'}
-                  </div>
-
-                  {/* Toggle */}
-                  <div
-                    onClick={() => !isToggling && toggleTier(t.tier, t.available)}
-                    style={{
-                      width: 48, height: 26, borderRadius: 13,
-                      background: t.available ? A.green : A.border,
-                      position: 'relative', cursor: isToggling ? 'wait' : 'pointer',
-                      transition: 'background 0.3s', flexShrink: 0,
-                    }}
-                  >
-                    <div style={{
-                      position: 'absolute', top: 3,
-                      left: t.available ? 25 : 3,
-                      width: 20, height: 20, borderRadius: '50%',
-                      background: '#fff', transition: 'left 0.3s',
-                      boxShadow: '0 1px 4px rgba(0,0,0,0.4)',
-                    }} />
-                  </div>
+                {/* Status label */}
+                <div style={{ fontSize: 11, fontWeight: 700, color: t.available ? A.green : A.muted, minWidth: 120, textAlign: 'right' }}>
+                  {isToggling ? '⏳ Mise à jour…' : t.available ? '🟢 OUVERT' : '🔒 PROCHAINEMENT'}
                 </div>
+
+                {/* Toggle */}
+                <Toggle on={t.available} onChange={() => toggleTier(t.tier, t.available)} loading={isToggling} />
               </div>
             );
           })}
         </div>
 
-        <div style={{ marginTop: 16, padding: '12px 14px', background: `${A.accent}08`, borderRadius: 8, border: `1px solid ${A.accent}20`, fontSize: 11, color: A.muted }}>
-          ⚠️ Ces changements prennent effet immédiatement sur le site sans redéploiement. L'API checkout vérifie la table <code style={{ color: A.accent }}>tier_config</code> en temps réel.
+        <div style={{ marginTop: 14, padding: '10px 14px', background: `${A.accent}08`, borderRadius: 8, border: `1px solid ${A.accent}20`, fontSize: 11, color: A.muted }}>
+          ⚡ Ces changements prennent effet immédiatement. L'API checkout vérifie <code style={{ color: A.accent }}>tier_config</code> à chaque transaction.
         </div>
       </Card>
 
-      {/* Audit Log */}
+      {/* ── Section 2 : Blocs individuels ───────────────────────── */}
+      <Card>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
+          <div>
+            <div style={{ fontSize: 14, fontWeight: 800, color: A.text, fontFamily: F.h, marginBottom: 2 }}>Blocs désactivés individuellement</div>
+            <div style={{ fontSize: 11, color: A.muted }}>Désactiver un slot précis sans fermer tout son tier</div>
+          </div>
+          {overrides.length > 0 && (
+            <Badge label={`${overrides.length} bloc${overrides.length > 1 ? 's' : ''} désactivé${overrides.length > 1 ? 's' : ''}`} color={A.orange} />
+          )}
+        </div>
+
+        {/* Formulaire ajout */}
+        <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end', marginBottom: 16, padding: '14px 16px', background: A.s2, borderRadius: 10, border: `1px solid ${A.border}` }}>
+          <div style={{ flex: '0 0 90px' }}>
+            <div style={{ fontSize: 10, color: A.muted, marginBottom: 5, fontWeight: 600 }}>COLONNE X</div>
+            <Input value={slotX} onChange={setSlotX} placeholder="1–36" type="number" style={{ textAlign: 'center' }} />
+          </div>
+          <div style={{ flex: '0 0 90px' }}>
+            <div style={{ fontSize: 10, color: A.muted, marginBottom: 5, fontWeight: 600 }}>LIGNE Y</div>
+            <Input value={slotY} onChange={setSlotY} placeholder="1–36" type="number" style={{ textAlign: 'center' }} />
+          </div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 10, color: A.muted, marginBottom: 5, fontWeight: 600 }}>RAISON (optionnel)</div>
+            <Input value={slotReason} onChange={setSlotReason} placeholder="Maintenance, réservé, etc." />
+          </div>
+          <Btn variant="danger" onClick={disableSlot} disabled={slotLoading || !slotX || !slotY}>
+            {slotLoading ? '…' : '⊗ Désactiver'}
+          </Btn>
+        </div>
+
+        {/* Liste des blocs désactivés */}
+        {overrides.length === 0 ? (
+          <div style={{ padding: '24px', textAlign: 'center', color: A.muted, fontSize: 13, border: `1px dashed ${A.border}`, borderRadius: 8 }}>
+            Aucun bloc désactivé individuellement
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {overrides.map(o => (
+              <div key={`${o.slot_x},${o.slot_y}`} style={{
+                display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', borderRadius: 8,
+                background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.2)',
+              }}>
+                <div style={{ fontFamily: F.m, fontSize: 13, fontWeight: 700, color: A.red, minWidth: 70 }}>
+                  ({o.slot_x},{o.slot_y})
+                </div>
+                <div style={{ flex: 1 }}>
+                  {o.reason && <div style={{ fontSize: 12, color: A.text }}>{o.reason}</div>}
+                  <div style={{ fontSize: 10, color: A.muted }}>Désactivé {ago(o.updated_at)}{o.updated_by ? ` par ${o.updated_by}` : ''}</div>
+                </div>
+                <Btn size="xs" variant="success"
+                  onClick={() => enableSlot(o.slot_x, o.slot_y)}
+                  disabled={removingSlot === `${o.slot_x},${o.slot_y}`}>
+                  {removingSlot === `${o.slot_x},${o.slot_y}` ? '…' : '✓ Réactiver'}
+                </Btn>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+
+      {/* ── Section 3 : Audit log ────────────────────────────────── */}
       <Card>
         <div style={{ fontSize: 12, fontWeight: 700, color: A.muted, letterSpacing: '0.07em', marginBottom: 14 }}>
           JOURNAL D'AUDIT — 100 DERNIÈRES ACTIONS
@@ -1068,36 +1065,22 @@ function TabConfig({ api, onToast }) {
         ) : (
           <div style={{ maxHeight: 400, overflow: 'auto' }}>
             {audit.map(a => (
-              <div key={a.id} style={{
-                display: 'flex', gap: 12, alignItems: 'flex-start',
-                padding: '8px 0', borderBottom: `1px solid ${A.border}`,
-                fontSize: 12,
-              }}>
-                <div style={{ color: A.muted, fontSize: 10, whiteSpace: 'nowrap', paddingTop: 1 }}>{ago(a.created_at)}</div>
+              <div key={a.id} style={{ display: 'flex', gap: 12, alignItems: 'flex-start', padding: '8px 0', borderBottom: `1px solid ${A.border}`, fontSize: 12 }}>
+                <div style={{ color: A.muted, fontSize: 10, whiteSpace: 'nowrap', paddingTop: 1, minWidth: 80 }}>{ago(a.created_at)}</div>
                 <div style={{ flex: 1 }}>
                   <span style={{ color: A.accent, fontWeight: 600 }}>{a.admin_email}</span>
                   <span style={{ color: A.muted }}> → </span>
                   <span style={{ color: A.text }}>{a.action}</span>
-                  {a.target_type && <span style={{ color: A.muted }}> ({a.target_type}: {a.target_id?.slice(0, 12)}…)</span>}
+                  {a.target_type && <span style={{ color: A.muted }}> · {a.target_type}: <span style={{ fontFamily: F.m, fontSize: 10 }}>{a.target_id}</span></span>}
+                  {a.details && Object.keys(a.details).length > 0 && (
+                    <span style={{ color: A.muted, fontSize: 10 }}> ({JSON.stringify(a.details)})</span>
+                  )}
                 </div>
               </div>
             ))}
           </div>
         )}
       </Card>
-    </div>
-  );
-}
-
-// ─── Micro-composants ────────────────────────────────────────────────────
-function SectionTitle({ children }) {
-  return <div style={{ fontSize: 11, fontWeight: 700, color: A.muted, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 12, fontFamily: F.b }}>{children}</div>;
-}
-function LoadingSpinner() {
-  return (
-    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 200 }}>
-      <div style={{ width: 32, height: 32, borderRadius: '50%', border: `3px solid ${A.border2}`, borderTopColor: A.accent, animation: 'spin 0.8s linear infinite' }} />
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   );
 }
@@ -1109,72 +1092,37 @@ function LoginScreen({ onLogin }) {
   const [pwd, setPwd] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-
   const tryLogin = async () => {
     if (!pwd) return;
     setLoading(true); setError('');
     try {
-      const res = await fetch('/api/admin?action=stats', {
-        headers: { 'x-admin-token': pwd },
-      });
-      if (res.ok) {
-        onLogin(pwd);
-      } else if (res.status === 500) {
+      const res = await fetch('/api/admin?action=stats', { headers: { 'x-admin-token': pwd } });
+      if (res.ok) { onLogin(pwd); }
+      else if (res.status === 500) {
         const json = await res.json().catch(() => ({}));
-        setError(json.error || 'Erreur serveur — vérifiez que ADMIN_SECRET est défini dans Cloudflare Pages → Settings → Environment variables');
-      } else if (res.status === 401) {
-        setError('Mot de passe incorrect.');
-      } else {
-        setError(`Erreur ${res.status} — réessayez.`);
-      }
+        setError(json.error || 'Erreur serveur — vérifiez que ADMIN_SECRET est défini dans Cloudflare Pages');
+      } else if (res.status === 401) { setError('Mot de passe incorrect.'); }
+      else { setError(`Erreur ${res.status} — réessayez.`); }
     } catch { setError('Erreur de connexion au serveur.'); }
     finally { setLoading(false); }
   };
-
   return (
-    <div style={{
-      minHeight: '100vh', background: A.bg,
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      fontFamily: F.b,
-    }}>
-      <div style={{
-        width: 400, background: A.card,
-        border: `1px solid ${A.border2}`, borderRadius: 16,
-        padding: 40,
-      }}>
+    <div style={{ minHeight: '100vh', background: A.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: F.b }}>
+      <div style={{ width: 400, background: A.card, border: `1px solid ${A.border2}`, borderRadius: 16, padding: 40 }}>
         <div style={{ textAlign: 'center', marginBottom: 32 }}>
           <div style={{ fontSize: 32, fontWeight: 900, fontFamily: F.h, color: A.text, letterSpacing: '-0.02em' }}>
             ADS-<span style={{ color: A.accent }}>SQUARE</span>
           </div>
           <div style={{ color: A.muted, fontSize: 13, marginTop: 6 }}>Administration</div>
         </div>
-        <input
-          type="password"
-          value={pwd}
-          onChange={e => setPwd(e.target.value)}
-          onKeyDown={e => e.key === 'Enter' && tryLogin()}
-          placeholder="Mot de passe admin"
-          autoFocus
-          style={{
-            width: '100%', background: A.s1,
-            border: `1px solid ${error ? A.red + '80' : A.border2}`,
-            borderRadius: 9, color: A.text, fontFamily: F.b,
-            fontSize: 14, padding: '12px 16px', outline: 'none',
-            boxSizing: 'border-box', marginBottom: 8,
-          }}
-        />
+        <input type="password" value={pwd} onChange={e => setPwd(e.target.value)} onKeyDown={e => e.key === 'Enter' && tryLogin()}
+          placeholder="Mot de passe admin" autoFocus
+          style={{ width: '100%', background: A.s1, border: `1px solid ${error ? A.red + '80' : A.border2}`, borderRadius: 9, color: A.text, fontFamily: F.b, fontSize: 14, padding: '12px 16px', outline: 'none', boxSizing: 'border-box', marginBottom: 8 }} />
         {error && <div style={{ color: A.red, fontSize: 12, marginBottom: 10 }}>{error}</div>}
-        <button
-          onClick={tryLogin} disabled={loading || !pwd}
-          style={{
-            width: '100%', padding: '13px', borderRadius: 9,
-            background: A.accent, border: 'none',
-            color: A.accentFg, fontWeight: 700, fontSize: 14,
-            cursor: loading || !pwd ? 'not-allowed' : 'pointer',
-            opacity: loading || !pwd ? 0.6 : 1,
-            fontFamily: F.b, marginTop: 4,
-          }}
-        >{loading ? 'Vérification…' : 'Accéder au dashboard'}</button>
+        <button onClick={tryLogin} disabled={loading || !pwd}
+          style={{ width: '100%', padding: '13px', borderRadius: 9, background: A.accent, border: 'none', color: A.accentFg, fontWeight: 700, fontSize: 14, cursor: loading || !pwd ? 'not-allowed' : 'pointer', opacity: loading || !pwd ? 0.6 : 1, fontFamily: F.b, marginTop: 4 }}>
+          {loading ? 'Vérification…' : 'Accéder au dashboard'}
+        </button>
         <div style={{ textAlign: 'center', marginTop: 20, fontSize: 11, color: A.muted }}>
           Variable d'env : <code style={{ color: A.accent }}>ADMIN_SECRET</code>
         </div>
@@ -1187,13 +1135,13 @@ function LoginScreen({ onLogin }) {
 // MAIN LAYOUT
 // ══════════════════════════════════════════════════════════════════════════
 const TABS = [
-  { id: 'overview',   label: 'Vue d\'ensemble', icon: '⬡' },
-  { id: 'bookings',   label: 'Réservations',    icon: '🗂' },
-  { id: 'users',      label: 'Utilisateurs',    icon: '👤' },
-  { id: 'offers',     label: 'Offres',          icon: '🤝' },
-  { id: 'revenue',    label: 'Revenus',         icon: '💶' },
-  { id: 'analytics',  label: 'Analytics',       icon: '📊' },
-  { id: 'config',     label: 'Configuration',   icon: '⚙' },
+  { id: 'overview',   label: "Vue d'ensemble", icon: '⬡' },
+  { id: 'bookings',   label: 'Réservations',   icon: '🗂' },
+  { id: 'users',      label: 'Utilisateurs',   icon: '👤' },
+  { id: 'offers',     label: 'Offres',         icon: '🤝' },
+  { id: 'revenue',    label: 'Revenus',        icon: '💶' },
+  { id: 'analytics',  label: 'Analytics',      icon: '📊' },
+  { id: 'config',     label: 'Configuration',  icon: '⚙' },
 ];
 
 export default function AdminDashboard() {
@@ -1205,16 +1153,8 @@ export default function AdminDashboard() {
   const [toast, setToast] = useState({ msg: '', type: '' });
   const api = useAdminAPI(token);
 
-  const handleLogin = (t) => {
-    sessionStorage.setItem('admin_token', t);
-    setToken(t);
-  };
-
-  const handleLogout = () => {
-    sessionStorage.removeItem('admin_token');
-    setToken('');
-  };
-
+  const handleLogin = (t) => { sessionStorage.setItem('admin_token', t); setToken(t); };
+  const handleLogout = () => { sessionStorage.removeItem('admin_token'); setToken(''); };
   const onToast = ({ msg, type }) => setToast({ msg, type });
 
   if (!token) return <LoginScreen onLogin={handleLogin} />;
@@ -1227,77 +1167,48 @@ export default function AdminDashboard() {
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 3px; }
         @keyframes spin { to { transform: rotate(360deg); } }
+        input[type=number]::-webkit-inner-spin-button { opacity: 0.4; }
       `}</style>
 
       {/* Sidebar */}
-      <div style={{
-        position: 'fixed', left: 0, top: 0, bottom: 0,
-        width: 220, background: A.s1,
-        borderRight: `1px solid ${A.border}`,
-        display: 'flex', flexDirection: 'column',
-        zIndex: 100,
-      }}>
-        {/* Logo */}
+      <div style={{ position: 'fixed', left: 0, top: 0, bottom: 0, width: 220, background: A.s1, borderRight: `1px solid ${A.border}`, display: 'flex', flexDirection: 'column', zIndex: 100 }}>
         <div style={{ padding: '24px 20px 20px', borderBottom: `1px solid ${A.border}` }}>
           <div style={{ fontSize: 20, fontWeight: 900, fontFamily: F.h, letterSpacing: '-0.01em' }}>
             ADS-<span style={{ color: A.accent }}>SQUARE</span>
           </div>
           <div style={{ fontSize: 10, color: A.muted, marginTop: 3, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Administration</div>
         </div>
-
-        {/* Nav */}
         <nav style={{ flex: 1, padding: '12px 10px', display: 'flex', flexDirection: 'column', gap: 2 }}>
           {TABS.map(t => {
             const isActive = tab === t.id;
             return (
-              <button
-                key={t.id}
-                onClick={() => setTab(t.id)}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 10,
-                  padding: '10px 12px', borderRadius: 8,
-                  background: isActive ? `${A.accent}18` : 'transparent',
-                  border: `1px solid ${isActive ? A.accent + '40' : 'transparent'}`,
-                  color: isActive ? A.accent : A.muted,
-                  cursor: 'pointer', fontSize: 13, fontWeight: isActive ? 700 : 500,
-                  fontFamily: F.b, textAlign: 'left', transition: 'all 0.15s',
-                }}
-              >
-                <span style={{ fontSize: 16, flexShrink: 0 }}>{t.icon}</span>
-                {t.label}
+              <button key={t.id} onClick={() => setTab(t.id)} style={{
+                display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 8,
+                background: isActive ? `${A.accent}18` : 'transparent',
+                border: `1px solid ${isActive ? A.accent + '40' : 'transparent'}`,
+                color: isActive ? A.accent : A.muted, cursor: 'pointer',
+                fontSize: 13, fontWeight: isActive ? 700 : 500, fontFamily: F.b, textAlign: 'left', transition: 'all 0.15s',
+              }}>
+                <span style={{ fontSize: 16, flexShrink: 0 }}>{t.icon}</span>{t.label}
               </button>
             );
           })}
         </nav>
-
-        {/* Footer */}
         <div style={{ padding: '16px 14px', borderTop: `1px solid ${A.border}` }}>
           <a href="/" target="_blank" style={{ display: 'block', marginBottom: 8, color: A.muted, fontSize: 11, textDecoration: 'none' }}>↗ Voir le site</a>
-          <button
-            onClick={handleLogout}
-            style={{ width: '100%', padding: '8px', borderRadius: 7, background: 'transparent', border: `1px solid ${A.border}`, color: A.muted, cursor: 'pointer', fontSize: 12, fontFamily: F.b }}
-          >Déconnexion</button>
+          <button onClick={handleLogout} style={{ width: '100%', padding: '8px', borderRadius: 7, background: 'transparent', border: `1px solid ${A.border}`, color: A.muted, cursor: 'pointer', fontSize: 12, fontFamily: F.b }}>Déconnexion</button>
         </div>
       </div>
 
       {/* Main */}
-      <div style={{ marginLeft: 220, minHeight: '100vh', display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
-        {/* Topbar */}
-        <div style={{
-          padding: '18px 32px', borderBottom: `1px solid ${A.border}`,
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          background: A.s1, position: 'sticky', top: 0, zIndex: 50,
-        }}>
+      <div style={{ marginLeft: 220, minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ padding: '18px 32px', borderBottom: `1px solid ${A.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: A.s1, position: 'sticky', top: 0, zIndex: 50 }}>
           <div>
             <div style={{ fontSize: 18, fontWeight: 800, fontFamily: F.h }}>{TABS.find(t => t.id === tab)?.label}</div>
             <div style={{ fontSize: 11, color: A.muted, marginTop: 2 }}>{new Date().toLocaleDateString('fr-FR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</div>
           </div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <Btn size="sm" variant="ghost" onClick={() => window.location.reload()}>↻ Rafraîchir</Btn>
-          </div>
+          <Btn size="sm" variant="ghost" onClick={() => window.location.reload()}>↻ Rafraîchir</Btn>
         </div>
-
-        {/* Content */}
         <div style={{ flex: 1, padding: '28px 32px', maxWidth: 1400, overflowY: 'auto' }}>
           {tab === 'overview'  && <TabOverview  api={api} />}
           {tab === 'bookings'  && <TabBookings  api={api} onToast={onToast} />}
