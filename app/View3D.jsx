@@ -369,7 +369,6 @@ class Scene3D {
     this.scene.add(new THREE.AmbientLight(0x010318,6.0));
     this._sl=new THREE.PointLight(0xfff8e0,16,60,1.5);this.scene.add(this._sl);
     this._cl=new THREE.PointLight(0xff9900,5,40,2);this.scene.add(this._cl);
-    this.scene.add(Object.assign(new THREE.DirectionalLight(0x182888,1.2),{position:{set:()=>{}}}).position.set(-25,-10,-20)||new THREE.DirectionalLight(0x182888,1.2));
     const dl=new THREE.DirectionalLight(0x182888,1.2);dl.position.set(-25,-10,-20);this.scene.add(dl);
     const rl=new THREE.PointLight(0x0022cc,0.9,110);rl.position.set(-15,-20,22);this.scene.add(rl);
 
@@ -445,12 +444,22 @@ class Scene3D {
     this.transitioning=true;
     const G=this.G,doSwap=()=>{
       this._buildMesh(faces);
-      const ts=[this.panelMesh?.scale,...this.edgeMeshes.map(e=>e.scale)].filter(Boolean);
-      if(ts.length){ts.forEach(s=>s.set(0,0,0));G.to(ts,{x:1,y:1,z:1,duration:0.55,ease:'back.out(1.4)',stagger:0.03,onComplete:()=>{this.transitioning=false;}});}
-      else{this.transitioning=false;}
+      const meshes=[this.panelMesh,...this.edgeMeshes].filter(Boolean);
+      if(meshes.length){
+        meshes.forEach(m=>m.scale.set(0,0,0));
+        const proxy={v:0};
+        G.to(proxy,{v:1,duration:0.55,ease:'back.out(1.4)',
+          onUpdate:()=>{meshes.forEach(m=>m.scale.set(proxy.v,proxy.v,proxy.v));},
+          onComplete:()=>{this.transitioning=false;}});
+      } else{this.transitioning=false;}
     };
-    const ts=[this.panelMesh?.scale,...this.edgeMeshes.map(e=>e.scale)].filter(Boolean);
-    if(ts.length){G.to(ts,{x:0,y:0,z:0,duration:0.22,ease:'power3.in',onComplete:doSwap});}else{doSwap();}
+    const meshes=[this.panelMesh,...this.edgeMeshes].filter(Boolean);
+    if(meshes.length){
+      const proxy={v:1};
+      G.to(proxy,{v:0,duration:0.22,ease:'power3.in',
+        onUpdate:()=>{meshes.forEach(m=>m.scale.set(proxy.v,proxy.v,proxy.v));},
+        onComplete:doSwap});
+    } else{doSwap();}
   }
 
   _ndc(cx,cy){const r=this.canvas.getBoundingClientRect();return{x:((cx-r.left)/r.width)*2-1,y:-((cy-r.top)/r.height)*2+1};}
