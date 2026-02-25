@@ -24,8 +24,8 @@ const DS = {
   textHi:'#EEF2FF', textMid:'rgba(200,212,248,0.70)', textLo:'rgba(140,162,220,0.36)',
 };
 const TIER_NEON = {
-  epicenter:'#FFB700', prestige:'#FF5E9C', elite:'#9D50FF',
-  business:'#00D4FF', standard:'#38BEFF', viral:'#00FF94',
+  epicenter:'#FFD060', prestige:'#80C8FF', elite:'#60A0E8',
+  business:'#4888CC', standard:'#3068A8', viral:'#50D0B0',
 };
 const TIER_ROLE = {
   epicenter:{ icon:'☀', role:'Source Absolue',      desc:"L'étoile. Votre marque EST l'épicentre. Impossible à ignorer." },
@@ -96,30 +96,35 @@ varying float vOcc, vTI, vFI, vFresnel, vHov, vSel, vDepth;
 
 float edgeF(float w){ vec3 d=fwidth(vBary); vec3 a=smoothstep(vec3(0.0),d*w,vBary); return 1.0-min(min(a.x,a.y),a.z); }
 float hash(float n){ return fract(sin(n)*43758.5453); }
-vec3  hash3(float n){ return fract(sin(n+vec3(0.0,1.0,2.0))*43758.5453); }
 
-// GGX distribution for specular highlights
+// GGX specular
 float GGX(float NdotH, float roughness){
   float a2 = roughness*roughness*roughness*roughness;
   float d  = NdotH*NdotH*(a2-1.0)+1.0;
   return a2/(3.14159265*d*d);
 }
 
-// Iridescent thin-film interference
-vec3 iridescence(float cosA, float ior, vec3 baseCol){
-  float phase = acos(clamp(cosA,0.0,1.0))*ior*3.0;
-  vec3  shift = vec3(0.0, 2.094395, 4.188790); // 0, 2pi/3, 4pi/3
-  vec3  iri   = 0.5 + 0.5*cos(phase + shift);
-  return mix(baseCol, iri*1.4, 0.22);
+// Photovoltaic cell grid — replicates real solar panel look
+float solarCells(vec3 wp, float cellSize){
+  // World-space UV projected onto panel face
+  vec2 uv = vec2(dot(wp, vec3(1.0,0.0,0.4)), dot(wp, vec3(0.0,1.0,0.3)));
+  uv *= cellSize;
+  vec2 cell = fract(uv);
+  // Cell border (metallic busbar lines)
+  float bx = smoothstep(0.92, 1.0, cell.x) + smoothstep(0.08, 0.0, cell.x);
+  float by = smoothstep(0.92, 1.0, cell.y) + smoothstep(0.08, 0.0, cell.y);
+  float border = clamp(bx + by, 0.0, 1.0);
+  // Sub-cell finger lines (thin metallic conductors)
+  float fx = step(0.97, fract(uv.x * 3.0)) * 0.5;
+  float fy = step(0.97, fract(uv.y * 3.0)) * 0.5;
+  return clamp(border*1.0 + fx + fy, 0.0, 1.0);
 }
 
-// Micro-scratches pattern
-float microScratch(vec3 p, float seed){
-  float a1 = fract(sin(seed*127.1)*158.5);
-  float angle = a1 * 3.14159;
-  vec2 d = vec2(cos(angle),sin(angle));
-  float proj = dot(p.xy, d);
-  return smoothstep(0.0, 0.003, abs(fract(proj*180.0)-0.5)-0.47)*0.6;
+// Anisotropic brushed metal (for structural frame)
+float brushedMetal(vec3 wp, float seed){
+  float grain = fract(sin(dot(wp.xy + seed, vec2(18.9898, 78.233))) * 43758.5);
+  float streaks = abs(sin(wp.x * 120.0 + seed)) * 0.5 + 0.5;
+  return mix(grain * 0.5 + 0.5, streaks, 0.4);
 }
 
 void main(){
@@ -127,119 +132,140 @@ void main(){
   int   ti = int(vTI+0.5);
   bool  hov = vHov>0.5, sel = vSel>0.5;
 
-  float seed  = hash(vFI*13.7+2.3);
-  float pulse = 0.78 + 0.22*sin(t*(0.55+seed*0.35)+seed*6.28);
-  float pulseF= 0.88 + 0.12*sin(t*1.8+seed*4.0);
-  float edge1 = edgeF(0.9);
-  float edge3 = edgeF(5.0);
-  float edge8 = edgeF(14.0);
-  float edge14= edgeF(22.0);
+  float seed   = hash(vFI*13.7+2.3);
+  float pulse  = 0.88 + 0.12*sin(t*(0.45+seed*0.25)+seed*6.28);
+  float pulseF = 0.92 + 0.08*sin(t*1.4+seed*3.0);
+  float edge1  = edgeF(0.8);
+  float edge4  = edgeF(5.0);
+  float edge12 = edgeF(16.0);
 
-  // PBR params based on tier
-  float roughness = ti==0?0.08:(ti==1?0.12:(ti==2?0.18:(ti==3?0.28:(ti==4?0.40:0.55))));
-  float metalness = ti==0?0.95:(ti==1?0.90:(ti==2?0.82:(ti==3?0.72:0.60)));
+  // PBR — roughness/metalness by tier
+  float roughness = ti==0?0.05:(ti==1?0.10:(ti==2?0.16:(ti==3?0.26:(ti==4?0.38:0.50))));
+  float metalness = ti==0?0.92:(ti==1?0.88:(ti==2?0.80:(ti==3?0.70:0.58)));
 
   if(gl_FrontFacing){
-    // ── PBR metallic dark base
-    vec3 base = mix(vec3(0.042, 0.052, 0.080), vec3(0.065,0.075,0.110), metalness*0.3);
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // PHOTOVOLTAIC SOLAR PANEL SURFACE
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-    // ── Micro-details (scratches, anisotropy)
-    float scratch = microScratch(vWP, seed) * (1.0 - roughness);
-    base += vec3(0.06,0.07,0.10)*scratch;
+    // Panel size drives cell density: big panels have bigger visible cells
+    float cellDensity = ti==0?3.5:(ti==1?5.0:(ti==2?7.0:(ti==3?9.0:(ti==4?11.0:14.0))));
 
-    // ── Noise grain for realism
-    vec3 noisePos = vWP * 42.0 + seed;
-    float grain = hash(noisePos.x*noisePos.y+noisePos.z)*0.018-0.009;
-    base += grain;
+    // PV cell base color: deep cobalt-blue / dark blue-black semiconductor
+    // Real monocrystalline silicon: very dark navy with subtle blue sheen
+    vec3 cellBase = mix(
+      vec3(0.015, 0.022, 0.048),   // monocrystalline dark (top tiers)
+      vec3(0.025, 0.038, 0.075),   // polycrystalline slightly lighter (lower tiers)
+      float(ti) / 5.0
+    );
 
-    // ── Star light: warm directional from center
+    // Anti-reflective coating: thin-film blue-purple interference
+    // The characteristic blue of solar panels comes from this AR coating
+    float cosA = clamp(dot(vN, vViewDir), 0.0, 1.0);
+    float coating = pow(1.0 - cosA, 1.6);
+    vec3 arCoating = mix(
+      vec3(0.04, 0.08, 0.22),   // deep blue at normal incidence
+      vec3(0.12, 0.18, 0.40),   // violet-blue at grazing
+      coating
+    );
+    cellBase += arCoating * 0.65;
+
+    // Cell grid pattern
+    float cells = solarCells(vWP, cellDensity);
+    // Busbars (metallic silver lines between cells)
+    vec3 busbar = vec3(0.62, 0.68, 0.75) * cells;
+    // Add subtle reflection variation per cell (real PV panels look slightly non-uniform)
+    float cellVar = hash(seed + floor(vWP.x*cellDensity)*53.0 + floor(vWP.y*cellDensity)*17.0);
+    cellBase += vec3(0.008, 0.012, 0.025) * cellVar;
+
+    // ── Star light from center — warm directional
     vec3 toStar = normalize(-vWP);
     float nDotL = max(0.0, dot(vN, toStar));
     vec3 h = normalize(toStar + vViewDir);
     float nDotH = max(0.0, dot(vN, h));
 
-    // ── GGX specular from star
-    float spec = GGX(nDotH, roughness) * metalness * nDotL;
-    vec3 starWarm = mix(vec3(1.0,0.62,0.18), vec3(1.0,0.88,0.55), nDotL);
-    vec3 specLight = starWarm * spec * (ti==0?8.0:(ti==1?6.0:4.0));
+    // Specular reflection on glass cover (low roughness glass surface)
+    float specGlass = GGX(nDotH, 0.08) * 0.65 * nDotL;
+    vec3 starColor  = mix(vec3(1.0,0.95,0.78), vec3(1.0,0.88,0.55), 0.4);
+    vec3 glassRefl  = starColor * specGlass * (1.5 + float(5-ti)*0.15);
 
-    // ── Iridescent edge coating
-    vec3 iridCol = iridescence(1.0-vFresnel, 1.38+0.12*metalness, vTC);
-    float iriEdge = edge14 * 0.35 * pulseF;
-    vec3 iriContrib = iridCol * iriEdge;
+    // Fresnel rim — glass/frame edge glow from stellar light
+    vec3 rimLight = mix(starColor*0.8, vec3(0.6,0.75,1.0), 0.35);
+    vec3 rim = rimLight * pow(vFresnel, 2.0) * (0.8 + float(5-ti)*0.15) * pulse;
 
-    // ── Neon edge trim (additive, tier color)
-    float trimBright = (sel?4.5:(hov?3.0:1.8)) * pulse;
-    vec3  edgeNeon  = vTC * edge1 * trimBright;
-    vec3  edgeGlow  = vTC * edge3 * 0.55 * pulseF;
-    vec3  edgeAmb   = vTC * edge8 * 0.18;
+    // ── Structural frame between panels — metallic silver/gold
+    // Wide edge = frame structure (aluminum alloy)
+    float frame = edge4;
+    float frameBase = brushedMetal(vWP*0.8, seed);
+    // Frame color: weathered aluminum (silver-warm) with solar heating on top tiers
+    vec3 frameColor = mix(
+      vec3(0.35, 0.38, 0.42),    // standard aluminum
+      vec3(0.60, 0.52, 0.28),    // gold-heated titanium (top tier)
+      max(0.0, 1.0 - float(ti)*0.22)
+    );
+    frameColor *= (0.82 + frameBase*0.36);
+    // Frame specular from star
+    float frameSpec = GGX(nDotH, 0.12) * metalness * nDotL * 2.0;
+    frameColor += starColor * frameSpec * 0.8;
 
-    // ── Fresnel rim: inner stellar light bleeds through
-    float rimStr = ti==0?2.4:(ti==1?1.8:(ti==2?1.2:0.7));
-    vec3  rim    = mix(vec3(1.0,0.55,0.1), vTC, 0.45) * pow(vFresnel,1.8) * rimStr * pulse;
+    // Inner frame edge glow (structural joints — tiny cyan/blue light seeping)
+    float innerEdge = edge1;
+    vec3 structureGlow = mix(vec3(0.3,0.6,1.0), vec3(0.5,0.8,1.0), vFresnel) * innerEdge
+                       * (0.6 + float(5-ti)*0.12) * pulse;
 
-    // ── Brand fill for occupied panels
-    vec3 brandFill = vec3(0.0);
+    // ── Occupied panel: brand color tint on AR coating
+    vec3 brandMod = vec3(0.0);
     if(vOcc > 0.5){
-      float fillStr = ti==0?0.35:(ti==1?0.25:(ti==2?0.18:(ti==3?0.12:0.07)));
-      brandFill = vTC * fillStr * pulse;
-      if(ti==0){
-        // Epicenter: hexagonal energy grid
-        float gx = step(0.94,fract(vWP.x*4.5+vWP.y*2.0));
-        float gy = step(0.94,fract(vWP.y*4.5-vWP.x*2.0));
-        float grid = max(gx,gy);
-        brandFill += vTC * grid * 0.25 * pulse;
-        // Rotating energy ring
-        float angle2 = atan(vWP.y, vWP.x) + t*0.5;
-        float ring = pow(max(0.0, sin(angle2*6.0+t*2.0)*0.5+0.5), 8.0);
-        brandFill += vTC * ring * 0.20 * pulseF;
-      } else if(ti==1){
-        // Prestige: moving scanlines + horizontal streaks
-        float scan = step(0.87,fract(vWP.y*10.0-t*0.5))*0.14;
-        float hstreak = step(0.97,fract(vWP.x*22.0+t*0.3))*0.08;
-        brandFill += vTC * (scan+hstreak);
-      } else if(ti==2){
-        // Elite: diamond lattice
-        float dia = step(0.90, abs(sin(vWP.x*6.0+vWP.y*6.0)));
-        brandFill += vTC * dia * 0.10 * pulse;
+      // Subtle tint on the glass — like a colored filter layer
+      float tintStr = ti==0?0.18:(ti==1?0.13:(ti==2?0.09:(ti==3?0.06:0.04)));
+      brandMod = vTC * tintStr * pulse;
+
+      if(ti==0){ // Epicenter: energy resonance on cells
+        float hex_u = fract(vWP.x*4.2+vWP.z*2.1);
+        float hex_v = fract(vWP.y*4.2-vWP.z*2.1);
+        float hexCell = max(step(0.88,hex_u), step(0.88,hex_v));
+        brandMod += vTC * hexCell * 0.12 * pulse;
+      } else if(ti==1){ // Prestige: pulse wave across panel surface
+        float wave = sin(vWP.x*8.0+vWP.y*6.0-t*1.5)*0.5+0.5;
+        brandMod += vTC * pow(wave,4.0) * 0.08;
       }
     }
 
-    // ── Composite
-    vec3 color = base + specLight + edgeNeon + edgeGlow + edgeAmb + rim + iriContrib + brandFill;
-
-    // ── Selection flash
+    // ── Selection / hover highlights
+    vec3 hovGlow  = vec3(0.0);
     if(sel){
-      vec3 flash = mix(vTC, vec3(1.0,0.92,0.3), 0.6)*edge3*1.2*pulseF;
-      color += flash;
-      // Pulsating border glow
-      float selGlow = sin(t*5.0)*0.5+0.5;
-      color += vTC*edge14*selGlow*0.5;
+      // Bright frame selection with subtle color flash
+      hovGlow = mix(vec3(1.0,0.92,0.5), vTC, 0.5) * edge4 * (1.5 + 0.5*sin(t*5.0));
+      hovGlow += vTC * edge12 * (0.3 + 0.3*sin(t*5.0));
+    } else if(hov){
+      hovGlow = mix(vec3(0.6,0.8,1.0), vTC, 0.3) * edge4 * 0.8;
     }
+
+    // ── Composite: cell body + busbars + frame + glow
+    vec3 panelSurface = cellBase + busbar * 0.25;
+    vec3 color = mix(panelSurface, frameColor, frame * 0.75)
+               + glassRefl + rim + structureGlow + brandMod + hovGlow;
 
     gl_FragColor = vec4(color, 1.0);
 
   } else {
-    // ── Inner face: thermal solar absorber (hot, glowing)
+    // ── Inner face: thermal absorber — intense orange-red-white
     vec3 starDir  = normalize(-vWP);
     float diffuse = max(0.0, dot(-vN, starDir));
-    float r2      = dot(vWP,vWP);
-    float hotspot = 1.0 - smoothstep(0.0, 12.0, r2);
+    float hotspot = exp(-dot(vWP,vWP)*0.04);
 
-    // Plasma temperature gradient
-    vec3 cold  = vec3(0.7,0.25,0.0);
-    vec3 hot   = vec3(1.0,0.88,0.45);
-    vec3 white = vec3(1.0,0.98,0.92);
-    vec3 warmBase = mix(cold, hot, diffuse);
-    warmBase = mix(warmBase, white, pow(diffuse,3.0)*hotspot);
+    vec3 cold  = vec3(0.65,0.20,0.0);
+    vec3 hot   = vec3(1.0, 0.75,0.25);
+    vec3 white = vec3(1.0, 0.96,0.88);
+    vec3 inner = mix(cold, hot, diffuse);
+    inner      = mix(inner, white, pow(diffuse,2.5)*hotspot);
 
-    // Thermal veins
-    float vein = hash(vFI*7.3+floor(uTime*0.2));
-    float veinPulse = sin(uTime*(0.8+vein*0.5)+vein*9.0)*0.5+0.5;
-    warmBase += vec3(1.0,0.45,0.0)*veinPulse*0.15*diffuse;
+    // Thermal cell backside (back-contact solar cells glow intensely)
+    float cellBack = solarCells(vWP, 8.0);
+    inner += mix(vec3(1.0,0.4,0.0), vec3(1.0,0.85,0.3), diffuse) * (1.0-cellBack) * 0.4 * diffuse;
 
-    vec3 inner = warmBase * (0.5 + diffuse*0.8) * (1.2+hotspot*0.4);
-    if(vOcc>0.5) inner = mix(inner, vTC*2.2, 0.40);
+    inner *= (0.65 + diffuse*0.9) * (1.0+hotspot*0.5);
+    if(vOcc>0.5) inner = mix(inner, vTC*2.0, 0.30);
     gl_FragColor = vec4(inner, 1.0);
   }
 }`;
@@ -338,11 +364,11 @@ void main(){
   float chromos  = smoothstep(0.50, 0.98, r); // Chromosphere
   float corona   = smoothstep(0.80, 1.0,  r); // Corona edge
   
-  // Temperature zones: white core -> yellow photosphere -> orange chromosphere -> red corona
-  vec3 whiteCore  = vec3(1.0,  0.98, 0.95);
-  vec3 photoSph   = vec3(1.0,  0.82, 0.28);
-  vec3 chromoSph  = vec3(1.0,  0.40, 0.05);
-  vec3 coroCol    = vec3(0.90, 0.12, 0.0);
+  // Temperature zones: white-hot core -> yellow photosphere -> orange edge (G-type star like screenshot)
+  vec3 whiteCore  = vec3(1.0,  0.98, 0.92);   // Near-white hot center
+  vec3 photoSph   = vec3(1.0,  0.88, 0.45);   // Yellow photosphere
+  vec3 chromoSph  = vec3(1.0,  0.52, 0.10);   // Orange-red chromosphere
+  vec3 coroCol    = vec3(0.85, 0.25, 0.02);   // Deep red corona edge
   
   vec3 plasma = mix(whiteCore, photoSph, smoothstep(0.0, 0.55, r));
   plasma      = mix(plasma,   chromoSph, smoothstep(0.48, 0.82, r));
@@ -377,28 +403,26 @@ float hash(float n){return fract(sin(n)*43758.5453);}
 float fbm(vec3 p){ float v=0.0,a=0.5; for(int i=0;i<5;i++){v+=a*hash(dot(p,vec3(1.0,57.0,113.0)));p*=2.1;a*=0.5;} return v; }
 void main(){
   vec3 d = normalize(vWP);
-  float t = uTime*0.04;
-  
-  // Nebula gas cloud layers
-  float n1 = fbm(d*2.2 + t);
-  float n2 = fbm(d*5.5 - t*0.6);
-  float n3 = fbm(d*12.0 + t*1.3);
-  float cloud = smoothstep(0.35, 0.72, n1) * 0.7 + smoothstep(0.42, 0.65, n2) * 0.3;
-  
-  // Multi-spectral emission nebula colors
-  vec3 teal    = vec3(0.02, 0.35, 0.55);  // OIII emission
-  vec3 crimson = vec3(0.55, 0.02, 0.12);  // H-alpha
-  vec3 violet  = vec3(0.22, 0.05, 0.40);  // NII
-  vec3 amber   = vec3(0.50, 0.18, 0.00);  // Dust glow
-  
-  // Blend based on position
+  float t = uTime*0.03;
+
+  float n1 = fbm(d*2.5 + t);
+  float n2 = fbm(d*6.0 - t*0.5);
+  float n3 = fbm(d*14.0 + t*1.1);
+  float cloud = smoothstep(0.38, 0.70, n1) * 0.65 + smoothstep(0.44, 0.65, n2) * 0.25;
+
+  // Deep space color palette matching screenshot — dark blue-black, subtle cyan/teal hints
+  vec3 deepBlue  = vec3(0.01, 0.04, 0.12);   // deep cosmic blue
+  vec3 deepCyan  = vec3(0.02, 0.10, 0.20);   // teal nebula (faint)
+  vec3 dustGray  = vec3(0.04, 0.05, 0.08);   // dust clouds
+  vec3 coldBlue  = vec3(0.03, 0.08, 0.18);   // cold starfield regions
+
   float blend1 = 0.5+0.5*d.x;
   float blend2 = 0.5+0.5*d.y;
-  vec3 nebColor = mix(teal, crimson, blend1);
-  nebColor = mix(nebColor, violet, blend2*0.5);
-  nebColor = mix(nebColor, amber, n3*0.4);
-  
-  float alpha = cloud * 0.055;
+  vec3 nebColor = mix(deepBlue, deepCyan, blend1*0.6);
+  nebColor = mix(nebColor, dustGray, blend2*0.3);
+  nebColor = mix(nebColor, coldBlue, n3*0.35);
+
+  float alpha = cloud * 0.045;
   gl_FragColor = vec4(nebColor, alpha);
 }`;
 
@@ -415,59 +439,63 @@ float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
 
 void main(){
   vec2 uv = vU;
-  
-  // ── Chromatic aberration (radial, increases at edges)
   vec2 fromCenter = uv - 0.5;
-  float aberr = length(fromCenter)*length(fromCenter)*0.012;
-  vec2 rUV = uv + fromCenter*aberr*1.2;
-  vec2 gUV = uv + fromCenter*aberr*0.0;
-  vec2 bUV = uv - fromCenter*aberr*0.8;
-  
+
+  // ── Subtle chromatic aberration (less aggressive than before)
+  float aberr = length(fromCenter)*length(fromCenter)*0.006;
+  vec2 rUV = uv + fromCenter*aberr*0.9;
+  vec2 bUV = uv - fromCenter*aberr*0.6;
   float r = texture2D(uScene, rUV).r;
-  float g = texture2D(uScene, gUV).g;
+  float g = texture2D(uScene, uv).g;
   float b = texture2D(uScene, bUV).b;
   vec3 color = vec3(r,g,b);
-  
-  // ── Bloom via multi-sample brightpass (downsample approximation)
+
+  // ── Bloom — targeted at bright star/glare areas
   vec3 bloom = vec3(0.0);
-  float thresh = 1.2;  // HDR bloom threshold
-  for(int i=0;i<16;i++){
+  float thresh = 0.95;
+  for(int i=0;i<12;i++){
     float fi = float(i);
-    float angle = fi * 2.399963;  // golden angle
-    float dist  = sqrt(fi+0.5)*0.022;
+    float angle = fi * 2.399963;
+    float dist  = sqrt(fi+0.5)*0.018;
     vec2 off = vec2(cos(angle), sin(angle))*dist;
     vec3 s = texture2D(uScene, uv+off).rgb;
     vec3 bright = max(s - thresh, 0.0);
-    bloom += bright * (1.0 - dist*15.0);
+    bloom += bright * (1.0 - dist*20.0);
   }
-  bloom /= 16.0;
-  bloom *= 2.8;
-  
-  // Combine with additive bloom
+  bloom /= 12.0;
+  bloom *= 2.2;
   color += bloom;
-  
-  // ── ACES Filmic Tone Mapping (manual, for post-layer)
-  // Applied AFTER bloom to ensure HDR range is handled
+
+  // ── ACES Filmic Tone Mapping
   vec3 x = color;
-  float a = 2.51, b2 = 0.03, c2 = 2.43, d2 = 0.59, e2 = 0.14;
+  float a=2.51, b2=0.03, c2=2.43, d2=0.59, e2=0.14;
   color = clamp((x*(a*x+b2))/(x*(c2*x+d2)+e2), 0.0, 1.0);
-  
-  // ── Film grain
-  float grain_t = uTime * 0.1;
-  float grain = hash(uv + fract(grain_t))*0.028 - 0.014;
+
+  // ── Color grade: subtle cool steel-blue tint (matches screenshot)
+  // Shadows: push toward blue-black
+  // Highlights: keep warm star glow
+  float luma = dot(color, vec3(0.2126,0.7152,0.0722));
+  vec3 shadows   = vec3(0.85, 0.92, 1.05);   // cool blue in darks
+  vec3 highlights = vec3(1.02, 1.00, 0.96);  // warm in brights
+  vec3 grade = mix(shadows, highlights, luma);
+  color *= grade;
+
+  // ── Film grain (fine, cinematic)
+  float grain_t = uTime * 0.08;
+  float grain = hash(uv + fract(grain_t))*0.022 - 0.011;
   color += grain;
-  
-  // ── Vignette (cinematic, soft)
-  float vign = length(fromCenter)*1.38;
-  vign = pow(clamp(1.0 - vign*vign*0.55, 0.0, 1.0), 1.4);
+
+  // ── Vignette (wide, soft — deep space feel)
+  float vign = length(fromCenter)*1.25;
+  vign = pow(clamp(1.0 - vign*vign*0.48, 0.0, 1.0), 1.6);
   color *= vign;
-  
-  // ── Subtle lens flare (star)
-  float lf_dist = length(uv - vec2(0.5,0.5));
-  float lf_halo = smoothstep(0.08, 0.0, lf_dist)*0.04;
-  color += vec3(1.0,0.9,0.7)*lf_halo;
-  
-  gl_FragColor = vec4(color, 1.0);
+
+  // ── Central star lens flare halo (subtle)
+  float lf_dist = length(uv - vec2(0.5, 0.5));
+  float lf_halo = smoothstep(0.10, 0.0, lf_dist)*0.035;
+  color += vec3(1.0,0.95,0.80)*lf_halo;
+
+  gl_FragColor = vec4(max(color, 0.0), 1.0);
 }`;
 
 // ── GLSL : Anneau structural ──────────────────────────────────────────────────
@@ -591,9 +619,9 @@ class Scene3D{
     const r=new THREE.WebGLRenderer({canvas:this.canvas,antialias:true,powerPreference:'high-performance',alpha:false,stencil:false});
     r.setPixelRatio(Math.min(devicePixelRatio,2.5));  // Boost for 4K screens
     r.setSize(W,H,false);
-    r.setClearColor(0x02030A,1);
+    r.setClearColor(0x010408,1);  // Deep space black-blue
     r.toneMapping=THREE.ACESFilmicToneMapping;
-    r.toneMappingExposure=2.0;  // Brighter exposure for HDR
+    r.toneMappingExposure=1.75;   // Calibrated for solar panel realism
     r.outputColorSpace = THREE.SRGBColorSpace || THREE.sRGBEncoding;
     this.renderer=r;
 
@@ -619,19 +647,19 @@ class Scene3D{
     this._postScene.add(postMesh);
 
     this.scene=new THREE.Scene();
-    this.scene.fog=new THREE.FogExp2(0x02030A,0.004);
+    this.scene.fog=new THREE.FogExp2(0x010408,0.003);  // Very subtle deep space fog
     this.camera=new THREE.PerspectiveCamera(40,W/H,0.1,600);
     this.camera.position.z=this.zoomCurrent;
     this.raycaster=new THREE.Raycaster();
 
-    // Enhanced lighting setup
-    this.scene.add(new THREE.AmbientLight(0x060818,4.0));
-    this._sl=new THREE.PointLight(0xFFF4D0,55,140,1.1); this.scene.add(this._sl);
-    this._cl=new THREE.PointLight(0xFF5500,18,80,1.6);  this.scene.add(this._cl);
-    // Cool backlight from distant star
-    const dl=new THREE.DirectionalLight(0x1A3080,1.4); dl.position.set(-25,-10,-22); this.scene.add(dl);
-    // Subtle fill from below
-    const dl2=new THREE.DirectionalLight(0x220510,0.5); dl2.position.set(0,-30,0); this.scene.add(dl2);
+    // Enhanced lighting — warm star center + cool deep-space blue fill
+    this.scene.add(new THREE.AmbientLight(0x04080F,3.5));              // Deep space ambient
+    this._sl=new THREE.PointLight(0xFFF5E0,60,160,1.0); this.scene.add(this._sl);  // Central star — warm white
+    this._cl=new THREE.PointLight(0xFF6010,14,75,1.7);  this.scene.add(this._cl);  // Orange corona
+    // Cool blue backlight — space atmosphere
+    const dl=new THREE.DirectionalLight(0x0A1840,1.8); dl.position.set(-28,-12,-25); this.scene.add(dl);
+    // Subtle blue-teal rim from below (reflected starlight off space)
+    const dl2=new THREE.DirectionalLight(0x061520,0.6); dl2.position.set(5,-35,8); this.scene.add(dl2);
 
     this._buildNebula();
     this._buildStarfield();
