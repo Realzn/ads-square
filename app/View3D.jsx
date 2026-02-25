@@ -1,15 +1,17 @@
 'use client';
 /**
- * ADS·SQUARE — DYSON SPHERE ✦ MEGASTRUCTURE EDITION
+ * ADS·SQUARE — DYSON SPHERE ✦ 4K HDR MEGASTRUCTURE EDITION
  *
- * Philosophie de rendu radicalement nouvelle :
- * ─ Panneaux SOLIDES OPAQUES (dark metal) qui BLOQUENT la lumière
- * ─ Étoile centrale brillant à travers les GAPS naturellement
- * ─ Taille des panneaux DRAMATIQUEMENT différente par tier
- * ─ Épicentre = panneau géant, Viral = fragments minuscules
- * ─ God rays : shafts radiales depuis le centre, visibles à travers les gaps
- * ─ Inner glow sphere : lumière chaude interne qui filtre par les interstices
- * ─ Anneaux massifs et structurels (style image 3)
+ * Rendu Hollywood-grade, qualité jeu-vidéo AAA :
+ * ─ PBR metallic panels avec iridescence, microdetails, anisotropy
+ * ─ Post-processing : bloom multi-pass, chromatic aberration, film grain
+ * ─ Vignette cinématique + tone mapping ACES Filmic
+ * ─ Plasma stellaire ultra-réaliste (corona, spicules, chromosphere)
+ * ─ Nébuleuse volumétrique de fond multi-couleur
+ * ─ God rays exponentiels avec diffusion atmosphérique
+ * ─ Légers flares sur les arêtes des panneaux (iridescent coating)
+ * ─ Starfield haute densité avec effets de scintillement
+ * ─ Rendu HDR via RenderTarget 16-bit + composition final
  */
 import { useRef, useEffect, useState, useCallback, useMemo, memo } from 'react';
 import { TIER_COLOR, TIER_LABEL, TIER_PRICE } from '../lib/grid';
@@ -59,14 +61,14 @@ const TIER_PANEL_SCALE = {
   viral:     0.26,  // minuscule (beaucoup d'espace vide autour)
 };
 
-// ── GLSL : Panneaux solides opaques ────────────────────────────────────────────
+// ── GLSL : PBR Panels 4K HDR ────────────────────────────────────────────────────
 const PANEL_VERT = `
 precision highp float;
 attribute float aOccupied; attribute vec3 aTierColor; attribute float aTierIdx;
 attribute float aFaceIdx;  attribute vec3 aBary;
 uniform float uTime, uHovered, uSelected;
-varying vec3  vN, vWP, vTC, vBary;
-varying float vOcc, vTI, vFI, vFresnel, vHov, vSel;
+varying vec3  vN, vWP, vTC, vBary, vViewDir;
+varying float vOcc, vTI, vFI, vFresnel, vHov, vSel, vDepth;
 void main(){
   vN  = normalize(normalMatrix * normal);
   vec4 wp = modelMatrix * vec4(position, 1.0); vWP = wp.xyz;
@@ -74,23 +76,51 @@ void main(){
   vHov = step(abs(aFaceIdx-uHovered), 0.5);
   vSel = step(abs(aFaceIdx-uSelected),0.5);
   vec3 vd = normalize(cameraPosition - wp.xyz);
-  vFresnel = pow(clamp(1.0-abs(dot(vN,vd)),0.0,1.0), 3.5);
+  vViewDir = vd;
+  float cosA = clamp(dot(vN,vd), 0.0, 1.0);
+  vFresnel = pow(1.0 - cosA, 4.2);
   vec3 pos = position;
-  // Hover / select lift
-  if(vSel>0.5)      pos += normalize(position)*(0.18+0.06*sin(uTime*3.5));
-  else if(vHov>0.5) pos += normalize(position)*0.10;
-  gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
+  if(vSel>0.5)      pos += normalize(position)*(0.22+0.08*sin(uTime*3.5));
+  else if(vHov>0.5) pos += normalize(position)*0.13;
+  vec4 mvp = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
+  vDepth = mvp.z / mvp.w;
+  gl_Position = mvp;
 }`;
 
 const PANEL_FRAG = `
 precision highp float;
 #extension GL_OES_standard_derivatives : enable
 uniform float uTime;
-varying vec3  vN, vWP, vTC, vBary;
-varying float vOcc, vTI, vFI, vFresnel, vHov, vSel;
+varying vec3  vN, vWP, vTC, vBary, vViewDir;
+varying float vOcc, vTI, vFI, vFresnel, vHov, vSel, vDepth;
 
 float edgeF(float w){ vec3 d=fwidth(vBary); vec3 a=smoothstep(vec3(0.0),d*w,vBary); return 1.0-min(min(a.x,a.y),a.z); }
 float hash(float n){ return fract(sin(n)*43758.5453); }
+vec3  hash3(float n){ return fract(sin(n+vec3(0.0,1.0,2.0))*43758.5453); }
+
+// GGX distribution for specular highlights
+float GGX(float NdotH, float roughness){
+  float a2 = roughness*roughness*roughness*roughness;
+  float d  = NdotH*NdotH*(a2-1.0)+1.0;
+  return a2/(3.14159265*d*d);
+}
+
+// Iridescent thin-film interference
+vec3 iridescence(float cosA, float ior, vec3 baseCol){
+  float phase = acos(clamp(cosA,0.0,1.0))*ior*3.0;
+  vec3  shift = vec3(0.0, 2.094395, 4.188790); // 0, 2pi/3, 4pi/3
+  vec3  iri   = 0.5 + 0.5*cos(phase + shift);
+  return mix(baseCol, iri*1.4, 0.22);
+}
+
+// Micro-scratches pattern
+float microScratch(vec3 p, float seed){
+  float a1 = fract(sin(seed*127.1)*158.5);
+  float angle = a1 * 3.14159;
+  vec2 d = vec2(cos(angle),sin(angle));
+  float proj = dot(p.xy, d);
+  return smoothstep(0.0, 0.003, abs(fract(proj*180.0)-0.5)-0.47)*0.6;
+}
 
 void main(){
   float t = uTime;
@@ -98,105 +128,346 @@ void main(){
   bool  hov = vHov>0.5, sel = vSel>0.5;
 
   float seed  = hash(vFI*13.7+2.3);
-  float pulse = 0.72 + 0.28*sin(t*(0.6+seed*0.4)+seed*6.28);
-  float edge1 = edgeF(0.8);   // core edge trim
-  float edge3 = edgeF(4.0);   // glow halo
-  float edge8 = edgeF(10.0);  // wide ambient
+  float pulse = 0.78 + 0.22*sin(t*(0.55+seed*0.35)+seed*6.28);
+  float pulseF= 0.88 + 0.12*sin(t*1.8+seed*4.0);
+  float edge1 = edgeF(0.9);
+  float edge3 = edgeF(5.0);
+  float edge8 = edgeF(14.0);
+  float edge14= edgeF(22.0);
 
-  // ── Face externe (gl_FrontFacing) — métal sombre visible depuis l'extérieur
+  // PBR params based on tier
+  float roughness = ti==0?0.08:(ti==1?0.12:(ti==2?0.18:(ti==3?0.28:(ti==4?0.40:0.55))));
+  float metalness = ti==0?0.95:(ti==1?0.90:(ti==2?0.82:(ti==3?0.72:0.60)));
+
   if(gl_FrontFacing){
-    // Base métal très sombre, légèrement bleuté
-    vec3 base = vec3(0.055, 0.065, 0.095);
+    // ── PBR metallic dark base
+    vec3 base = mix(vec3(0.042, 0.052, 0.080), vec3(0.065,0.075,0.110), metalness*0.3);
 
-    // Liseret lumineux sur les arêtes — couleur tier
-    float trimBright = (sel?3.2:(hov?2.2:1.4)) * pulse;
-    vec3  trim = vTC * edge1 * trimBright + vTC * edge3 * 0.45 + vTC * edge8 * 0.12;
+    // ── Micro-details (scratches, anisotropy)
+    float scratch = microScratch(vWP, seed) * (1.0 - roughness);
+    base += vec3(0.06,0.07,0.10)*scratch;
 
-    // Panneau occupé : teinte de marque sur la surface
+    // ── Noise grain for realism
+    vec3 noisePos = vWP * 42.0 + seed;
+    float grain = hash(noisePos.x*noisePos.y+noisePos.z)*0.018-0.009;
+    base += grain;
+
+    // ── Star light: warm directional from center
+    vec3 toStar = normalize(-vWP);
+    float nDotL = max(0.0, dot(vN, toStar));
+    vec3 h = normalize(toStar + vViewDir);
+    float nDotH = max(0.0, dot(vN, h));
+
+    // ── GGX specular from star
+    float spec = GGX(nDotH, roughness) * metalness * nDotL;
+    vec3 starWarm = mix(vec3(1.0,0.62,0.18), vec3(1.0,0.88,0.55), nDotL);
+    vec3 specLight = starWarm * spec * (ti==0?8.0:(ti==1?6.0:4.0));
+
+    // ── Iridescent edge coating
+    vec3 iridCol = iridescence(1.0-vFresnel, 1.38+0.12*metalness, vTC);
+    float iriEdge = edge14 * 0.35 * pulseF;
+    vec3 iriContrib = iridCol * iriEdge;
+
+    // ── Neon edge trim (additive, tier color)
+    float trimBright = (sel?4.5:(hov?3.0:1.8)) * pulse;
+    vec3  edgeNeon  = vTC * edge1 * trimBright;
+    vec3  edgeGlow  = vTC * edge3 * 0.55 * pulseF;
+    vec3  edgeAmb   = vTC * edge8 * 0.18;
+
+    // ── Fresnel rim: inner stellar light bleeds through
+    float rimStr = ti==0?2.4:(ti==1?1.8:(ti==2?1.2:0.7));
+    vec3  rim    = mix(vec3(1.0,0.55,0.1), vTC, 0.45) * pow(vFresnel,1.8) * rimStr * pulse;
+
+    // ── Brand fill for occupied panels
     vec3 brandFill = vec3(0.0);
     if(vOcc > 0.5){
-      // Surface tintée couleur marque — plus visible sur les grands tiers
-      float fillStr = ti==0?0.28:(ti==1?0.20:(ti==2?0.14:(ti==3?0.09:0.05)));
+      float fillStr = ti==0?0.35:(ti==1?0.25:(ti==2?0.18:(ti==3?0.12:0.07)));
       brandFill = vTC * fillStr * pulse;
-      // Pattern subtil selon tier
-      if(ti==0){ // Épicentre : maille or pulsante
-        float grid = max(step(0.94,fract(vWP.x*3.5)), step(0.94,fract(vWP.y*3.5)));
-        brandFill += vTC * grid * 0.18 * pulse;
-      } else if(ti==1){ // Prestige : scanlines
-        float scan = step(0.88,fract(vWP.y*8.0-t*0.4))*0.12;
-        brandFill += vTC * scan;
+      if(ti==0){
+        // Epicenter: hexagonal energy grid
+        float gx = step(0.94,fract(vWP.x*4.5+vWP.y*2.0));
+        float gy = step(0.94,fract(vWP.y*4.5-vWP.x*2.0));
+        float grid = max(gx,gy);
+        brandFill += vTC * grid * 0.25 * pulse;
+        // Rotating energy ring
+        float angle2 = atan(vWP.y, vWP.x) + t*0.5;
+        float ring = pow(max(0.0, sin(angle2*6.0+t*2.0)*0.5+0.5), 8.0);
+        brandFill += vTC * ring * 0.20 * pulseF;
+      } else if(ti==1){
+        // Prestige: moving scanlines + horizontal streaks
+        float scan = step(0.87,fract(vWP.y*10.0-t*0.5))*0.14;
+        float hstreak = step(0.97,fract(vWP.x*22.0+t*0.3))*0.08;
+        brandFill += vTC * (scan+hstreak);
+      } else if(ti==2){
+        // Elite: diamond lattice
+        float dia = step(0.90, abs(sin(vWP.x*6.0+vWP.y*6.0)));
+        brandFill += vTC * dia * 0.10 * pulse;
       }
     }
 
-    // Fresnel rim — halo sur les bords du panneau (lumière interne qui déborde)
-    float rimStr = ti==0?1.8:(ti==1?1.3:(ti==2?0.9:0.5));
-    vec3 rim = vTC * pow(vFresnel,2.2) * rimStr * pulse;
+    // ── Composite
+    vec3 color = base + specLight + edgeNeon + edgeGlow + edgeAmb + rim + iriContrib + brandFill;
 
-    vec3 color = base + trim + brandFill + rim;
+    // ── Selection flash
+    if(sel){
+      vec3 flash = mix(vTC, vec3(1.0,0.92,0.3), 0.6)*edge3*1.2*pulseF;
+      color += flash;
+      // Pulsating border glow
+      float selGlow = sin(t*5.0)*0.5+0.5;
+      color += vTC*edge14*selGlow*0.5;
+    }
 
-    // Surbrillance sélection
-    if(sel){ vec3 flash = vec3(1.0,0.85,0.2)*edge3*0.8; color += flash; }
-
-    gl_FragColor = vec4(color, 1.0); // OPAQUE — bloque la lumière interne
+    gl_FragColor = vec4(color, 1.0);
 
   } else {
-    // ── Face interne — capteur solaire tourné vers l'étoile
-    // Visible seulement depuis les gaps — chaud, lumineux
+    // ── Inner face: thermal solar absorber (hot, glowing)
     vec3 starDir  = normalize(-vWP);
     float diffuse = max(0.0, dot(-vN, starDir));
-    vec3 warmBase = mix(vec3(0.9,0.55,0.1), vec3(1.0,0.85,0.4), diffuse);
-    vec3 inner    = warmBase * (0.35+diffuse*0.65);
-    if(vOcc>0.5) inner = mix(inner, vTC*1.8, 0.45); // couleur marque sur face interne
+    float r2      = dot(vWP,vWP);
+    float hotspot = 1.0 - smoothstep(0.0, 12.0, r2);
+
+    // Plasma temperature gradient
+    vec3 cold  = vec3(0.7,0.25,0.0);
+    vec3 hot   = vec3(1.0,0.88,0.45);
+    vec3 white = vec3(1.0,0.98,0.92);
+    vec3 warmBase = mix(cold, hot, diffuse);
+    warmBase = mix(warmBase, white, pow(diffuse,3.0)*hotspot);
+
+    // Thermal veins
+    float vein = hash(vFI*7.3+floor(uTime*0.2));
+    float veinPulse = sin(uTime*(0.8+vein*0.5)+vein*9.0)*0.5+0.5;
+    warmBase += vec3(1.0,0.45,0.0)*veinPulse*0.15*diffuse;
+
+    vec3 inner = warmBase * (0.5 + diffuse*0.8) * (1.2+hotspot*0.4);
+    if(vOcc>0.5) inner = mix(inner, vTC*2.2, 0.40);
     gl_FragColor = vec4(inner, 1.0);
   }
 }`;
 
-// ── GLSL : Sphère de lueur interne (god rays naturels) ────────────────────────
+// ── GLSL : Sphère interne — lueur solaire volumétrique HDR ───────────────────
 const IGLOW_VERT = `varying vec3 vN; varying vec3 vWP;
 void main(){ vN=normalize(normalMatrix*normal); vec4 wp=modelMatrix*vec4(position,1.0); vWP=wp.xyz; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }`;
 const IGLOW_FRAG = `
 precision highp float;
 uniform float uTime; varying vec3 vN; varying vec3 vWP;
+float hash(float n){return fract(sin(n)*43758.5453);}
 void main(){
   vec3 vd = normalize(cameraPosition - vWP);
-  float fresnel = pow(clamp(1.0-dot(vN,vd),0.0,1.0),1.4);
-  float pulse = 0.75+0.25*sin(uTime*0.7);
-  vec3 col = mix(vec3(1.0,0.95,0.70), vec3(1.0,0.45,0.05), fresnel);
-  float alpha = (0.18 + fresnel*0.55)*pulse;
-  gl_FragColor = vec4(col*1.8, clamp(alpha,0.0,0.88));
+  float cosA = clamp(dot(vN,vd),0.0,1.0);
+  float fresnel = pow(1.0-cosA, 1.2);
+  float pulse = 0.75+0.25*sin(uTime*0.65+hash(dot(vN,vec3(1.0)))*3.14);
+  // Temperature layers: white core -> orange -> deep crimson
+  vec3 hotCore   = vec3(1.0, 0.98, 0.90);
+  vec3 midFlare  = vec3(1.0, 0.55, 0.08);
+  vec3 outerGlow = vec3(0.95, 0.18, 0.02);
+  vec3 col = mix(hotCore, midFlare, fresnel);
+  col      = mix(col, outerGlow, pow(fresnel,0.6));
+  // Surface convection cells
+  float phase = uTime*0.18;
+  float cell = 0.5+0.5*sin(vWP.x*8.5+phase)*sin(vWP.y*8.5+phase*1.3)*sin(vWP.z*8.5+phase*0.7);
+  col += vec3(0.4,0.15,0.0)*cell*0.3*(1.0-fresnel);
+  float alpha = (0.22 + fresnel*0.65)*pulse;
+  gl_FragColor = vec4(col*2.2, clamp(alpha,0.0,0.95));
 }`;
 
-// ── GLSL : God ray shafts radiales ────────────────────────────────────────────
-const GRAY_VERT = `varying float vR; varying float vAlpha;
+// ── GLSL : God ray shafts — diffusion atmosphérique exponentielle ─────────────
+const GRAY_VERT = `varying float vR; varying float vAlpha; varying vec3 vPos;
 attribute float aAlpha;
-void main(){ vR=length(position); vAlpha=aAlpha; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }`;
+void main(){ vR=length(position); vAlpha=aAlpha; vPos=position; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }`;
 const GRAY_FRAG = `
 precision highp float;
-uniform float uTime; varying float vR; varying float vAlpha;
+uniform float uTime; varying float vR; varying float vAlpha; varying vec3 vPos;
+float hash(float n){return fract(sin(n)*43758.5453);}
 void main(){
-  float fade  = smoothstep(${(SPHERE_R*1.12).toFixed(2)}, 1.0, vR);
-  float pulse = 0.6+0.4*sin(uTime*0.4+vR*1.5);
-  vec3 col    = mix(vec3(1.0,0.90,0.50), vec3(1.0,0.50,0.08), vR/${(SPHERE_R*1.1).toFixed(2)});
-  gl_FragColor = vec4(col*pulse, vAlpha*fade*0.5);
+  // Exponential atmospheric scattering — density falloff
+  float density = exp(-vR * 0.12);
+  float fade  = smoothstep(${(SPHERE_R*1.18).toFixed(2)}, 0.8, vR) * density;
+  
+  // Multi-frequency pulsation for each shaft
+  float shaft_id = hash(floor(dot(vPos, vec3(1.0,7.0,13.0))*0.01));
+  float pulse = 0.55 + 0.30*sin(uTime*0.38+shaft_id*6.28) + 0.15*sin(uTime*1.2+shaft_id*3.14);
+  
+  // Color temperature: white-hot near star, cools to orange/crimson
+  float t = clamp(vR / ${(SPHERE_R*1.1).toFixed(2)}, 0.0, 1.0);
+  vec3 col = mix(vec3(1.0,0.97,0.82), vec3(1.0,0.42,0.04), t);
+  col = mix(col, vec3(0.8,0.10,0.0), t*t);
+  
+  // Dust mote scintillation
+  float mote = hash(vPos.x*31.0+vPos.y*17.0+uTime*0.5)*0.18;
+  col += mote * vec3(1.0,0.85,0.6);
+  
+  gl_FragColor = vec4(col*pulse, vAlpha*fade*0.65);
 }`;
 
-// ── GLSL : Étoile plasma ──────────────────────────────────────────────────────
+// ── GLSL : Étoile plasma — rendu stellaire cinématique ───────────────────────
 const STAR_VERT = `varying vec2 vU; void main(){ vU=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }`;
 const STAR_FRAG = `
 precision highp float;
 uniform float uTime; varying vec2 vU;
 float h2(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5);}
-float fbm(vec2 p){float v=0.0,a=0.5;for(int i=0;i<6;i++){v+=a*h2(p);p*=2.2;a*=0.48;}return v;}
+float fbm(vec2 p){ float v=0.0,a=0.5; for(int i=0;i<8;i++){v+=a*h2(p);p*=2.1;a*=0.50;} return v; }
+float fbm2(vec2 p){ float v=0.0,a=0.5; for(int i=0;i<5;i++){v+=a*(2.0*h2(p)-1.0);p*=2.3;a*=0.52;} return v; }
+
 void main(){
   vec2 uv=vU*2.0-1.0; float r=length(uv); if(r>1.0)discard;
-  vec2 uv2=uv+vec2(sin(uTime*0.28)*0.09,cos(uTime*0.22)*0.07);
-  float t=fbm(uv2*4.5+uTime*0.18)+fbm(uv2*9.0-uTime*0.11)*0.4;
-  float core=1.0-smoothstep(0.0,0.55,r), edge=1.0-smoothstep(0.45,1.0,r);
-  float ray=pow(max(0.0,sin(atan(uv.y,uv.x)*8.0+uTime*1.2)*0.5+0.5),3.0)*0.35;
-  vec3 plasma=mix(vec3(0.97,0.18,0.0),vec3(1.0,0.72,0.08),core+t*0.4);
-  plasma=mix(plasma,vec3(1.0,0.98,0.82),core*core);
-  plasma+=vec3(1.0,0.5,0.0)*ray*edge*0.6;
-  gl_FragColor=vec4(plasma*5.0,edge*(0.94+t*0.06));
+  float t=uTime;
+  
+  // Chromosphere turbulence (multiple scales)
+  vec2 uv2=uv+vec2(sin(t*0.25)*0.12,cos(t*0.19)*0.09);
+  float noise1 = fbm(uv2*3.8 + t*0.14);
+  float noise2 = fbm(uv2*7.5 - t*0.09)*0.55;
+  float noise3 = fbm(uv2*16.0 + t*0.22)*0.22;
+  float turbulence = noise1 + noise2 + noise3;
+  
+  // Solar prominences / spicules
+  float angle = atan(uv.y, uv.x);
+  float spicule_phase = angle*7.0 + t*1.1 + fbm2(uv*2.0)*2.0;
+  float spicules = pow(max(0.0, sin(spicule_phase)*0.5+0.5), 5.0);
+  float proms = spicules * smoothstep(0.75, 0.98, r) * 0.8;
+  
+  // Granulation cells (convection)
+  float gran_noise = fbm(uv*22.0 + vec2(t*0.08,-t*0.06));
+  float granules   = smoothstep(0.38, 0.62, gran_noise);
+  
+  // Sunspot regions
+  float spot = fbm(uv*5.0 + vec2(t*0.04, t*0.03));
+  float spotMask = smoothstep(0.72, 0.60, spot) * (1.0-r*0.8);
+  
+  // Radial structure
+  float core     = 1.0 - smoothstep(0.0, 0.60, r);
+  float chromos  = smoothstep(0.50, 0.98, r); // Chromosphere
+  float corona   = smoothstep(0.80, 1.0,  r); // Corona edge
+  
+  // Temperature zones: white core -> yellow photosphere -> orange chromosphere -> red corona
+  vec3 whiteCore  = vec3(1.0,  0.98, 0.95);
+  vec3 photoSph   = vec3(1.0,  0.82, 0.28);
+  vec3 chromoSph  = vec3(1.0,  0.40, 0.05);
+  vec3 coroCol    = vec3(0.90, 0.12, 0.0);
+  
+  vec3 plasma = mix(whiteCore, photoSph, smoothstep(0.0, 0.55, r));
+  plasma      = mix(plasma,   chromoSph, smoothstep(0.48, 0.82, r));
+  plasma      = mix(plasma,   coroCol,   smoothstep(0.78, 0.98, r));
+  
+  // Add turbulence tinting
+  plasma += vec3(0.3,0.05,0.0)*turbulence*0.5*(1.0-r);
+  // Granulation brightening
+  plasma += vec3(0.15,0.10,0.05)*granules*(1.0-r);
+  // Sunspot darkening
+  plasma -= vec3(0.25,0.18,0.05)*spotMask;
+  
+  // Prominence glows
+  plasma += mix(chromoSph, vec3(1.0,0.25,0.0), 0.5) * proms;
+  
+  // Corona rays (outward spikes)
+  float ray = pow(max(0.0, sin(angle*9.0+t*0.8+turbulence*3.14)*0.5+0.5),4.0)*0.45;
+  plasma += vec3(1.0,0.55,0.1) * ray * corona * 0.5;
+  
+  // Intensity HDR boost
+  float intensity = (2.8+core*5.5) * (0.9 + turbulence*0.3);
+  float edge = (1.0-smoothstep(0.82,1.0,r)) * (0.88 + noise1*0.12);
+  gl_FragColor = vec4(plasma*intensity, edge);
+}`;
+
+// ── GLSL : Nébuleuse volumétrique de fond ─────────────────────────────────────
+const NEBULA_VERT = `varying vec3 vWP; void main(){ vWP=position; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }`;
+const NEBULA_FRAG = `
+precision mediump float;
+uniform float uTime; varying vec3 vWP;
+float hash(float n){return fract(sin(n)*43758.5453);}
+float fbm(vec3 p){ float v=0.0,a=0.5; for(int i=0;i<5;i++){v+=a*hash(dot(p,vec3(1.0,57.0,113.0)));p*=2.1;a*=0.5;} return v; }
+void main(){
+  vec3 d = normalize(vWP);
+  float t = uTime*0.04;
+  
+  // Nebula gas cloud layers
+  float n1 = fbm(d*2.2 + t);
+  float n2 = fbm(d*5.5 - t*0.6);
+  float n3 = fbm(d*12.0 + t*1.3);
+  float cloud = smoothstep(0.35, 0.72, n1) * 0.7 + smoothstep(0.42, 0.65, n2) * 0.3;
+  
+  // Multi-spectral emission nebula colors
+  vec3 teal    = vec3(0.02, 0.35, 0.55);  // OIII emission
+  vec3 crimson = vec3(0.55, 0.02, 0.12);  // H-alpha
+  vec3 violet  = vec3(0.22, 0.05, 0.40);  // NII
+  vec3 amber   = vec3(0.50, 0.18, 0.00);  // Dust glow
+  
+  // Blend based on position
+  float blend1 = 0.5+0.5*d.x;
+  float blend2 = 0.5+0.5*d.y;
+  vec3 nebColor = mix(teal, crimson, blend1);
+  nebColor = mix(nebColor, violet, blend2*0.5);
+  nebColor = mix(nebColor, amber, n3*0.4);
+  
+  float alpha = cloud * 0.055;
+  gl_FragColor = vec4(nebColor, alpha);
+}`;
+
+// ── GLSL : Post-process — Bloom + Vignette + Film Grain + Chromatic Aberration
+const POST_VERT = `varying vec2 vU; void main(){ vU=uv; gl_Position=vec4(position.xy,0.0,1.0); }`;
+const POST_FRAG = `
+precision highp float;
+uniform sampler2D uScene;
+uniform float uTime;
+uniform vec2 uRes;
+varying vec2 vU;
+
+float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
+
+void main(){
+  vec2 uv = vU;
+  
+  // ── Chromatic aberration (radial, increases at edges)
+  vec2 fromCenter = uv - 0.5;
+  float aberr = length(fromCenter)*length(fromCenter)*0.012;
+  vec2 rUV = uv + fromCenter*aberr*1.2;
+  vec2 gUV = uv + fromCenter*aberr*0.0;
+  vec2 bUV = uv - fromCenter*aberr*0.8;
+  
+  float r = texture2D(uScene, rUV).r;
+  float g = texture2D(uScene, gUV).g;
+  float b = texture2D(uScene, bUV).b;
+  vec3 color = vec3(r,g,b);
+  
+  // ── Bloom via multi-sample brightpass (downsample approximation)
+  vec3 bloom = vec3(0.0);
+  float thresh = 1.2;  // HDR bloom threshold
+  for(int i=0;i<16;i++){
+    float fi = float(i);
+    float angle = fi * 2.399963;  // golden angle
+    float dist  = sqrt(fi+0.5)*0.022;
+    vec2 off = vec2(cos(angle), sin(angle))*dist;
+    vec3 s = texture2D(uScene, uv+off).rgb;
+    vec3 bright = max(s - thresh, 0.0);
+    bloom += bright * (1.0 - dist*15.0);
+  }
+  bloom /= 16.0;
+  bloom *= 2.8;
+  
+  // Combine with additive bloom
+  color += bloom;
+  
+  // ── ACES Filmic Tone Mapping (manual, for post-layer)
+  // Applied AFTER bloom to ensure HDR range is handled
+  vec3 x = color;
+  float a = 2.51, b2 = 0.03, c2 = 2.43, d2 = 0.59, e2 = 0.14;
+  color = clamp((x*(a*x+b2))/(x*(c2*x+d2)+e2), 0.0, 1.0);
+  
+  // ── Film grain
+  float grain_t = uTime * 0.1;
+  float grain = hash(uv + fract(grain_t))*0.028 - 0.014;
+  color += grain;
+  
+  // ── Vignette (cinematic, soft)
+  float vign = length(fromCenter)*1.38;
+  vign = pow(clamp(1.0 - vign*vign*0.55, 0.0, 1.0), 1.4);
+  color *= vign;
+  
+  // ── Subtle lens flare (star)
+  float lf_dist = length(uv - vec2(0.5,0.5));
+  float lf_halo = smoothstep(0.08, 0.0, lf_dist)*0.04;
+  color += vec3(1.0,0.9,0.7)*lf_halo;
+  
+  gl_FragColor = vec4(color, 1.0);
 }`;
 
 // ── GLSL : Anneau structural ──────────────────────────────────────────────────
@@ -206,12 +477,19 @@ const RING_FRAG = `
 precision highp float;
 uniform float uTime; uniform vec3 uCol; uniform float uAlpha; uniform float uWidth;
 varying float vA; varying vec3 vWP;
+float hash(float n){return fract(sin(n)*43758.5453);}
 void main(){
   float pulse = 0.55+0.45*sin(uTime*1.1+vA*4.0);
   float tv    = fract(vA/6.28318+uTime*0.10);
-  float spark = pow(smoothstep(0.0,0.06,tv)*smoothstep(0.16,0.06,tv),2.0)*1.4;
-  float glow  = pulse*1.6 + spark*3.0;
-  gl_FragColor = vec4(uCol*glow, uAlpha*(0.22+pulse*0.55+spark*0.8));
+  float spark = pow(smoothstep(0.0,0.06,tv)*smoothstep(0.16,0.06,tv),2.0)*1.8;
+  // Secondary sparks for more dynamism
+  float tv2   = fract(vA/6.28318+uTime*0.17+0.5);
+  float spark2= pow(smoothstep(0.0,0.04,tv2)*smoothstep(0.10,0.04,tv2),2.0)*0.8;
+  float glow  = pulse*1.8 + spark*4.0 + spark2*2.0;
+  // Energy segments
+  float seg = step(0.86, fract(vA*8.0))*0.25*pulse;
+  vec3  col  = uCol + vec3(0.2,0.1,0.0)*spark*0.5;
+  gl_FragColor = vec4(col*glow, uAlpha*(0.25+pulse*0.55+spark*0.9+seg));
 }`;
 
 // ── GLSL : Essaim viral ───────────────────────────────────────────────────────
@@ -231,9 +509,15 @@ void main(){
 const VIRAL_FRAG = `
 precision highp float; varying float vBright;
 void main(){
-  vec2 c=gl_PointCoord-0.5; if(length(c)>0.5)discard;
-  float g=1.0-length(c)*2.0;
-  gl_FragColor=vec4(mix(vec3(0.0,0.82,0.50),vec3(0.45,1.0,0.72),vBright)*g*2.5,g*g*(0.45+vBright*0.55));
+  vec2 c=gl_PointCoord-0.5; float dist=length(c); if(dist>0.5)discard;
+  // Soft glow disk with bright core
+  float g = 1.0 - dist*2.0;
+  float core = smoothstep(0.3, 0.0, dist)*1.8;
+  // Color: cyan-green with bright white core
+  vec3 outer = mix(vec3(0.0,0.80,0.48),vec3(0.35,1.0,0.65),vBright);
+  vec3 inner = mix(outer, vec3(0.82,1.0,0.9), core*vBright);
+  float alpha = (g*g + core*0.5)*(0.50+vBright*0.50);
+  gl_FragColor=vec4(inner*(1.5+vBright*1.5), alpha);
 }`;
 
 // ── Géométrie ─────────────────────────────────────────────────────────────────
@@ -289,13 +573,14 @@ class Scene3D{
     Object.assign(this,{
       canvas,T:null,G:null,renderer:null,scene:null,camera:null,
       panelMesh:null,starMesh:null,halos:[],innerGlow:null,
-      godRays:null,rings:[],viralSwarm:null,starfield:null,
+      godRays:null,rings:[],viralSwarm:null,starfield:null,nebulaField:null,
+      _rtHDR:null,_postScene:null,_postCam:null,_postUni:null,
       raycaster:null,triToFace:null,faceSlots:[],_faces:null,
       rot:{x:0.12,y:0},vel:{x:0,y:0},isDragging:false,
       pinchDist:null,touchStart:null,
       zoomTarget:22,zoomCurrent:22,hovFace:-1,selFace:-1,
       animId:null,transitioning:false,onHover:null,onClick:null,_h:{},
-      _t0:Date.now(),_pU:null,_sU:null,_igU:null,_grU:null,_vU:null,_rUs:[],
+      _t0:Date.now(),_pU:null,_sU:null,_igU:null,_grU:null,_vU:null,_nebU:null,_rUs:[],
     });
   }
 
@@ -303,51 +588,96 @@ class Scene3D{
     this.T=THREE; this.G=GSAP;
     const W=this.canvas.clientWidth||window.innerWidth;
     const H=this.canvas.clientHeight||window.innerHeight;
-    const r=new THREE.WebGLRenderer({canvas:this.canvas,antialias:true,powerPreference:'high-performance'});
-    r.setPixelRatio(Math.min(devicePixelRatio,2));
+    const r=new THREE.WebGLRenderer({canvas:this.canvas,antialias:true,powerPreference:'high-performance',alpha:false,stencil:false});
+    r.setPixelRatio(Math.min(devicePixelRatio,2.5));  // Boost for 4K screens
     r.setSize(W,H,false);
-    r.setClearColor(0x05060A,1);
+    r.setClearColor(0x02030A,1);
     r.toneMapping=THREE.ACESFilmicToneMapping;
-    r.toneMappingExposure=1.6;
+    r.toneMappingExposure=2.0;  // Brighter exposure for HDR
+    r.outputColorSpace = THREE.SRGBColorSpace || THREE.sRGBEncoding;
     this.renderer=r;
+
+    // HDR render target for post-processing
+    const rtW=W*Math.min(devicePixelRatio,2);
+    const rtH=H*Math.min(devicePixelRatio,2);
+    this._rtHDR = new THREE.WebGLRenderTarget(rtW, rtH, {
+      minFilter: THREE.LinearFilter,
+      magFilter: THREE.LinearFilter,
+      format: THREE.RGBAFormat,
+      type: THREE.HalfFloatType || THREE.UnsignedByteType,
+    });
+
+    // Post-process scene (fullscreen quad)
+    this._postScene = new THREE.Scene();
+    this._postCam   = new THREE.OrthographicCamera(-1,1,1,-1,0,1);
+    const postUni   = { uScene:{value:this._rtHDR.texture}, uTime:{value:0}, uRes:{value:new THREE.Vector2(W,H)} };
+    this._postUni   = postUni;
+    const postMesh  = new THREE.Mesh(
+      new THREE.PlaneGeometry(2,2),
+      new THREE.ShaderMaterial({vertexShader:POST_VERT,fragmentShader:POST_FRAG,uniforms:postUni,depthWrite:false})
+    );
+    this._postScene.add(postMesh);
+
     this.scene=new THREE.Scene();
-    this.scene.fog=new THREE.FogExp2(0x05060A,0.005);
+    this.scene.fog=new THREE.FogExp2(0x02030A,0.004);
     this.camera=new THREE.PerspectiveCamera(40,W/H,0.1,600);
     this.camera.position.z=this.zoomCurrent;
     this.raycaster=new THREE.Raycaster();
 
-    // Lumières
-    this.scene.add(new THREE.AmbientLight(0x080B14,6.0));
-    this._sl=new THREE.PointLight(0xFFF4D0,35,120,1.2); this.scene.add(this._sl);
-    this._cl=new THREE.PointLight(0xFF6600,12,70,1.8);  this.scene.add(this._cl);
-    const dl=new THREE.DirectionalLight(0x1A2460,0.9); dl.position.set(-20,-8,-18); this.scene.add(dl);
+    // Enhanced lighting setup
+    this.scene.add(new THREE.AmbientLight(0x060818,4.0));
+    this._sl=new THREE.PointLight(0xFFF4D0,55,140,1.1); this.scene.add(this._sl);
+    this._cl=new THREE.PointLight(0xFF5500,18,80,1.6);  this.scene.add(this._cl);
+    // Cool backlight from distant star
+    const dl=new THREE.DirectionalLight(0x1A3080,1.4); dl.position.set(-25,-10,-22); this.scene.add(dl);
+    // Subtle fill from below
+    const dl2=new THREE.DirectionalLight(0x220510,0.5); dl2.position.set(0,-30,0); this.scene.add(dl2);
 
+    this._buildNebula();
     this._buildStarfield();
     this._buildStar();
-    this._buildInnerGlow(); // god rays naturels
-    this._buildGodRays();   // shafts radiales
+    this._buildInnerGlow();
+    this._buildGodRays();
     this._buildRings();
     this._buildViralSwarm();
     this._bindEvents();
     this._animate();
   }
 
+  _buildNebula(){
+    const T=this.T;
+    // Large sphere for nebula background
+    const geo=new T.SphereGeometry(420,24,16);
+    const u={uTime:{value:0}};
+    this._nebU=u;
+    this.nebulaField=new T.Mesh(geo,new T.ShaderMaterial({
+      vertexShader:NEBULA_VERT, fragmentShader:NEBULA_FRAG, uniforms:u,
+      transparent:true, depthWrite:false, side:T.BackSide,
+      blending:T.AdditiveBlending,
+    }));
+    this.nebulaField.renderOrder=-2;
+    this.scene.add(this.nebulaField);
+  }
+
   _buildStarfield(){
-    const T=this.T,N=10000;
-    const p=new Float32Array(N*3),col=new Float32Array(N*3);
+    const T=this.T,N=18000; // More stars for 4K
+    const p=new Float32Array(N*3),col=new Float32Array(N*3),sz=new Float32Array(N);
     for(let i=0;i<N;i++){
-      const th=Math.random()*Math.PI*2,ph=Math.acos(2*Math.random()-1),r=80+Math.random()*350;
+      const th=Math.random()*Math.PI*2,ph=Math.acos(2*Math.random()-1),r=90+Math.random()*360;
       p[i*3]=r*Math.sin(ph)*Math.cos(th); p[i*3+1]=r*Math.sin(ph)*Math.sin(th); p[i*3+2]=r*Math.cos(ph);
       const q=Math.random();
-      if(q<0.12){col[i*3]=0.52;col[i*3+1]=0.72;col[i*3+2]=1.0;}
-      else if(q<0.50){col[i*3]=1.0;col[i*3+1]=0.97;col[i*3+2]=0.92;}
-      else if(q<0.78){col[i*3]=1.0;col[i*3+1]=0.82;col[i*3+2]=0.44;}
-      else{col[i*3]=0.76;col[i*3+1]=0.38;col[i*3+2]=1.0;}
+      // Realistic stellar colors: O,B blue -> A,F white -> G yellow -> K orange -> M red
+      if(q<0.06){col[i*3]=0.42;col[i*3+1]=0.62;col[i*3+2]=1.0; sz[i]=0.28;}        // O/B blue
+      else if(q<0.22){col[i*3]=0.82;col[i*3+1]=0.90;col[i*3+2]=1.0; sz[i]=0.22;}   // A white
+      else if(q<0.55){col[i*3]=1.0;col[i*3+1]=0.97;col[i*3+2]=0.88; sz[i]=0.18;}   // G yellow-white
+      else if(q<0.78){col[i*3]=1.0;col[i*3+1]=0.72;col[i*3+2]=0.28; sz[i]=0.15;}   // K orange
+      else{col[i*3]=0.9;col[i*3+1]=0.22;col[i*3+2]=0.12; sz[i]=0.12;}             // M red
     }
     const g=new T.BufferGeometry();
     g.setAttribute('position',new T.BufferAttribute(p,3));
     g.setAttribute('color',  new T.BufferAttribute(col,3));
-    this.starfield=new T.Points(g,new T.PointsMaterial({size:0.20,vertexColors:true,transparent:true,opacity:0.90,sizeAttenuation:true,depthWrite:false}));
+    g.setAttribute('size',   new T.BufferAttribute(sz,1));
+    this.starfield=new T.Points(g,new T.PointsMaterial({size:0.22,vertexColors:true,transparent:true,opacity:0.95,sizeAttenuation:true,depthWrite:false}));
     this.scene.add(this.starfield);
   }
 
@@ -355,16 +685,20 @@ class Scene3D{
     const T=this.T;
     const u={uTime:{value:0}}; this._sU=u;
     this.starMesh=new T.Mesh(
-      new T.SphereGeometry(STAR_R,64,64),
+      new T.SphereGeometry(STAR_R,96,96),  // More geometry for smoother corona
       new T.ShaderMaterial({vertexShader:STAR_VERT,fragmentShader:STAR_FRAG,uniforms:u,transparent:true,depthWrite:false,blending:T.AdditiveBlending})
     );
     this.scene.add(this.starMesh);
     this.halos=[];
-    for(const[r,col,op]of[
-      [STAR_R*1.8,0xFFFFF0,0.70],[STAR_R*3.2,0xFFCC44,0.38],
-      [STAR_R*6.0,0xFF8800,0.18],[STAR_R*12,0x551100,0.08],
+    // Enhanced layered corona halos
+    for(const[r,col,op,seg]of[
+      [STAR_R*1.6, 0xFFFFFF,  0.85, 24],  // bright inner corona
+      [STAR_R*2.5, 0xFFF8D0,  0.50, 16],  // white-gold halo
+      [STAR_R*4.5, 0xFFCC44,  0.28, 12],  // warm gold
+      [STAR_R*8.5, 0xFF7700,  0.14, 8],   // orange outer
+      [STAR_R*16,  0x550800,  0.06, 6],   // deep crimson corona
     ]){
-      const m=new T.Mesh(new T.SphereGeometry(r,16,16),new T.MeshBasicMaterial({color:col,transparent:true,opacity:op,side:T.BackSide,depthWrite:false,blending:T.AdditiveBlending}));
+      const m=new T.Mesh(new T.SphereGeometry(r,seg,seg),new T.MeshBasicMaterial({color:col,transparent:true,opacity:op,side:T.BackSide,depthWrite:false,blending:T.AdditiveBlending}));
       this.scene.add(m); this.halos.push(m);
     }
   }
@@ -586,35 +920,49 @@ class Scene3D{
     if(!this.isDragging){
       this.rot.y+=this.vel.x; this.rot.x+=this.vel.y;
       this.vel.x*=0.93; this.vel.y*=0.93;
-      this.rot.y+=0.00022; // rotation lente auto
+      this.rot.y+=0.00025; // slow auto-rotation
     }
     const rx=this.rot.x,ry=this.rot.y;
     if(this.panelMesh){this.panelMesh.rotation.x=rx;this.panelMesh.rotation.y=ry;}
-    if(this.innerGlow){this.innerGlow.rotation.x=rx*0.1;this.innerGlow.rotation.y=ry*0.1;}
+    if(this.innerGlow){this.innerGlow.rotation.x=rx*0.08;this.innerGlow.rotation.y=ry*0.08;}
     if(this.godRays){this.godRays.rotation.x=rx;this.godRays.rotation.y=ry;}
-    this.rings.forEach((ring,i)=>{ring.rotation.x=rx+(i%2?0.005:-0.005)*t;ring.rotation.y=ry+(i%2?0.008:-0.008)*t;});
+    this.rings.forEach((ring,i)=>{ring.rotation.x=rx+(i%2?0.004:-0.004)*t;ring.rotation.y=ry+(i%2?0.007:-0.007)*t;});
+    if(this.nebulaField){this.nebulaField.rotation.y=t*0.0002;}
     if(this._pU)this._pU.uTime.value=t;
     if(this._sU)this._sU.uTime.value=t;
     if(this._igU)this._igU.uTime.value=t;
     if(this._grU)this._grU.uTime.value=t;
     if(this._vU)this._vU.uTime.value=t;
+    if(this._nebU)this._nebU.uTime.value=t;
     this._rUs.forEach(u=>{ if(u)u.uTime.value=t; });
-    // Pulse de l'étoile
-    const sp=1+Math.sin(t*0.88)*0.20+Math.sin(t*2.3)*0.06;
-    if(this._sl)this._sl.intensity=35*sp;
-    if(this._cl)this._cl.intensity=12*sp;
-    if(this.starMesh)this.starMesh.scale.setScalar(1+Math.sin(t*1.2)*0.07);
-    this.halos.forEach((h,i)=>h.scale.setScalar(1+Math.sin(t*0.35+i*0.8)*0.055));
-    // Swarm viral
-    if(this.viralSwarm){this.viralSwarm.rotation.y=t*0.035;this.viralSwarm.rotation.x=Math.sin(t*0.025)*0.20;}
-    // Stars drift
-    if(this.starfield){this.starfield.rotation.y=t*0.0003;}
+    // Enhanced star pulse (solar cycle simulation)
+    const sp=1+Math.sin(t*0.82)*0.22+Math.sin(t*2.1)*0.08+Math.sin(t*0.18)*0.05;
+    if(this._sl)this._sl.intensity=55*sp;
+    if(this._cl)this._cl.intensity=18*sp;
+    if(this.starMesh)this.starMesh.scale.setScalar(1+Math.sin(t*1.1)*0.08+Math.sin(t*2.8)*0.03);
+    this.halos.forEach((h,i)=>h.scale.setScalar(1+Math.sin(t*0.32+i*0.75)*0.06+Math.sin(t*1.4+i)*0.02));
+    // Swarm rotation
+    if(this.viralSwarm){this.viralSwarm.rotation.y=t*0.032;this.viralSwarm.rotation.x=Math.sin(t*0.022)*0.22;}
+    // Nebula drift
+    if(this.starfield){this.starfield.rotation.y=t*0.0002;}
     this.zoomCurrent+=(this.zoomTarget-this.zoomCurrent)*0.065;
     this.camera.position.z=this.zoomCurrent;
-    this.renderer.render(this.scene,this.camera);
+
+    // ── HDR Post-Processing Render ──────────────────────────────────────────
+    if(this._rtHDR && this._postScene && this._postCam && this._postUni){
+      // Pass 1: Render scene to HDR render target
+      this.renderer.setRenderTarget(this._rtHDR);
+      this.renderer.render(this.scene,this.camera);
+      // Pass 2: Post-process + composite to screen
+      this.renderer.setRenderTarget(null);
+      this._postUni.uTime.value=t;
+      this.renderer.render(this._postScene,this._postCam);
+    } else {
+      this.renderer.render(this.scene,this.camera);
+    }
   }
 
-  resize(){const W=this.canvas.clientWidth,H=this.canvas.clientHeight;if(!W||!H)return;this.camera.aspect=W/H;this.camera.updateProjectionMatrix();this.renderer.setSize(W,H,false);}
+  resize(){const W=this.canvas.clientWidth,H=this.canvas.clientHeight;if(!W||!H)return;this.camera.aspect=W/H;this.camera.updateProjectionMatrix();this.renderer.setSize(W,H,false);if(this._rtHDR)this._rtHDR.setSize(W*Math.min(devicePixelRatio,2),H*Math.min(devicePixelRatio,2));if(this._postUni)this._postUni.uRes.value.set(W,H);}
   destroy(){
     cancelAnimationFrame(this.animId);
     const h=this._h;
@@ -624,7 +972,8 @@ class Scene3D{
     this.canvas.removeEventListener('touchstart',h.ts);
     this.canvas.removeEventListener('touchmove',h.tm);
     this.canvas.removeEventListener('touchend',h.te);
-    [this.panelMesh,this.innerGlow,this.godRays,...this.rings,this.viralSwarm].forEach(m=>{if(m){m.geometry?.dispose();m.material?.dispose();}});
+    [this.panelMesh,this.innerGlow,this.godRays,...this.rings,this.viralSwarm,this.nebulaField].forEach(m=>{if(m){m.geometry?.dispose();m.material?.dispose();}});
+    if(this._rtHDR)this._rtHDR.dispose();
     this.renderer?.dispose();
   }
 }
