@@ -1,92 +1,15 @@
-/* ─── ADS-SQUARE Global Styles ──────────────────────────────────────────── */
-/* ⚡ OPTIMISATIONS LIGHTHOUSE :
-   - Fallback fonts avec métriques ajustées → CLS minimal lors du swap
-   - Animations composées uniquement sur les boutons nav → CLS = 0
-   - Section "Polices auto-hébergées" à décommenter après download-fonts.sh
-   ─────────────────────────────────────────────────────────────────────────── */
+/* ─── ADS-SQUARE Global Styles — STAR CITIZEN GRADE ──────────────────────── */
 
-
-/* ══════════════════════════════════════════════════════════════════════════════
-   OPTION A — CDN (actif par défaut)
-   Polices chargées depuis Fontshare + Google Fonts via les <link> dans layout.js.
-   font-display: swap actif via paramètre URL.
-   Fallbacks dimensionnés ci-dessous réduisent le CLS lors du swap.
-   ══════════════════════════════════════════════════════════════════════════════
-
-   OPTION B — AUTO-HÉBERGEMENT (recommandé pour CLS = 0)
-   Après avoir exécuté `bash scripts/download-fonts.sh` :
-   1. Décommenter la section "Polices auto-hébergées" ci-dessous
-   2. Supprimer les <link> polices dans app/layout.js
-   3. Redéployer → CLS garanti à 0 avec font-display: optional
-   ══════════════════════════════════════════════════════════════════════════════
-*/
-
-
-/* ── Fallback fonts dimensionnés (CLS minimal avec option A) ───────────────
-   Ces @font-face ajustent les métriques des polices système pour qu'elles
-   correspondent quasi-exactement à Clash Display et DM Sans.
-   → Quand la web font charge (swap), le texte bouge à peine.
-   ─────────────────────────────────────────────────────────────────────────── */
-
+/* ── Fallback fonts ─────────────────────────────────────────────────────── */
 @font-face {
-  font-family: 'Clash Display Fallback';
+  font-family: 'Rajdhani Fallback';
   src: local('Arial Bold'), local('Helvetica Bold');
-  font-weight: 700 900;
-  ascent-override: 105%;
-  descent-override: 22%;
+  font-weight: 400 700;
+  ascent-override: 98%;
+  descent-override: 20%;
   line-gap-override: 0%;
-  size-adjust: 97%;
+  size-adjust: 96%;
 }
-
-@font-face {
-  font-family: 'DM Sans Fallback';
-  src: local('Arial'), local('Helvetica'), local('Helvetica Neue');
-  font-weight: 400 800;
-  ascent-override: 93%;
-  descent-override: 24%;
-  line-gap-override: 0%;
-  size-adjust: 104%;
-}
-
-
-/* ══════════════════════════════════════════════════════════════════════════════
-   OPTION B — POLICES AUTO-HÉBERGÉES (décommenter après download-fonts.sh)
-   ══════════════════════════════════════════════════════════════════════════════
-
-@font-face {
-  font-family: 'Clash Display';
-  src: url('/fonts/ClashDisplay-Bold.woff2') format('woff2');
-  font-weight: 700 900;
-  font-display: optional;
-  font-style: normal;
-}
-
-@font-face {
-  font-family: 'DM Sans';
-  src: url('/fonts/DMSans-Regular.woff2') format('woff2');
-  font-weight: 400;
-  font-display: optional;
-  font-style: normal;
-}
-
-@font-face {
-  font-family: 'DM Sans';
-  src: url('/fonts/DMSans-Medium.woff2') format('woff2');
-  font-weight: 500;
-  font-display: optional;
-  font-style: normal;
-}
-
-@font-face {
-  font-family: 'DM Sans';
-  src: url('/fonts/DMSans-Bold.woff2') format('woff2');
-  font-weight: 700 800;
-  font-display: optional;
-  font-style: normal;
-}
-
-  ══════════════════════════════════════════════════════════════════════════════ */
-
 
 /* ── Reset & Base ────────────────────────────────────────────────────────── */
 
@@ -97,18 +20,17 @@
 }
 
 html {
-  scrollbar-color: rgba(255,255,255,0.12) transparent;
+  scrollbar-color: rgba(0,200,240,0.15) transparent;
   scrollbar-width: thin;
 }
 
 body {
-  background: #020609;
-  color: #f0f0f0;
-  /* Pile de polices : web font → fallback dimensionné → générique */
+  background: #01020A;
+  color: #DDE6F2;
   font-family:
-    'DM Sans',
-    'DM Sans Fallback',
-    'Inter',
+    'Rajdhani',
+    'Rajdhani Fallback',
+    'Sora',
     system-ui,
     -apple-system,
     BlinkMacSystemFont,
@@ -117,7 +39,6 @@ body {
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
 }
-
 
 /* ── Animations réutilisables ────────────────────────────────────────────── */
 
@@ -156,34 +77,44 @@ body {
 }
 
 @keyframes selectedPulse {
-  0%, 100% { box-shadow: 0 0 0 0px var(--sel-c, #d4a84b), 0 0 18px var(--sel-c, #d4a84b)30; }
-  50%       { box-shadow: 0 0 0 3px var(--sel-c, #d4a84b)20, 0 0 32px var(--sel-c, #d4a84b)50; }
+  0%, 100% { box-shadow: 0 0 0 0px #E8A020, 0 0 18px #E8A02030; }
+  50%       { box-shadow: 0 0 0 3px #E8A02020, 0 0 32px #E8A02050; }
+}
+
+/* Holographic scan line animation */
+@keyframes scanDown {
+  from { transform: translateY(-100%); }
+  to   { transform: translateY(100vh); }
+}
+
+/* HUD spinner */
+@keyframes hudSpin {
+  to { transform: rotate(360deg); }
+}
+
+/* Holographic pulse */
+@keyframes holoPulse {
+  0%, 100% { opacity: 0.5; box-shadow: 0 0 8px rgba(0,200,240,0.2); }
+  50%       { opacity: 1; box-shadow: 0 0 20px rgba(0,200,240,0.5); }
 }
 
 
-/* ── CORRECTIF CLS — Animations composées sur les boutons nav ────────────────
-   Problème Lighthouse : les boutons nav (◈ ⊞ EN) utilisaient des animations
-   sur padding-left, font-size, padding-right, margin-left, letter-spacing.
-   Ces propriétés déclenchent layout + paint = CLS + janking.
-   Fix : uniquement transform + opacity (propriétés composées, GPU).
-   ─────────────────────────────────────────────────────────────────────────── */
-
+/* ── Buttons — Star Citizen transitions ──────────────────────────────────── */
 nav button,
 header button {
-  /* Transition sur propriétés composées UNIQUEMENT */
   transition:
-    opacity     0.15s ease,
-    transform   0.15s ease,
-    background  0.15s ease !important;
+    opacity     0.12s ease,
+    transform   0.12s ease,
+    background  0.12s ease,
+    box-shadow  0.12s ease !important;
   will-change: transform, opacity;
-  /* Taille fixe pour éviter tout recalcul au hover */
   transform-origin: center;
 }
 
 nav button:hover,
 header button:hover {
-  opacity: 0.85;
-  transform: scale(1.04);
+  opacity: 0.88;
+  transform: scale(1.03);
 }
 
 nav button:active,
@@ -194,35 +125,14 @@ header button:active {
 
 
 /* ── Accessibilité — Focus visible ──────────────────────────────────────── */
-
 :focus-visible {
-  outline: 2px solid rgba(240, 180, 41, 0.8);
+  outline: 1px solid rgba(0,200,240,0.7);
   outline-offset: 2px;
-  border-radius: 4px;
 }
 
 
-/* ── Scrollbar webkit ────────────────────────────────────────────────────── */
-
-::-webkit-scrollbar        { width: 6px; height: 6px; }
+/* ── Scrollbar — holographic cyan ──────────────────────────────────────── */
+::-webkit-scrollbar        { width: 2px; height: 2px; }
 ::-webkit-scrollbar-track  { background: transparent; }
-::-webkit-scrollbar-thumb  { background: rgba(255,255,255,0.12); border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
-
-
-/* ── Correctif contraste accessibilité (score Lighthouse 93 → 97) ────────
-   Éléments identifiés comme insuffisants : boutons nav, badge bêta, spans muted.
-   Lighthouse exige ratio ≥ 4.5:1 pour le texte normal.
-   ─────────────────────────────────────────────────────────────────────────── */
-
-/* Badge "BÊTA" / bannière annonce — texte plus lisible */
-[data-badge="beta"],
-.beta-badge {
-  /* Assurer ratio ≥ 4.5:1 sur fond #0f0f0f */
-  color: rgba(255, 255, 255, 0.72) !important; /* ratio ~6.8:1 sur #0f0f0f */
-}
-
-/* Bouton langue "EN" et boutons nav discrets — améliorer contraste */
-nav button[data-nav-secondary] {
-  color: rgba(255, 255, 255, 0.68) !important;
-}
+::-webkit-scrollbar-thumb  { background: rgba(0,200,240,0.15); border-radius: 0; }
+::-webkit-scrollbar-thumb:hover { background: rgba(0,200,240,0.30); }

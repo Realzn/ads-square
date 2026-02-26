@@ -26,24 +26,29 @@ const LangContext = createContext('fr');
 function useLang() { return useContext(LangContext); }
 function useT() { const lang = useLang(); return getT(lang); }
 
-// ─── UI Design System (overrides neon D tokens for chrome) ────
+// ─── UI Design System — STAR CITIZEN GRADE ─────────────────────
 const U = {
-  bg:     '#080808',
-  s1:     '#0f0f0f',
-  s2:     '#151515',
-  card:   '#1a1a1a',
-  border: 'rgba(255,255,255,0.07)',
-  border2:'rgba(255,255,255,0.13)',
-  text:   '#f0f0f0',
-  muted:  'rgba(255,255,255,0.36)',
-  faint:  'rgba(255,255,255,0.04)',
-  accent: '#d4a84b',      // single warm gold — the one accent
-  accentFg: '#080808',
-  err:    '#e05252',
+  bg:      '#01020A',
+  s1:      'rgba(0,4,16,0.98)',
+  s2:      'rgba(0,8,24,0.97)',
+  card:    'rgba(1,4,14,0.94)',
+  border:  'rgba(0,200,240,0.09)',
+  border2: 'rgba(0,200,240,0.20)',
+  text:    '#DDE6F2',
+  muted:   'rgba(140,180,220,0.70)',
+  faint:   'rgba(0,200,240,0.04)',
+  accent:  '#E8A020',
+  accentFg:'#01020A',
+  cyan:    '#00C8E4',
+  violet:  '#8060C8',
+  green:   '#00D880',
+  rose:    '#D02848',
+  err:     '#D02848',
 };
 const F = {
-  h: "'Clash Display','Syne',sans-serif",
-  b: "'DM Sans','Inter',sans-serif",
+  h: "'Rajdhani','Sora',system-ui,sans-serif",
+  b: "'Rajdhani','Sora',system-ui,sans-serif",
+  mono: "'JetBrains Mono','Fira Code',monospace",
 };
 
 // ─── Theme categories ─────────────────────────────────────────
@@ -182,17 +187,29 @@ function useGridLayout(containerW, containerH, isMobile) {
 // ─── Small Components ──────────────────────────────────────────
 
 function BrandLogo({ size = 20, onClick }) {
+  const [hov, setHov] = useState(false);
   return (
-    <button onClick={onClick} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
-      <svg width={size * 1.1} height={size * 1.1} viewBox="0 0 22 22" fill="none">
-        <rect x="1" y="1" width="9" height="9" rx="2" stroke={U.accent} strokeWidth="1.5"/>
-        <rect x="12" y="1" width="9" height="9" rx="2" stroke={U.accent} strokeWidth="1.5" opacity="0.5"/>
-        <rect x="1" y="12" width="9" height="9" rx="2" stroke={U.accent} strokeWidth="1.5" opacity="0.5"/>
-        <rect x="12" y="12" width="9" height="9" rx="2" stroke={U.accent} strokeWidth="1.5" opacity="0.25"/>
-      </svg>
-      <span style={{ color: U.text, fontWeight: 700, fontSize: size, letterSpacing: '-0.02em', fontFamily: F.h, lineHeight: 1 }}>
-        ADS<span style={{ color: U.accent }}>·</span>SQUARE
-      </span>
+    <button onClick={onClick} onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
+      style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', gap: 9, transition: 'opacity .12s' }}>
+      {/* Octagonal icon */}
+      <div style={{
+        width: size * 1.4, height: size * 1.4,
+        clipPath: 'polygon(25% 0,75% 0,100% 25%,100% 75%,75% 100%,25% 100%,0 75%,0 25%)',
+        background: `${U.accent}18`,
+        border: `1px solid ${U.accent}${hov ? '88' : '44'}`,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        flexShrink: 0,
+        transition: 'all .12s',
+        boxShadow: hov ? `0 0 14px ${U.accent}44` : 'none',
+      }}>
+        <span style={{ color: U.accent, fontSize: size * 0.9, lineHeight: 1 }}>◈</span>
+      </div>
+      <div>
+        <div style={{ color: U.text, fontWeight: 700, fontSize: size * 0.95, letterSpacing: '.18em', fontFamily: F.h, lineHeight: 1, textTransform: 'uppercase' }}>
+          ADS<span style={{ color: U.accent }}>·</span>SQUARE
+        </div>
+        <div style={{ color: U.muted, fontFamily: F.mono, fontSize: size * 0.4, letterSpacing: '.20em', marginTop: 1, lineHeight: 1 }}>ORBITAL·ADV·SYS</div>
+      </div>
     </button>
   );
 }
@@ -203,15 +220,34 @@ function AnnouncementBar({ onWaitlist }) {
   const t = useT();
   if (!visible) return null;
   return (
-    <div style={{ background: U.s1, borderBottom: `1px solid ${U.border}`, padding: isMobile ? '6px 12px' : '9px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0, minHeight: 0 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 8 : 12, fontSize: isMobile ? 11 : 12, color: U.muted, overflow: 'hidden' }}>
-        <span style={{ background: U.accentFg, color: U.accent, fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', padding: '2px 7px', borderRadius: 3, flexShrink: 0 }}>{t('banner.badge')}</span>
-        {!isMobile && <span>{t('banner.text')}</span>}
-        <button onClick={onWaitlist} style={{ color: U.accent, background: 'none', border: 'none', cursor: 'pointer', fontSize: isMobile ? 11 : 12, padding: 0, fontFamily: F.b, whiteSpace: 'nowrap' }}>
+    <div style={{
+      background: 'rgba(0,4,16,0.99)',
+      borderBottom: `0.5px solid ${U.border}`,
+      padding: isMobile ? '5px 12px' : '6px 20px',
+      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+      flexShrink: 0, minHeight: 0,
+      backgroundImage: 'repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,200,240,0.02) 2px,rgba(0,200,240,0.02) 3px)',
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 8 : 14, fontSize: isMobile ? 10 : 11, color: U.muted, overflow: 'hidden', fontFamily: F.mono }}>
+        <span style={{
+          background: `${U.accent}18`,
+          border: `0.5px solid ${U.accent}44`,
+          color: U.accent,
+          fontSize: 8, fontWeight: 700, letterSpacing: '0.14em', padding: '2px 8px',
+          clipPath: 'polygon(0 0,calc(100% - 4px) 0,100% 4px,100% 100%,4px 100%,0 calc(100% - 4px))',
+          flexShrink: 0,
+        }}>{t('banner.badge')}</span>
+        {!isMobile && <span style={{ letterSpacing: '.06em' }}>{t('banner.text')}</span>}
+        <button onClick={onWaitlist} style={{
+          color: U.cyan, background: 'none', border: 'none', cursor: 'pointer',
+          fontSize: isMobile ? 10 : 11, padding: 0, fontFamily: F.mono,
+          whiteSpace: 'nowrap', letterSpacing: '.08em',
+          textDecoration: 'underline', textDecorationStyle: 'dotted', textUnderlineOffset: 2,
+        }}>
           {t('banner.cta')}
         </button>
       </div>
-      <button onClick={() => setVisible(false)} style={{ background: 'none', border: 'none', color: U.muted, cursor: 'pointer', fontSize: 16, padding: '0 2px', lineHeight: 1, flexShrink: 0 }}>×</button>
+      <button onClick={() => setVisible(false)} style={{ background: 'none', border: 'none', color: U.muted, cursor: 'pointer', fontSize: 14, padding: '0 2px', lineHeight: 1, flexShrink: 0, opacity: .5 }}>×</button>
     </div>
   );
 }
@@ -221,32 +257,48 @@ function Modal({ onClose, width = 480, children, isMobile }) {
   const [entered, setEntered] = useState(false);
   useEffect(() => { const t = requestAnimationFrame(() => setEntered(true)); return () => cancelAnimationFrame(t); }, []);
   useEffect(() => { const fn = e => { if (e.key === 'Escape') onClose(); }; window.addEventListener('keydown', fn); return () => window.removeEventListener('keydown', fn); }, [onClose]);
+  const clip = 'polygon(0 0,calc(100% - 18px) 0,100% 18px,100% 100%,18px 100%,0 calc(100% - 18px))';
   return (
-    <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 2000, background: 'rgba(0,0,0,0.82)', backdropFilter: 'blur(16px)', display: 'flex', alignItems: isMobile ? 'flex-end' : 'center', justifyContent: 'center', opacity: entered ? 1 : 0, transition: 'opacity 0.2s ease' }}>
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 2000, background: 'rgba(0,1,6,0.92)', backdropFilter: 'blur(20px) saturate(180%)', display: 'flex', alignItems: isMobile ? 'flex-end' : 'center', justifyContent: 'center', opacity: entered ? 1 : 0, transition: 'opacity 0.2s ease' }}>
+      {/* scanlines overlay */}
+      <div style={{ position: 'absolute', inset: 0, backgroundImage: 'repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,200,240,0.025) 2px,rgba(0,200,240,0.025) 3px)', pointerEvents: 'none' }} />
       <div
         onClick={e => e.stopPropagation()}
         style={{
           position: 'relative',
           width: isMobile ? '100vw' : `min(96vw,${width}px)`,
-          background: U.s1,
-          border: `1px solid ${U.border2}`,
-          borderRadius: isMobile ? '20px 20px 0 0' : 16,
+          background: 'rgba(0,4,18,0.98)',
+          border: `0.5px solid ${U.border2}`,
+          clipPath: isMobile ? 'none' : clip,
+          borderRadius: isMobile ? '16px 16px 0 0' : 0,
           overflow: 'hidden',
-          overflowY: 'hidden',
           maxHeight: isMobile ? '90vh' : '88vh',
-          transform: entered ? 'translateY(0) scale(1)' : 'translateY(16px) scale(0.97)',
-          transition: 'transform 0.25s cubic-bezier(0.22,1,0.36,1)',
-          boxShadow: '0 32px 80px rgba(0,0,0,0.7)',
+          transform: entered ? 'translateY(0)' : 'translateY(20px)',
+          transition: 'transform 0.28s cubic-bezier(0.22,1,0.36,1)',
+          boxShadow: `0 0 80px ${U.cyan}14, 0 32px 80px rgba(0,0,0,0.95)`,
         }}
       >
-        {isMobile && (
-          <div style={{ display: 'flex', justifyContent: 'center', padding: '12px 0 0' }}>
-            <div style={{ width: 36, height: 3, borderRadius: 2, background: U.border2 }} />
-          </div>
-        )}
-        <button onClick={onClose} style={{ position: 'absolute', top: 14, right: 14, width: 30, height: 30, borderRadius: '50%', border: `1px solid ${U.border}`, background: U.faint, color: U.muted, cursor: 'pointer', fontSize: 16, zIndex: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'background 0.15s, color 0.15s' }}
-          onMouseEnter={e => { e.currentTarget.style.background = U.s2; e.currentTarget.style.color = U.text; }}
-          onMouseLeave={e => { e.currentTarget.style.background = U.faint; e.currentTarget.style.color = U.muted; }}>×</button>
+        {/* Top energy bar */}
+        <div style={{ height: 1.5, background: `linear-gradient(90deg,transparent,${U.cyan},${U.cyan}88,transparent)`, boxShadow: `0 0 8px ${U.cyan}` }} />
+        {/* Corner brackets */}
+        {[['top','left'],['top','right'],['bottom','left'],['bottom','right']].map(([v,h],i) => (
+          <div key={i} style={{ position: 'absolute', [v]: 6, [h]: 6, width: 10, height: 10,
+            borderTop: v==='top' ? `1px solid ${U.cyan}66` : 'none',
+            borderBottom: v==='bottom' ? `1px solid ${U.cyan}66` : 'none',
+            borderLeft: h==='left' ? `1px solid ${U.cyan}66` : 'none',
+            borderRight: h==='right' ? `1px solid ${U.cyan}66` : 'none',
+            pointerEvents: 'none', zIndex: 10,
+          }} />
+        ))}
+        <button onClick={onClose} style={{
+          position: 'absolute', top: 12, right: 12, width: 24, height: 24,
+          clipPath: 'polygon(0 0,calc(100% - 4px) 0,100% 4px,100% 100%,4px 100%,0 calc(100% - 4px))',
+          border: `0.5px solid ${U.rose}33`, background: 'transparent',
+          color: `${U.rose}88`, cursor: 'pointer', fontSize: 11, zIndex: 10,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all .10s', fontFamily: F.mono,
+        }}
+          onMouseEnter={e => { e.currentTarget.style.color = U.rose; e.currentTarget.style.borderColor = `${U.rose}66`; }}
+          onMouseLeave={e => { e.currentTarget.style.color = `${U.rose}88`; e.currentTarget.style.borderColor = `${U.rose}33`; }}>✕</button>
         {children}
       </div>
     </div>
@@ -4787,7 +4839,7 @@ function LandingPage({ slots, onPublic, onAdvertiser, onWaitlist }) {
 export default function App() {
   const [lang, setLang]             = useState('fr');
   const [view, setView]             = useState('landing');
-  const [view3D, setView3D]         = useState(false);   // ← toggle 2D/3D
+  const [view3D, setView3D]         = useState(true);    // ← 3D view exclusive
   const [showWaitlist, setShowWaitlist] = useState(false);
   const [checkoutSlot, setCheckoutSlot] = useState(null);
   const [buyoutSlot, setBuyoutSlot]     = useState(null);
@@ -4857,77 +4909,99 @@ export default function App() {
 
   return (
     <LangContext.Provider value={lang}>
-      <div style={{ display: 'flex', height: '100vh', background: U.bg, fontFamily: F.b, color: U.text, flexDirection: 'column', overflow: view === 'landing' ? 'auto' : 'hidden' }}>
+      <div style={{ display: 'flex', height: '100vh', background: '#01020A', fontFamily: F.b, color: U.text, flexDirection: 'column', overflow: view === 'landing' ? 'auto' : 'hidden' }}>
         <AnnouncementBar onWaitlist={handleWaitlist} />
 
-        {/* Header */}
-        <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: isMobile ? '0 12px' : '0 24px', height: 48, flexShrink: 0, borderBottom: `1px solid ${U.border}`, background: `${U.s1}f0`, backdropFilter: 'blur(14px)', zIndex: 100, gap: 8 }}>
-          <BrandLogo size={isMobile ? 15 : 17} onClick={() => setView('landing')} />
+        {/* Header — STAR CITIZEN GRADE */}
+        <header style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: isMobile ? '0 12px' : '0 20px', height: 50, flexShrink: 0,
+          borderBottom: `0.5px solid ${U.border}`,
+          background: 'rgba(0,3,14,0.98)',
+          backdropFilter: 'blur(24px) saturate(200%)',
+          zIndex: 100, gap: 8,
+          backgroundImage: 'repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,200,240,0.015) 2px,rgba(0,200,240,0.015) 3px)',
+          boxShadow: '0 1px 0 rgba(0,200,240,0.08), 0 2px 20px rgba(0,0,0,0.8)',
+        }}>
+          <BrandLogo size={isMobile ? 14 : 15} onClick={() => setView('landing')} />
 
-          <nav style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+          <nav style={{ display: 'flex', gap: 3, alignItems: 'center' }}>
             {[
               ['public',     t('nav.explore'),  '◈'],
               ['advertiser', t('nav.reserve'),  '⊞'],
-            ].map(([v, label, icon]) => (
-              <button key={v} onClick={() => setView(v)} style={{ padding: isMobile ? '5px 7px' : '5px 12px', borderRadius: 7, fontFamily: F.b, cursor: 'pointer', background: view === v ? U.s2 : 'transparent', border: `1px solid ${view === v ? U.border2 : 'transparent'}`, color: view === v ? U.text : U.muted, fontSize: isMobile ? 11 : 12, fontWeight: view === v ? 600 : 400, transition: 'all 0.15s', whiteSpace: 'nowrap' }}>
-                {isMobile ? (view === v ? label : icon) : label}
-              </button>
-            ))}
-            <button onClick={handleWaitlist} style={{ padding: isMobile ? '5px 8px' : '6px 14px', borderRadius: 7, fontFamily: F.b, cursor: 'pointer', background: U.accent, border: 'none', color: U.accentFg, fontSize: isMobile ? 10 : 12, fontWeight: 700, marginLeft: 2, boxShadow: `0 0 16px ${U.accent}45`, whiteSpace: 'nowrap' }}>
+            ].map(([v, label, icon]) => {
+              const on = view === v;
+              return (
+                <button key={v} onClick={() => setView(v)} style={{
+                  padding: isMobile ? '5px 8px' : '5px 14px',
+                  background: on ? `${U.cyan}14` : 'transparent',
+                  border: `0.5px solid ${on ? U.cyan : U.border}`,
+                  clipPath: 'polygon(0 0,calc(100% - 6px) 0,100% 6px,100% 100%,0 100%)',
+                  color: on ? U.cyan : U.muted,
+                  fontFamily: F.mono, fontSize: isMobile ? 10 : 10.5,
+                  fontWeight: 700, letterSpacing: '.12em', textTransform: 'uppercase',
+                  cursor: 'pointer', outline: 'none',
+                  boxShadow: on ? `0 0 14px ${U.cyan}22` : 'none',
+                  transition: 'all 0.12s', whiteSpace: 'nowrap',
+                }}>
+                  {isMobile ? (on ? label : icon) : label}
+                </button>
+              );
+            })}
+
+            {/* CTA — Waitlist */}
+            <button onClick={handleWaitlist} style={{
+              padding: isMobile ? '5px 10px' : '6px 16px',
+              background: `${U.accent}18`,
+              border: `0.5px solid ${U.accent}55`,
+              clipPath: 'polygon(0 0,calc(100% - 6px) 0,100% 6px,100% 100%,6px 100%,0 calc(100% - 6px))',
+              color: U.accent, fontFamily: F.mono,
+              fontSize: isMobile ? 9 : 10, fontWeight: 700,
+              letterSpacing: '.12em', textTransform: 'uppercase',
+              marginLeft: 4, cursor: 'pointer', outline: 'none',
+              boxShadow: `0 0 16px ${U.accent}30`, whiteSpace: 'nowrap',
+              transition: 'all .12s',
+            }}>
               {isMobile ? t('nav.waitlist.short') : t('nav.waitlist')}
             </button>
-
-            {/* ── Toggle 2D / 3D (visible uniquement sur la vue Explorer) ── */}
-            {view === 'public' && (
-              <button
-                onClick={() => setView3D(v => !v)}
-                title={view3D ? 'Revenir à la grille 2D' : 'Passer en vue 3D'}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 5,
-                  padding: isMobile ? '5px 8px' : '5px 12px',
-                  borderRadius: 7, fontFamily: F.b, cursor: 'pointer',
-                  background: view3D ? `${U.accent}18` : U.faint,
-                  border: `1px solid ${view3D ? U.accent + '60' : U.border2}`,
-                  color: view3D ? U.accent : U.muted,
-                  fontSize: isMobile ? 10 : 11, fontWeight: 700,
-                  transition: 'all 0.2s', whiteSpace: 'nowrap',
-                  boxShadow: view3D ? `0 0 14px ${U.accent}30` : 'none',
-                }}
-              >
-                <span style={{ fontSize: 12 }}>{view3D ? '◫' : '●'}</span>
-                {!isMobile && (view3D ? '2D' : '3D')}
-              </button>
-            )}
 
             {/* ── Auth icons ── */}
             {authUser ? (
               <>
-                {/* Icône profil → dashboard */}
-                <a href="/dashboard" title="Mon dashboard"
-                  style={{ width: 30, height: 30, borderRadius: '50%', background: 'rgba(212,168,75,0.15)', border: `1.5px solid ${U.accent}`, display: 'flex', alignItems: 'center', justifyContent: 'center', textDecoration: 'none', flexShrink: 0, cursor: 'pointer', transition: 'all 0.15s' }}
-                  onMouseEnter={e => { e.currentTarget.style.background = 'rgba(212,168,75,0.3)'; }}
-                  onMouseLeave={e => { e.currentTarget.style.background = 'rgba(212,168,75,0.15)'; }}
-                >
-                  <span style={{ fontSize: 14 }}>👤</span>
+                <a href="/dashboard" title="Mon dashboard" style={{
+                  width: 30, height: 30,
+                  clipPath: 'polygon(15% 0,85% 0,100% 15%,100% 85%,85% 100%,15% 100%,0 85%,0 15%)',
+                  background: `${U.accent}14`, border: `1px solid ${U.accent}44`,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  textDecoration: 'none', flexShrink: 0, cursor: 'pointer', transition: 'all 0.12s',
+                }}>
+                  <span style={{ fontSize: 13 }}>👤</span>
                 </a>
-                {/* Déconnexion */}
                 {!isMobile && (
-                  <button onClick={handleSignOut} title="Se déconnecter"
-                    style={{ width: 30, height: 30, borderRadius: '50%', background: U.faint, border: `1px solid ${U.border2}`, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0, transition: 'all 0.15s' }}
-                    onMouseEnter={e => { e.currentTarget.style.borderColor = U.err; e.currentTarget.style.color = U.err; }}
-                    onMouseLeave={e => { e.currentTarget.style.borderColor = U.border2; e.currentTarget.style.color = U.muted; }}
-                  >
-                    <span style={{ fontSize: 13, color: U.muted }}>⏻</span>
+                  <button onClick={handleSignOut} title="Se déconnecter" style={{
+                    width: 30, height: 30,
+                    clipPath: 'polygon(15% 0,85% 0,100% 15%,100% 85%,85% 100%,15% 100%,0 85%,0 15%)',
+                    background: 'transparent', border: `0.5px solid ${U.border}`,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    cursor: 'pointer', flexShrink: 0, transition: 'all 0.12s', color: U.muted,
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.borderColor = U.rose; e.currentTarget.style.color = U.rose; }}
+                  onMouseLeave={e => { e.currentTarget.style.borderColor = U.border; e.currentTarget.style.color = U.muted; }}>
+                    <span style={{ fontSize: 12 }}>⏻</span>
                   </button>
                 )}
               </>
             ) : (
-              <a href="/dashboard/login" title="Se connecter"
-                style={{ width: 30, height: 30, borderRadius: '50%', background: U.faint, border: `1px solid ${U.border2}`, display: 'flex', alignItems: 'center', justifyContent: 'center', textDecoration: 'none', flexShrink: 0, cursor: 'pointer', transition: 'all 0.15s' }}
-                onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.3)'; e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; }}
-                onMouseLeave={e => { e.currentTarget.style.borderColor = U.border2; e.currentTarget.style.background = U.faint; }}
-              >
-                <span style={{ fontSize: 14 }}>🔑</span>
+              <a href="/dashboard/login" title="Se connecter" style={{
+                width: 30, height: 30,
+                clipPath: 'polygon(15% 0,85% 0,100% 15%,100% 85%,85% 100%,15% 100%,0 85%,0 15%)',
+                background: 'transparent', border: `0.5px solid ${U.border}`,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                textDecoration: 'none', flexShrink: 0, cursor: 'pointer', transition: 'all 0.12s',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = U.border2; e.currentTarget.style.background = `${U.cyan}08`; }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = U.border; e.currentTarget.style.background = 'transparent'; }}>
+                <span style={{ fontSize: 13 }}>🔑</span>
               </a>
             )}
 
@@ -4935,9 +5009,17 @@ export default function App() {
             <button
               onClick={() => handleSetLang(l => l === 'fr' ? 'en' : 'fr')}
               title={lang === 'fr' ? 'Switch to English' : 'Passer en français'}
-              style={{ marginLeft: isMobile ? 2 : 4, padding: isMobile ? '4px 7px' : '4px 9px', borderRadius: 7, fontFamily: F.b, cursor: 'pointer', background: U.faint, border: `1px solid ${U.border2}`, color: U.muted, fontSize: isMobile ? 10 : 11, fontWeight: 700, letterSpacing: '0.05em', transition: 'all 0.15s', flexShrink: 0 }}
-              onMouseEnter={e => { e.currentTarget.style.color = U.text; }}
-              onMouseLeave={e => { e.currentTarget.style.color = U.muted; }}
+              style={{
+                marginLeft: isMobile ? 1 : 3,
+                padding: isMobile ? '4px 7px' : '4px 10px',
+                clipPath: 'polygon(0 0,calc(100% - 4px) 0,100% 4px,100% 100%,0 100%)',
+                background: 'transparent', border: `0.5px solid ${U.border}`,
+                color: U.muted, fontFamily: F.mono,
+                fontSize: isMobile ? 9 : 10, fontWeight: 700, letterSpacing: '.14em',
+                cursor: 'pointer', outline: 'none', transition: 'all 0.12s', flexShrink: 0,
+              }}
+              onMouseEnter={e => { e.currentTarget.style.color = U.text; e.currentTarget.style.borderColor = U.border2; }}
+              onMouseLeave={e => { e.currentTarget.style.color = U.muted; e.currentTarget.style.borderColor = U.border; }}
             >
               {lang === 'fr' ? 'EN' : 'FR'}
             </button>
@@ -4945,8 +5027,7 @@ export default function App() {
         </header>
 
         {view === 'landing'    && <LandingPage    slots={slots} onPublic={() => setView('public')} onAdvertiser={() => setView('advertiser')} onWaitlist={handleWaitlist} />}
-        {view === 'public'     && !view3D && <PublicView     slots={slots} isLive={isLive} onGoAdvertiser={() => setShowBoost(true)} onWaitlist={handleWaitlist} authUser={authUser} userBookings={userBookings} />}
-        {view === 'public'     && view3D  && (
+        {view === 'public'     && (
           <View3D
             slots={slots}
             isLive={isLive}
