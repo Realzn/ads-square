@@ -23,8 +23,34 @@ import { getT } from '../lib/i18n';
 
 // ─── Language context ─────────────────────────────────────────
 const LangContext = createContext('fr');
+const LangSetterContext = createContext(() => {});
 function useLang() { return useContext(LangContext); }
+function useLangSetter() { return useContext(LangSetterContext); }
 function useT() { const lang = useLang(); return getT(lang); }
+
+// ── Inline lang toggle usable anywhere inside providers ──
+function LangToggleInline() {
+  const lang = useLang();
+  const setLang = useLangSetter();
+  return (
+    <button
+      onClick={() => setLang(l => l === 'fr' ? 'en' : 'fr')}
+      style={{
+        padding: '3px 8px',
+        clipPath: 'polygon(0 0,calc(100% - 4px) 0,100% 4px,100% 100%,0 100%)',
+        background: 'transparent',
+        border: `0.5px solid ${U.border}`,
+        color: U.muted, fontFamily: F.mono,
+        fontSize: 9, fontWeight: 700, letterSpacing: '.14em',
+        cursor: 'pointer', outline: 'none', transition: 'all 0.12s', flexShrink: 0,
+      }}
+      onMouseEnter={e => { e.currentTarget.style.color = U.text; e.currentTarget.style.borderColor = `rgba(0,200,240,0.20)`; }}
+      onMouseLeave={e => { e.currentTarget.style.color = U.muted; e.currentTarget.style.borderColor = `rgba(0,200,240,0.09)`; }}
+    >
+      {lang === 'fr' ? 'EN' : 'FR'}
+    </button>
+  );
+}
 
 // ─── UI Design System — STAR CITIZEN GRADE ─────────────────────
 const U = {
@@ -206,9 +232,9 @@ function BrandLogo({ size = 20, onClick }) {
       </div>
       <div>
         <div style={{ color: U.text, fontWeight: 700, fontSize: size * 0.95, letterSpacing: '.18em', fontFamily: F.h, lineHeight: 1, textTransform: 'uppercase' }}>
-          ADS<span style={{ color: U.accent }}>·</span>SQUARE
+          ADS<span style={{ color: U.accent }}>Most</span>Fair
         </div>
-        <div style={{ color: U.muted, fontFamily: F.mono, fontSize: size * 0.4, letterSpacing: '.20em', marginTop: 1, lineHeight: 1 }}>ORBITAL·ADV·SYS</div>
+        <div style={{ color: U.muted, fontFamily: F.mono, fontSize: size * 0.4, letterSpacing: '.20em', marginTop: 1, lineHeight: 1 }}>GALACTIC·ADV·GRID</div>
       </div>
     </button>
   );
@@ -2583,10 +2609,10 @@ function ShareBlocButton({ x, y, name, slogan }) {
   const [copied, setCopied] = useState(false);
 
   const handleShare = async () => {
-    const url = `${typeof window !== 'undefined' ? window.location.origin : 'https://ads-square.com'}/bloc/${x}-${y}`;
+    const url = `${typeof window !== 'undefined' ? window.location.origin : 'https://adsmostfair.com'}/bloc/${x}-${y}`;
     if (navigator?.share) {
       try {
-        await navigator.share({ title: name ? `${name} sur ADS-SQUARE` : 'Bloc ADS-SQUARE', text: slogan || name || '', url });
+        await navigator.share({ title: name ? `${name} sur ADSMostFair` : 'Bloc ADSMostFair', text: slogan || name || '', url });
         return;
       } catch { /* user cancelled */ }
     }
@@ -3396,7 +3422,7 @@ function BoostTicker({ slots, authUser, userBookings, onBoost, onGoAdvertiser })
   const emptyItems = [
     '⚡ Boostez votre bloc pour apparaître ici et obtenir une visibilité maximale',
     '🚀 Votre marque vue par tous les visiteurs en temps réel',
-    '✦ Réservez un bloc ADS-SQUARE et activez le boost pour rejoindre cette barre',
+    '✦ Réservez un bloc ADSMostFair et activez le boost pour rejoindre cette barre',
     '💡 Les annonceurs boostés obtiennent 3× plus de clics',
   ];
 
@@ -3408,7 +3434,7 @@ function BoostTicker({ slots, authUser, userBookings, onBoost, onGoAdvertiser })
           {!isLoggedIn ? (
             <>
               <div style={{ color: U.text, fontWeight: 700, fontSize: 12, marginBottom: 4 }}>Vous n'avez pas encore de bloc</div>
-              <div style={{ color: U.muted, fontSize: 11, lineHeight: 1.5, marginBottom: 8 }}>Réservez un bloc ADS-SQUARE pour profiter d'un boost de visibilité et apparaître ici.</div>
+              <div style={{ color: U.muted, fontSize: 11, lineHeight: 1.5, marginBottom: 8 }}>Réservez un bloc ADSMostFair pour profiter d'un boost de visibilité et apparaître ici.</div>
               <button onClick={() => { setShowTickerToast(false); onGoAdvertiser(); }} style={{ padding: '6px 12px', borderRadius: 7, background: U.accent, border: 'none', color: U.accentFg, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
                 Voir les blocs disponibles →
               </button>
@@ -4718,9 +4744,10 @@ function roundRect(ctx, x, y, w, h, r) {
 }
 
 // ─── Landing Page ──────────────────────────────────────────────
-function LandingPage({ slots, onPublic, onAdvertiser, onWaitlist }) {
+function LandingPage({ slots, onPublic, onWaitlist }) {
   const { isMobile } = useScreenSize();
   const t = useT();
+  const lang = useLang();
   const stats = useMemo(() => ({ occupied: slots.filter(s => s.occ).length, vacant: slots.filter(s => !s.occ).length }), [slots]);
 
   const [platformStats, setPlatformStats] = useState(null);
@@ -4784,12 +4811,12 @@ function LandingPage({ slots, onPublic, onAdvertiser, onWaitlist }) {
         {/* Stats live plateforme */}
         <div style={{ display: 'flex', gap: isMobile ? 16 : 36, justifyContent: 'center', marginBottom: 40, flexWrap: 'wrap' }}>
           {[
-            [stats.occupied,                                                              t('landing.stat.active'),  false],
-            [stats.vacant,                                                                t('landing.stat.free'),    false],
-            [dailyVisitors ? dailyVisitors.toLocaleString('fr-FR') : '—',                'visiteurs / jour',         true],
-            [platformStats ? platformStats.impressions.toLocaleString('fr-FR') : '—',    'vues totales',             true],
-            [platformStats ? platformStats.clicks.toLocaleString('fr-FR')      : '—',    'clics générés',            true],
-            ['1€',                                                                        t('landing.stat.from'),    false],
+            [stats.occupied,                                                              t('landing.stat.active'),   false],
+            [stats.vacant,                                                                t('landing.stat.free'),     false],
+            [dailyVisitors ? dailyVisitors.toLocaleString(lang === 'en' ? 'en-US' : 'fr-FR') : '—', t('landing.stat.visitors'),  true],
+            [platformStats ? platformStats.impressions.toLocaleString(lang === 'en' ? 'en-US' : 'fr-FR') : '—', t('landing.stat.views'),     true],
+            [platformStats ? platformStats.clicks.toLocaleString(lang === 'en' ? 'en-US' : 'fr-FR') : '—',      t('landing.stat.clicks'),    true],
+            ['1€',                                                                        t('landing.stat.from'),     false],
           ].map(([v, l, live]) => (
             <div key={l} style={{ textAlign: 'center', minWidth: 60 }}>
               <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:5 }}>
@@ -4807,11 +4834,6 @@ function LandingPage({ slots, onPublic, onAdvertiser, onWaitlist }) {
             onMouseEnter={e => { e.currentTarget.style.background = U.s2; e.currentTarget.style.borderColor = U.accent + '60'; }}
             onMouseLeave={e => { e.currentTarget.style.background = U.s1; e.currentTarget.style.borderColor = U.border2; }}>
             {t('landing.cta.explore')}
-          </button>
-          <button onClick={onAdvertiser} style={{ padding: isMobile ? '12px 20px' : '14px 26px', borderRadius: 10, background: U.s1, border: `1px solid ${U.border2}`, cursor: 'pointer', fontFamily: F.b, color: U.text, fontWeight: 600, fontSize: 14, transition: 'background 0.15s, border-color 0.15s' }}
-            onMouseEnter={e => { e.currentTarget.style.background = U.s2; e.currentTarget.style.borderColor = U.accent + '60'; }}
-            onMouseLeave={e => { e.currentTarget.style.background = U.s1; e.currentTarget.style.borderColor = U.border2; }}>
-            {t('landing.cta.choose')}
           </button>
           <button onClick={onWaitlist} style={{ padding: isMobile ? '12px 20px' : '14px 26px', borderRadius: 10, background: U.accent, border: 'none', cursor: 'pointer', fontFamily: F.b, color: U.accentFg, fontWeight: 700, fontSize: 14, boxShadow: `0 0 24px ${U.accent}50, 0 2px 8px rgba(0,0,0,0.4)`, transition: 'box-shadow 0.2s' }}>
             {t('landing.cta.waitlist')}
@@ -4835,11 +4857,380 @@ function LandingPage({ slots, onPublic, onAdvertiser, onWaitlist }) {
   );
 }
 
+// ─── Manifest Modal — CONTRAT GALACTIQUE ──────────────────────
+function ManifestModal({ onAccept }) {
+  const [phase, setPhase] = useState('contract'); // 'contract' | 'refused' | 'boot'
+  const [bootLines, setBootLines] = useState([]);
+  const [glitch, setGlitch] = useState(false);
+  const t = useT();
+  const lang = useLang();
+
+  const triggerGlitch = () => {
+    setGlitch(true);
+    setTimeout(() => setGlitch(false), 400);
+  };
+
+  const handleRefuse = () => {
+    triggerGlitch();
+    setPhase('refused');
+  };
+
+  const handleReset = () => {
+    triggerGlitch();
+    setPhase('contract');
+  };
+
+  const handleAccept = () => {
+    triggerGlitch();
+    setPhase('boot');
+    const lines = lang === 'en' ? [
+      '> OATH INITIALIZATION...',
+      '> BIOMETRIC VERIFICATION... OK',
+      '> GALACTIC SYNC... OK',
+      '> CORPORATE ID ASSIGNMENT... OK',
+      '> EPICENTER ACCESS... UNLOCKED',
+      '> LEVEL 1 AVAILABLE — €1 / 7 DAYS',
+      '> WELCOME TO THE CORPORATION.',
+      '█ LOADING...',
+    ] : [
+      '> INITIALISATION DU SERMENT...',
+      '> VÉRIFICATION BIOMÉTRIQUE... OK',
+      '> SYNCHRONISATION GALACTIQUE... OK',
+      '> ASSIGNATION D\'IDENTIFIANT CORPORATIF... OK',
+      '> ACCÈS À L\'ÉPICENTRE... DÉVERROUILLÉ',
+      '> NIVEAU 1 DISPONIBLE — 1€ / 7 JOURS',
+      '> BIENVENUE DANS LA CORPORATION.',
+      '█ CHARGEMENT EN COURS...',
+    ];
+    lines.forEach((line, i) => {
+      setTimeout(() => {
+        setBootLines(prev => [...prev, line]);
+        if (i === lines.length - 1) {
+          setTimeout(onAccept, 900);
+        }
+      }, i * 320);
+    });
+  };
+
+  const scanlineStyle = {
+    position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 1,
+    background: 'repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,200,240,0.025) 2px,rgba(0,200,240,0.025) 3px)',
+  };
+  const cornerStyle = (pos) => {
+    const s = { position: 'absolute', width: 18, height: 18, zIndex: 2 };
+    if (pos === 'tl') { s.top = 12; s.left = 12; s.borderTop = `1.5px solid ${U.cyan}`; s.borderLeft = `1.5px solid ${U.cyan}`; }
+    if (pos === 'tr') { s.top = 12; s.right = 12; s.borderTop = `1.5px solid ${U.cyan}`; s.borderRight = `1.5px solid ${U.cyan}`; }
+    if (pos === 'bl') { s.bottom = 12; s.left = 12; s.borderBottom = `1.5px solid ${U.cyan}`; s.borderLeft = `1.5px solid ${U.cyan}`; }
+    if (pos === 'br') { s.bottom = 12; s.right = 12; s.borderBottom = `1.5px solid ${U.cyan}`; s.borderRight = `1.5px solid ${U.cyan}`; }
+    return s;
+  };
+
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 9999,
+      background: 'rgba(0,2,10,0.97)',
+      backdropFilter: 'blur(8px)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      fontFamily: F.mono,
+      animation: glitch ? 'glitchScreen 0.4s ease' : 'none',
+    }}>
+      <style>{`
+        @keyframes glitchScreen {
+          0%   { filter: brightness(1); }
+          10%  { filter: brightness(3) saturate(0) hue-rotate(90deg); transform: translateX(4px); }
+          20%  { filter: brightness(0.2); transform: translateX(-3px) skewX(2deg); }
+          40%  { filter: brightness(2) hue-rotate(180deg); transform: translateX(2px); }
+          60%  { filter: brightness(1.5) saturate(2); transform: translateX(0); }
+          80%  { filter: brightness(0.8) hue-rotate(-30deg); }
+          100% { filter: brightness(1); transform: none; }
+        }
+        @keyframes manifestBlink {
+          0%, 100% { opacity: 1; } 50% { opacity: 0; }
+        }
+        @keyframes scanDown {
+          0% { top: 0; } 100% { top: 100%; }
+        }
+        @keyframes pulseRed {
+          0%, 100% { box-shadow: 0 0 20px rgba(208,40,72,0.4); }
+          50% { box-shadow: 0 0 40px rgba(208,40,72,0.9), 0 0 80px rgba(208,40,72,0.3); }
+        }
+        @keyframes pulseCyan {
+          0%, 100% { box-shadow: 0 0 20px rgba(0,200,240,0.3); }
+          50% { box-shadow: 0 0 40px rgba(0,200,240,0.8), 0 0 80px rgba(0,200,240,0.2); }
+        }
+        @keyframes bootCursor {
+          0%, 100% { opacity: 1; } 50% { opacity: 0; }
+        }
+        @keyframes manifestFlicker {
+          0%, 92%, 96%, 100% { opacity: 1; }
+          93% { opacity: 0.4; }
+          95% { opacity: 0.7; }
+          97% { opacity: 0.3; }
+        }
+      `}</style>
+
+      {/* Scan line animation */}
+      <div style={{
+        position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 1,
+        overflow: 'hidden',
+      }}>
+        <div style={{
+          position: 'absolute', left: 0, right: 0, height: 2,
+          background: 'rgba(0,200,240,0.08)',
+          animation: 'scanDown 4s linear infinite',
+        }} />
+      </div>
+
+      {/* Main panel */}
+      <div style={{
+        position: 'relative', zIndex: 10,
+        width: '100%', maxWidth: 680,
+        margin: '0 16px',
+        background: 'rgba(0,3,16,0.98)',
+        border: `1px solid ${phase === 'refused' ? U.rose : U.cyan}44`,
+        clipPath: 'polygon(0 0,calc(100% - 24px) 0,100% 24px,100% 100%,24px 100%,0 calc(100% - 24px))',
+        animation: `manifestFlicker 6s infinite, ${phase === 'refused' ? 'pulseRed' : 'pulseCyan'} 3s ease-in-out infinite`,
+        overflow: 'hidden',
+      }}>
+        <div style={scanlineStyle} />
+        <div style={cornerStyle('tl')} />
+        <div style={cornerStyle('tr')} />
+        <div style={cornerStyle('bl')} />
+        <div style={cornerStyle('br')} />
+
+        {/* Header bar */}
+        <div style={{
+          padding: '10px 20px',
+          background: phase === 'refused'
+            ? 'rgba(208,40,72,0.12)'
+            : 'rgba(0,200,240,0.06)',
+          borderBottom: `1px solid ${phase === 'refused' ? U.rose : U.cyan}33`,
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
+        }}>
+          <span style={{ color: U.muted, fontSize: 10, letterSpacing: '.2em', flexShrink: 0 }}>
+            {phase === 'refused' ? 'CORP://SYS/SECURITY/REVOKE' : 'CORP://SYS/ENROLLMENT/PROTOCOL-7'}
+          </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            {/* ── Lang toggle inside manifest ── */}
+            <LangToggleInline />
+            <span style={{
+              color: phase === 'refused' ? U.rose : U.cyan,
+              fontSize: 10, letterSpacing: '.2em',
+              animation: 'manifestBlink 1.2s step-end infinite',
+              whiteSpace: 'nowrap',
+            }}>
+              {phase === 'refused' ? t('manifest.refused.status') : phase === 'boot' ? '◈ INIT' : t('manifest.waiting')}
+            </span>
+          </div>
+        </div>
+
+        <div style={{ padding: '28px 32px 32px', position: 'relative', zIndex: 2 }}>
+
+          {/* ── PHASE: BOOT ── */}
+          {phase === 'boot' && (
+            <div>
+              <div style={{ color: U.cyan, fontSize: 13, letterSpacing: '.15em', marginBottom: 20 }}>
+                {t('manifest.boot.title')}
+              </div>
+              <div style={{ fontFamily: F.mono, fontSize: 12, color: U.green, lineHeight: 2 }}>
+                {bootLines.map((line, i) => (
+                  <div key={i} style={{ opacity: 1 }}>{line}</div>
+                ))}
+                <span style={{ animation: 'bootCursor 0.8s step-end infinite', color: U.cyan }}>█</span>
+              </div>
+            </div>
+          )}
+
+          {/* ── PHASE: REFUSED ── */}
+          {phase === 'refused' && (
+            <div>
+              <div style={{ color: U.rose, fontSize: 16, fontWeight: 700, letterSpacing: '.2em', marginBottom: 6 }}>
+                {t('manifest.refused.title')}
+              </div>
+              <div style={{ color: U.rose, fontSize: 11, letterSpacing: '.15em', marginBottom: 24, opacity: 0.7 }}>
+                {t('manifest.refused.sub')}
+              </div>
+              <div style={{
+                padding: '14px 16px', marginBottom: 20,
+                background: 'rgba(208,40,72,0.06)',
+                border: `1px solid ${U.rose}33`,
+                color: U.text, fontSize: 12.5, lineHeight: 1.9,
+              }}>
+                {t('manifest.refused.body').split('\n').map((line, i) => <span key={i}>{line}{i === 0 && <br />}</span>)}
+              </div>
+
+              <div style={{ color: U.accent, fontSize: 11, letterSpacing: '.18em', marginBottom: 12 }}>
+                {t('manifest.refused.conseq')}
+              </div>
+              {(lang === 'en' ? [
+                ['DENIAL OF EXISTENCE', 'Without a slot, you are nothing but space debris. Your IP address has been marked as "Unstable".'],
+                ['VISUAL QUARANTINE', 'Access to the Epicenter and Level 1 is now forbidden. You will see only the void.'],
+                ['FORCED EXTRACTION', 'Your browsing data was collected anyway as compensation for wasted processor time. It is already on its way to the Corporation\'s servers.'],
+              ] : [
+                ['DÉNI D\'EXISTENCE', 'Sans slot, vous n\'êtes qu\'un débris spatial. Votre adresse IP a été marquée comme "Instable".'],
+                ['QUARANTAINE VISUELLE', 'L\'accès à l\'Épicentre et au Niveau 1 vous est désormais interdit. Vous ne verrez que le vide.'],
+                ['PRÉLÈVEMENT FORCÉ', 'Vos données de navigation ont tout de même été collectées à titre de compensation pour le temps processeur gaspillé. Elles sont déjà en route vers les serveurs de la Corporation.'],
+              ]).map(([title, desc]) => (
+                <div key={title} style={{ display: 'flex', gap: 10, marginBottom: 12, paddingLeft: 8 }}>
+                  <span style={{ color: U.rose, fontSize: 14, flexShrink: 0, marginTop: 1 }}>▸</span>
+                  <div>
+                    <span style={{ color: U.rose, fontSize: 11, letterSpacing: '.12em', fontWeight: 700 }}>{title}</span>
+                    <span style={{ color: U.muted, fontSize: 11 }}> : {desc}</span>
+                  </div>
+                </div>
+              ))}
+
+              <div style={{
+                marginTop: 20, marginBottom: 24, padding: '12px 16px',
+                background: 'rgba(232,160,32,0.06)', border: `1px solid ${U.accent}33`,
+                fontSize: 11.5, color: U.text, lineHeight: 1.8,
+              }}>
+                <span style={{ color: U.accent, letterSpacing: '.12em' }}>{t('manifest.refused.reco')} </span>
+                {t('manifest.refused.reco.body')}
+              </div>
+
+              <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                <button onClick={handleReset} style={{
+                  flex: 1, minWidth: 200, padding: '13px 16px',
+                  background: `${U.accent}18`, border: `1px solid ${U.accent}66`,
+                  clipPath: 'polygon(0 0,calc(100% - 10px) 0,100% 10px,100% 100%,10px 100%,0 calc(100% - 10px))',
+                  color: U.accent, fontFamily: F.mono, fontSize: 10, fontWeight: 700,
+                  letterSpacing: '.14em', textTransform: 'uppercase', cursor: 'pointer',
+                  boxShadow: `0 0 20px ${U.accent}30`, transition: 'all .12s',
+                }}
+                onMouseEnter={e => { e.currentTarget.style.background = `${U.accent}30`; e.currentTarget.style.boxShadow = `0 0 32px ${U.accent}60`; }}
+                onMouseLeave={e => { e.currentTarget.style.background = `${U.accent}18`; e.currentTarget.style.boxShadow = `0 0 20px ${U.accent}30`; }}>
+                  {t('manifest.refused.reset')}
+                </button>
+                <button onClick={() => {}} style={{
+                  padding: '13px 16px',
+                  background: 'transparent', border: `1px solid ${U.border}`,
+                  clipPath: 'polygon(0 0,calc(100% - 8px) 0,100% 8px,100% 100%,0 100%)',
+                  color: U.muted, fontFamily: F.mono, fontSize: 10, fontWeight: 700,
+                  letterSpacing: '.14em', textTransform: 'uppercase', cursor: 'not-allowed',
+                  opacity: 0.5,
+                }}>
+                  {t('manifest.refused.quit')}
+                </button>
+              </div>
+              <div style={{ marginTop: 10, color: U.muted, fontSize: 10, opacity: 0.5, fontStyle: 'italic' }}>
+                {t('manifest.refused.quit.note')}
+              </div>
+            </div>
+          )}
+
+          {/* ── PHASE: CONTRACT ── */}
+          {phase === 'contract' && (
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
+                <div style={{
+                  width: 36, height: 36, flexShrink: 0,
+                  clipPath: 'polygon(50% 0%,100% 25%,100% 75%,50% 100%,0% 75%,0% 25%)',
+                  background: `${U.accent}22`, border: `1px solid ${U.accent}88`,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 16, color: U.accent,
+                }}>⬡</div>
+                <div>
+                  <div style={{ color: U.accent, fontSize: 14, fontWeight: 700, letterSpacing: '.18em' }}>
+                    {t('manifest.title')}
+                  </div>
+                  <div style={{ color: U.muted, fontSize: 10, letterSpacing: '.12em', marginTop: 2 }}>
+                    {t('manifest.subtitle')}
+                  </div>
+                </div>
+              </div>
+
+              {/* Separator */}
+              <div style={{ height: 1, background: `linear-gradient(90deg,transparent,${U.cyan}44,transparent)`, marginBottom: 20 }} />
+
+              {/* Scroll area */}
+              <div style={{
+                maxHeight: 280, overflowY: 'auto', marginBottom: 22,
+                paddingRight: 8,
+                scrollbarWidth: 'thin',
+                scrollbarColor: `${U.cyan}33 transparent`,
+              }}>
+                {(lang === 'en' ? [
+                  { art: 'ART. I — IDENTITY',    text: 'By accessing the Grid, you acknowledge your existence as a registered corporate entity. Any attempt at anonymity will be interpreted as a hostile act against the Corporation.' },
+                  { art: 'ART. II — THE SLOTS',   text: 'Slots are the fundamental unit of presence in the Epicenter. Without an active slot, your signal is undetected. Level 1 is accessible from €1 — it is your only gateway into the visible dimension.' },
+                  { art: 'ART. III — THE LEVY',   text: 'By signing this contract, you authorize the Corporation to collect your browsing data, click patterns, and temporal footprint. These data feed the Dyson Sphere and cannot be revoked.' },
+                  { art: 'ART. IV — THE STAR',    text: 'The Epicenter is occupied by the Star — the most visible entity in the Grid. The Star does not negotiate. It radiates. Your mission is to orbit its signal, not contest it.' },
+                  { art: 'ART. V — NON-TERMINATION', text: 'This contract cannot be terminated, cancelled, or contested before any terrestrial or extraterrestrial court. The Corporation operates outside jurisdiction. The only recourse is total acceptance.' },
+                  { art: 'ART. VI — CONSEQUENCES', text: 'Any refusal to sign triggers immediate activation of the Darkness Protocol: visual isolation, access revocation, and IP marking as a non-compliant entity in the galactic registers.' },
+                ] : [
+                  { art: 'ART. I — IDENTITÉ',     text: 'En accédant à la Grille, vous reconnaissez votre existence en tant qu\'entité corporative enregistrée. Toute tentative d\'anonymat sera interprétée comme un acte hostile envers la Corporation.' },
+                  { art: 'ART. II — LES SLOTS',   text: 'Les slots constituent l\'unité fondamentale de présence dans l\'Épicentre. Sans slot actif, votre signal n\'est pas détecté. Le Niveau 1 est accessible dès 1€ — c\'est votre seule porte d\'entrée dans la dimension visible.' },
+                  { art: 'ART. III — LE PRÉLÈVEMENT', text: 'En signant ce contrat, vous autorisez la Corporation à collecter vos données de navigation, patterns de clic, et empreinte temporelle. Ces données alimentent la Sphère Dyson et ne peuvent être révoquées.' },
+                  { art: 'ART. IV — L\'ÉTOILE',   text: 'L\'Épicentre est occupé par l\'Étoile — l\'entité la plus visible de la Grille. L\'Étoile ne négocie pas. Elle rayonne. Votre mission est d\'orbiter autour de son signal, pas de le contester.' },
+                  { art: 'ART. V — NON-RÉSILIATION', text: 'Ce contrat ne peut être résilié, annulé, ou contesté devant aucun tribunal terrestre ou extraterrestre. La Corporation opère hors juridiction. Le seul recours est l\'acceptation totale.' },
+                  { art: 'ART. VI — CONSÉQUENCES', text: 'Tout refus de signer entraîne l\'activation immédiate du Protocole Obscurité : isolation visuelle, révocation d\'accès, et marquage IP comme entité non-conforme dans les registres galactiques.' },
+                ]).map(({ art, text }) => (
+                  <div key={art} style={{ marginBottom: 16 }}>
+                    <div style={{ color: U.cyan, fontSize: 10, letterSpacing: '.18em', marginBottom: 5, fontWeight: 700 }}>{art}</div>
+                    <div style={{ color: U.muted, fontSize: 12, lineHeight: 1.8, paddingLeft: 12, borderLeft: `2px solid ${U.cyan}22` }}>{text}</div>
+                  </div>
+                ))}
+
+                <div style={{
+                  marginTop: 16, padding: '12px 14px',
+                  background: `${U.accent}08`, border: `1px solid ${U.accent}33`,
+                  color: U.accent, fontSize: 11, lineHeight: 1.7, letterSpacing: '.04em',
+                }}>
+                  {lang === 'en'
+                    ? '⚠ BY SIGNING THIS CONTRACT, YOU ACCEPT ALL CLAUSES ABOVE AND ACKNOWLEDGE THAT THE CORPORATION IS THE SOLE COMPETENT AUTHORITY REGARDING SLOTS, VISIBILITY, AND DIGITAL EXISTENCE.'
+                    : '⚠ EN SIGNANT CE CONTRAT, VOUS ACCEPTEZ L\'INTÉGRALITÉ DES CLAUSES CI-DESSUS ET RECONNAISSEZ QUE LA CORPORATION EST L\'UNIQUE AUTORITÉ COMPÉTENTE EN MATIÈRE DE SLOTS, DE VISIBILITÉ ET D\'EXISTENCE DIGITALE.'}
+                </div>
+              </div>
+
+              {/* Separator */}
+              <div style={{ height: 1, background: `linear-gradient(90deg,transparent,${U.cyan}44,transparent)`, marginBottom: 20 }} />
+
+              {/* CTA buttons */}
+              <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                <button onClick={handleAccept} style={{
+                  flex: 1, minWidth: 200, padding: '14px 16px',
+                  background: `${U.accent}1A`, border: `1px solid ${U.accent}`,
+                  clipPath: 'polygon(0 0,calc(100% - 10px) 0,100% 10px,100% 100%,10px 100%,0 calc(100% - 10px))',
+                  color: U.accent, fontFamily: F.mono, fontSize: 11, fontWeight: 700,
+                  letterSpacing: '.14em', textTransform: 'uppercase', cursor: 'pointer',
+                  boxShadow: `0 0 24px ${U.accent}44, inset 0 0 20px ${U.accent}08`,
+                  transition: 'all .15s',
+                }}
+                onMouseEnter={e => { e.currentTarget.style.background = `${U.accent}30`; e.currentTarget.style.boxShadow = `0 0 40px ${U.accent}70, inset 0 0 30px ${U.accent}15`; }}
+                onMouseLeave={e => { e.currentTarget.style.background = `${U.accent}1A`; e.currentTarget.style.boxShadow = `0 0 24px ${U.accent}44, inset 0 0 20px ${U.accent}08`; }}>
+                  {t('manifest.cta.sign')}
+                </button>
+                <button onClick={handleRefuse} style={{
+                  padding: '14px 18px',
+                  background: 'transparent', border: `1px solid ${U.border}`,
+                  clipPath: 'polygon(0 0,calc(100% - 8px) 0,100% 8px,100% 100%,0 100%)',
+                  color: U.muted, fontFamily: F.mono, fontSize: 10, fontWeight: 700,
+                  letterSpacing: '.12em', textTransform: 'uppercase', cursor: 'pointer',
+                  transition: 'all .12s',
+                }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = U.rose + '66'; e.currentTarget.style.color = U.rose; }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = U.border; e.currentTarget.style.color = U.muted; }}>
+                  {t('manifest.cta.refuse')}
+                </button>
+              </div>
+
+              <div style={{ marginTop: 14, color: U.muted, fontSize: 10, opacity: 0.6, lineHeight: 1.6 }}>
+                {t('manifest.footer')}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Main App ──────────────────────────────────────────────────
 export default function App() {
   const [lang, setLang]             = useState('fr');
   const [view, setView]             = useState('landing');
   const [view3D, setView3D]         = useState(true);    // ← 3D view exclusive
+  const [manifestAccepted, setManifestAccepted] = useState(false);
   const [showWaitlist, setShowWaitlist] = useState(false);
   const [checkoutSlot, setCheckoutSlot] = useState(null);
   const [buyoutSlot, setBuyoutSlot]     = useState(null);
@@ -4849,6 +5240,18 @@ export default function App() {
   const { slots, isLive, loading }  = useGridData();
   const { isMobile } = useScreenSize();
   const handleWaitlist = useCallback(() => setShowWaitlist(true), []);
+
+  // ── Check if manifest was already accepted ──
+  useEffect(() => {
+    try {
+      if (localStorage.getItem('corp_contract_signed')) setManifestAccepted(true);
+    } catch {}
+  }, []);
+
+  const handleManifestAccept = useCallback(() => {
+    try { localStorage.setItem('corp_contract_signed', '1'); } catch {}
+    setManifestAccepted(true);
+  }, []);
 
   // ── Restore language from localStorage ──
   useEffect(() => {
@@ -4904,11 +5307,13 @@ export default function App() {
   }
 }, []);
 
-  const isGrid = view === 'public' || view === 'advertiser';
+  const isGrid = view === 'public';
   const t = getT(lang);
 
   return (
     <LangContext.Provider value={lang}>
+    <LangSetterContext.Provider value={handleSetLang}>
+      {!manifestAccepted && <ManifestModal onAccept={handleManifestAccept} />}
       <div style={{ display: 'flex', height: '100vh', background: '#01020A', fontFamily: F.b, color: U.text, flexDirection: 'column', overflow: view === 'landing' ? 'auto' : 'hidden' }}>
         <AnnouncementBar onWaitlist={handleWaitlist} />
 
@@ -4927,8 +5332,7 @@ export default function App() {
 
           <nav style={{ display: 'flex', gap: 3, alignItems: 'center' }}>
             {[
-              ['public',     t('nav.explore'),  '◈'],
-              ['advertiser', t('nav.reserve'),  '⊞'],
+              ['public', t('nav.explore'), '◈'],
             ].map(([v, label, icon]) => {
               const on = view === v;
               return (
@@ -5026,7 +5430,7 @@ export default function App() {
           </nav>
         </header>
 
-        {view === 'landing'    && <LandingPage    slots={slots} onPublic={() => setView('public')} onAdvertiser={() => setView('advertiser')} onWaitlist={handleWaitlist} />}
+        {view === 'landing'    && <LandingPage    slots={slots} onPublic={() => setView('public')} onWaitlist={handleWaitlist} />}
         {view === 'public'     && (
           <View3D
             slots={slots}
@@ -5044,12 +5448,12 @@ export default function App() {
             )}
           />
         )}
-        {view === 'advertiser' && <AdvertiserView slots={slots} isLive={isLive} onWaitlist={handleWaitlist} onCheckout={handleCheckout} />}
         {showWaitlist  && <WaitlistModal  onClose={() => setShowWaitlist(false)} />}
         {checkoutSlot  && <CheckoutModal  slot={checkoutSlot} onClose={() => setCheckoutSlot(null)} />}
         {buyoutSlot    && <BuyoutModal    slot={buyoutSlot}   onClose={() => setBuyoutSlot(null)} />}
         {showBoost     && <BoostModal     onClose={() => setShowBoost(false)} />}
       </div>
+    </LangSetterContext.Provider>
     </LangContext.Provider>
   );
 }

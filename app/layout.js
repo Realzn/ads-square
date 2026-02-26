@@ -3,23 +3,23 @@ import './globals.css';
 import SkipLink from './SkipLink';
 import FontLoader from './Fontloader';
 
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://ads-square.com';
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://adsmostfair.com';
 
 export const metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
-    default: 'ADS-SQUARE — La grille publicitaire ouverte à tous',
-    template: '%s | ADS-SQUARE',
+    default: 'ADSMostFair — La grille publicitaire ouverte à tous',
+    template: '%s | ADSMostFair',
   },
   description:
-    'Réservez un bloc publicitaire sur la grille ADS-SQUARE dès 1€/jour. ' +
+    'Réservez un bloc publicitaire sur la grille ADSMostFair dès 1€/jour. ' +
     'Plateforme en bêta publique — réservations bientôt disponibles.',
-  keywords: ['publicité', 'grille publicitaire', 'blocs', 'advertising', 'ADS-SQUARE'],
+  keywords: ['publicité', 'grille publicitaire', 'blocs', 'advertising', 'ADSMostFair'],
   openGraph: {
     type:     'website',
     locale:   'fr_FR',
     url:      SITE_URL,
-    siteName: 'ADS-SQUARE',
+    siteName: 'ADSMostFair',
     images: [{ url: `${SITE_URL}/og.png`, width: 1200, height: 630 }],
   },
   twitter: { card: 'summary_large_image' },
