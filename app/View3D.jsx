@@ -85,8 +85,8 @@ const DS = {
   rose:'#D02848',
   amber:'#F07820',
   textHi:'#DDE6F2',
-  textMid:'rgba(140,180,220,0.70)',
-  textLo:'rgba(60,100,150,0.42)',
+  textMid:'rgba(180,210,240,0.85)',
+  textLo:'rgba(140,175,215,0.60)',
   panelBg:'rgba(0,8,24,0.97)',
   scanCol:'rgba(0,200,240,0.04)',
   bracket:'#00C8E4',
@@ -1938,7 +1938,7 @@ const Sidebar=memo(function Sidebar({slots,isLive,activeTier,onTierSelect}){
 
   return(
     <div style={{
-      width:240,flexShrink:0,
+      width:280,flexShrink:0,
       background:'rgba(0,4,16,0.98)',
       backdropFilter:'blur(24px) saturate(200%)',
       WebkitBackdropFilter:'blur(24px) saturate(200%)',
@@ -1964,20 +1964,20 @@ const Sidebar=memo(function Sidebar({slots,isLive,activeTier,onTierSelect}){
               clipPath:'polygon(15% 0,85% 0,100% 15%,100% 85%,85% 100%,15% 100%,0 85%,0 15%)',
             }}>◈</div>
             <div>
-              <div style={{color:DS.textHi,fontFamily:F.mono,fontSize:10,fontWeight:700,letterSpacing:'.18em'}}>DYSON</div>
-              <div style={{color:DS.textLo,fontFamily:F.mono,fontSize:6,letterSpacing:'.20em',marginTop:-1}}>COSMOS·MK·VII</div>
+              <div style={{color:DS.textHi,fontFamily:F.mono,fontSize:12,fontWeight:700,letterSpacing:'.16em'}}>DYSON</div>
+              <div style={{color:DS.textLo,fontFamily:F.mono,fontSize:9,letterSpacing:'.16em',marginTop:1}}>COSMOS·MK·VII</div>
             </div>
           </div>
           {isLive&&(
             <div style={{
               display:'flex',alignItems:'center',gap:4,
-              padding:'2px 7px',
+              padding:'3px 8px',
               border:`0.5px solid ${DS.green}44`,
               background:`${DS.green}0a`,
               clipPath:'polygon(0 0,calc(100% - 5px) 0,100% 5px,100% 100%,0 100%)',
             }}>
-              <div style={{width:4,height:4,borderRadius:'50%',background:DS.green,animation:'hpulse 1.4s ease-in-out infinite'}}/>
-              <span style={{color:DS.green,fontFamily:F.mono,fontSize:6.5,fontWeight:700,letterSpacing:'.15em'}}>LIVE</span>
+              <div style={{width:5,height:5,borderRadius:'50%',background:DS.green,animation:'hpulse 1.4s ease-in-out infinite'}}/>
+              <span style={{color:DS.green,fontFamily:F.mono,fontSize:10,fontWeight:700,letterSpacing:'.12em'}}>LIVE</span>
             </div>
           )}
         </div>
@@ -1991,8 +1991,8 @@ const Sidebar=memo(function Sidebar({slots,isLive,activeTier,onTierSelect}){
               border:`0.5px solid ${tab===id?DS.cyan:DS.glassBrd}`,
               clipPath:'polygon(0 0,calc(100% - 5px) 0,100% 5px,100% 100%,0 100%)',
               color:tab===id?DS.cyan:DS.textLo,
-              fontFamily:F.mono,fontSize:7.5,fontWeight:600,
-              letterSpacing:'.12em',cursor:'pointer',outline:'none',
+              fontFamily:F.mono,fontSize:11,fontWeight:600,
+              letterSpacing:'.10em',cursor:'pointer',outline:'none',
               transition:'all .10s',
             }}>{lbl}</button>
           ))}
@@ -2046,10 +2046,10 @@ const Sidebar=memo(function Sidebar({slots,isLive,activeTier,onTierSelect}){
                       borderRadius:tier==='epicenter'?'50%':0,
                     }}>{role?.icon}</div>
                     <div style={{flex:1,minWidth:0}}>
-                      <div style={{color:isFocus?col:DS.textMid,fontFamily:F.mono,fontSize:8.5,fontWeight:700,letterSpacing:'.08em'}}>{label}</div>
-                      <div style={{color:DS.textLo,fontFamily:F.mono,fontSize:6,letterSpacing:'.06em'}}>{sub}</div>
+                      <div style={{color:isFocus?col:DS.textMid,fontFamily:F.mono,fontSize:12,fontWeight:700,letterSpacing:'.08em'}}>{label}</div>
+                      <div style={{color:DS.textLo,fontFamily:F.mono,fontSize:10,letterSpacing:'.04em',marginTop:1}}>{sub}</div>
                     </div>
-                    <div style={{fontFamily:F.mono,fontSize:8,fontWeight:700,color:isFocus?col:DS.textLo,letterSpacing:'.02em'}}>
+                    <div style={{fontFamily:F.mono,fontSize:12,fontWeight:700,color:isFocus?col:DS.textLo,letterSpacing:'.02em'}}>
                       €{fmt(tier)}
                     </div>
                   </div>
@@ -2062,9 +2062,9 @@ const Sidebar=memo(function Sidebar({slots,isLive,activeTier,onTierSelect}){
                           return <div key={si} style={{flex:1,height:2,background:filled?col:`${col}18`,transition:'background .4s'}}/>;
                         })}
                       </div>
-                      <span style={{color:DS.textLo,fontFamily:F.mono,fontSize:6,letterSpacing:'.05em'}}>{occ}/{tot}</span>
+                      <span style={{color:DS.textLo,fontFamily:F.mono,fontSize:10,letterSpacing:'.05em'}}>{occ}/{tot}</span>
                     </div>
-                    <div style={{color:DS.textLo,fontFamily:F.mono,fontSize:6,letterSpacing:'.06em',opacity:.7}}>{extra}</div>
+                    <div style={{color:DS.textLo,fontFamily:F.mono,fontSize:10,letterSpacing:'.04em',opacity:.85}}>{extra}</div>
                   </div>
                 </div>
               );
@@ -2095,14 +2095,14 @@ const Sidebar=memo(function Sidebar({slots,isLive,activeTier,onTierSelect}){
                     borderRadius:tier==='epicenter'?'50%':0,
                   }}>{role?.icon}</div>
                   <div>
-                    <div style={{color:`${col}cc`,fontFamily:F.mono,fontSize:8,fontWeight:700,letterSpacing:'.10em'}}>{role?.role}</div>
-                    <div style={{color:DS.textLo,fontFamily:F.mono,fontSize:6.5}}>€{fmt(tier)}/j · {tot} slots</div>
+                    <div style={{color:`${col}cc`,fontFamily:F.mono,fontSize:12,fontWeight:700,letterSpacing:'.08em'}}>{role?.role}</div>
+                    <div style={{color:DS.textLo,fontFamily:F.mono,fontSize:10}}>€{fmt(tier)}/j · {tot} slots</div>
                   </div>
                 </div>
-                <div style={{color:DS.textMid,fontFamily:F.ui,fontSize:7.5,lineHeight:1.6,paddingLeft:31,marginBottom:3}}>{role?.desc}</div>
+                <div style={{color:DS.textMid,fontFamily:F.ui,fontSize:11,lineHeight:1.6,paddingLeft:31,marginBottom:4}}>{role?.desc}</div>
                 <div style={{display:'flex',justifyContent:'space-between',paddingLeft:31}}>
-                  <span style={{color:DS.textLo,fontFamily:F.mono,fontSize:6}}>{occ}/{tot} OCCUPÉS</span>
-                  <span style={{color:occ>0?`${col}88`:DS.textLo,fontFamily:F.mono,fontSize:6}}>{Math.round(occ/tot*100)}%</span>
+                  <span style={{color:DS.textLo,fontFamily:F.mono,fontSize:10}}>{occ}/{tot} OCCUPÉS</span>
+                  <span style={{color:occ>0?`${col}88`:DS.textLo,fontFamily:F.mono,fontSize:10}}>{Math.round(occ/tot*100)}%</span>
                 </div>
               </div>
             );
@@ -2113,8 +2113,8 @@ const Sidebar=memo(function Sidebar({slots,isLive,activeTier,onTierSelect}){
       {/* Footer — revenue */}
       <div style={{padding:'10px 14px',borderTop:`0.5px solid rgba(0,200,240,0.10)`,position:'relative',zIndex:2}}>
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'baseline',marginBottom:5}}>
-          <span style={{color:DS.textLo,fontFamily:F.mono,fontSize:6.5,letterSpacing:'.14em'}}>REVENUS·/·JOUR</span>
-          <span style={{color:DS.gold,fontFamily:F.mono,fontSize:15,fontWeight:700,letterSpacing:'.02em'}}>{rev.toLocaleString('fr-FR')} €</span>
+          <span style={{color:DS.textLo,fontFamily:F.mono,fontSize:10,letterSpacing:'.12em'}}>REVENUS·/·JOUR</span>
+          <span style={{color:DS.gold,fontFamily:F.mono,fontSize:17,fontWeight:700,letterSpacing:'.02em'}}>{rev.toLocaleString('fr-FR')} €</span>
         </div>
         <Sep col={DS.gold} style={{marginBottom:5,opacity:.3}}/>
         {/* Multi-tier bar */}
@@ -2126,7 +2126,7 @@ const Sidebar=memo(function Sidebar({slots,isLive,activeTier,onTierSelect}){
         </div>
         <div style={{
           display:'flex',justifyContent:'space-between',
-          color:DS.textLo,fontFamily:F.mono,fontSize:6,letterSpacing:'.10em',
+          color:DS.textLo,fontFamily:F.mono,fontSize:10,letterSpacing:'.08em',
         }}>
           <span>{totalOcc} ACTIFS</span>
           <span>SYS·{String(tick).padStart(2,'0')}</span>

@@ -13,10 +13,10 @@ const U = {
   s2:      '#12121a',
   card:    '#16161e',
   card2:   '#1a1a24',
-  border:  'rgba(255,255,255,0.06)',
-  border2: 'rgba(255,255,255,0.12)',
-  text:    '#f0f0f0',
-  muted:   'rgba(255,255,255,0.4)',
+  border:  'rgba(255,255,255,0.08)',
+  border2: 'rgba(255,255,255,0.16)',
+  text:    '#f4f4f6',
+  muted:   'rgba(210,220,240,0.65)',
   faint:   'rgba(255,255,255,0.04)',
   err:     '#e05252',
   green:   '#22c55e',
@@ -95,11 +95,11 @@ function Gauge({ value, max, color, label }) {
   const pct = Math.min((value / max) * 100, 100);
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-        <span style={{ fontSize: 11, color: U.muted, fontWeight: 600, letterSpacing: '0.08em' }}>{label}</span>
-        <span style={{ fontSize: 12, color, fontWeight: 700 }}>{value}/{max}</span>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+        <span style={{ fontSize: 12, color: U.muted, fontWeight: 600, letterSpacing: '0.07em' }}>{label}</span>
+        <span style={{ fontSize: 13, color, fontWeight: 700 }}>{value}/{max}</span>
       </div>
-      <div style={{ height: 4, background: U.faint, borderRadius: 2, overflow: 'hidden' }}>
+      <div style={{ height: 5, background: U.faint, borderRadius: 3, overflow: 'hidden' }}>
         <div style={{ width: `${pct}%`, height: '100%', background: color, borderRadius: 2, transition: 'width 0.5s' }} />
       </div>
     </div>
@@ -129,11 +129,11 @@ function TaskCard({ task, onComplete, loading }) {
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1 }}>
           <span style={{ fontSize: 20 }}>{cfg.icon}</span>
           <div>
-            <div style={{ fontWeight: 600, fontSize: 14, color: isCompleted ? '#22c55e' : U.text }}>
+            <div style={{ fontWeight: 600, fontSize: 15, color: isCompleted ? '#22c55e' : U.text }}>
               {cfg.label}
-              {isCompleted && <span style={{ marginLeft: 8, fontSize: 11, color: '#22c55e' }}>✓ Fait</span>}
+              {isCompleted && <span style={{ marginLeft: 8, fontSize: 12, color: '#22c55e' }}>✓ Fait</span>}
             </div>
-            <div style={{ fontSize: 12, color: U.muted, marginTop: 2 }}>{cfg.desc}</div>
+            <div style={{ fontSize: 13, color: U.muted, marginTop: 4, lineHeight: 1.5 }}>{cfg.desc}</div>
           </div>
         </div>
         {!isCompleted && (
@@ -225,7 +225,7 @@ function FeedEntry({ entry }) {
         </div>
 
         <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 13, marginBottom: 4 }}>
+          <div style={{ fontSize: 14, marginBottom: 6 }}>
             <strong style={{ color: U.text }}>{entry.author_name}</strong>
             <span style={{ color: U.muted }}> </span>
             <span style={{ color: rankCfg.color }}>{actionCfg.icon}</span>
@@ -236,26 +236,26 @@ function FeedEntry({ entry }) {
           </div>
           <RankBadge rank={entry.rank} size="sm" />
           {entry.content_text && (
-            <p style={{ margin: '10px 0 0', fontSize: 13, color: 'rgba(255,255,255,0.7)', lineHeight: 1.6 }}>
+            <p style={{ margin: '10px 0 0', fontSize: 14, color: 'rgba(255,255,255,0.80)', lineHeight: 1.7 }}>
               {entry.content_text}
             </p>
           )}
           {entry.proof_url && (
             <a href={entry.proof_url} target="_blank" rel="noopener noreferrer"
-              style={{ display: 'inline-block', marginTop: 8, fontSize: 12, color: '#00d9f5', textDecoration: 'none' }}>
+              style={{ display: 'inline-block', marginTop: 8, fontSize: 13, color: '#00d9f5', textDecoration: 'none' }}>
               ↗ Voir la preuve
             </a>
           )}
           {entry.advantage_description && (
             <div style={{
               marginTop: 10, padding: '8px 12px', background: 'rgba(212,168,75,0.08)',
-              border: '1px solid rgba(212,168,75,0.2)', borderRadius: 8, fontSize: 12, color: '#d4a84b',
+              border: '1px solid rgba(212,168,75,0.2)', borderRadius: 8, fontSize: 13, color: '#d4a84b', lineHeight: 1.5,
             }}>
               🎁 {entry.advantage_description}
               {entry.advantage_valid_until && <span style={{ color: U.muted }}> — Jusqu'au {new Date(entry.advantage_valid_until).toLocaleDateString('fr-FR')}</span>}
             </div>
           )}
-          <div style={{ marginTop: 8, fontSize: 11, color: U.muted }}>{timeAgo}</div>
+          <div style={{ marginTop: 8, fontSize: 12, color: U.muted }}>{timeAgo}</div>
         </div>
       </div>
     </div>
@@ -286,6 +286,15 @@ export default function SphereDashboard() {
   const [taskLoading, setTaskLoading] = useState(false);
   const [toast, setToast] = useState(null);
   const [cancelConfirm, setCancelConfirm] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+  const [mobileDismissed, setMobileDismissed] = useState(false);
+
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 768);
+    check();
+    window.addEventListener('resize', check);
+    return () => window.removeEventListener('resize', check);
+  }, []);
 
   const showToast = (msg, type = 'success') => {
     setToast({ msg, type });
@@ -424,6 +433,57 @@ export default function SphereDashboard() {
   return (
     <div style={{ minHeight: '100vh', background: U.bg, fontFamily: F.b }}>
 
+      {/* ─── Overlay Mobile ───────────────────────────────────── */}
+      {isMobile && !mobileDismissed && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 99999,
+          background: 'rgba(6,6,8,0.97)',
+          display: 'flex', flexDirection: 'column',
+          alignItems: 'center', justifyContent: 'center',
+          padding: '32px 24px', textAlign: 'center',
+          backdropFilter: 'blur(8px)',
+        }}>
+          {/* Orbe déco */}
+          <div style={{
+            width: 90, height: 90, borderRadius: '50%', marginBottom: 28,
+            background: 'radial-gradient(circle at 40% 40%, #f0b42960 0%, #a855f720 50%, transparent 70%)',
+            border: '1.5px solid rgba(240,180,41,0.3)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 38, boxShadow: '0 0 48px #f0b42920',
+          }}>
+            ☀
+          </div>
+
+          <div style={{
+            fontSize: 20, fontWeight: 800, color: '#f4f4f6',
+            fontFamily: F.h, marginBottom: 14, lineHeight: 1.3, letterSpacing: '-0.01em',
+          }}>
+            Tu penses vraiment canaliser<br />l'énergie de la Sphère avec<br />ton vieux smartphone ?
+          </div>
+
+          <div style={{
+            fontSize: 15, color: 'rgba(210,220,240,0.70)',
+            lineHeight: 1.7, marginBottom: 32, maxWidth: 300,
+          }}>
+            La Sphère de Dyson est une expérience pensée pour grand écran.
+            Branche-toi sur un PC pour en ressentir toute la puissance.
+          </div>
+
+          <button
+            onClick={() => setMobileDismissed(true)}
+            style={{
+              background: 'rgba(240,180,41,0.12)', color: '#d4a84b',
+              border: '1px solid rgba(240,180,41,0.35)',
+              borderRadius: 10, padding: '12px 28px',
+              fontSize: 14, fontWeight: 700, cursor: 'pointer',
+              fontFamily: F.b, letterSpacing: '0.04em',
+            }}
+          >
+            Continuer quand même →
+          </button>
+        </div>
+      )}
+
       {/* Toast */}
       {toast && (
         <div style={{
@@ -446,12 +506,12 @@ export default function SphereDashboard() {
         }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 16 }}>
             <div>
-              <div style={{ fontSize: 12, color: U.muted, marginBottom: 8, letterSpacing: '0.1em' }}>SPHÈRE DE DYSON — COCKPIT</div>
+              <div style={{ fontSize: 11, color: U.muted, marginBottom: 10, letterSpacing: '0.14em', fontWeight: 600 }}>SPHÈRE DE DYSON — COCKPIT</div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
                 <div style={{ fontSize: 32, lineHeight: 1 }}>{rankCfg.icon}</div>
                 <div>
                   <RankBadge rank={dashboard?.rank} />
-                  <div style={{ fontSize: 12, color: U.muted, marginTop: 4 }}>
+                  <div style={{ fontSize: 13, color: U.muted, marginTop: 6, fontWeight: 500 }}>
                     Slot ({selectedSub.slot_x},{selectedSub.slot_y}) · {selectedSub.tier?.toUpperCase()}
                   </div>
                 </div>
@@ -530,8 +590,8 @@ export default function SphereDashboard() {
                 <TaskCard key={task.id} task={task} onComplete={handleCompleteTask} loading={taskLoading} />
               ))
             )}
-            <div style={{ padding: '16px 0', fontSize: 12, color: U.muted, lineHeight: 1.7 }}>
-              <strong style={{ color: U.text }}>Comment ça marche ?</strong><br />
+            <div style={{ padding: '20px 0 8px', fontSize: 13, color: U.muted, lineHeight: 1.8 }}>
+              <strong style={{ color: U.text, fontSize: 14 }}>Comment ça marche ?</strong><br />
               Chaque tâche accomplie est publiée sur le fil communautaire. Vos actions amplifient la visibilité
               de toute la Sphère — y compris votre propre slot. Plus la Sphère est active, plus vous êtes vu.
             </div>
@@ -562,15 +622,15 @@ export default function SphereDashboard() {
                 { label: 'Série active', value: `${dashboard?.tasks_streak || 0}j` },
               ].map(stat => (
                 <div key={stat.label} style={{ background: U.card, border: `1px solid ${U.border}`, borderRadius: 12, padding: '18px 20px' }}>
-                  <div style={{ fontSize: 11, color: U.muted, letterSpacing: '0.08em', marginBottom: 6 }}>{stat.label}</div>
-                  <div style={{ fontSize: 22, fontWeight: 700, color: rankCfg.color, fontFamily: F.h }}>{stat.value}</div>
+                  <div style={{ fontSize: 12, color: U.muted, letterSpacing: '0.07em', marginBottom: 8, fontWeight: 600 }}>{stat.label}</div>
+                  <div style={{ fontSize: 24, fontWeight: 700, color: rankCfg.color, fontFamily: F.h }}>{stat.value}</div>
                 </div>
               ))}
             </div>
 
             {/* Info abonnement */}
             <div style={{ background: U.card, border: `1px solid ${U.border}`, borderRadius: 12, padding: '20px 24px' }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: U.text, marginBottom: 16 }}>Détails de l'abonnement</div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: U.text, marginBottom: 16 }}>Détails de l'abonnement</div>
               {[
                 { label: 'Statut', value: dashboard?.status },
                 { label: 'Rang', value: RANK_CONFIG[dashboard?.rank]?.label },
@@ -579,8 +639,8 @@ export default function SphereDashboard() {
                 { label: 'Tâches manquées', value: `${dashboard?.tasks_missed_days || 0} / ${dashboard?.suspension_threshold || 5} jours` },
               ].map(row => (
                 <div key={row.label} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: `1px solid ${U.border}` }}>
-                  <span style={{ fontSize: 13, color: U.muted }}>{row.label}</span>
-                  <span style={{ fontSize: 13, fontWeight: 600, color: U.text }}>{row.value}</span>
+                  <span style={{ fontSize: 14, color: U.muted }}>{row.label}</span>
+                  <span style={{ fontSize: 14, fontWeight: 600, color: U.text }}>{row.value}</span>
                 </div>
               ))}
             </div>
@@ -588,8 +648,8 @@ export default function SphereDashboard() {
             {/* Annulation */}
             {dashboard?.status === 'active' && (
               <div style={{ background: U.card, border: `1px solid rgba(224,82,82,0.2)`, borderRadius: 12, padding: '20px 24px' }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: U.text, marginBottom: 8 }}>Annuler l'abonnement</div>
-                <div style={{ fontSize: 13, color: U.muted, marginBottom: 16 }}>
+                <div style={{ fontSize: 14, fontWeight: 700, color: U.text, marginBottom: 8 }}>Annuler l'abonnement</div>
+                <div style={{ fontSize: 14, color: U.muted, marginBottom: 16, lineHeight: 1.6 }}>
                   L'annulation est immédiate. Votre slot sera affiché en "void" pendant 24h sur la grille, puis libéré.
                 </div>
                 {!cancelConfirm ? (
