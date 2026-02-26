@@ -12,7 +12,7 @@ import {
   TIER_SIZE, TIER_COLOR, TIER_LABEL, TIER_PRICE, PROFILES,
   buildStructuralGrid, buildDemoGrid, mergeGridWithBookings,
   isTierAvailable,
-} from '../lib/grid';
+} from '../lib/grid'
 import {
   isSupabaseConfigured, fetchActiveSlots,
   subscribeToBookings, createCheckoutSession,
