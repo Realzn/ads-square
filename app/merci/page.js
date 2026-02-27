@@ -6,18 +6,30 @@ import { signUp, signIn, getSession } from '../../lib/supabase-auth';
 import { getTier, TIER_LABEL, TIER_COLOR, TIER_PRICE } from '../../lib/grid';
 
 const U = {
-  bg: '#080808', card: '#111111', s1: '#0f0f0f', s2: '#151515',
-  border: 'rgba(255,255,255,0.07)', border2: 'rgba(255,255,255,0.13)',
-  text: '#f0f0f0', muted: 'rgba(255,255,255,0.36)',
-  accent: '#d4a84b', accentFg: '#080808', green: '#22c55e', err: '#e05252',
+  bg:      '#01020A',
+  card:    'rgba(1,4,14,0.94)',
+  s1:      'rgba(0,4,16,0.98)',
+  s2:      'rgba(0,8,24,0.97)',
+  border:  'rgba(0,200,240,0.09)',
+  border2: 'rgba(0,200,240,0.20)',
+  text:    '#DDE6F2',
+  muted:   'rgba(140,180,220,0.70)',
+  faint:   'rgba(0,200,240,0.04)',
+  accent:  '#E8A020',
+  accentFg:'#01020A',
+  cyan:    '#00C8E4',
+  green:   '#00D880',
+  err:     '#D02848',
 };
-const F = { h: "'Clash Display','Syne',sans-serif", b: "'DM Sans','Inter',sans-serif" };
+const F = { h: "'Rajdhani','Sora',system-ui,sans-serif", b: "'Rajdhani','Sora',system-ui,sans-serif" };
 
 const inp = (focused) => ({
-  width: '100%', padding: '12px 15px', background: U.s1,
+  width: '100%', padding: '11px 14px',
+  background: 'rgba(0,200,240,0.03)',
   border: `1px solid ${focused ? U.accent : U.border2}`,
-  borderRadius: 9, color: U.text, fontSize: 14, outline: 'none',
+  color: U.text, fontSize: 13, outline: 'none',
   fontFamily: F.b, boxSizing: 'border-box', transition: 'border-color 0.2s',
+  clipPath: focused ? 'polygon(0 0,calc(100% - 5px) 0,100% 5px,100% 100%,0 100%)' : 'none',
 });
 
 // ─── Mini bloc preview ─────────────────────────────────────────
@@ -25,38 +37,39 @@ function BlockPreview({ tier, x, y }) {
   const c     = TIER_COLOR[tier] || U.accent;
   const label = TIER_LABEL[tier] || tier;
   const price = TIER_PRICE[tier] || 1;
-  const sizes = { one: 72, ten: 56, corner_ten: 56, hundred: 44, thousand: 32 };
-  const sz    = sizes[tier] || 44;
-  const r     = tier === 'one' ? Math.round(sz * 0.1)
-              : tier === 'ten' || tier === 'corner_ten' ? Math.round(sz * 0.09)
-              : tier === 'hundred' ? 3 : 2;
+  const sizes = { one: 64, ten: 50, corner_ten: 50, hundred: 38, thousand: 28 };
+  const sz    = sizes[tier] || 38;
 
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 20, padding: '18px 20px', background: `${c}08`, border: `1px solid ${c}30`, borderRadius: 12, marginBottom: 20 }}>
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 18, padding: '16px 18px',
+      background: `${c}08`, border: `1px solid ${c}30`, marginBottom: 18,
+      clipPath: 'polygon(0 0,calc(100% - 8px) 0,100% 8px,100% 100%,0 100%)',
+    }}>
       <div style={{ flexShrink: 0, position: 'relative' }}>
         <div style={{
-          width: sz, height: sz, borderRadius: r,
+          width: sz, height: sz,
           background: `${c}18`, border: `2px solid ${c}`,
           boxShadow: `0 0 20px ${c}50, 0 0 40px ${c}20`,
           animation: 'blockPulse 2s ease-in-out infinite',
         }} />
         <div style={{
-          position: 'absolute', top: -8, right: -8,
+          position: 'absolute', top: -7, right: -7,
           background: c, color: '#000', fontSize: 7, fontWeight: 900,
-          fontFamily: F.h, letterSpacing: '0.06em',
-          padding: '2px 5px', borderRadius: 4,
+          fontFamily: F.h, letterSpacing: '0.08em',
+          padding: '2px 4px',
         }}>{label}</div>
       </div>
       <div>
-        <div style={{ color: U.text, fontWeight: 700, fontSize: 15, fontFamily: F.h, marginBottom: 3 }}>
-          Bloc {label}
+        <div style={{ color: U.text, fontWeight: 800, fontSize: 14, fontFamily: F.h, marginBottom: 3, letterSpacing: '0.04em' }}>
+          BLOC {label.toUpperCase()}
         </div>
-        <div style={{ color: U.muted, fontSize: 12, marginBottom: 5 }}>
-          Position ({x}, {y}) · {price === 1 ? '1€' : `${price}€`}/jour · 30 jours
+        <div style={{ color: U.muted, fontSize: 11, marginBottom: 5, letterSpacing: '0.06em' }}>
+          POSITION ({x}, {y}) · {price === 1 ? '1€' : `${price}€`}/JOUR · 30 JOURS
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-          <div style={{ width: 6, height: 6, borderRadius: '50%', background: U.green, boxShadow: `0 0 6px ${U.green}` }} />
-          <span style={{ color: U.green, fontSize: 11, fontWeight: 700 }}>ACTIF</span>
+          <div style={{ width: 5, height: 5, background: U.green, boxShadow: `0 0 6px ${U.green}`, animation: 'blink 1.5s infinite' }} />
+          <span style={{ color: U.green, fontSize: 10, fontWeight: 800, letterSpacing: '0.12em' }}>ACTIF</span>
         </div>
       </div>
     </div>
@@ -72,23 +85,28 @@ function NextSteps({ showPassword, done }) {
     { label: 'Publié sur la grille',     sub: 'Visible de tous les visiteurs',         done: false,       active: false },
   ];
   return (
-    <div style={{ marginBottom: 20 }}>
-      <div style={{ fontSize: 10, fontWeight: 700, color: U.muted, letterSpacing: '0.1em', marginBottom: 10 }}>PROCHAINES ÉTAPES</div>
+    <div style={{ marginBottom: 18 }}>
+      <div style={{ fontSize: 9, fontWeight: 800, color: U.muted, letterSpacing: '0.14em', marginBottom: 10 }}>PROCHAINES ÉTAPES</div>
       {steps.map((s, i) => (
-        <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 11, padding: '9px 0', borderBottom: i < steps.length - 1 ? `1px solid ${U.border}` : 'none', opacity: !s.done && !s.active ? 0.45 : 1 }}>
+        <div key={i} style={{
+          display: 'flex', alignItems: 'flex-start', gap: 11, padding: '9px 0',
+          borderBottom: i < steps.length - 1 ? `1px solid ${U.border}` : 'none',
+          opacity: !s.done && !s.active ? 0.4 : 1,
+        }}>
           <div style={{
-            width: 22, height: 22, borderRadius: '50%', flexShrink: 0, marginTop: 1,
+            width: 20, height: 20, flexShrink: 0, marginTop: 1,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 10, fontWeight: 800,
+            fontSize: 9, fontWeight: 900,
             background: s.done ? `${U.green}18` : s.active ? `${U.accent}18` : U.s2,
             border: `1.5px solid ${s.done ? U.green : s.active ? U.accent : U.border2}`,
             color: s.done ? U.green : s.active ? U.accent : U.muted,
+            clipPath: 'polygon(0 0,calc(100% - 4px) 0,100% 4px,100% 100%,0 100%)',
           }}>
             {s.done ? '✓' : i + 1}
           </div>
           <div>
-            <div style={{ color: s.active ? U.text : s.done ? U.muted : U.muted, fontWeight: s.active ? 700 : 500, fontSize: 13 }}>{s.label}</div>
-            <div style={{ color: U.muted, fontSize: 11, marginTop: 1 }}>{s.sub}</div>
+            <div style={{ color: s.active ? U.text : s.done ? U.muted : U.muted, fontWeight: s.active ? 800 : 600, fontSize: 12, letterSpacing: '0.04em' }}>{s.label}</div>
+            <div style={{ color: U.muted, fontSize: 10, marginTop: 1 }}>{s.sub}</div>
           </div>
         </div>
       ))}
@@ -127,16 +145,30 @@ function PasswordSetup({ email, onDone }) {
   };
 
   return (
-    <div style={{ background: `${U.accent}08`, border: `1px solid ${U.accent}25`, borderRadius: 11, padding: '18px 20px', marginBottom: 14 }}>
-      <div style={{ fontSize: 10, fontWeight: 700, color: U.accent, letterSpacing: '0.1em', marginBottom: 5 }}>ÉTAPE 2 — ACCÈS À VOTRE ESPACE</div>
-      <p style={{ color: U.muted, fontSize: 12, margin: '0 0 12px', lineHeight: 1.5 }}>
+    <div style={{
+      background: `${U.accent}08`, border: `1px solid ${U.accent}25`,
+      padding: '16px 18px', marginBottom: 14,
+      clipPath: 'polygon(0 0,calc(100% - 8px) 0,100% 8px,100% 100%,0 100%)',
+      position: 'relative',
+    }}>
+      {/* Corner accent */}
+      <div style={{ position: 'absolute', top: 0, right: 0, width: 8, height: 8, background: U.accent, clipPath: 'polygon(100% 0,0 0,100% 100%)' }} />
+      <div style={{ fontSize: 9, fontWeight: 800, color: U.accent, letterSpacing: '0.14em', marginBottom: 5 }}>ÉTAPE 2 — ACCÈS À VOTRE ESPACE</div>
+      <p style={{ color: U.muted, fontSize: 11, margin: '0 0 12px', lineHeight: 1.5 }}>
         Choisissez un mot de passe pour gérer et personnaliser votre bloc.
       </p>
-      <div style={{ padding: '8px 12px', background: U.s1, borderRadius: 7, border: `1px solid ${U.border2}`, color: U.text, fontSize: 12, marginBottom: 10, display: 'flex', alignItems: 'center', gap: 7 }}>
+      <div style={{
+        padding: '7px 12px', background: U.s1, border: `1px solid ${U.border2}`,
+        color: U.text, fontSize: 11, marginBottom: 10,
+        display: 'flex', alignItems: 'center', gap: 7,
+      }}>
         <span style={{ color: U.accent }}>✉</span> {email}
       </div>
       {error && (
-        <div style={{ background: 'rgba(224,82,82,0.1)', border: '1px solid rgba(224,82,82,0.3)', borderRadius: 7, padding: '8px 12px', marginBottom: 10, color: U.err, fontSize: 12 }}>{error}</div>
+        <div style={{
+          background: 'rgba(208,40,72,0.1)', border: '1px solid rgba(208,40,72,0.3)',
+          padding: '7px 12px', marginBottom: 10, color: U.err, fontSize: 11,
+        }}>{error}</div>
       )}
       <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         <input type="password" value={password} required minLength={6}
@@ -149,13 +181,15 @@ function PasswordSetup({ email, onDone }) {
           placeholder="Confirmer le mot de passe"
           style={{ ...inp(focused === 'cf'), borderColor: confirm && confirm !== password ? U.err : focused === 'cf' ? U.accent : U.border2 }} />
         <button type="submit" disabled={loading} style={{
-          padding: '12px', background: loading ? `${U.accent}50` : U.accent,
-          color: U.accentFg, border: 'none', borderRadius: 9, fontWeight: 700,
-          fontSize: 14, cursor: loading ? 'not-allowed' : 'pointer',
-          fontFamily: F.b, marginTop: 2,
-          boxShadow: loading ? 'none' : `0 0 18px ${U.accent}40`,
+          padding: '11px',
+          background: loading ? `${U.accent}50` : U.accent,
+          color: U.accentFg, border: 'none', fontWeight: 800,
+          fontSize: 12, cursor: loading ? 'not-allowed' : 'pointer',
+          fontFamily: F.b, marginTop: 2, letterSpacing: '0.08em',
+          clipPath: 'polygon(0 0,calc(100% - 6px) 0,100% 6px,100% 100%,0 100%)',
+          boxShadow: loading ? 'none' : `0 0 16px ${U.accent}35`,
         }}>
-          {loading ? 'Création du compte…' : 'Créer mon compte →'}
+          {loading ? 'CRÉATION DU COMPTE…' : 'CRÉER MON COMPTE →'}
         </button>
       </form>
     </div>
@@ -192,8 +226,8 @@ function MerciContent() {
     <>
       <style>{`
         @keyframes blockPulse {
-          0%,100% { box-shadow:0 0 20px ${tierColor}50,0 0 40px ${tierColor}20; }
-          50%      { box-shadow:0 0 32px ${tierColor}80,0 0 60px ${tierColor}35; }
+          0%,100% { box-shadow: 0 0 20px ${tierColor}50, 0 0 40px ${tierColor}20; }
+          50%      { box-shadow: 0 0 32px ${tierColor}80, 0 0 60px ${tierColor}35; }
         }
         @keyframes fadeUp {
           from { opacity:0; transform:translateY(14px); }
@@ -204,37 +238,57 @@ function MerciContent() {
           70%  { transform:scale(1.2); }
           100% { transform:scale(1); opacity:1; }
         }
+        @keyframes blink {
+          0%,100% { opacity:1; }
+          50%      { opacity:0.2; }
+        }
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
       `}</style>
 
       <div style={{ maxWidth: 480, width: '100%', animation: 'fadeUp 0.4s ease forwards' }}>
 
         {/* Header */}
-        <div style={{ textAlign: 'center', marginBottom: 24 }}>
+        <div style={{ textAlign: 'center', marginBottom: 22 }}>
+          {/* Success icon HUD-style */}
           <div style={{
-            width: 54, height: 54, borderRadius: '50%',
+            width: 52, height: 52,
             background: `${U.green}12`, border: `2px solid ${U.green}`,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            margin: '0 auto 14px', fontSize: 22, color: U.green,
+            margin: '0 auto 14px', fontSize: 20, color: U.green,
             animation: 'checkPop 0.5s cubic-bezier(0.34,1.56,0.64,1) 0.1s both',
+            clipPath: 'polygon(0 0,calc(100% - 8px) 0,100% 8px,100% 100%,8px 100%,0 calc(100% - 8px))',
           }}>✓</div>
-          <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', color: U.accent, marginBottom: 7, fontFamily: F.h }}>
-            PAIEMENT CONFIRMÉ
+
+          <div style={{ fontSize: 9, fontWeight: 900, letterSpacing: '0.16em', color: U.accent, marginBottom: 7, fontFamily: F.h }}>
+            ◈ PAIEMENT CONFIRMÉ ◈
           </div>
-          <h1 style={{ fontSize: 25, fontWeight: 700, color: U.text, margin: '0 0 7px', fontFamily: F.h, letterSpacing: '-0.02em' }}>
+          <div style={{ height: 1, background: `linear-gradient(90deg, transparent, ${U.accent}60, transparent)`, marginBottom: 12 }} />
+          <h1 style={{ fontSize: 22, fontWeight: 900, color: U.text, margin: '0 0 7px', fontFamily: F.h, letterSpacing: '0.04em' }}>
             Votre bloc est réservé !
           </h1>
-          <p style={{ color: U.muted, fontSize: 13, lineHeight: 1.6, margin: 0 }}>
+          <p style={{ color: U.muted, fontSize: 12, lineHeight: 1.6, margin: 0 }}>
             Bienvenue sur ADS-SQUARE. Personnalisez votre bloc pour apparaître sur la grille.
           </p>
         </div>
 
         {/* Card principale */}
-        <div style={{ background: U.card, border: `1px solid ${U.border2}`, borderRadius: 16, padding: '22px 22px 18px', marginBottom: 10 }}>
+        <div style={{
+          background: U.card, border: `1px solid ${U.border2}`,
+          padding: '20px 20px 16px',
+          clipPath: 'polygon(0 0,calc(100% - 14px) 0,100% 14px,100% 100%,0 100%)',
+          marginBottom: 8, position: 'relative',
+        }}>
+          {/* Top-right corner accent */}
+          <div style={{ position: 'absolute', top: 0, right: 0, width: 14, height: 14, background: U.accent, clipPath: 'polygon(100% 0,0 0,100% 100%)' }} />
+          {/* Top scan line */}
+          <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 1, background: `linear-gradient(90deg, ${U.accent}80, transparent)` }} />
 
           {/* Bloc acheté */}
           {coords && tier && <BlockPreview tier={tier} x={coords.x} y={coords.y} />}
           {coords && !tier && (
-            <div style={{ padding: '12px 14px', background: U.s2, borderRadius: 9, marginBottom: 16, color: U.muted, fontSize: 13 }}>
+            <div style={{ padding: '11px 14px', background: U.s2, border: `1px solid ${U.border}`, marginBottom: 16, color: U.muted, fontSize: 12 }}>
               Bloc ({coords.x}, {coords.y}) · actif 30 jours
             </div>
           )}
@@ -246,37 +300,47 @@ function MerciContent() {
           {showPassword && <PasswordSetup email={email} onDone={() => setDone(true)} />}
 
           {done && (
-            <div style={{ background: `${U.green}0d`, border: `1px solid ${U.green}28`, borderRadius: 8, padding: '9px 14px', marginBottom: 12, color: U.green, fontSize: 13, textAlign: 'center' }}>
-              ✓ Compte créé — vous êtes connecté
+            <div style={{
+              background: `${U.green}0d`, border: `1px solid ${U.green}28`,
+              padding: '8px 14px', marginBottom: 12, color: U.green,
+              fontSize: 12, textAlign: 'center', fontWeight: 700, letterSpacing: '0.06em',
+            }}>
+              ✓ COMPTE CRÉÉ — VOUS ÊTES CONNECTÉ
             </div>
           )}
 
           {/* CTA principal */}
           <Link href="/dashboard" style={{
             display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            padding: '13px 16px',
+            padding: '12px 16px',
             background: showDashboardBtn ? U.accent : `${U.accent}15`,
             color: showDashboardBtn ? U.accentFg : U.accent,
             border: `1px solid ${showDashboardBtn ? 'transparent' : U.accent + '40'}`,
-            borderRadius: 10, fontWeight: 700, fontSize: 14, textDecoration: 'none',
-            fontFamily: F.b,
-            boxShadow: showDashboardBtn ? `0 0 20px ${U.accent}40` : 'none',
+            fontWeight: 800, fontSize: 13, textDecoration: 'none',
+            fontFamily: F.b, letterSpacing: '0.08em',
+            boxShadow: showDashboardBtn ? `0 0 24px ${U.accent}40` : 'none',
+            clipPath: 'polygon(0 0,calc(100% - 8px) 0,100% 8px,100% 100%,0 100%)',
+            transition: 'all 0.2s',
           }}>
-            <span>{showDashboardBtn ? 'Personnaliser mon bloc maintenant' : 'Accéder au dashboard après connexion'}</span>
+            <span>{showDashboardBtn ? 'PERSONNALISER MON BLOC' : 'ACCÉDER AU DASHBOARD'}</span>
             <span>→</span>
           </Link>
 
           {!showDashboardBtn && !showPassword && (
-            <p style={{ color: U.muted, fontSize: 11, textAlign: 'center', margin: '9px 0 0' }}>
+            <p style={{ color: U.muted, fontSize: 10, textAlign: 'center', margin: '8px 0 0', letterSpacing: '0.06em' }}>
               Connectez-vous avec l'email utilisé lors du paiement.
             </p>
           )}
         </div>
 
         {/* Ce que vous pouvez personnaliser */}
-        <div style={{ background: U.card, border: `1px solid ${U.border}`, borderRadius: 12, padding: '14px 18px', marginBottom: 10 }}>
-          <div style={{ fontSize: 10, fontWeight: 700, color: U.muted, letterSpacing: '0.1em', marginBottom: 10 }}>CE QUE VOUS POUVEZ CONFIGURER</div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 7 }}>
+        <div style={{
+          background: U.card, border: `1px solid ${U.border}`,
+          padding: '14px 16px', marginBottom: 8,
+          clipPath: 'polygon(0 0,calc(100% - 10px) 0,100% 10px,100% 100%,0 100%)',
+        }}>
+          <div style={{ fontSize: 9, fontWeight: 800, color: U.muted, letterSpacing: '0.14em', marginBottom: 10 }}>CE QUE VOUS POUVEZ CONFIGURER</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
             {[
               ['◻', 'Logo ou image'],
               ['⌖', 'Lien de destination'],
@@ -285,19 +349,22 @@ function MerciContent() {
               ['⚡', 'Boost de visibilité'],
               ['📊', 'Stats temps réel'],
             ].map(([icon, label]) => (
-              <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '7px 10px', background: U.s1, borderRadius: 7, border: `1px solid ${U.border}` }}>
-                <span style={{ fontSize: 12 }}>{icon}</span>
-                <span style={{ color: U.muted, fontSize: 11 }}>{label}</span>
+              <div key={label} style={{
+                display: 'flex', alignItems: 'center', gap: 7, padding: '6px 10px',
+                background: U.faint, border: `1px solid ${U.border}`,
+              }}>
+                <span style={{ fontSize: 11, color: U.accent }}>{icon}</span>
+                <span style={{ color: U.muted, fontSize: 10, letterSpacing: '0.04em' }}>{label}</span>
               </div>
             ))}
           </div>
         </div>
 
         {/* Footer */}
-        <p style={{ color: 'rgba(255,255,255,0.2)', fontSize: 11, textAlign: 'center', margin: 0, lineHeight: 1.6 }}>
-          Email de confirmation envoyé ·{' '}
-          <Link href="/" style={{ color: 'rgba(255,255,255,0.25)', textDecoration: 'none' }}>
-            Retour à la grille
+        <p style={{ color: 'rgba(140,180,220,0.25)', fontSize: 10, textAlign: 'center', margin: 0, lineHeight: 1.6, letterSpacing: '0.06em' }}>
+          EMAIL DE CONFIRMATION ENVOYÉ ·{' '}
+          <Link href="/" style={{ color: 'rgba(140,180,220,0.3)', textDecoration: 'none' }}>
+            RETOUR À LA GRILLE
           </Link>
         </p>
       </div>
@@ -307,8 +374,14 @@ function MerciContent() {
 
 export default function MerciPage() {
   return (
-    <div style={{ minHeight: '100vh', background: U.bg, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', fontFamily: F.b, padding: '32px 20px' }}>
-      <Suspense fallback={<div style={{ color: 'rgba(255,255,255,0.3)' }}>Chargement…</div>}>
+    <div style={{
+      minHeight: '100vh', background: U.bg,
+      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+      fontFamily: F.b, padding: '32px 20px',
+      backgroundImage: 'repeating-linear-gradient(0deg, rgba(0,200,240,0.012) 0px, rgba(0,200,240,0.012) 1px, transparent 1px, transparent 4px)',
+      backgroundSize: '100% 4px',
+    }}>
+      <Suspense fallback={<div style={{ color: 'rgba(140,180,220,0.5)', fontSize: 11, letterSpacing: '0.1em' }}>CHARGEMENT…</div>}>
         <MerciContent />
       </Suspense>
     </div>
