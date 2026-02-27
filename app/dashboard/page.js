@@ -8,32 +8,22 @@ import {
 } from '../../lib/supabase-auth';
 import { TIER_LABEL, TIER_PRICE, TIER_COLOR } from '../../lib/grid';
 
-// ─── Design System — STAR CITIZEN GRADE ──────────────────────
+// ─── Design System ────────────────────────────────────────────
 const U = {
-  bg:      '#01020A',
-  s1:      'rgba(0,4,16,0.98)',
-  s2:      'rgba(0,8,24,0.97)',
-  card:    'rgba(1,4,14,0.94)',
-  card2:   'rgba(0,6,20,0.96)',
-  border:  'rgba(0,200,240,0.09)',
-  border2: 'rgba(0,200,240,0.20)',
-  text:    '#DDE6F2',
-  muted:   'rgba(140,180,220,0.70)',
-  faint:   'rgba(0,200,240,0.04)',
-  accent:  '#E8A020',
-  accentFg:'#01020A',
-  cyan:    '#00C8E4',
-  green:   '#00D880',
-  err:     '#D02848',
+  bg: '#080808', s1: '#0f0f0f', s2: '#121212', card: '#1a1a1a',
+  card2: '#1f1f1f', border: 'rgba(255,255,255,0.07)',
+  border2: 'rgba(255,255,255,0.13)',
+  text: '#f0f0f0', muted: 'rgba(255,255,255,0.36)',
+  faint: 'rgba(255,255,255,0.04)', accent: '#d4a84b',
+  accentFg: '#080808', err: '#e05252', green: '#22c55e',
 };
-const F = { h: "'Rajdhani','Sora',system-ui,sans-serif", b: "'Rajdhani','Sora',system-ui,sans-serif" };
+const F = { h: "'Clash Display','Syne',sans-serif", b: "'DM Sans','Inter',sans-serif" };
 
 const inputStyle = (focused) => ({
-  width: '100%', padding: '12px 14px', background: 'rgba(0,200,240,0.03)',
+  width: '100%', padding: '12px 14px', background: U.s1,
   border: `1px solid ${focused ? U.accent : U.border2}`,
-   color: U.text, fontSize: 14, outline: 'none',
+  borderRadius: 8, color: U.text, fontSize: 14, outline: 'none',
   fontFamily: F.b, boxSizing: 'border-box', transition: 'border-color 0.2s',
-  clipPath: focused ? 'polygon(0 0,calc(100% - 6px) 0,100% 6px,100% 100%,0 100%)' : 'none',
 });
 
 // ─── Composants UI ────────────────────────────────────────────
@@ -56,19 +46,17 @@ function Field({ label, children }) {
 
 function Btn({ onClick, children, variant = 'primary', size = 'md', disabled, style: extra }) {
   const base = {
-    border: 'none', fontWeight: 700,
+    border: 'none', borderRadius: 8, fontWeight: 600,
     cursor: disabled ? 'not-allowed' : 'pointer',
-    fontFamily: F.b, transition: 'all 0.15s',
+    fontFamily: F.b, transition: 'opacity 0.15s',
     opacity: disabled ? 0.5 : 1,
-    padding: size === 'sm' ? '7px 14px' : '11px 20px',
-    fontSize: size === 'sm' ? 12 : 13,
-    letterSpacing: '0.06em',
-    clipPath: 'polygon(0 0,calc(100% - 6px) 0,100% 6px,100% 100%,0 100%)',
+    padding: size === 'sm' ? '8px 14px' : '12px 20px',
+    fontSize: size === 'sm' ? 13 : 14,
   };
   const variants = {
     primary: { background: U.accent, color: U.accentFg },
     secondary: { background: U.faint, color: U.text, border: `1px solid ${U.border2}` },
-    danger: { background: 'rgba(208,40,72,0.12)', color: U.err, border: `1px solid rgba(208,40,72,0.3)` },
+    danger: { background: 'rgba(224,82,82,0.12)', color: U.err, border: `1px solid rgba(224,82,82,0.3)` },
   };
   return (
     <button onClick={onClick} disabled={disabled} style={{ ...base, ...variants[variant], ...extra }}>
@@ -82,13 +70,11 @@ function Toast({ msg, type }) {
   return (
     <div style={{
       position: 'fixed', bottom: 24, right: 24, zIndex: 9999,
-      background: type === 'error' ? 'rgba(208,40,72,0.95)' : 'rgba(0,216,128,0.95)',
-      color: '#fff', padding: '12px 20px',
-      fontSize: 13, fontWeight: 700, fontFamily: F.b,
-      boxShadow: `0 4px 32px ${type === 'error' ? 'rgba(208,40,72,0.4)' : 'rgba(0,216,128,0.4)'}`,
+      background: type === 'error' ? U.err : U.green,
+      color: '#fff', borderRadius: 10, padding: '12px 20px',
+      fontSize: 14, fontWeight: 600, fontFamily: F.b,
+      boxShadow: '0 4px 24px rgba(0,0,0,0.4)',
       animation: 'fadeIn 0.2s ease',
-      clipPath: 'polygon(0 0,calc(100% - 8px) 0,100% 8px,100% 100%,0 100%)',
-      border: `1px solid ${type === 'error' ? 'rgba(208,40,72,0.5)' : 'rgba(0,216,128,0.5)'}`,
     }}>
       {msg}
     </div>
@@ -97,18 +83,16 @@ function Toast({ msg, type }) {
 
 function StatusBadge({ status }) {
   const cfg = {
-    active:    { bg: 'rgba(0,216,128,0.12)',  color: '#00D880',  label: 'Actif' },
-    pending:   { bg: 'rgba(232,160,32,0.12)', color: '#E8A020',  label: 'En attente' },
-    expired:   { bg: 'rgba(140,180,220,0.06)', color: 'rgba(140,180,220,0.5)', label: 'Expiré' },
-    cancelled: { bg: 'rgba(208,40,72,0.12)',  color: '#D02848',  label: 'Annulé' },
+    active:    { bg: 'rgba(34,197,94,0.12)',  color: '#22c55e',  label: 'Actif' },
+    pending:   { bg: 'rgba(212,168,75,0.12)', color: U.accent,   label: 'En attente' },
+    expired:   { bg: 'rgba(255,255,255,0.06)', color: U.muted,   label: 'Expiré' },
+    cancelled: { bg: 'rgba(224,82,82,0.12)',  color: U.err,      label: 'Annulé' },
   }[status] || { bg: U.faint, color: U.muted, label: status };
 
   return (
     <span style={{
-      background: cfg.bg, color: cfg.color,
-      padding: '2px 9px', fontSize: 10, fontWeight: 700, letterSpacing: '0.08em',
-      clipPath: 'polygon(0 0,calc(100% - 4px) 0,100% 4px,100% 100%,0 100%)',
-      border: `1px solid ${cfg.color}30`,
+      background: cfg.bg, color: cfg.color, borderRadius: 6,
+      padding: '3px 10px', fontSize: 11, fontWeight: 700, letterSpacing: '0.06em',
     }}>
       {cfg.label}
     </span>
@@ -141,13 +125,12 @@ function BoostToggle({ booking, onToggled }) {
       title={boosted ? 'Désactiver le boost ticker' : 'Apparaître dans la barre boost'}
       style={{
         display: 'flex', alignItems: 'center', gap: 5,
-        padding: '4px 9px', fontSize: 10, fontWeight: 700,
+        padding: '4px 9px', borderRadius: 6, fontSize: 10, fontWeight: 700,
         cursor: loading ? 'wait' : 'pointer',
-        border: `1px solid ${boosted ? '#E8A02040' : 'rgba(0,200,240,0.15)'}`,
-        background: boosted ? 'rgba(232,160,32,0.12)' : 'transparent',
-        color: boosted ? '#E8A020' : 'rgba(140,180,220,0.4)',
+        border: `1px solid ${boosted ? '#f0b42940' : '#ffffff18'}`,
+        background: boosted ? '#f0b42912' : 'transparent',
+        color: boosted ? '#f0b429' : 'rgba(255,255,255,0.3)',
         transition: 'all 0.2s',
-        clipPath: 'polygon(0 0,calc(100% - 4px) 0,100% 4px,100% 100%,0 100%)',
       }}>
       <span style={{ fontSize: 11 }}>⚡</span>
       {loading ? '…' : boosted ? 'Boosté' : 'Booster'}
@@ -168,17 +151,16 @@ function TabMesBlocs({ bookings, onSelect, selectedId }) {
       <div
         onClick={() => onSelect(b)}
         style={{
-          background: isSelected ? `rgba(232,160,32,0.07)` : U.card2,
+          background: isSelected ? `rgba(212,168,75,0.08)` : U.card2,
           border: `1px solid ${isSelected ? U.accent : U.border}`,
-          padding: '14px 16px', cursor: 'pointer',
-          transition: 'all 0.15s', marginBottom: 8,
+          borderRadius: 12, padding: '16px 18px', cursor: 'pointer',
+          transition: 'all 0.15s', marginBottom: 10,
           display: 'flex', alignItems: 'center', gap: 14,
-          clipPath: 'polygon(0 0,calc(100% - 8px) 0,100% 8px,100% 100%,0 100%)',
         }}
       >
         {/* Bloc visuel */}
         <div style={{
-          width: 44, height: 44, clipPath: 'polygon(0 0,calc(100% - 5px) 0,100% 5px,100% 100%,0 100%)', flexShrink: 0,
+          width: 44, height: 44, borderRadius: 8, flexShrink: 0,
           background: b.image_url ? `url(${b.image_url}) center/cover` : b.background_color || '#111',
           border: `2px solid ${color}`,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -223,9 +205,8 @@ function TabMesBlocs({ bookings, onSelect, selectedId }) {
 
       {bookings.length === 0 && (
         <div style={{
-          background: U.card2, border: `1px solid ${U.border2}`,
-          padding: 40, textAlign: 'center',
-          clipPath: 'polygon(0 0,calc(100% - 12px) 0,100% 12px,100% 100%,0 100%)',
+          background: U.card2, border: `1px solid ${U.border}`,
+          borderRadius: 12, padding: 40, textAlign: 'center',
         }}>
           <div style={{ fontSize: 32, marginBottom: 12 }}>◻</div>
           <div style={{ color: U.text, fontWeight: 600, marginBottom: 8 }}>Aucun bloc réservé</div>
@@ -233,11 +214,9 @@ function TabMesBlocs({ bookings, onSelect, selectedId }) {
             Réservez votre premier espace publicitaire depuis la grille.
           </div>
           <Link href="/" style={{
-            display: 'inline-block', padding: '9px 20px',
+            display: 'inline-block', padding: '10px 20px',
             background: U.accent, color: U.accentFg,
-            fontWeight: 700, textDecoration: 'none', fontSize: 13,
-            letterSpacing: '0.06em',
-            clipPath: 'polygon(0 0,calc(100% - 6px) 0,100% 6px,100% 100%,0 100%)',
+            borderRadius: 8, fontWeight: 700, textDecoration: 'none', fontSize: 14,
           }}>
             Explorer la grille →
           </Link>
@@ -396,12 +375,11 @@ function TabEditBloc({ booking, onSaved, showToast }) {
   const set = (k, v) => setForm(f => ({...f, [k]: v}));
 
   const iStyle = (f) => ({
-    width:'100%', padding:'11px 13px', background:'rgba(0,200,240,0.03)',
+    width:'100%', padding:'11px 13px', background:U.s1,
     border:`1px solid ${f ? U.accent : U.border2}`,
-    color:U.text, fontSize:13, outline:'none',
-    fontFamily:"'Rajdhani','Sora',sans-serif", boxSizing:'border-box',
+    borderRadius:8, color:U.text, fontSize:13, outline:'none',
+    fontFamily:"'DM Sans',sans-serif", boxSizing:'border-box',
     transition:'border-color 0.2s', opacity: canEdit ? 1 : 0.5,
-    clipPath: f ? 'polygon(0 0,calc(100% - 5px) 0,100% 5px,100% 100%,0 100%)' : 'none',
   });
 
   const handleSave = async () => {
@@ -519,7 +497,7 @@ function TabEditBloc({ booking, onSaved, showToast }) {
                   lineHeight: 1.6,
                   minHeight: 90,
                   paddingBottom: 24,
-                  fontFamily: "'Rajdhani','Sora',system-ui,sans-serif",
+                  fontFamily: "'DM Sans',sans-serif",
                 }}
               />
               <div style={{
@@ -649,7 +627,7 @@ function TabEditBloc({ booking, onSaved, showToast }) {
                   <button
                     onClick={() => fileRef.current?.click()}
                     disabled={uploading}
-                    style={{ padding:'8px 14px', background:uploading?U.faint:'rgba(232,160,32,0.1)', border:`1px solid ${uploading?U.border:'rgba(232,160,32,0.4)'}`, color:uploading?U.muted:U.accent, fontSize:12, fontWeight:700, cursor:uploading?'wait':'pointer', fontFamily:F.b, transition:'all 0.2s', clipPath:'polygon(0 0,calc(100% - 4px) 0,100% 4px,100% 100%,0 100%)' }}>
+                    style={{ padding:'8px 14px', borderRadius:8, background:uploading?U.faint:'rgba(212,168,75,0.1)', border:`1px solid ${uploading?U.border:'rgba(212,168,75,0.4)'}`, color:uploading?U.muted:'#d4a84b', fontSize:12, fontWeight:600, cursor:uploading?'wait':'pointer', fontFamily:F.b, transition:'all 0.2s' }}>
                     {uploading ? '⏳ Upload…' : '📁 Uploader un fichier'}
                   </button>
                   <span style={{ fontSize:11, color:U.muted }}>JPG, PNG, WEBP</span>
@@ -729,7 +707,7 @@ function TabEditBloc({ booking, onSaved, showToast }) {
                   return <div style={{ position:'absolute',inset:0,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:2,padding:3,background:`${storeCol}0a`,overflow:'hidden' }}>{img?<img src={img} alt="" style={{ width:iconSz,height:iconSz,borderRadius:iconSz*.22,objectFit:'cover',border:`1.5px solid ${storeCol}40` }} onError={e=>e.target.style.display='none'} />:<div style={{ width:iconSz,height:iconSz,borderRadius:iconSz*.22,background:`${storeCol}22`,border:`1.5px solid ${storeCol}55`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:iconSz*.42,color:storeCol }}>{(name||'?').charAt(0).toUpperCase()}</div>}</div>;
                 }
                 if (img) return <img src={img} alt="" style={{ position:'absolute',inset:0,width:'100%',height:'100%',objectFit:'cover' }} onError={e=>e.target.style.display='none'} />;
-                return <div style={{ position:'absolute',inset:0,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:2,padding:3,background:b }}><span style={{ color:c,fontSize:Math.min(size*.36,42),fontWeight:900,lineHeight:1,fontFamily:"'Rajdhani','Sora',system-ui,sans-serif" }}>{selSocial?.e||selMusic?.e||cat.icon||(name||'?').charAt(0).toUpperCase()}</span>{size>=52&&name&&<span style={{ color:c+'cc',fontSize:Math.min(size*.12,13),fontWeight:700,textAlign:'center',maxWidth:'90%',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap' }}>{name}</span>}</div>;
+                return <div style={{ position:'absolute',inset:0,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:2,padding:3,background:b }}><span style={{ color:c,fontSize:Math.min(size*.36,42),fontWeight:900,lineHeight:1,fontFamily:"'Clash Display','Syne',sans-serif" }}>{selSocial?.e||selMusic?.e||cat.icon||(name||'?').charAt(0).toUpperCase()}</span>{size>=52&&name&&<span style={{ color:c+'cc',fontSize:Math.min(size*.12,13),fontWeight:700,textAlign:'center',maxWidth:'90%',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap' }}>{name}</span>}</div>;
               }
 
               return (
@@ -769,7 +747,7 @@ function TabEditBloc({ booking, onSaved, showToast }) {
             })()}
           </Field>
 
-          <div style={{ padding:'12px 14px', background:'rgba(0,216,128,0.06)', border:'1px solid rgba(0,216,128,0.15)', fontSize:12, color:'rgba(0,216,128,0.8)', clipPath:'polygon(0 0,calc(100% - 6px) 0,100% 6px,100% 100%,0 100%)' }}>
+          <div style={{ padding:'12px 14px', background:'rgba(34,197,94,0.06)', border:'1px solid rgba(34,197,94,0.15)', borderRadius:10, fontSize:12, color:'rgba(34,197,94,0.8)' }}>
             ✓ Les modifications sont <strong>immédiatement visibles sur la grille</strong> après sauvegarde.
           </div>
         </div>
@@ -827,7 +805,7 @@ function TabAnalytics({ booking }) {
         {stats.map((s, i) => (
           <div key={i} style={{
             background: U.card2, border: `1px solid ${U.border}`,
-            clipPath: 'polygon(0 0,calc(100% - 8px) 0,100% 8px,100% 100%,0 100%)', padding: '16px', textAlign: 'center',
+            borderRadius: 12, padding: '16px', textAlign: 'center',
           }}>
             <div style={{ fontSize: 24, marginBottom: 8 }}>{s.icon}</div>
             <div style={{ fontSize: 26, fontWeight: 800, color: U.text, marginBottom: 4, fontFamily: F.h }}>
@@ -841,7 +819,7 @@ function TabAnalytics({ booking }) {
       {/* Durée restante */}
       <div style={{
         background: U.card2, border: `1px solid ${U.border}`,
-        clipPath: 'polygon(0 0,calc(100% - 8px) 0,100% 8px,100% 100%,0 100%)', padding: '20px 24px', marginBottom: 16,
+        borderRadius: 12, padding: '20px 24px', marginBottom: 16,
       }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
           <span style={{ fontWeight: 600, color: U.text }}>Durée de la campagne</span>
@@ -852,11 +830,11 @@ function TabAnalytics({ booking }) {
             {daysLeft > 0 ? `${daysLeft} jours restants` : 'Expiré'}
           </span>
         </div>
-        <div style={{ background: 'rgba(0,200,240,0.03)',  height: 8, overflow: 'hidden' }}>
+        <div style={{ background: U.s1, borderRadius: 6, height: 8, overflow: 'hidden' }}>
           <div style={{
             width: `${Math.min(100, progress)}%`, height: '100%',
             background: daysLeft < 5 ? U.err : U.accent,
-             transition: 'width 0.4s',
+            borderRadius: 6, transition: 'width 0.4s',
           }} />
         </div>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8 }}>
@@ -869,7 +847,7 @@ function TabAnalytics({ booking }) {
       {booking.status === 'active' && daysLeft < 8 && (
         <div style={{
           background: 'rgba(212,168,75,0.08)', border: `1px solid rgba(212,168,75,0.25)`,
-          clipPath: 'polygon(0 0,calc(100% - 8px) 0,100% 8px,100% 100%,0 100%)', padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          borderRadius: 12, padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         }}>
           <div>
             <div style={{ fontWeight: 600, color: U.accent, marginBottom: 4 }}>⚡ Renouvelez bientôt</div>
@@ -879,7 +857,7 @@ function TabAnalytics({ booking }) {
           </div>
           <Link href="/" style={{
             padding: '10px 18px', background: U.accent, color: U.accentFg,
-            clipPath: 'polygon(0 0,calc(100% - 5px) 0,100% 5px,100% 100%,0 100%)', fontWeight: 700, textDecoration: 'none', fontSize: 13, whiteSpace: 'nowrap',
+            borderRadius: 8, fontWeight: 700, textDecoration: 'none', fontSize: 13, whiteSpace: 'nowrap',
           }}>
             Renouveler →
           </Link>
@@ -889,7 +867,7 @@ function TabAnalytics({ booking }) {
       {/* Infos du booking */}
       <div style={{
         background: U.card2, border: `1px solid ${U.border}`,
-        clipPath: 'polygon(0 0,calc(100% - 8px) 0,100% 8px,100% 100%,0 100%)', padding: '16px 20px', marginTop: 16,
+        borderRadius: 12, padding: '16px 20px', marginTop: 16,
       }}>
         <div style={{ fontSize: 11, fontWeight: 700, color: U.muted, letterSpacing: '0.1em', marginBottom: 12 }}>
           DÉTAILS DU BOOKING
@@ -1000,7 +978,7 @@ function TabProfil({ advertiser, onSaved, showToast }) {
                 <button key={opt.val}
                   onClick={() => set('profile_type', opt.val)}
                   style={{
-                    padding: '9px 14px', clipPath: 'polygon(0 0,calc(100% - 5px) 0,100% 5px,100% 100%,0 100%)', border: `1px solid ${form.profile_type === opt.val ? U.accent : U.border}`,
+                    padding: '9px 14px', borderRadius: 8, border: `1px solid ${form.profile_type === opt.val ? U.accent : U.border}`,
                     background: form.profile_type === opt.val ? 'rgba(212,168,75,0.12)' : 'transparent',
                     color: form.profile_type === opt.val ? U.accent : U.muted,
                     fontSize: 13, fontWeight: 600, cursor: 'pointer', flex: 1,
@@ -1011,7 +989,7 @@ function TabProfil({ advertiser, onSaved, showToast }) {
             </div>
           </Field>
 
-          <div style={{ padding: '14px 16px', background: U.faint, clipPath: 'polygon(0 0,calc(100% - 5px) 0,100% 5px,100% 100%,0 100%)', fontSize: 13, color: U.muted }}>
+          <div style={{ padding: '14px 16px', background: U.faint, borderRadius: 8, fontSize: 13, color: U.muted }}>
             <strong style={{ color: U.text }}>Email :</strong> {advertiser.email}
             <br />
             <span style={{ fontSize: 11 }}>L'email ne peut pas être modifié.</span>
@@ -1027,7 +1005,7 @@ function TabProfil({ advertiser, onSaved, showToast }) {
             <Field key={s.key} label={s.label}>
               <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                 <div style={{
-                  width: 36, height: 36,  background: 'rgba(0,200,240,0.03)',
+                  width: 36, height: 36, borderRadius: 7, background: U.s1,
                   border: `1px solid ${U.border}`, display: 'flex', alignItems: 'center',
                   justifyContent: 'center', color: U.muted, fontSize: 14, flexShrink: 0,
                 }}>{s.icon}</div>
@@ -1072,11 +1050,11 @@ function TabPaiements({ bookings }) {
         {sorted.map(b => (
           <div key={b.id} style={{
             background: U.card2, border: `1px solid ${U.border}`,
-            clipPath: 'polygon(0 0,calc(100% - 8px) 0,100% 8px,100% 100%,0 100%)', padding: '16px 20px',
+            borderRadius: 12, padding: '16px 20px',
             display: 'flex', alignItems: 'center', gap: 16,
           }}>
             <div style={{
-              width: 40, height: 40, clipPath: 'polygon(0 0,calc(100% - 5px) 0,100% 5px,100% 100%,0 100%)', flexShrink: 0,
+              width: 40, height: 40, borderRadius: 8, flexShrink: 0,
               background: TIER_COLOR[b.tier] + '18',
               border: `1.5px solid ${TIER_COLOR[b.tier] || U.accent}`,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -1107,7 +1085,7 @@ function TabPaiements({ bookings }) {
               <Link href={`/?slot=${b.slot_x}-${b.slot_y}`} style={{
                 padding: '8px 14px', background: 'rgba(212,168,75,0.1)',
                 border: `1px solid rgba(212,168,75,0.3)`,
-                color: U.accent, clipPath: 'polygon(0 0,calc(100% - 5px) 0,100% 5px,100% 100%,0 100%)', fontSize: 12,
+                color: U.accent, borderRadius: 8, fontSize: 12,
                 fontWeight: 600, textDecoration: 'none', whiteSpace: 'nowrap',
               }}>
                 Renouveler
@@ -1184,7 +1162,7 @@ function TabOffres({ bookings, userId, showToast }) {
           const hoursLeft = Math.max(0, Math.round((new Date(o.expires_at) - new Date()) / 3600000));
           const isProc = responding === o.id;
           return (
-            <div key={o.id} style={{ clipPath: 'polygon(0 0,calc(100% - 8px) 0,100% 8px,100% 100%,0 100%)', background: 'rgba(0,200,240,0.03)', border: `1px solid ${U.border2}`, overflow: 'hidden' }}>
+            <div key={o.id} style={{ borderRadius: 12, background: U.s1, border: `1px solid ${U.border2}`, overflow: 'hidden' }}>
               {/* Header */}
               <div style={{ padding: '14px 18px', borderBottom: `1px solid ${U.border}`, display:'flex', alignItems:'center', justifyContent:'space-between' }}>
                 <div>
@@ -1285,50 +1263,41 @@ export default function DashboardPage() {
   if (loading) {
     return (
       <div style={{ minHeight: '100vh', background: U.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', color: U.muted, fontFamily: F.b }}>
-        <div style={{ textAlign: 'center' }}>
-          <div style={{ width: 32, height: 32, border: `2px solid ${U.accent}`, borderTopColor: 'transparent', borderRadius: '50%', margin: '0 auto 12px', animation: 'spin 0.8s linear infinite' }} />
-          <div style={{ fontSize: 12, letterSpacing: '0.1em' }}>CHARGEMENT…</div>
-        </div>
+        Chargement…
       </div>
     );
   }
 
   return (
     <div style={{ minHeight: '100vh', background: U.bg, fontFamily: F.b, display: 'flex', flexDirection: 'column' }}>
-      {/* Scan line déco */}
-      <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, pointerEvents: 'none', zIndex: 0, backgroundImage: 'repeating-linear-gradient(0deg, rgba(0,200,240,0.012) 0px, rgba(0,200,240,0.012) 1px, transparent 1px, transparent 4px)', backgroundSize: '100% 4px' }} />
 
       {/* Topbar */}
       <div style={{
-        background: 'rgba(0,4,16,0.98)', borderBottom: `1px solid ${U.border2}`,
+        background: U.s1, borderBottom: `1px solid ${U.border}`,
         padding: '0 24px', display: 'flex', alignItems: 'center',
-        gap: 16, height: 52, flexShrink: 0, position: 'relative', zIndex: 10,
-        backdropFilter: 'blur(12px)',
+        gap: 16, height: 56, flexShrink: 0,
       }}>
-        {/* Corner accent */}
-        <div style={{ position: 'absolute', top: 0, left: 0, width: 40, height: 52, background: `${U.accent}18`, clipPath: 'polygon(0 0,100% 0,80% 100%,0 100%)', pointerEvents: 'none' }} />
         <Link href="/" style={{
-          fontSize: 15, fontWeight: 900, color: U.accent,
-          textDecoration: 'none', letterSpacing: '0.12em', fontFamily: F.h,
+          fontSize: 16, fontWeight: 800, color: U.accent,
+          textDecoration: 'none', letterSpacing: '0.06em', fontFamily: F.h,
         }}>
           ADS-SQUARE
         </Link>
-        <div style={{ width: 1, height: 16, background: U.border2 }} />
-        <span style={{ color: U.muted, fontSize: 11, letterSpacing: '0.1em', fontWeight: 700 }}>ESPACE CLIENT</span>
+        <div style={{ width: 1, height: 20, background: U.border }} />
+        <span style={{ color: U.muted, fontSize: 13 }}>Espace client</span>
         <div style={{ flex: 1 }} />
 
         {/* User + signout */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <div style={{
-            width: 28, height: 28,
-            background: `${U.accent}18`, border: `1.5px solid ${U.accent}60`,
+            width: 32, height: 32, borderRadius: '50%',
+            background: 'rgba(212,168,75,0.15)', border: `1.5px solid ${U.accent}`,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 11, fontWeight: 900, color: U.accent,
-            clipPath: 'polygon(0 0,calc(100% - 4px) 0,100% 4px,100% 100%,0 100%)',
+            fontSize: 12, fontWeight: 700, color: U.accent,
           }}>
             {(advertiser?.display_name || session?.user?.email || '?')[0].toUpperCase()}
           </div>
-          <span style={{ color: U.text, fontSize: 12, letterSpacing: '0.04em' }}>
+          <span style={{ color: U.text, fontSize: 13 }}>
             {advertiser?.display_name || session?.user?.email}
           </span>
           <Btn variant="secondary" size="sm" onClick={async () => { await signOut(); router.replace('/dashboard/login'); }}>
@@ -1337,30 +1306,26 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      <div style={{ display: 'flex', flex: 1, overflow: 'hidden', position: 'relative', zIndex: 1 }}>
+      <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
 
         {/* Sidebar */}
         <div style={{
-          width: 210, background: 'rgba(0,4,16,0.97)', borderRight: `1px solid ${U.border}`,
-          padding: '20px 10px', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 3,
+          width: 220, background: U.s1, borderRight: `1px solid ${U.border}`,
+          padding: '20px 12px', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 4,
         }}>
-          {/* Sidebar top accent line */}
-          <div style={{ height: 2, background: `linear-gradient(90deg, ${U.accent}, transparent)`, marginBottom: 12, marginLeft: 4, width: '60%' }} />
           {tabs.map(tab => (
             <button key={tab.id} onClick={() => setActiveTab(tab.id)}
               style={{
                 display: 'flex', alignItems: 'center', gap: 10,
-                padding: '10px 14px', border: 'none',
-                background: activeTab === tab.id ? `rgba(232,160,32,0.10)` : 'transparent',
+                padding: '11px 14px', borderRadius: 9, border: 'none',
+                background: activeTab === tab.id ? 'rgba(212,168,75,0.1)' : 'transparent',
                 color: activeTab === tab.id ? U.accent : U.muted,
-                fontSize: 12, fontWeight: activeTab === tab.id ? 800 : 600,
+                fontSize: 14, fontWeight: activeTab === tab.id ? 700 : 500,
                 cursor: 'pointer', textAlign: 'left', width: '100%',
-                letterSpacing: activeTab === tab.id ? '0.08em' : '0.04em',
                 borderLeft: activeTab === tab.id ? `2px solid ${U.accent}` : '2px solid transparent',
                 transition: 'all 0.15s',
-                clipPath: activeTab === tab.id ? 'polygon(0 0,calc(100% - 4px) 0,100% 4px,100% 100%,0 100%)' : 'none',
               }}>
-              <span style={{ fontSize: 14, opacity: activeTab === tab.id ? 1 : 0.6 }}>{tab.icon}</span>
+              <span style={{ fontSize: 16 }}>{tab.icon}</span>
               {tab.label}
             </button>
           ))}
@@ -1370,30 +1335,28 @@ export default function DashboardPage() {
           {/* Bloc sélectionné */}
           {selectedBooking && (
             <div style={{
-              background: U.faint, border: `1px solid ${U.border2}`,
-              padding: '10px 12px', fontSize: 12,
-              clipPath: 'polygon(0 0,calc(100% - 6px) 0,100% 6px,100% 100%,0 100%)',
+              background: U.faint, border: `1px solid ${U.border}`,
+              borderRadius: 8, padding: '10px 12px', fontSize: 12,
             }}>
-              <div style={{ color: U.accent, marginBottom: 4, fontSize: 9, letterSpacing: '0.12em', fontWeight: 800 }}>
+              <div style={{ color: U.muted, marginBottom: 4, fontSize: 10, letterSpacing: '0.1em', fontWeight: 700 }}>
                 BLOC SÉLECTIONNÉ
               </div>
-              <div style={{ color: U.text, fontWeight: 700, fontSize: 12 }}>{selectedBooking.display_name}</div>
-              <div style={{ color: U.muted, fontSize: 11 }}>({selectedBooking.slot_x},{selectedBooking.slot_y})</div>
+              <div style={{ color: U.text, fontWeight: 600 }}>{selectedBooking.display_name}</div>
+              <div style={{ color: U.muted }}>({selectedBooking.slot_x},{selectedBooking.slot_y})</div>
             </div>
           )}
 
           <Link href="/" style={{
             display: 'flex', alignItems: 'center', gap: 8,
-            padding: '10px 14px', color: U.muted, fontSize: 11,
-            textDecoration: 'none', letterSpacing: '0.06em', fontWeight: 700,
-            borderTop: `1px solid ${U.border}`, marginTop: 8,
+            padding: '10px 14px', color: U.muted, fontSize: 13,
+            textDecoration: 'none', borderRadius: 8,
           }}>
-            ← GRILLE
+            ← Retour à la grille
           </Link>
         </div>
 
         {/* Main content */}
-        <div style={{ flex: 1, overflow: 'auto', padding: 28, background: 'rgba(0,2,10,0.5)' }}>
+        <div style={{ flex: 1, overflow: 'auto', padding: 32 }}>
           {activeTab === 'blocs' && (
             <TabMesBlocs bookings={bookings} onSelect={handleSelectBooking} selectedId={selectedBooking?.id} />
           )}

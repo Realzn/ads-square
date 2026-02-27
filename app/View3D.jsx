@@ -72,6 +72,19 @@
 import { useRef, useEffect, useState, useCallback, useMemo, memo } from 'react';
 import { TIER_LABEL, TIER_PRICE } from '../lib/grid';
 
+// ── Mobile detection hook ──────────────────────────────────────────────────────
+function useIsMobile(breakpoint=768){
+  const[mob,setMob]=useState(false);
+  useEffect(()=>{
+    const mq=window.matchMedia(`(max-width:${breakpoint}px)`);
+    setMob(mq.matches);
+    const fn=e=>setMob(e.matches);
+    mq.addEventListener('change',fn);
+    return()=>mq.removeEventListener('change',fn);
+  },[breakpoint]);
+  return mob;
+}
+
 // ── Palette réaliste AAA ──────────────────────────────────────────────────────
 const DS = {
   void:'#01020A',
@@ -1845,6 +1858,7 @@ function TierPanel({ activeTier, slots, onClose, onCheckout }) {
   const cfg = TIER_CONFIG[tierKey];
   const col = cfg.col;
   const[booking,setBooking]=useState({days:7,total:0,billing:getBilling(7)});
+  const isMobile = useIsMobile();
 
   const occ  = slots.filter(s => s?.tier === cfg.key && s?.occ).length;
   const tot  = cfg.slots || 0;
@@ -1861,11 +1875,19 @@ function TierPanel({ activeTier, slots, onClose, onCheckout }) {
   const isViral = cfg.key === 'viral';
 
   return (
-    <div key={tierKey} style={{
-      position:'absolute', left:0, top:0, bottom:0,
-      width:260, zIndex:45, pointerEvents:'auto',
-      animation:'panelReveal .40s cubic-bezier(.16,1,.3,1) both',
-    }}>
+    <div key={tierKey} style={
+      isMobile ? {
+        position:'absolute', left:0, right:0, bottom:0,
+        height:'72vh', zIndex:45, pointerEvents:'auto',
+        animation:'panelRevealBottom .40s cubic-bezier(.16,1,.3,1) both',
+        borderRadius:'16px 16px 0 0',
+        overflow:'hidden',
+      } : {
+        position:'absolute', left:0, top:0, bottom:0,
+        width:260, zIndex:45, pointerEvents:'auto',
+        animation:'panelReveal .40s cubic-bezier(.16,1,.3,1) both',
+      }
+    }>
       {/* Fond */}
       <div style={{
         position:'absolute',inset:0,
@@ -2041,8 +2063,45 @@ function TierPanel({ activeTier, slots, onClose, onCheckout }) {
 // ── VUE MODES — swatches circulaires minimalistes ────────────────────────────
 function VueDial({ activeFilter, onFilterSelect }) {
   const [hovered, setHovered] = useState(null);
+  const isMobile = useIsMobile();
   const entries = Object.entries(VUE_CONFIG);
   const hov = hovered ? VUE_CONFIG[hovered] : null;
+
+  // On mobile: horizontal pill row at top-right, compact
+  if (isMobile) {
+    return (
+      <div style={{
+        position:'absolute', top:12, right:12, zIndex:35,
+        display:'flex', flexDirection:'row', gap:5, alignItems:'center',
+        background:'rgba(0,2,10,0.85)',
+        border:'0.5px solid rgba(0,200,240,0.12)',
+        borderRadius:24,
+        padding:'4px 8px',
+        backdropFilter:'blur(16px)',
+      }}>
+        {entries.map(([id,{col,icon}])=>{
+          const on = activeFilter === id;
+          return (
+            <button key={id} onClick={()=>onFilterSelect(id)}
+              style={{
+                width: on ? 28 : 22, height: on ? 28 : 22,
+                borderRadius:'50%',
+                background: on ? `radial-gradient(circle at 35% 35%, ${col}, ${col}88)` : `${col}18`,
+                border: `1.5px solid ${on ? col : col+'33'}`,
+                boxShadow: on ? `0 0 12px ${col}80` : 'none',
+                cursor:'pointer', outline:'none',
+                transition:'all .22s cubic-bezier(.16,1,.3,1)',
+                display:'flex', alignItems:'center', justifyContent:'center',
+                fontSize: on ? 12 : 10,
+                color: on ? '#000' : col,
+                flexShrink:0,
+              }}
+            >{icon}</button>
+          );
+        })}
+      </div>
+    );
+  }
 
   return (
     <div style={{
@@ -2116,6 +2175,7 @@ function TierCommandBar({ activeTier, onTierSelect, slots }) {
     (slots||[]).forEach(s=>{if(s?.occ&&c[s.tier]!==undefined)c[s.tier]++;});
     return c;
   },[slots]);
+  const isMobile = useIsMobile();
 
   return (
     <div style={{
@@ -2125,6 +2185,13 @@ function TierCommandBar({ activeTier, onTierSelect, slots }) {
       border:'0.5px solid rgba(0,200,240,0.10)',
       boxShadow:'0 -8px 60px rgba(0,0,0,0.8), 0 0 0 0.5px rgba(0,200,240,0.05)',
       padding:'5px 5px',
+      ...(isMobile ? {
+        overflowX:'auto',
+        WebkitOverflowScrolling:'touch',
+        scrollbarWidth:'none',
+        maxWidth:'calc(100vw - 24px)',
+        borderRadius:8,
+      } : {}),
     }}>
       {TIER_LIST.map((key,i) => {
         const cfg = TIER_CONFIG[key];
@@ -2139,8 +2206,9 @@ function TierCommandBar({ activeTier, onTierSelect, slots }) {
           <button key={key} onClick={() => onTierSelect(on && !isAll ? -1 : cfg.id)}
             style={{
               position:'relative',
-              padding: on ? '10px 18px' : '7px 12px',
-              minWidth: on ? 80 : (isAll ? 48 : 52),
+              padding: isMobile ? (on ? '8px 12px' : '6px 9px') : (on ? '10px 18px' : '7px 12px'),
+              minWidth: isMobile ? (on ? 60 : (isAll ? 36 : 42)) : (on ? 80 : (isAll ? 48 : 52)),
+              flexShrink: 0,
               background: on
                 ? `linear-gradient(160deg, ${col}20 0%, ${col}08 100%)`
                 : 'transparent',
@@ -2148,7 +2216,7 @@ function TierCommandBar({ activeTier, onTierSelect, slots }) {
               color: on ? col : `${col}40`,
               cursor:'pointer',outline:'none',
               transition:'all .22s cubic-bezier(.16,1,.3,1)',
-              display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:4,
+              display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:isMobile?2:4,
               overflow:'hidden',
               clipPath: on
                 ? 'polygon(0 0,calc(100% - 6px) 0,100% 6px,100% 100%,6px 100%,0 calc(100% - 6px))'
@@ -2163,19 +2231,19 @@ function TierCommandBar({ activeTier, onTierSelect, slots }) {
 
             {/* Icône */}
             <span style={{
-              fontSize: on ? 18 : 13,
+              fontSize: isMobile ? (on ? 14 : 11) : (on ? 18 : 13),
               lineHeight:1,
               filter: on ? `drop-shadow(0 0 8px ${col})` : 'none',
               transition:'all .22s',
             }}>{cfg.icon}</span>
 
             {/* Label */}
-            <span style={{fontFamily:F.mono,fontSize: on ? 8 : 7,fontWeight:700,letterSpacing:'.10em',lineHeight:1,whiteSpace:'nowrap'}}>
-              {on ? cfg.short : cfg.short}
+            <span style={{fontFamily:F.mono,fontSize: isMobile ? (on ? 7 : 6) : (on ? 8 : 7),fontWeight:700,letterSpacing:'.08em',lineHeight:1,whiteSpace:'nowrap'}}>
+              {cfg.short}
             </span>
 
             {/* Prix quand actif */}
-            {on && cfg.price && (
+            {on && cfg.price && !isMobile && (
               <span style={{fontFamily:F.mono,fontSize:9,color:`${col}90`,letterSpacing:'.06em',fontWeight:400}}>
                 €{cfg.price}/j
               </span>
@@ -2399,6 +2467,7 @@ function SlotReveal({slot,onClose,onRent,onBuyout}){
   const[ph,setPh]=useState(0);
   const[tick,setTick]=useState(0);
   const[booking,setBooking]=useState({days:7,total:0,billing:getBilling(7)});
+  const isMobile=useIsMobile();
   useEffect(()=>{const id=requestAnimationFrame(()=>setPh(1));return()=>cancelAnimationFrame(id);},[]);
   useEffect(()=>{const id=setInterval(()=>setTick(t=>(t+1)%4),600);return()=>clearInterval(id);},[]);
   if(!slot)return null;
@@ -2407,8 +2476,30 @@ function SlotReveal({slot,onClose,onRent,onBuyout}){
   const occ=slot.occ;const tenant=slot.tenant;const role=TIER_ROLE[slot.tier];
   const dots='....'.slice(0,tick+1);
   return(
-    <div style={{position:'absolute',top:0,bottom:0,right:240,width:340,display:'flex',alignItems:'center',justifyContent:'flex-end',padding:'0 10px',zIndex:45,pointerEvents:'none'}}>
-      <div style={{
+    <div style={isMobile ? {
+      position:'absolute', left:0, right:0, bottom:0,
+      zIndex:45, pointerEvents:'none',
+      display:'flex', alignItems:'flex-end',
+    } : {
+      position:'absolute',top:0,bottom:0,right:240,width:340,
+      display:'flex',alignItems:'center',justifyContent:'flex-end',
+      padding:'0 10px',zIndex:45,pointerEvents:'none',
+    }}>
+      <div style={isMobile ? {
+        width:'100%', pointerEvents:'auto',
+        opacity:ph?1:0,
+        transform:ph?'none':'translateY(20px)',
+        transition:'opacity .20s ease,transform .28s cubic-bezier(.22,1,.36,1)',
+        position:'relative',
+        background:'rgba(0,5,18,0.98)',
+        border:`0.5px solid ${col}44`,
+        borderBottom:'none',
+        borderRadius:'16px 16px 0 0',
+        boxShadow:`0 -20px 60px ${col}18,0 0 120px ${col}08`,
+        overflow:'hidden',
+        maxHeight:'75vh',
+        overflowY:'auto',
+      } : {
         width:320,pointerEvents:'auto',
         opacity:ph?1:0,
         transform:ph?'none':'translateX(20px)',
@@ -2912,6 +3003,8 @@ export default function View3D({slots=[],isLive=false,onCheckout,onBuyout}){
   const hovTimer=useRef(null);
   const insideTimer=useRef(null);
   const[isPaused,setIsPaused]=useState(false);
+  const[showSidebar,setShowSidebar]=useState(false);
+  const isMobile=useIsMobile();
 
   const handleTogglePause=useCallback(()=>{
     if(!sceneRef.current)return;
@@ -2985,43 +3078,66 @@ export default function View3D({slots=[],isLive=false,onCheckout,onBuyout}){
           <div style={{position:'absolute',top:12,left:12,zIndex:30,pointerEvents:'none'}}>
             <div style={{
               display:'flex',alignItems:'center',gap:8,
-              padding:'5px 12px',
+              padding: isMobile ? '4px 8px' : '5px 12px',
               background:'rgba(0,4,18,0.92)',
               border:`0.5px solid rgba(0,200,240,0.14)`,
               clipPath:'polygon(0 0,calc(100% - 8px) 0,100% 8px,100% 100%,0 100%)',
               boxShadow:`0 0 20px rgba(0,200,240,0.08)`,
             }}>
-              <span style={{color:DS.gold,fontSize:13}}>◈</span>
-              <div>
+              <span style={{color:DS.gold,fontSize: isMobile ? 11 : 13}}>◈</span>
+              {!isMobile && <div>
                 <div style={{color:DS.textHi,fontFamily:F.mono,fontSize:9,fontWeight:700,letterSpacing:'.18em'}}>DYSON·COSMOS</div>
                 <div style={{color:DS.textLo,fontFamily:F.mono,fontSize:5.5,letterSpacing:'.18em',marginTop:0}}>ORBITAL·ADVERTISING·SYSTEM</div>
-              </div>
+              </div>}
+              {isMobile && <div style={{color:DS.textHi,fontFamily:F.mono,fontSize:8,fontWeight:700,letterSpacing:'.12em'}}>DYSON·COSMOS</div>}
             </div>
           </div>
         )}
 
-        {/* ── Top-right — controls ── */}
+        {/* ── Top-right — controls (desktop) / pause+reset+sidebar toggle (mobile) ── */}
         {!loading&&(
-          <div style={{position:'absolute',top:12,right:12,zIndex:30,display:'flex',gap:3}}>
-            <LumBtn sm col={isPaused?DS.rose:DS.cyan} onClick={handleTogglePause}
-              style={{fontSize:7.5,padding:'5px 11px',clipPath:'polygon(0 0,calc(100% - 6px) 0,100% 6px,100% 100%,0 100%)'}}>
-              {isPaused?'▶ PLAY':'⏸ PAUSE'}
-            </LumBtn>
-            <LumBtn sm col={DS.cyan} onClick={()=>{sceneRef.current?.resetCamera();setActiveTier(-1);sceneRef.current?.setTierFocus(-1);}}
-              style={{fontSize:7.5,padding:'5px 11px',clipPath:'polygon(0 0,calc(100% - 6px) 0,100% 6px,100% 100%,0 100%)'}}>
-              ↺ RESET
-            </LumBtn>
+          <div style={{position:'absolute',top:12,right: isMobile ? 12 : 12,zIndex:30,display:'flex',gap:3}}>
+            {!isMobile && <>
+              <LumBtn sm col={isPaused?DS.rose:DS.cyan} onClick={handleTogglePause}
+                style={{fontSize:7.5,padding:'5px 11px',clipPath:'polygon(0 0,calc(100% - 6px) 0,100% 6px,100% 100%,0 100%)'}}>
+                {isPaused?'▶ PLAY':'⏸ PAUSE'}
+              </LumBtn>
+              <LumBtn sm col={DS.cyan} onClick={()=>{sceneRef.current?.resetCamera();setActiveTier(-1);sceneRef.current?.setTierFocus(-1);}}
+                style={{fontSize:7.5,padding:'5px 11px',clipPath:'polygon(0 0,calc(100% - 6px) 0,100% 6px,100% 100%,0 100%)'}}>
+                ↺ RESET
+              </LumBtn>
+            </>}
+            {isMobile && (
+              <button onClick={()=>setShowSidebar(v=>!v)} style={{
+                padding:'6px 12px',
+                background: showSidebar ? `${DS.cyan}20` : 'rgba(0,4,18,0.92)',
+                border:`0.5px solid ${showSidebar ? DS.cyan+'70' : 'rgba(0,200,240,0.14)'}`,
+                color: showSidebar ? DS.cyan : DS.textMid,
+                fontFamily:F.mono,fontSize:9,fontWeight:700,letterSpacing:'.10em',
+                cursor:'pointer',outline:'none',
+                borderRadius:4,
+                display:'flex',alignItems:'center',gap:5,
+              }}>
+                <span style={{fontSize:12}}>{showSidebar?'✕':'≡'}</span>
+                <span>STATS</span>
+              </button>
+            )}
           </div>
         )}
 
         {/* ── Bottom — TierCommandBar ── */}
         {!loading&&(
-          <div style={{position:'absolute',bottom:20,left:'50%',transform:'translateX(-50%)',zIndex:30}}>
+          <div style={{
+            position:'absolute',
+            bottom: isMobile ? 12 : 20,
+            left:'50%',transform:'translateX(-50%)',
+            zIndex:30,
+          }}>
             <TierCommandBar activeTier={activeTier} onTierSelect={handleTierSelect} slots={slots}/>
           </div>
         )}
 
-        {/* ── Tier Panel — slide gauche ── */}
+        {/* ── Tier Panel — slide gauche (desktop) / bottom sheet (mobile) ── */}
         {!loading&&activeTier>=0&&(
           <TierPanel
             activeTier={activeTier}
@@ -3031,24 +3147,68 @@ export default function View3D({slots=[],isLive=false,onCheckout,onBuyout}){
           />
         )}
 
-        {/* ── VUE Dial — droite ── */}
+        {/* ── VUE Dial — droite (desktop) / top-right compact (mobile) ── */}
         {!loading&&(
           <VueDial activeFilter={activeFilter} onFilterSelect={handleFilterSelect}/>
         )}
 
+        {/* ── Mobile reset button (bottom-left) ── */}
+        {!loading&&isMobile&&(
+          <button onClick={()=>{sceneRef.current?.resetCamera();setActiveTier(-1);sceneRef.current?.setTierFocus(-1);}} style={{
+            position:'absolute',bottom:72,left:12,zIndex:30,
+            padding:'6px 10px',
+            background:'rgba(0,4,18,0.92)',
+            border:`0.5px solid rgba(0,200,240,0.14)`,
+            color:DS.textMid,fontFamily:F.mono,fontSize:9,fontWeight:700,
+            cursor:'pointer',outline:'none',borderRadius:4,
+          }}>↺</button>
+        )}
+
         {/* ── Hint bar ── */}
-        {!loading&&!selSlot&&(
+        {!loading&&!selSlot&&!isMobile&&(
           <div style={{position:'absolute',bottom:14,left:'50%',transform:'translateX(-50%)',color:DS.textLo,fontSize:6.5,letterSpacing:'.14em',fontFamily:F.mono,pointerEvents:'none',whiteSpace:'nowrap',opacity:.32}}>
             DRAG · SCROLL · CLIC SUR TOUT ÉLÉMENT · ESC RESET
+          </div>
+        )}
+        {!loading&&!selSlot&&isMobile&&(
+          <div style={{position:'absolute',bottom:62,left:'50%',transform:'translateX(-50%)',color:DS.textLo,fontSize:7,letterSpacing:'.10em',fontFamily:F.mono,pointerEvents:'none',whiteSpace:'nowrap',opacity:.32}}>
+            TOUCHER · GLISSER · PINCER
           </div>
         )}
 
         {isInside&&<InsideChip/>}
         {hovInfo&&!selSlot&&<HoverChip info={hovInfo}/>}
         {selSlot&&(<SlotReveal slot={selSlot} onClose={handleClose} onRent={s=>{handleClose();onCheckout?.(s);}} onBuyout={s=>{handleClose();onBuyout?.(s);}}/>)}
+
+        {/* ── Mobile Sidebar bottom sheet ── */}
+        {isMobile&&showSidebar&&(
+          <div style={{
+            position:'absolute',inset:0,zIndex:50,
+            background:'rgba(0,0,0,0.6)',
+            backdropFilter:'blur(4px)',
+          }} onClick={()=>setShowSidebar(false)}>
+            <div style={{
+              position:'absolute',left:0,right:0,bottom:0,
+              maxHeight:'75vh',
+              background:'rgba(0,4,16,0.99)',
+              borderRadius:'16px 16px 0 0',
+              border:`0.5px solid rgba(0,200,240,0.12)`,
+              borderBottom:'none',
+              overflowY:'auto',
+              boxShadow:'0 -20px 60px rgba(0,0,0,0.9)',
+            }} onClick={e=>e.stopPropagation()}>
+              {/* Handle */}
+              <div style={{display:'flex',justifyContent:'center',padding:'12px 0 4px'}}>
+                <div style={{width:40,height:4,borderRadius:2,background:'rgba(0,200,240,0.20)'}}/>
+              </div>
+              <Sidebar slots={slots} isLive={isLive} activeTier={activeTier} onTierSelect={t=>{handleTierSelect(t);setShowSidebar(false);}}/>
+            </div>
+          </div>
+        )}
       </div>
 
-      <Sidebar slots={slots} isLive={isLive} activeTier={activeTier} onTierSelect={handleTierSelect}/>
+      {/* Desktop sidebar */}
+      {!isMobile&&<Sidebar slots={slots} isLive={isLive} activeTier={activeTier} onTierSelect={handleTierSelect}/>}
 
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600;700&display=swap');
@@ -3057,12 +3217,15 @@ export default function View3D({slots=[],isLive=false,onCheckout,onBuyout}){
         @keyframes hfadeUp{from{opacity:0;transform:translateX(-50%) translateY(6px);}to{opacity:1;transform:translateX(-50%) translateY(0);}}
         @keyframes scanMove{0%{transform:translateY(-100%);}100%{transform:translateY(100vh);}}
         @keyframes panelReveal{from{opacity:0;transform:translateX(-100%);}to{opacity:1;transform:translateX(0);}}
+        @keyframes panelRevealBottom{from{opacity:0;transform:translateY(100%);}to{opacity:1;transform:translateY(0);}}
         *{box-sizing:border-box;}
         ::-webkit-scrollbar{width:1.5px;}
         ::-webkit-scrollbar-track{background:transparent;}
         ::-webkit-scrollbar-thumb{background:rgba(0,200,240,.12);border-radius:0;}
         canvas{cursor:grab;}canvas:active{cursor:grabbing;}
+        .tier-bar-scroll::-webkit-scrollbar{display:none;}
       `}</style>
     </div>
   );
+
 }
