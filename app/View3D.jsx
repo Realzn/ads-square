@@ -98,11 +98,41 @@ const TIER_NEON = {
 };
 
 const FILTER_PALETTES = {
-  realist:  { epicenter:'#C8922A', prestige:'#8A5A3A', elite:'#4A6888', business:'#3A6A55', standard:'#505878', viral:'#3D5C3A', emissiveScale:1.0, bloomThreshold:0.85, exposure:1.6 },
-  thermal:  { epicenter:'#FF4800', prestige:'#FF7200', elite:'#FFAA00', business:'#FFD000', standard:'#C8E800', viral:'#60C000', emissiveScale:2.2, bloomThreshold:0.65, exposure:1.4 },
-  xray:     { epicenter:'#FFFFFF', prestige:'#C0E8FF', elite:'#88CCFF', business:'#60AADD', standard:'#4488BB', viral:'#306688', emissiveScale:1.8, bloomThreshold:0.7, exposure:1.2 },
-  blueprint:{ epicenter:'#FFFFFF', prestige:'#AACCFF', elite:'#7799DD', business:'#5577BB', standard:'#445599', viral:'#334477', emissiveScale:1.5, bloomThreshold:0.75, exposure:1.1 },
-  identity: { epicenter:'#FFB700', prestige:'#FF5E9C', elite:'#9D50FF', business:'#00D4FF', standard:'#38BEFF', viral:'#00FF94', emissiveScale:2.5, bloomThreshold:0.55, exposure:1.8 },
+  realist:  {
+    epicenter:'#C8922A', prestige:'#8A5A3A', elite:'#4A6888', business:'#3A6A55', standard:'#505878', viral:'#3D5C3A',
+    emissiveScale:1.0, bloomThreshold:0.85, bloomStrength:0.55, exposure:1.6,
+    fogColor:0x03040B, fogDensity:0.00028, ambientCol:0x04060E, ambientInt:0.8,
+    sunCol:0xFFF0D0, sunInt:1200, rimCol:0xFF6600, rimInt:45,
+    bgTop:'#01020A', bgBot:'#020408',
+  },
+  thermal:  {
+    epicenter:'#FF2200', prestige:'#FF5500', elite:'#FF9900', business:'#FFCC00', standard:'#CCEE00', viral:'#44CC00',
+    emissiveScale:2.8, bloomThreshold:0.40, bloomStrength:1.80, exposure:1.8,
+    fogColor:0x1A0400, fogDensity:0.00045, ambientCol:0x200400, ambientInt:1.4,
+    sunCol:0xFF4400, sunInt:2400, rimCol:0xFF8800, rimInt:120,
+    bgTop:'#0D0200', bgBot:'#1A0400',
+  },
+  xray:     {
+    epicenter:'#FFFFFF', prestige:'#C0E8FF', elite:'#88CCFF', business:'#60AADD', standard:'#4488BB', viral:'#306688',
+    emissiveScale:2.2, bloomThreshold:0.55, bloomStrength:1.20, exposure:2.2,
+    fogColor:0x010810, fogDensity:0.00018, ambientCol:0x040818, ambientInt:2.0,
+    sunCol:0xCCEEFF, sunInt:3200, rimCol:0x88CCFF, rimInt:200,
+    bgTop:'#010608', bgBot:'#020C14',
+  },
+  blueprint:{
+    epicenter:'#AACCFF', prestige:'#8899DD', elite:'#6677BB', business:'#445599', standard:'#334477', viral:'#223366',
+    emissiveScale:1.4, bloomThreshold:0.70, bloomStrength:0.70, exposure:0.9,
+    fogColor:0x010418, fogDensity:0.00055, ambientCol:0x010418, ambientInt:1.2,
+    sunCol:0x4466CC, sunInt:600, rimCol:0x2244AA, rimInt:30,
+    bgTop:'#010212', bgBot:'#02051A',
+  },
+  identity: {
+    epicenter:'#FFB700', prestige:'#FF3399', elite:'#AA00FF', business:'#00DDFF', standard:'#00FF88', viral:'#FF6600',
+    emissiveScale:3.2, bloomThreshold:0.28, bloomStrength:2.60, exposure:2.0,
+    fogColor:0x080010, fogDensity:0.00022, ambientCol:0x080010, ambientInt:1.0,
+    sunCol:0xFFBB00, sunInt:1800, rimCol:0xFF00AA, rimInt:180,
+    bgTop:'#050008', bgBot:'#080012',
+  },
 };
 
 const TIER_ROLE = {
@@ -783,7 +813,8 @@ class Scene3D{
     this.scene.add(this.systemGroup);
 
     // Lumières
-    this.scene.add(new THREE.AmbientLight(0x04060E,0.8));
+    this._ambientLight=new THREE.AmbientLight(0x04060E,0.8);
+    this.scene.add(this._ambientLight);
     this._sl=new THREE.PointLight(0xFFF0D0,1200,280,2.0);
     this._sl.castShadow=true;
     this._sl.shadow.mapSize.width=2048; // ★ 2048 au lieu de 4096 — 4× moins de VRAM
@@ -1274,10 +1305,73 @@ class Scene3D{
   }
 
   setFilterPalette(paletteName){
+    const T=this.T;
     const pal=FILTER_PALETTES[paletteName]||FILTER_PALETTES.realist;
+    this._activePalette=paletteName;
     this._tierColors={...pal};
-    this.renderer.toneMappingExposure=pal.exposure||1.6;
-    if(this._bloomPass)this._bloomPass.threshold=pal.bloomThreshold||.82;
+
+    // ── Exposition + bloom ────────────────────────────────────────────────────
+    if(this.G){
+      this.G.to(this.renderer,{toneMappingExposure:pal.exposure||1.6,duration:.55,ease:'power2.inOut'});
+    } else {
+      this.renderer.toneMappingExposure=pal.exposure||1.6;
+    }
+    if(this._bloomPass){
+      this._bloomPass.threshold=pal.bloomThreshold||.82;
+      if(this.G){
+        this.G.to(this._bloomPass,{strength:pal.bloomStrength||.55,duration:.55,ease:'power2.inOut'});
+      } else {
+        this._bloomPass.strength=pal.bloomStrength||.55;
+      }
+    }
+
+    // ── Fog — couleur + densité dramatiquement différentes ───────────────────
+    if(this.scene.fog){
+      if(this.G){
+        const fc=new T.Color(pal.fogColor||0x03040B);
+        this.G.to(this.scene.fog.color,{r:fc.r,g:fc.g,b:fc.b,duration:.6,ease:'power2.inOut'});
+        this.G.to(this.scene.fog,{density:pal.fogDensity||.00028,duration:.6,ease:'power2.inOut'});
+      } else {
+        this.scene.fog.color.set(pal.fogColor||0x03040B);
+        this.scene.fog.density=pal.fogDensity||.00028;
+      }
+    }
+
+    // ── Lumière ambiante ──────────────────────────────────────────────────────
+    if(this._ambientLight){
+      const ac=new T.Color(pal.ambientCol||0x04060E);
+      if(this.G){
+        this.G.to(this._ambientLight.color,{r:ac.r,g:ac.g,b:ac.b,duration:.5,ease:'power2.inOut'});
+        this.G.to(this._ambientLight,{intensity:pal.ambientInt||.8,duration:.5,ease:'power2.inOut'});
+      } else {
+        this._ambientLight.color.set(ac);
+        this._ambientLight.intensity=pal.ambientInt||.8;
+      }
+    }
+
+    // ── Lumière solaire ───────────────────────────────────────────────────────
+    if(this._sl){
+      const sc=new T.Color(pal.sunCol||0xFFF0D0);
+      if(this.G){
+        this.G.to(this._sl.color,{r:sc.r,g:sc.g,b:sc.b,duration:.55,ease:'power2.inOut'});
+        this.G.to(this._sl,{intensity:pal.sunInt||1200,duration:.55,ease:'power2.inOut'});
+      } else {
+        this._sl.color.set(sc);this._sl.intensity=pal.sunInt||1200;
+      }
+    }
+
+    // ── Lumière de contour ────────────────────────────────────────────────────
+    if(this._cl){
+      const rc=new T.Color(pal.rimCol||0xFF6600);
+      if(this.G){
+        this.G.to(this._cl.color,{r:rc.r,g:rc.g,b:rc.b,duration:.5,ease:'power2.inOut'});
+        this.G.to(this._cl,{intensity:pal.rimInt||45,duration:.5,ease:'power2.inOut'});
+      } else {
+        this._cl.color.set(rc);this._cl.intensity=pal.rimInt||45;
+      }
+    }
+
+    // ── Matériaux sphère + anneaux + lunes ───────────────────────────────────
     if(this._faces)this._buildMesh(this._faces);
     this.eliteRings.forEach(({u,cfg})=>{const[r,g,b]=hex3(pal.elite||cfg.col);u.uCol.value.set(r,g,b);});
     const[pr,pg,pb]=hex3(pal.prestige||TIER_NEON.prestige);
@@ -1678,11 +1772,11 @@ const TIER_CONFIG = {
 const TIER_LIST = ['all','epicenter','prestige','elite','business','standard','viral'];
 
 const VUE_CONFIG = {
-  realist:  { label:'RÉEL',      short:'PBR',  icon:'◉', col:'#FFB040', desc:'Rendu physique · Métal & or' },
-  thermal:  { label:'THERM',     short:'IR',   icon:'⬡', col:'#FF5020', desc:'Infrarouge · Chaleur active' },
-  xray:     { label:'X-RAY',     short:'RX',   icon:'◌', col:'#60D0FF', desc:'Rayons X · Structure interne' },
-  blueprint:{ label:'PLAN',      short:'BLU',  icon:'▦', col:'#4070FF', desc:'Blueprint · Filaire tech' },
-  identity: { label:'IDENTITÉ',  short:'ID',   icon:'◆', col:'#B040FF', desc:'Palette vive · Marques' },
+  realist:  { label:'RÉEL',     short:'PBR', icon:'◉', col:'#E8A020', desc:'Rendu physique · Métal & or' },
+  thermal:  { label:'THERM',    short:'IR',  icon:'⬡', col:'#FF4400', desc:'Infrarouge · Chaleur active' },
+  xray:     { label:'X-RAY',    short:'RX',  icon:'◌', col:'#44CCFF', desc:'Rayons X · Structure interne' },
+  blueprint:{ label:'PLAN',     short:'BLU', icon:'▦', col:'#4466FF', desc:'Blueprint · Filaire tech' },
+  identity: { label:'IDENTITÉ', short:'ID',  icon:'◆', col:'#CC00FF', desc:'Palette vive · Marques' },
 };
 
 // ── Radial Arc SVG pour occupation ───────────────────────────────────────────
@@ -1933,46 +2027,73 @@ function TierPanel({ activeTier, slots, onClose, onCheckout }) {
   );
 }
 
-// ── VUE MODES — tourelle droite ───────────────────────────────────────────────
+// ── VUE MODES — swatches circulaires minimalistes ────────────────────────────
 function VueDial({ activeFilter, onFilterSelect }) {
+  const [hovered, setHovered] = useState(null);
   const entries = Object.entries(VUE_CONFIG);
+  const hov = hovered ? VUE_CONFIG[hovered] : null;
+
   return (
     <div style={{
-      position:'absolute',right:14,top:'50%',transform:'translateY(-50%)',
-      zIndex:35,display:'flex',flexDirection:'column',gap:3,alignItems:'flex-end',
+      position:'absolute', right:14, bottom:100, zIndex:35,
+      display:'flex', flexDirection:'column', alignItems:'flex-end', gap:6,
     }}>
-      <div style={{color:`rgba(0,200,240,0.22)`,fontFamily:F.mono,fontSize:7,letterSpacing:'.20em',marginBottom:4,textAlign:'right'}}>VUE</div>
-      {entries.map(([id,{label,short,icon,col,desc}])=>{
-        const on = activeFilter === id;
-        return (
-          <button key={id} onClick={()=>onFilterSelect(id)} title={desc} style={{
-            display:'flex',alignItems:'center',gap:7,
-            padding: on ? '8px 12px 8px 14px' : '6px 10px 6px 10px',
-            background: on
-              ? `linear-gradient(90deg, ${col}22 0%, ${col}10 100%)`
-              : 'rgba(0,3,12,0.80)',
-            border: `0.5px solid ${on ? col+'80' : col+'1a'}`,
-            color: on ? col : `${col}38`,
-            fontFamily:F.mono,fontSize: on ? 9 : 8,fontWeight:700,
-            letterSpacing:'.10em',cursor:'pointer',outline:'none',
-            width: on ? 110 : 44,
-            justifyContent: on ? 'flex-start' : 'center',
-            transition:'all .25s cubic-bezier(.16,1,.3,1)',
-            backdropFilter:'blur(16px)',
-            boxShadow: on ? `0 0 20px ${col}28, inset 0 0 16px ${col}08, -4px 0 0 ${col}` : `inset -2px 0 0 ${col}20`,
-            borderRadius:2,
-            overflow:'hidden',
-            whiteSpace:'nowrap',
-            clipPath: on ? 'polygon(0 0,calc(100% - 6px) 0,100% 6px,100% 100%,0 100%)' : 'none',
-          }}
-          onMouseEnter={e=>{if(!on){e.currentTarget.style.width='80px';e.currentTarget.style.color=`${col}70`;e.currentTarget.style.borderColor=`${col}35`;}}}
-          onMouseLeave={e=>{if(!on){e.currentTarget.style.width='44px';e.currentTarget.style.color=`${col}38`;e.currentTarget.style.borderColor=`${col}1a`;}}}
-          >
-            <span style={{fontSize:11,flexShrink:0,filter:on?`drop-shadow(0 0 4px ${col})`:'none'}}>{icon}</span>
-            <span style={{opacity:on?1:0.6,transition:'opacity .2s'}}>{on ? label : short}</span>
-          </button>
-        );
-      })}
+      {/* Tooltip flottant */}
+      {hov && (
+        <div style={{
+          position:'absolute', right:50, bottom:0,
+          background:'rgba(0,3,14,0.97)', border:`0.5px solid ${hov.col}44`,
+          padding:'6px 12px', whiteSpace:'nowrap', pointerEvents:'none',
+          clipPath:'polygon(0 0,calc(100% - 6px) 0,100% 6px,100% 100%,0 100%)',
+          boxShadow:`0 0 20px ${hov.col}18`,
+          animation:'fadeInRight .12s ease',
+        }}>
+          <div style={{color:hov.col,fontFamily:F.mono,fontSize:10,fontWeight:700,letterSpacing:'.12em'}}>{hov.label}</div>
+          <div style={{color:`${hov.col}60`,fontFamily:F.mono,fontSize:8,marginTop:2,letterSpacing:'.06em'}}>{hov.desc}</div>
+        </div>
+      )}
+
+      {/* Swatches */}
+      <div style={{display:'flex',flexDirection:'column',gap:5}}>
+        {entries.map(([id,{col,label,icon}])=>{
+          const on = activeFilter === id;
+          return (
+            <button key={id} onClick={()=>onFilterSelect(id)}
+              onMouseEnter={()=>setHovered(id)}
+              onMouseLeave={()=>setHovered(null)}
+              style={{
+                width: on ? 36 : 28, height: on ? 36 : 28,
+                borderRadius:'50%',
+                background: on
+                  ? `radial-gradient(circle at 35% 35%, ${col}, ${col}88)`
+                  : `radial-gradient(circle at 35% 35%, ${col}22, ${col}0a)`,
+                border: `1.5px solid ${on ? col : col+'33'}`,
+                boxShadow: on
+                  ? `0 0 16px ${col}80, 0 0 32px ${col}30, inset 0 0 12px ${col}40`
+                  : `0 0 6px ${col}18`,
+                cursor:'pointer', outline:'none',
+                transition:'all .22s cubic-bezier(.16,1,.3,1)',
+                display:'flex', alignItems:'center', justifyContent:'center',
+                fontSize: on ? 14 : 11,
+                filter: on ? `drop-shadow(0 0 6px ${col})` : 'none',
+                color: on ? '#000' : col,
+                flexShrink:0,
+              }}
+            >{icon}</button>
+          );
+        })}
+      </div>
+
+      {/* Label mode actif */}
+      <div style={{
+        color:`${(VUE_CONFIG[activeFilter]?.col)||DS.cyan}80`,
+        fontFamily:F.mono, fontSize:7, letterSpacing:'.18em',
+        textAlign:'right', marginTop:2,
+      }}>
+        {VUE_CONFIG[activeFilter]?.label}
+      </div>
+
+      <style>{`@keyframes fadeInRight{from{opacity:0;transform:translateX(8px)}to{opacity:1;transform:translateX(0)}}`}</style>
     </div>
   );
 }
@@ -2074,79 +2195,6 @@ function hexToRgb(hex) {
   return `${r},${g},${b}`;
 }
 
-// Tier filter bar — holographic pills (kept for Sidebar)
-function TierFilterBar({activeTier,onTierSelect}){
-  const tiers=[
-    {id:-1,label:'ALL',icon:'◉',col:'#8899BB'},
-    {id:0, label:'EPIC',  icon:'◈',col:TIER_NEON.epicenter},
-    {id:1, label:'PRES',  icon:'◯',col:TIER_NEON.prestige},
-    {id:2, label:'ELITE', icon:'◎',col:TIER_NEON.elite},
-    {id:3, label:'BIZ',   icon:'▣',col:TIER_NEON.business},
-    {id:4, label:'STD',   icon:'▪',col:TIER_NEON.standard},
-    {id:5, label:'VIRAL', icon:'⚡',col:TIER_NEON.viral},
-  ];
-  return(
-    <div style={{display:'flex',gap:1.5,alignItems:'center'}}>
-      {tiers.map(({id,label,icon,col})=>{
-        const c=id===-1?DS.cyan:col;
-        const on=activeTier===id;
-        return(
-          <button key={id} onClick={()=>onTierSelect(id)} style={{
-            padding:'4px 7px',
-            background:on?`${c}18`:'transparent',
-            border:`0.5px solid ${on?c:c+'22'}`,
-            clipPath:'polygon(0 0,calc(100% - 4px) 0,100% 4px,100% 100%,0 100%)',
-            color:on?c:`${c}44`,
-            fontFamily:F.mono,fontSize:7,fontWeight:700,
-            letterSpacing:'.08em',cursor:'pointer',outline:'none',
-            boxShadow:on?`0 0 10px ${c}28`:'none',
-            transition:'all .10s',
-            display:'flex',alignItems:'center',gap:3,
-          }}>
-            <span style={{fontSize:8}}>{icon}</span>
-            {label}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
-// Filter/VUE bar (kept for Sidebar)
-function FilterBar({activeFilter,onFilterSelect}){
-  const filters=[
-    {id:'realist',  label:'RÉEL',    icon:'◉'},
-    {id:'thermal',  label:'THERM',   icon:'◈'},
-    {id:'xray',     label:'X·RAY',   icon:'◌'},
-    {id:'blueprint',label:'PLAN',    icon:'▦'},
-    {id:'identity', label:'ID',      icon:'◆'},
-  ];
-  return(
-    <div style={{display:'flex',gap:1.5}}>
-      {filters.map(({id,label,icon})=>{
-        const palCol=FILTER_PALETTES[id]?.epicenter||DS.gold;
-        const on=activeFilter===id;
-        return(
-          <button key={id} onClick={()=>onFilterSelect(id)} style={{
-            padding:'4px 8px',
-            background:on?`${palCol}18`:'transparent',
-            border:`0.5px solid ${on?palCol:palCol+'1c'}`,
-            clipPath:'polygon(0 0,calc(100% - 4px) 0,100% 4px,100% 100%,0 100%)',
-            color:on?palCol:`${palCol}38`,
-            fontFamily:F.mono,fontSize:7,fontWeight:600,
-            letterSpacing:'.06em',cursor:'pointer',outline:'none',
-            boxShadow:on?`0 0 10px ${palCol}22`:'none',
-            transition:'all .10s',
-            display:'flex',alignItems:'center',gap:3,
-          }}>
-            <span style={{fontSize:8}}>{icon}</span>
-            {label}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
 // Hover data chip — minimal holographic readout
 function HoverChip({info}){
   if(!info?.slot)return null;
@@ -2702,6 +2750,7 @@ export default function View3D({slots=[],isLive=false,onCheckout,onBuyout}){
   const[isInside,setIsInside]=useState(false);
   const[activeTier,setActiveTier]=useState(-1);
   const[activeFilter,setActiveFilter]=useState('realist');
+  const activePal = FILTER_PALETTES[activeFilter] || FILTER_PALETTES.realist;
   const hovTimer=useRef(null);
   const insideTimer=useRef(null);
   const[isPaused,setIsPaused]=useState(false);
@@ -2760,7 +2809,11 @@ export default function View3D({slots=[],isLive=false,onCheckout,onBuyout}){
 
   return(
     <div style={{flex:1,position:'relative',overflow:'hidden',background:DS.void,display:'flex'}}>
-      <div style={{flex:1,position:'relative',overflow:'hidden'}}>
+      <div style={{
+        flex:1,position:'relative',overflow:'hidden',
+        background:`linear-gradient(160deg, ${activePal.bgTop||'#01020A'} 0%, ${activePal.bgBot||'#020408'} 100%)`,
+        transition:'background 0.6s ease',
+      }}>
         <canvas ref={canvasRef} style={{width:'100%',height:'100%',display:'block',outline:'none',opacity:loading?0:1,transition:'opacity .8s ease'}}/>
         {loading&&!error&&<HUDLoader/>}
         {error&&(
@@ -2792,10 +2845,6 @@ export default function View3D({slots=[],isLive=false,onCheckout,onBuyout}){
         {/* ── Top-right — controls ── */}
         {!loading&&(
           <div style={{position:'absolute',top:12,right:12,zIndex:30,display:'flex',gap:3}}>
-            <LumBtn sm col={DS.gold} onClick={()=>{setActiveTier(0);sceneRef.current?.setTierFocus(0);}}
-              style={{fontSize:7.5,padding:'5px 11px',clipPath:'polygon(0 0,calc(100% - 6px) 0,100% 6px,100% 100%,0 100%)'}}>
-              ◉ ÉPICENTRE
-            </LumBtn>
             <LumBtn sm col={isPaused?DS.rose:DS.cyan} onClick={handleTogglePause}
               style={{fontSize:7.5,padding:'5px 11px',clipPath:'polygon(0 0,calc(100% - 6px) 0,100% 6px,100% 100%,0 100%)'}}>
               {isPaused?'▶ PLAY':'⏸ PAUSE'}
