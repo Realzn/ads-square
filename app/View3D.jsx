@@ -1844,6 +1844,7 @@ function TierPanel({ activeTier, slots, onClose, onCheckout }) {
   const tierKey = TIER_LIST[activeTier + 1] || 'all';
   const cfg = TIER_CONFIG[tierKey];
   const col = cfg.col;
+  const[booking,setBooking]=useState({days:7,total:0,billing:getBilling(7)});
 
   const occ  = slots.filter(s => s?.tier === cfg.key && s?.occ).length;
   const tot  = cfg.slots || 0;
@@ -1990,22 +1991,22 @@ function TierPanel({ activeTier, slots, onClose, onCheckout }) {
         {/* Séparateur */}
         <div style={{height:.5,background:`linear-gradient(90deg,transparent,${col}40,${col}60,${col}40,transparent)`,boxShadow:`0 0 8px ${col}30`,margin:'16px 0'}}/>
 
-        {/* Prix + CTA */}
-        <div>
-          {cfg.price && (
-            <div style={{display:'flex',alignItems:'baseline',gap:6,marginBottom:12}}>
-              <span style={{color:col,fontFamily:F.mono,fontSize:26,fontWeight:700,lineHeight:1,textShadow:`0 0 20px ${col}60`}}>€{cfg.price}</span>
-              <span style={{color:`${col}50`,fontFamily:F.mono,fontSize:10,letterSpacing:'.10em'}}>/JOUR</span>
-              <span style={{marginLeft:'auto',color:`${col}70`,fontFamily:F.mono,fontSize:9}}>× {cfg.slots} SLOTS</span>
-            </div>
+        {/* Prix + CTA — scrollable pour accueillir le picker */}
+        <div style={{overflowY:'auto',flexShrink:0}}>
+          {cfg.key !== 'all' && free > 0 && (
+            <DurationPicker
+              pricePerDay={cfg.price ? cfg.price*100 : (TIER_PRICE[cfg.key]||100)}
+              col={col}
+              onChange={b=>setBooking(b)}
+            />
           )}
           {cfg.key !== 'all' && free > 0 && (
-            <button onClick={()=>onCheckout?.({tier:cfg.key})} style={{
+            <button onClick={()=>onCheckout?.({tier:cfg.key,days:booking.days,total:booking.total,billing:booking.billing})} style={{
               width:'100%',padding:'12px 16px',
               background:`linear-gradient(135deg,${col}28,${col}14)`,
               border:`1px solid ${col}60`,
-              color:col,fontFamily:F.mono,fontSize:11,fontWeight:700,
-              letterSpacing:'.14em',cursor:'pointer',outline:'none',
+              color:col,fontFamily:F.mono,fontSize:10,fontWeight:700,
+              letterSpacing:'.12em',cursor:'pointer',outline:'none',
               transition:'all .18s',
               clipPath:'polygon(0 0,calc(100% - 10px) 0,100% 10px,100% 100%,10px 100%,0 calc(100% - 10px))',
               boxShadow:`0 0 24px ${col}18`,
@@ -2013,7 +2014,7 @@ function TierPanel({ activeTier, slots, onClose, onCheckout }) {
             onMouseEnter={e=>{e.currentTarget.style.background=`linear-gradient(135deg,${col}45,${col}28)`;e.currentTarget.style.boxShadow=`0 0 40px ${col}35`;}}
             onMouseLeave={e=>{e.currentTarget.style.background=`linear-gradient(135deg,${col}28,${col}14)`;e.currentTarget.style.boxShadow=`0 0 24px ${col}18`;}}
             >
-              ◈ RÉSERVER CE TIER
+              ◈ RÉSERVER · {booking.days}J · {(booking.total/100).toLocaleString('fr-FR',{minimumFractionDigits:2})} €
             </button>
           )}
           {cfg.key !== 'all' && free === 0 && (
@@ -2195,6 +2196,141 @@ function hexToRgb(hex) {
   return `${r},${g},${b}`;
 }
 
+// ── DurationPicker ─────────────────────────────────────────────────────────────
+function getBilling(days){
+  if(days>=90)return{type:'annuel',   label:'ANNUEL',        short:'ANNUEL',   icon:'◈', discount:0.15, color:DS.gold,   desc:'−15% · engagement 90j'};
+  if(days>=30)return{type:'mensuel',  label:'MENSUEL',       short:'MENSUEL',  icon:'◎', discount:0.10, color:DS.cyan,   desc:'−10% · engagement 30j+'};
+  if(days>=7) return{type:'hebdo',    label:'HEBDOMADAIRE',  short:'HEBDO',    icon:'▣', discount:0.05, color:DS.violet, desc:'−5% · engagement 7j+'};
+  return          {type:'comptant',   label:'COMPTANT',      short:'COMPTANT', icon:'▪', discount:0,    color:DS.textMid,desc:'Paiement unique'};
+}
+
+function DurationPicker({pricePerDay, col, onChange}){
+  const[days,setDays]=useState(7);
+  const billing=getBilling(days);
+  const raw=pricePerDay*days;
+  const total=Math.round(raw*(1-billing.discount));
+  const saved=raw-total;
+
+  useEffect(()=>{ onChange?.({days,total,billing}); },[days]);// eslint-disable-line
+
+  const pct=((days-1)/89)*100;
+  const trackGrad=`linear-gradient(90deg, ${col} ${pct}%, rgba(255,255,255,0.08) ${pct}%)`;
+
+  const SNAP=[1,7,30,90];
+
+  return(
+    <div style={{position:'relative',padding:'12px 14px',background:`${col}06`,border:`0.5px solid ${col}20`,marginBottom:10}}>
+      <Brackets col={col} size={4} thickness={.5}/>
+
+      {/* Titre */}
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:10}}>
+        <span style={{color:DS.textLo,fontFamily:F.mono,fontSize:6.5,letterSpacing:'.16em'}}>DURÉE·D'OCCUPATION</span>
+        <div style={{
+          display:'flex',alignItems:'center',gap:5,
+          padding:'2px 8px',
+          background:`${billing.color}14`,
+          border:`0.5px solid ${billing.color}44`,
+          clipPath:'polygon(0 0,calc(100% - 5px) 0,100% 5px,100% 100%,0 100%)',
+        }}>
+          <span style={{fontSize:8,color:billing.color}}>{billing.icon}</span>
+          <span style={{color:billing.color,fontFamily:F.mono,fontSize:7,fontWeight:700,letterSpacing:'.10em'}}>{billing.short}</span>
+        </div>
+      </div>
+
+      {/* Slider */}
+      <div style={{position:'relative',marginBottom:8}}>
+        {/* Track */}
+        <div style={{position:'relative',height:3,borderRadius:2,background:trackGrad,boxShadow:`0 0 6px ${col}30`,marginBottom:6}}/>
+        <input type="range" min={1} max={90} value={days}
+          onChange={e=>setDays(Number(e.target.value))}
+          style={{
+            position:'absolute',top:-5,left:0,width:'100%',
+            WebkitAppearance:'none',appearance:'none',
+            background:'transparent',outline:'none',cursor:'pointer',
+            margin:0,padding:0,height:14,
+          }}
+          className="dur-slider"
+        />
+      </div>
+
+      {/* Snap points labels */}
+      <div style={{display:'flex',justifyContent:'space-between',marginBottom:10,paddingTop:2}}>
+        {SNAP.map(d=>(
+          <button key={d} onClick={()=>setDays(d)}
+            style={{
+              background:'transparent',border:'none',outline:'none',cursor:'pointer',
+              color:days===d?col:DS.textLo,
+              fontFamily:F.mono,fontSize:6,letterSpacing:'.08em',
+              padding:'2px 4px',
+              borderBottom:`1px solid ${days===d?col:'transparent'}`,
+              transition:'all .12s',
+            }}
+          >{d===1?'1J':d===7?'7J':d===30?'30J':'90J'}</button>
+        ))}
+      </div>
+
+      {/* Valeur centrale */}
+      <div style={{display:'flex',alignItems:'baseline',gap:6,marginBottom:8}}>
+        <span style={{color:col,fontFamily:F.mono,fontSize:30,fontWeight:700,lineHeight:1,textShadow:`0 0 20px ${col}60`}}>{days}</span>
+        <span style={{color:`${col}55`,fontFamily:F.mono,fontSize:10,letterSpacing:'.10em'}}>JOUR{days>1?'S':''}</span>
+        {billing.discount>0&&(
+          <span style={{marginLeft:'auto',color:DS.green,fontFamily:F.mono,fontSize:8,letterSpacing:'.06em'}}>
+            ÉCONOMIE·{(billing.discount*100).toFixed(0)}%
+          </span>
+        )}
+      </div>
+
+      {/* Prix total */}
+      <div style={{
+        display:'flex',alignItems:'center',justifyContent:'space-between',
+        padding:'7px 10px',
+        background:`rgba(0,0,0,0.4)`,
+        border:`0.5px solid ${col}18`,
+        clipPath:'polygon(0 0,calc(100% - 6px) 0,100% 6px,100% 100%,0 100%)',
+      }}>
+        <div>
+          <div style={{color:DS.textLo,fontFamily:F.mono,fontSize:6,letterSpacing:'.12em',marginBottom:1}}>TOTAL HT</div>
+          <div style={{color:DS.gold,fontFamily:F.mono,fontSize:18,fontWeight:700,letterSpacing:'.02em'}}>
+            {(total/100).toLocaleString('fr-FR',{minimumFractionDigits:2,maximumFractionDigits:2})} €
+          </div>
+        </div>
+        {saved>0&&(
+          <div style={{textAlign:'right'}}>
+            <div style={{color:DS.textLo,fontFamily:F.mono,fontSize:6,letterSpacing:'.12em',marginBottom:1}}>ÉCONOMIE</div>
+            <div style={{color:DS.green,fontFamily:F.mono,fontSize:11,fontWeight:700}}>
+              −{(saved/100).toLocaleString('fr-FR',{minimumFractionDigits:2,maximumFractionDigits:2})} €
+            </div>
+          </div>
+        )}
+        <div style={{textAlign:'right'}}>
+          <div style={{color:DS.textLo,fontFamily:F.mono,fontSize:6,letterSpacing:'.12em',marginBottom:1}}>MODE</div>
+          <div style={{color:billing.color,fontFamily:F.mono,fontSize:8,fontWeight:700,letterSpacing:'.08em'}}>{billing.short}</div>
+          <div style={{color:DS.textLo,fontFamily:F.mono,fontSize:5.5}}>{billing.desc}</div>
+        </div>
+      </div>
+
+      {/* CSS slider thumb */}
+      <style>{`
+        .dur-slider::-webkit-slider-thumb{
+          -webkit-appearance:none;width:14px;height:14px;
+          background:${col};border:1.5px solid ${col};
+          clip-path:polygon(15% 0,85% 0,100% 15%,100% 85%,85% 100%,15% 100%,0 85%,0 15%);
+          cursor:pointer;
+          box-shadow:0 0 10px ${col},0 0 20px ${col}60;
+          transition:box-shadow .12s;
+        }
+        .dur-slider::-moz-range-thumb{
+          width:14px;height:14px;
+          background:${col};border:1.5px solid ${col};
+          clip-path:polygon(15% 0,85% 0,100% 15%,100% 85%,85% 100%,15% 100%,0 85%,0 15%);
+          cursor:pointer;
+          box-shadow:0 0 10px ${col},0 0 20px ${col}60;
+        }
+      `}</style>
+    </div>
+  );
+}
+
 // Hover data chip — minimal holographic readout
 function HoverChip({info}){
   if(!info?.slot)return null;
@@ -2252,6 +2388,7 @@ function HoverChip({info}){
 function SlotReveal({slot,onClose,onRent,onBuyout}){
   const[ph,setPh]=useState(0);
   const[tick,setTick]=useState(0);
+  const[booking,setBooking]=useState({days:7,total:0,billing:getBilling(7)});
   useEffect(()=>{const id=requestAnimationFrame(()=>setPh(1));return()=>cancelAnimationFrame(id);},[]);
   useEffect(()=>{const id=setInterval(()=>setTick(t=>(t+1)%4),600);return()=>clearInterval(id);},[]);
   if(!slot)return null;
@@ -2371,19 +2508,30 @@ function SlotReveal({slot,onClose,onRent,onBuyout}){
             ))}
           </div>
 
-          {/* Price block */}
-          <div style={{
-            padding:'8px 12px',
-            background:`${col}06`,
-            border:`0.5px solid ${col}22`,
-            marginBottom:10,
-            display:'flex',alignItems:'baseline',gap:6,
-            position:'relative',
-          }}>
-            <Brackets col={col} size={5} thickness={.5}/>
-            <span style={{color:col,fontFamily:F.mono,fontSize:22,fontWeight:700,letterSpacing:'.02em'}}>€{fmt(slot.tier)}</span>
-            <span style={{color:DS.textLo,fontFamily:F.mono,fontSize:7,letterSpacing:'.10em'}}>/JOUR · EXCL. TAXES</span>
-          </div>
+          {/* Duration Picker — slots libres seulement */}
+          {!occ&&(
+            <DurationPicker
+              pricePerDay={TIER_PRICE[slot.tier]||100}
+              col={col}
+              onChange={b=>setBooking(b)}
+            />
+          )}
+
+          {/* Price block (slot occupé) */}
+          {occ&&(
+            <div style={{
+              padding:'8px 12px',
+              background:`${col}06`,
+              border:`0.5px solid ${col}22`,
+              marginBottom:10,
+              display:'flex',alignItems:'baseline',gap:6,
+              position:'relative',
+            }}>
+              <Brackets col={col} size={5} thickness={.5}/>
+              <span style={{color:col,fontFamily:F.mono,fontSize:22,fontWeight:700,letterSpacing:'.02em'}}>€{fmt(slot.tier)}</span>
+              <span style={{color:DS.textLo,fontFamily:F.mono,fontSize:7,letterSpacing:'.10em'}}>/JOUR · EXCL. TAXES</span>
+            </div>
+          )}
 
           {/* System status line */}
           <div style={{
@@ -2398,8 +2546,8 @@ function SlotReveal({slot,onClose,onRent,onBuyout}){
 
           {/* Action button */}
           {!occ
-            ?<LumBtn onClick={()=>onRent(slot)} col={col} style={{width:'100%',clipPath:'polygon(0 0,calc(100% - 10px) 0,100% 10px,100% 100%,10px 100%,0 calc(100% - 10px))'}}>
-                RÉSERVER CE SLOT <span style={{opacity:.5}}>→</span>
+            ?<LumBtn onClick={()=>onRent({...slot,days:booking.days,total:booking.total,billing:booking.billing})} col={col} style={{width:'100%',clipPath:'polygon(0 0,calc(100% - 10px) 0,100% 10px,100% 100%,10px 100%,0 calc(100% - 10px))'}}>
+                RÉSERVER · {booking.days}J · {(booking.total/100).toLocaleString('fr-FR',{minimumFractionDigits:2})} € <span style={{opacity:.5}}>→</span>
               </LumBtn>
             :<LumBtn onClick={()=>onBuyout(slot)} col={DS.textLo}
                 style={{width:'100%',fontSize:9,clipPath:'polygon(0 0,calc(100% - 10px) 0,100% 10px,100% 100%,10px 100%,0 calc(100% - 10px))'}}>
