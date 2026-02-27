@@ -4751,25 +4751,11 @@ function LandingPage({ slots, onPublic, onWaitlist }) {
   const stats = useMemo(() => ({ occupied: slots.filter(s => s.occ).length, vacant: slots.filter(s => !s.occ).length }), [slots]);
 
   const [platformStats, setPlatformStats] = useState(null);
-  const [dailyVisitors, setDailyVisitors] = useState(null);
-
-  // Track + display daily visitors using localStorage
-  useEffect(() => {
-    try {
-      const today = new Date().toISOString().slice(0, 10);
-      const raw = localStorage.getItem('ads_visitors');
-      const stored = raw ? JSON.parse(raw) : {};
-      const count = (stored.date === today ? (stored.count || 0) : 0) + 1;
-      localStorage.setItem('ads_visitors', JSON.stringify({ date: today, count }));
-      setDailyVisitors(count);
-    } catch { setDailyVisitors(null); }
-  }, []);
 
   useEffect(() => {
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
     if (!url || !key) return;
-    // Total impressions + clics toutes campagnes
     fetch(`${url}/rest/v1/slot_clicks?select=event_type`, {
       headers: { 'apikey': key, 'Authorization': `Bearer ${key}` }
     })
@@ -4795,8 +4781,8 @@ function LandingPage({ slots, onPublic, onWaitlist }) {
       <div style={{ position: 'relative', zIndex: 1, maxWidth: 600, width: '100%', textAlign: 'center', animation: 'fadeUp 0.5s ease forwards' }}>
 
         <div style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '5px 14px', borderRadius: 20, marginBottom: 28, background: U.s1, border: `1px solid ${U.border2}`, color: U.muted, fontSize: 11 }}>
-          <div style={{ width: 5, height: 5, borderRadius: '50%', background: U.accent, boxShadow: `0 0 6px ${U.accent}` }} />
-          <span>{t('landing.badge')}</span>
+          <div style={{ width: 5, height: 5, borderRadius: '50%', background: U.green, boxShadow: `0 0 6px ${U.green}` }} />
+          <span>{stats.vacant} {lang === 'fr' ? 'espaces disponibles' : 'spaces available'} · {t('landing.badge')}</span>
         </div>
 
         <h1 style={{ color: U.text, fontWeight: 700, fontSize: isMobile ? 36 : 52, lineHeight: 1.05, fontFamily: F.h, letterSpacing: '-0.03em', margin: '0 0 16px' }}>
@@ -4808,22 +4794,25 @@ function LandingPage({ slots, onPublic, onWaitlist }) {
 {t('landing.sub')}
         </p>
 
-        {/* Stats live plateforme */}
-        <div style={{ display: 'flex', gap: isMobile ? 16 : 36, justifyContent: 'center', marginBottom: 40, flexWrap: 'wrap' }}>
+        {/* Stats live — pertinentes et vraies */}
+        <div style={{ display: 'flex', gap: isMobile ? 0 : 1, justifyContent: 'center', marginBottom: 40, flexWrap: 'wrap', background: U.s1, border: `1px solid ${U.border}`, borderRadius: 12, overflow: 'hidden', maxWidth: 520, margin: '0 auto 40px' }}>
           {[
-            [stats.occupied,                                                              t('landing.stat.active'),   false],
-            [stats.vacant,                                                                t('landing.stat.free'),     false],
-            [dailyVisitors ? dailyVisitors.toLocaleString(lang === 'en' ? 'en-US' : 'fr-FR') : '—', t('landing.stat.visitors'),  true],
-            [platformStats ? platformStats.impressions.toLocaleString(lang === 'en' ? 'en-US' : 'fr-FR') : '—', t('landing.stat.views'),     true],
-            [platformStats ? platformStats.clicks.toLocaleString(lang === 'en' ? 'en-US' : 'fr-FR') : '—',      t('landing.stat.clicks'),    true],
-            ['1€',                                                                        t('landing.stat.from'),     false],
-          ].map(([v, l, live]) => (
-            <div key={l} style={{ textAlign: 'center', minWidth: 60 }}>
-              <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:5 }}>
-                {live && <div style={{ width:5, height:5, borderRadius:'50%', background:'#00e8a2', boxShadow:'0 0 6px #00e8a2', flexShrink:0 }} />}
-                <div style={{ color: live ? '#00e8a2' : U.text, fontWeight: 700, fontSize: isMobile ? 18 : 24, fontFamily: F.h, letterSpacing: '-0.02em' }}>{v}</div>
+            { v: stats.occupied,                  l: t('landing.stat.active'),  accent: stats.occupied > 0 ? U.accent : U.muted,  live: false },
+            { v: stats.vacant,                    l: t('landing.stat.free'),    accent: U.cyan,                                   live: true  },
+            { v: '3',                              l: t('landing.stat.tiers'),   accent: U.violet,                                 live: false },
+            { v: '1€',                             l: t('landing.stat.from'),    accent: U.green,                                  live: false },
+          ].map(({ v, l, accent, live }, i, arr) => (
+            <div key={l} style={{
+              flex: '1 1 120px', textAlign: 'center',
+              padding: isMobile ? '16px 12px' : '20px 16px',
+              borderRight: i < arr.length - 1 ? `1px solid ${U.border}` : 'none',
+              position: 'relative',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                {live && <div style={{ width: 5, height: 5, borderRadius: '50%', background: accent, boxShadow: `0 0 6px ${accent}`, flexShrink: 0 }} />}
+                <div style={{ color: accent, fontWeight: 800, fontSize: isMobile ? 22 : 28, fontFamily: F.h, letterSpacing: '-0.02em', lineHeight: 1 }}>{v}</div>
               </div>
-              <div style={{ color: U.muted, fontSize: 10, marginTop: 3 }}>{l}</div>
+              <div style={{ color: U.muted, fontSize: 10, marginTop: 5, letterSpacing: '0.04em' }}>{l}</div>
             </div>
           ))}
         </div>

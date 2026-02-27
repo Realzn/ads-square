@@ -85,8 +85,8 @@ const DS = {
   rose:'#D02848',
   amber:'#F07820',
   textHi:'#DDE6F2',
-  textMid:'rgba(180,210,240,0.85)',
-  textLo:'rgba(140,175,215,0.60)',
+  textMid:'rgba(140,180,220,0.70)',
+  textLo:'rgba(60,100,150,0.42)',
   panelBg:'rgba(0,8,24,0.97)',
   scanCol:'rgba(0,200,240,0.04)',
   bracket:'#00C8E4',
@@ -275,7 +275,7 @@ void main(){
 
 const EPIC_VERT=`precision highp float;varying vec3 vN,vWP,vPos;void main(){vN=normalize(normalMatrix*normal);vec4 wp=modelMatrix*vec4(position,1.);vWP=wp.xyz;vPos=position;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`;
 const EPIC_FRAG=`
-precision highp float;uniform float uTime,uInsideBlend,uSelected;varying vec3 vN,vWP,vPos;
+precision highp float;uniform float uTime,uInsideBlend,uSelected,uEpicFocus;varying vec3 vN,vWP,vPos;
 float h21(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5);}
 float noise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(h21(i),h21(i+vec2(1,0)),f.x),mix(h21(i+vec2(0,1)),h21(i+vec2(1,1)),f.x),f.y);}
 float fbm(vec2 p){float v=0.,a=.5;for(int i=0;i<6;i++){v+=a*noise(p);p=p*2.1+vec2(1.7,9.2);a*=.5;}return v;}
@@ -294,6 +294,9 @@ void main(){
   col+=white*pow(fresnel,1.2)*1.8*(.9+.1*sin(t*2.2))+mid*facet*2.4*pulse;
   if(uSelected>.5){col=mix(col,white*2.,sin(t*8.)*.5+.5);col+=bright*.6*sin(t*12.+length(vPos)*8.);}
   float intensity=mix(2.8,.8,uInsideBlend*.5);
+  // uEpicFocus : épicentre en vedette — exposition scène baissée, noyau amplifié
+  intensity*=mix(1.0,4.2,uEpicFocus);
+  col=mix(col,col+white*uEpicFocus*(.5+.5*sin(t*3.)),uEpicFocus);
   gl_FragColor=vec4(col*intensity*pulse,1.);
 }`;
 
@@ -946,7 +949,7 @@ class Scene3D{
 
   _buildEpicenter(){
     const T=this.T;
-    const u={uTime:{value:0},uInsideBlend:{value:0},uSelected:{value:0}};this._epU=u;
+    const u={uTime:{value:0},uInsideBlend:{value:0},uSelected:{value:0},uEpicFocus:{value:0}};this._epU=u;
     this.epicMesh=new T.Mesh(new T.IcosahedronGeometry(EPIC_R,0),new T.ShaderMaterial({vertexShader:EPIC_VERT,fragmentShader:EPIC_FRAG,uniforms:u,side:T.FrontSide}));
     this.epicMesh.renderOrder=2;this.scene.add(this.epicMesh);
     this.epicHalos=[];
@@ -1238,7 +1241,36 @@ class Scene3D{
     const focusIsElite=tierIdx===2;this.eliteRings.forEach(({u})=>{u.uDim.value=(tierIdx>=0&&!focusIsElite)?1:0;});
     const focusIsPrestige=tierIdx===1;this.prestigeMoons.forEach(({u})=>{u.uDim.value=(tierIdx>=0&&!focusIsPrestige)?1:0;});
     const focusIsViral=tierIdx===5;if(this._vU)this._vU.uDim.value=(tierIdx>=0&&!focusIsViral)?1:0;
-    if(this._bloomPass){this._bloomPass.threshold=tierIdx>=0?.55:.82;this._bloomPass.strength=tierIdx>=0?.90:.55;}
+
+    const isEpic = tierIdx===0;
+
+    // ── Bloom ─────────────────────────────────────────────────────────────────
+    if(this._bloomPass){
+      this._bloomPass.threshold = isEpic ? 0.12 : (tierIdx>=0 ? 0.55 : 0.82);
+      this._bloomPass.strength  = isEpic ? 2.80 : (tierIdx>=0 ? 0.90 : 0.55);
+    }
+
+    // ── Exposition scène : très sombre en mode EPIC, normal sinon ──────────
+    if(this.G){
+      const targetExp = isEpic ? 0.22 : 1.6;
+      this.G.to(this.renderer,{toneMappingExposure:targetExp,duration:isEpic?.65:.45,ease:'power2.inOut'});
+    } else {
+      this.renderer.toneMappingExposure = isEpic ? 0.22 : 1.6;
+    }
+
+    // ── Épicentre : uniforms glow + halos amplifiés ────────────────────────
+    if(this._epU){
+      if(this.G){
+        this.G.to(this._epU.uEpicFocus,{value:isEpic?1:0,duration:isEpic?.70:.40,ease:'power2.inOut'});
+      } else {
+        this._epU.uEpicFocus.value = isEpic ? 1 : 0;
+      }
+    }
+    // Halos : scale ×2.2 en mode EPIC pour un rayonnement dramatique
+    this.epicHalos.forEach(({u})=>{
+      if(this.G) this.G.to(u.uScale,{value:isEpic?2.2:1.0,duration:isEpic?.80:.40,ease:'power2.inOut'});
+      else u.uScale.value = isEpic ? 2.2 : 1.0;
+    });
   }
 
   setFilterPalette(paletteName){
@@ -1633,7 +1665,416 @@ function Badge({children,col=DS.cyan,style={}}){
   );
 }
 
-// Tier filter bar — holographic pills
+// ── TIER CONFIG — couleurs vives, identité forte ─────────────────────────────
+const TIER_CONFIG = {
+  all:       { id:-1, key:'all',       label:'TOUS',      short:'ALL',  sub:'Vue système complète',         icon:'◉', col:'#4488CC', price:null,  slots:1296, desc:'Tous les tiers simultanément — vue système complète de la mégastructure.' },
+  epicenter: { id:0,  key:'epicenter', label:'ÉPICENTRE', short:'EPIC', sub:'1 noyau · cœur absolu',        icon:'✦', col:'#FFB040', price:1000, slots:1,    desc:'Le cœur cristallin de la Sphère. Un seul annonceur. Présence totale, rayonnement absolu.' },
+  prestige:  { id:1,  key:'prestige',  label:'LUNES',     short:'PRES', sub:'8 corps orbitaux',             icon:'◯', col:'#FF6040', price:100,  slots:8,    desc:'Huit lunes orbitales sculpturales. Chaque corps visible depuis l\'ensemble de la sphère.' },
+  elite:     { id:2,  key:'elite',     label:'ANNEAUX',   short:'ÉLITE',sub:'50 slots · 6 anneaux Dyson',   icon:'⊕', col:'#40AAFF', price:50,   slots:50,   desc:'Six anneaux équatoriaux Dyson. Architecture iconique, trafic haute densité orbital.' },
+  business:  { id:3,  key:'business',  label:'PANNEAUX',  short:'BIZ',  sub:'176 slots · panneaux surface',  icon:'▣', col:'#20DDA0', price:10,   slots:176,  desc:'Panneaux structurels de surface. Flux direct, trafic qualifié haute densité.' },
+  standard:  { id:4,  key:'standard',  label:'ÉMETTEURS', short:'STD',  sub:'400 slots · surface complète',  icon:'▪', col:'#7060FF', price:3,    slots:400,  desc:'Émetteurs de surface. Présence diffuse sur l\'ensemble de la mégastructure.' },
+  viral:     { id:5,  key:'viral',     label:'DRONES',    short:'VIRAL',sub:'671 nano-vecteurs orbitaux',    icon:'⚡', col:'#40FF80', price:1,    slots:671,  desc:'Essaim de nano-drones. Présence maximale diffuse — 671 vecteurs simultanés.' },
+};
+const TIER_LIST = ['all','epicenter','prestige','elite','business','standard','viral'];
+
+const VUE_CONFIG = {
+  realist:  { label:'RÉEL',      short:'PBR',  icon:'◉', col:'#FFB040', desc:'Rendu physique · Métal & or' },
+  thermal:  { label:'THERM',     short:'IR',   icon:'⬡', col:'#FF5020', desc:'Infrarouge · Chaleur active' },
+  xray:     { label:'X-RAY',     short:'RX',   icon:'◌', col:'#60D0FF', desc:'Rayons X · Structure interne' },
+  blueprint:{ label:'PLAN',      short:'BLU',  icon:'▦', col:'#4070FF', desc:'Blueprint · Filaire tech' },
+  identity: { label:'IDENTITÉ',  short:'ID',   icon:'◆', col:'#B040FF', desc:'Palette vive · Marques' },
+};
+
+// ── Radial Arc SVG pour occupation ───────────────────────────────────────────
+function OccArc({ pct, col, size=80, stroke=6 }) {
+  const r = (size - stroke) / 2;
+  const cx = size / 2, cy = size / 2;
+  const circ = 2 * Math.PI * r;
+  const dash = circ * Math.min(pct, 1);
+  const bgDash = circ * 0.75; // 270° arc
+  const rot = -225; // start bottom-left
+  return (
+    <svg width={size} height={size} style={{transform:'rotate(0deg)',overflow:'visible'}}>
+      {/* Background track */}
+      <circle cx={cx} cy={cy} r={r}
+        fill="none" stroke={`${col}16`} strokeWidth={stroke}
+        strokeDasharray={`${bgDash} ${circ}`}
+        strokeDashoffset={0}
+        strokeLinecap="round"
+        style={{transform:`rotate(${rot}deg)`,transformOrigin:'50% 50%'}}
+      />
+      {/* Fill */}
+      {pct > 0 && <circle cx={cx} cy={cy} r={r}
+        fill="none" stroke={col} strokeWidth={stroke}
+        strokeDasharray={`${dash * 0.75} ${circ}`}
+        strokeDashoffset={0}
+        strokeLinecap="round"
+        style={{transform:`rotate(${rot}deg)`,transformOrigin:'50% 50%',filter:`drop-shadow(0 0 ${stroke*1.5}px ${col}88)`,transition:'stroke-dasharray .6s cubic-bezier(.16,1,.3,1)'}}
+      />}
+      {/* Center */}
+      <text x={cx} y={cy+1} textAnchor="middle" dominantBaseline="middle"
+        fill={col} fontSize={size*0.22} fontFamily="'JetBrains Mono',monospace" fontWeight="700">
+        {Math.round(pct*100)}%
+      </text>
+      <text x={cx} y={cy+size*0.18} textAnchor="middle" dominantBaseline="middle"
+        fill={`${col}55`} fontSize={size*0.10} fontFamily="'JetBrains Mono',monospace" letterSpacing=".1em">
+        OCC
+      </text>
+    </svg>
+  );
+}
+
+// ── SlotGrid — visualisation occupation en mini carrés ────────────────────────
+function SlotGrid({ total, occupied, col }) {
+  const max = Math.min(total, 48);
+  const cols = Math.ceil(Math.sqrt(max * 2));
+  return (
+    <div style={{display:'flex',flexWrap:'wrap',gap:2}}>
+      {Array.from({length:max},(_,i)=>{
+        const fill = i < Math.round((occupied/total)*max);
+        return <div key={i} style={{
+          width:6,height:6,
+          background: fill ? col : `${col}16`,
+          boxShadow: fill ? `0 0 4px ${col}80` : 'none',
+          transition:'background .3s',
+          clipPath: fill ? 'none' : undefined,
+        }}/>;
+      })}
+      {total > max && <div style={{color:`${col}44`,fontFamily:F.mono,fontSize:7,alignSelf:'center',marginLeft:2}}>+{total-max}</div>}
+    </div>
+  );
+}
+
+// ── TIER PANEL — panneau gauche immersif ──────────────────────────────────────
+function TierPanel({ activeTier, slots, onClose, onCheckout }) {
+  const tierKey = TIER_LIST[activeTier + 1] || 'all';
+  const cfg = TIER_CONFIG[tierKey];
+  const col = cfg.col;
+
+  const occ  = slots.filter(s => s?.tier === cfg.key && s?.occ).length;
+  const tot  = cfg.slots || 0;
+  const free = tot - occ;
+  const pct  = tot > 0 ? occ / tot : 0;
+
+  if (activeTier === -1) return null;
+
+  // Layout unique par tier
+  const isEpic = cfg.key === 'epicenter';
+  const isViral = cfg.key === 'viral';
+
+  return (
+    <div key={tierKey} style={{
+      position:'absolute', left:0, top:0, bottom:0,
+      width:260, zIndex:45, pointerEvents:'auto',
+      animation:'panelReveal .40s cubic-bezier(.16,1,.3,1) both',
+    }}>
+      {/* Fond */}
+      <div style={{
+        position:'absolute',inset:0,
+        background:`linear-gradient(160deg, rgba(0,2,10,0.99) 0%, rgba(${hexToRgb(col)},0.06) 100%)`,
+        borderRight:`1px solid ${col}25`,
+        backdropFilter:'blur(32px)',
+      }}/>
+
+      {/* Bande couleur latérale gauche */}
+      <div style={{
+        position:'absolute',left:0,top:0,bottom:0,width:3,
+        background:`linear-gradient(180deg, transparent, ${col}, ${col}88, transparent)`,
+        boxShadow:`0 0 20px ${col}60, 0 0 60px ${col}20`,
+      }}/>
+
+      {/* Watermark géant du tier */}
+      <div style={{
+        position:'absolute',bottom:-20,right:-10,
+        fontSize:180,lineHeight:1,
+        color:`${col}07`,
+        fontFamily:F.mono,fontWeight:700,
+        pointerEvents:'none',userSelect:'none',
+        letterSpacing:'-0.05em',
+      }}>{cfg.icon}</div>
+
+      {/* Contenu */}
+      <div style={{position:'relative',zIndex:2,height:'100%',display:'flex',flexDirection:'column',padding:'18px 20px 20px 22px',overflow:'hidden'}}>
+
+        {/* Close */}
+        <button onClick={onClose} style={{
+          position:'absolute',top:12,right:12,
+          width:22,height:22,
+          border:`0.5px solid ${col}30`,background:'transparent',
+          color:`${col}60`,fontFamily:F.mono,fontSize:11,
+          cursor:'pointer',outline:'none',
+          display:'flex',alignItems:'center',justifyContent:'center',
+          transition:'all .15s',borderRadius:2,
+        }}
+        onMouseEnter={e=>{e.currentTarget.style.background=`${col}18`;e.currentTarget.style.color=col;e.currentTarget.style.borderColor=`${col}80`;}}
+        onMouseLeave={e=>{e.currentTarget.style.background='transparent';e.currentTarget.style.color=`${col}60`;e.currentTarget.style.borderColor=`${col}30`;}}
+        >✕</button>
+
+        {/* Header */}
+        <div style={{marginBottom:20,paddingBottom:16,borderBottom:`0.5px solid ${col}18`}}>
+          <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:10}}>
+            <div style={{width:5,height:5,borderRadius:'50%',background:col,boxShadow:`0 0 8px ${col}`,animation:'hpulse 1.4s infinite'}}/>
+            <span style={{color:`${col}70`,fontFamily:F.mono,fontSize:8,letterSpacing:'.20em'}}>TIER·ACTIF</span>
+          </div>
+          <div style={{
+            fontSize: isEpic ? 28 : 22,
+            fontWeight:700,fontFamily:F.mono,
+            color:col,letterSpacing:'.06em',lineHeight:1,
+            marginBottom:6,
+            textShadow:`0 0 30px ${col}60`,
+          }}>{cfg.label}</div>
+          <div style={{color:`${col}55`,fontFamily:F.mono,fontSize:9,letterSpacing:'.10em'}}>{cfg.sub}</div>
+        </div>
+
+        {/* Section principale — unique par tier */}
+        {isEpic ? (
+          // EPIC: minimaliste, prix dominant, prestige total
+          <div style={{flex:1,display:'flex',flexDirection:'column',justifyContent:'center',alignItems:'center',gap:16}}>
+            <div style={{
+              width:100,height:100,borderRadius:'50%',
+              border:`2px solid ${col}50`,
+              background:`radial-gradient(circle at 35% 35%, ${col}20, transparent 60%)`,
+              display:'flex',alignItems:'center',justifyContent:'center',
+              fontSize:40,color:col,
+              boxShadow:`0 0 40px ${col}30, inset 0 0 30px ${col}10`,
+              animation:'hspin 12s linear infinite',
+            }}>{cfg.icon}</div>
+            <div style={{textAlign:'center'}}>
+              <div style={{color:`${col}44`,fontFamily:F.mono,fontSize:9,letterSpacing:'.16em',marginBottom:6}}>TARIF EXCLUSIF</div>
+              <div style={{color:col,fontFamily:F.mono,fontSize:48,fontWeight:700,lineHeight:1,textShadow:`0 0 40px ${col}80`}}>€{cfg.price}</div>
+              <div style={{color:`${col}55`,fontFamily:F.mono,fontSize:10,letterSpacing:'.12em'}}>PAR JOUR</div>
+            </div>
+            {free > 0
+              ? <div style={{padding:'4px 16px',background:`${col}12`,border:`0.5px solid ${col}40`,color:`${col}cc`,fontFamily:F.mono,fontSize:9,letterSpacing:'.12em'}}>DISPONIBLE</div>
+              : <div style={{padding:'4px 16px',background:`rgba(208,40,72,0.10)`,border:`0.5px solid rgba(208,40,72,0.40)`,color:'#D02848',fontFamily:F.mono,fontSize:9,letterSpacing:'.12em'}}>OCCUPÉ</div>
+            }
+          </div>
+        ) : isViral ? (
+          // VIRAL: dense, grille de dots, impression de masse
+          <div style={{flex:1,display:'flex',flexDirection:'column',gap:14}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+              <div>
+                <div style={{color:col,fontFamily:F.mono,fontSize:32,fontWeight:700,lineHeight:1}}>{occ}</div>
+                <div style={{color:`${col}50`,fontFamily:F.mono,fontSize:8,letterSpacing:'.12em'}}>ACTIFS</div>
+              </div>
+              <div style={{textAlign:'right'}}>
+                <div style={{color:`${col}80`,fontFamily:F.mono,fontSize:32,fontWeight:700,lineHeight:1}}>{free}</div>
+                <div style={{color:`${col}50`,fontFamily:F.mono,fontSize:8,letterSpacing:'.12em'}}>LIBRES</div>
+              </div>
+            </div>
+            <div style={{flex:1,overflow:'hidden'}}>
+              <SlotGrid total={tot} occupied={occ} col={col}/>
+            </div>
+            <div style={{color:`${col}50`,fontFamily:F.mono,fontSize:8,lineHeight:1.7,letterSpacing:'.04em'}}>{cfg.desc}</div>
+          </div>
+        ) : (
+          // DEFAULT: arc progress + stats + desc
+          <div style={{flex:1,display:'flex',flexDirection:'column',gap:14}}>
+            <div style={{display:'flex',alignItems:'center',gap:16}}>
+              <OccArc pct={pct} col={col} size={88} stroke={7}/>
+              <div style={{display:'flex',flexDirection:'column',gap:8}}>
+                {[{v:tot,l:'TOTAL'},{v:occ,l:'ACTIFS'},{v:free,l:'LIBRES',highlight:free>0}].map(({v,l,highlight})=>(
+                  <div key={l}>
+                    <div style={{color:highlight?DS.green:col,fontFamily:F.mono,fontSize:16,fontWeight:700,lineHeight:1}}>{v}</div>
+                    <div style={{color:`${col}45`,fontFamily:F.mono,fontSize:7,letterSpacing:'.12em'}}>{l}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Barre segmentée */}
+            <div style={{display:'flex',gap:1,height:4,borderRadius:2,overflow:'hidden'}}>
+              {Array.from({length:20},(_,i)=>(
+                <div key={i} style={{flex:1,background:i<Math.round(pct*20)?col:`${col}14`,transition:'background .5s',boxShadow:i<Math.round(pct*20)?`0 0 6px ${col}80`:undefined}}/>
+              ))}
+            </div>
+
+            <div style={{color:`${col}50`,fontFamily:F.mono,fontSize:8.5,lineHeight:1.75,letterSpacing:'.04em',flex:1}}>{cfg.desc}</div>
+          </div>
+        )}
+
+        {/* Séparateur */}
+        <div style={{height:.5,background:`linear-gradient(90deg,transparent,${col}40,${col}60,${col}40,transparent)`,boxShadow:`0 0 8px ${col}30`,margin:'16px 0'}}/>
+
+        {/* Prix + CTA */}
+        <div>
+          {cfg.price && (
+            <div style={{display:'flex',alignItems:'baseline',gap:6,marginBottom:12}}>
+              <span style={{color:col,fontFamily:F.mono,fontSize:26,fontWeight:700,lineHeight:1,textShadow:`0 0 20px ${col}60`}}>€{cfg.price}</span>
+              <span style={{color:`${col}50`,fontFamily:F.mono,fontSize:10,letterSpacing:'.10em'}}>/JOUR</span>
+              <span style={{marginLeft:'auto',color:`${col}70`,fontFamily:F.mono,fontSize:9}}>× {cfg.slots} SLOTS</span>
+            </div>
+          )}
+          {cfg.key !== 'all' && free > 0 && (
+            <button onClick={()=>onCheckout?.({tier:cfg.key})} style={{
+              width:'100%',padding:'12px 16px',
+              background:`linear-gradient(135deg,${col}28,${col}14)`,
+              border:`1px solid ${col}60`,
+              color:col,fontFamily:F.mono,fontSize:11,fontWeight:700,
+              letterSpacing:'.14em',cursor:'pointer',outline:'none',
+              transition:'all .18s',
+              clipPath:'polygon(0 0,calc(100% - 10px) 0,100% 10px,100% 100%,10px 100%,0 calc(100% - 10px))',
+              boxShadow:`0 0 24px ${col}18`,
+            }}
+            onMouseEnter={e=>{e.currentTarget.style.background=`linear-gradient(135deg,${col}45,${col}28)`;e.currentTarget.style.boxShadow=`0 0 40px ${col}35`;}}
+            onMouseLeave={e=>{e.currentTarget.style.background=`linear-gradient(135deg,${col}28,${col}14)`;e.currentTarget.style.boxShadow=`0 0 24px ${col}18`;}}
+            >
+              ◈ RÉSERVER CE TIER
+            </button>
+          )}
+          {cfg.key !== 'all' && free === 0 && (
+            <div style={{textAlign:'center',padding:'10px',color:'rgba(208,40,72,0.7)',fontFamily:F.mono,fontSize:9,letterSpacing:'.14em',border:`0.5px solid rgba(208,40,72,0.25)`}}>
+              TIER COMPLET
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── VUE MODES — tourelle droite ───────────────────────────────────────────────
+function VueDial({ activeFilter, onFilterSelect }) {
+  const entries = Object.entries(VUE_CONFIG);
+  return (
+    <div style={{
+      position:'absolute',right:14,top:'50%',transform:'translateY(-50%)',
+      zIndex:35,display:'flex',flexDirection:'column',gap:3,alignItems:'flex-end',
+    }}>
+      <div style={{color:`rgba(0,200,240,0.22)`,fontFamily:F.mono,fontSize:7,letterSpacing:'.20em',marginBottom:4,textAlign:'right'}}>VUE</div>
+      {entries.map(([id,{label,short,icon,col,desc}])=>{
+        const on = activeFilter === id;
+        return (
+          <button key={id} onClick={()=>onFilterSelect(id)} title={desc} style={{
+            display:'flex',alignItems:'center',gap:7,
+            padding: on ? '8px 12px 8px 14px' : '6px 10px 6px 10px',
+            background: on
+              ? `linear-gradient(90deg, ${col}22 0%, ${col}10 100%)`
+              : 'rgba(0,3,12,0.80)',
+            border: `0.5px solid ${on ? col+'80' : col+'1a'}`,
+            color: on ? col : `${col}38`,
+            fontFamily:F.mono,fontSize: on ? 9 : 8,fontWeight:700,
+            letterSpacing:'.10em',cursor:'pointer',outline:'none',
+            width: on ? 110 : 44,
+            justifyContent: on ? 'flex-start' : 'center',
+            transition:'all .25s cubic-bezier(.16,1,.3,1)',
+            backdropFilter:'blur(16px)',
+            boxShadow: on ? `0 0 20px ${col}28, inset 0 0 16px ${col}08, -4px 0 0 ${col}` : `inset -2px 0 0 ${col}20`,
+            borderRadius:2,
+            overflow:'hidden',
+            whiteSpace:'nowrap',
+            clipPath: on ? 'polygon(0 0,calc(100% - 6px) 0,100% 6px,100% 100%,0 100%)' : 'none',
+          }}
+          onMouseEnter={e=>{if(!on){e.currentTarget.style.width='80px';e.currentTarget.style.color=`${col}70`;e.currentTarget.style.borderColor=`${col}35`;}}}
+          onMouseLeave={e=>{if(!on){e.currentTarget.style.width='44px';e.currentTarget.style.color=`${col}38`;e.currentTarget.style.borderColor=`${col}1a`;}}}
+          >
+            <span style={{fontSize:11,flexShrink:0,filter:on?`drop-shadow(0 0 4px ${col})`:'none'}}>{icon}</span>
+            <span style={{opacity:on?1:0.6,transition:'opacity .2s'}}>{on ? label : short}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// ── TIER COMMAND BAR — barre du bas, identité forte ───────────────────────────
+function TierCommandBar({ activeTier, onTierSelect, slots }) {
+  const stats = useMemo(()=>{
+    const c={};TIER_LIST.forEach(k=>{c[k]=0;});
+    (slots||[]).forEach(s=>{if(s?.occ&&c[s.tier]!==undefined)c[s.tier]++;});
+    return c;
+  },[slots]);
+
+  return (
+    <div style={{
+      display:'flex',alignItems:'stretch',gap:2,
+      background:'rgba(0,2,10,0.97)',
+      backdropFilter:'blur(32px)',
+      border:'0.5px solid rgba(0,200,240,0.10)',
+      boxShadow:'0 -8px 60px rgba(0,0,0,0.8), 0 0 0 0.5px rgba(0,200,240,0.05)',
+      padding:'5px 5px',
+    }}>
+      {TIER_LIST.map((key,i) => {
+        const cfg = TIER_CONFIG[key];
+        const on = activeTier === cfg.id;
+        const col = cfg.col;
+        const occ = stats[key] || 0;
+        const tot = cfg.slots || 0;
+        const pct = tot > 0 ? occ / tot : 0;
+        const isAll = key === 'all';
+
+        return (
+          <button key={key} onClick={() => onTierSelect(on && !isAll ? -1 : cfg.id)}
+            style={{
+              position:'relative',
+              padding: on ? '10px 18px' : '7px 12px',
+              minWidth: on ? 80 : (isAll ? 48 : 52),
+              background: on
+                ? `linear-gradient(160deg, ${col}20 0%, ${col}08 100%)`
+                : 'transparent',
+              border: `0.5px solid ${on ? col+'70' : col+'16'}`,
+              color: on ? col : `${col}40`,
+              cursor:'pointer',outline:'none',
+              transition:'all .22s cubic-bezier(.16,1,.3,1)',
+              display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:4,
+              overflow:'hidden',
+              clipPath: on
+                ? 'polygon(0 0,calc(100% - 6px) 0,100% 6px,100% 100%,6px 100%,0 calc(100% - 6px))'
+                : 'none',
+              boxShadow: on ? `0 0 28px ${col}22, inset 0 0 20px ${col}06` : 'none',
+            }}
+            onMouseEnter={e=>{if(!on){e.currentTarget.style.background=`${col}0e`;e.currentTarget.style.borderColor=`${col}40`;e.currentTarget.style.color=`${col}70`;}}}
+            onMouseLeave={e=>{if(!on){e.currentTarget.style.background='transparent';e.currentTarget.style.borderColor=`${col}16`;e.currentTarget.style.color=`${col}40`;}}}
+          >
+            {/* Top glow quand actif */}
+            {on && <div style={{position:'absolute',top:0,left:0,right:0,height:1.5,background:`linear-gradient(90deg,transparent,${col},transparent)`,boxShadow:`0 0 8px ${col}`}}/>}
+
+            {/* Icône */}
+            <span style={{
+              fontSize: on ? 18 : 13,
+              lineHeight:1,
+              filter: on ? `drop-shadow(0 0 8px ${col})` : 'none',
+              transition:'all .22s',
+            }}>{cfg.icon}</span>
+
+            {/* Label */}
+            <span style={{fontFamily:F.mono,fontSize: on ? 8 : 7,fontWeight:700,letterSpacing:'.10em',lineHeight:1,whiteSpace:'nowrap'}}>
+              {on ? cfg.short : cfg.short}
+            </span>
+
+            {/* Prix quand actif */}
+            {on && cfg.price && (
+              <span style={{fontFamily:F.mono,fontSize:9,color:`${col}90`,letterSpacing:'.06em',fontWeight:400}}>
+                €{cfg.price}/j
+              </span>
+            )}
+
+            {/* Barre occupation sous le bouton */}
+            {!isAll && tot > 0 && (
+              <div style={{width:'100%',height:2,borderRadius:1,background:`${col}14`,overflow:'hidden',position:'relative'}}>
+                <div style={{
+                  position:'absolute',left:0,top:0,bottom:0,
+                  width:`${pct*100}%`,
+                  background:col,
+                  boxShadow:`0 0 6px ${col}`,
+                  transition:'width .6s cubic-bezier(.16,1,.3,1)',
+                }}/>
+              </div>
+            )}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// Helper hex → rgb
+function hexToRgb(hex) {
+  const r=parseInt(hex.slice(1,3),16),g=parseInt(hex.slice(3,5),16),b=parseInt(hex.slice(5,7),16);
+  return `${r},${g},${b}`;
+}
+
+// Tier filter bar — holographic pills (kept for Sidebar)
 function TierFilterBar({activeTier,onTierSelect}){
   const tiers=[
     {id:-1,label:'ALL',icon:'◉',col:'#8899BB'},
@@ -1671,7 +2112,7 @@ function TierFilterBar({activeTier,onTierSelect}){
   );
 }
 
-// Filter/VUE bar
+// Filter/VUE bar (kept for Sidebar)
 function FilterBar({activeFilter,onFilterSelect}){
   const filters=[
     {id:'realist',  label:'RÉEL',    icon:'◉'},
@@ -1706,7 +2147,6 @@ function FilterBar({activeFilter,onFilterSelect}){
     </div>
   );
 }
-
 // Hover data chip — minimal holographic readout
 function HoverChip({info}){
   if(!info?.slot)return null;
@@ -1938,7 +2378,7 @@ const Sidebar=memo(function Sidebar({slots,isLive,activeTier,onTierSelect}){
 
   return(
     <div style={{
-      width:280,flexShrink:0,
+      width:240,flexShrink:0,
       background:'rgba(0,4,16,0.98)',
       backdropFilter:'blur(24px) saturate(200%)',
       WebkitBackdropFilter:'blur(24px) saturate(200%)',
@@ -1964,20 +2404,20 @@ const Sidebar=memo(function Sidebar({slots,isLive,activeTier,onTierSelect}){
               clipPath:'polygon(15% 0,85% 0,100% 15%,100% 85%,85% 100%,15% 100%,0 85%,0 15%)',
             }}>◈</div>
             <div>
-              <div style={{color:DS.textHi,fontFamily:F.mono,fontSize:12,fontWeight:700,letterSpacing:'.16em'}}>DYSON</div>
-              <div style={{color:DS.textLo,fontFamily:F.mono,fontSize:9,letterSpacing:'.16em',marginTop:1}}>COSMOS·MK·VII</div>
+              <div style={{color:DS.textHi,fontFamily:F.mono,fontSize:10,fontWeight:700,letterSpacing:'.18em'}}>DYSON</div>
+              <div style={{color:DS.textLo,fontFamily:F.mono,fontSize:6,letterSpacing:'.20em',marginTop:-1}}>COSMOS·MK·VII</div>
             </div>
           </div>
           {isLive&&(
             <div style={{
               display:'flex',alignItems:'center',gap:4,
-              padding:'3px 8px',
+              padding:'2px 7px',
               border:`0.5px solid ${DS.green}44`,
               background:`${DS.green}0a`,
               clipPath:'polygon(0 0,calc(100% - 5px) 0,100% 5px,100% 100%,0 100%)',
             }}>
-              <div style={{width:5,height:5,borderRadius:'50%',background:DS.green,animation:'hpulse 1.4s ease-in-out infinite'}}/>
-              <span style={{color:DS.green,fontFamily:F.mono,fontSize:10,fontWeight:700,letterSpacing:'.12em'}}>LIVE</span>
+              <div style={{width:4,height:4,borderRadius:'50%',background:DS.green,animation:'hpulse 1.4s ease-in-out infinite'}}/>
+              <span style={{color:DS.green,fontFamily:F.mono,fontSize:6.5,fontWeight:700,letterSpacing:'.15em'}}>LIVE</span>
             </div>
           )}
         </div>
@@ -1991,8 +2431,8 @@ const Sidebar=memo(function Sidebar({slots,isLive,activeTier,onTierSelect}){
               border:`0.5px solid ${tab===id?DS.cyan:DS.glassBrd}`,
               clipPath:'polygon(0 0,calc(100% - 5px) 0,100% 5px,100% 100%,0 100%)',
               color:tab===id?DS.cyan:DS.textLo,
-              fontFamily:F.mono,fontSize:11,fontWeight:600,
-              letterSpacing:'.10em',cursor:'pointer',outline:'none',
+              fontFamily:F.mono,fontSize:7.5,fontWeight:600,
+              letterSpacing:'.12em',cursor:'pointer',outline:'none',
               transition:'all .10s',
             }}>{lbl}</button>
           ))}
@@ -2046,10 +2486,10 @@ const Sidebar=memo(function Sidebar({slots,isLive,activeTier,onTierSelect}){
                       borderRadius:tier==='epicenter'?'50%':0,
                     }}>{role?.icon}</div>
                     <div style={{flex:1,minWidth:0}}>
-                      <div style={{color:isFocus?col:DS.textMid,fontFamily:F.mono,fontSize:12,fontWeight:700,letterSpacing:'.08em'}}>{label}</div>
-                      <div style={{color:DS.textLo,fontFamily:F.mono,fontSize:10,letterSpacing:'.04em',marginTop:1}}>{sub}</div>
+                      <div style={{color:isFocus?col:DS.textMid,fontFamily:F.mono,fontSize:8.5,fontWeight:700,letterSpacing:'.08em'}}>{label}</div>
+                      <div style={{color:DS.textLo,fontFamily:F.mono,fontSize:6,letterSpacing:'.06em'}}>{sub}</div>
                     </div>
-                    <div style={{fontFamily:F.mono,fontSize:12,fontWeight:700,color:isFocus?col:DS.textLo,letterSpacing:'.02em'}}>
+                    <div style={{fontFamily:F.mono,fontSize:8,fontWeight:700,color:isFocus?col:DS.textLo,letterSpacing:'.02em'}}>
                       €{fmt(tier)}
                     </div>
                   </div>
@@ -2062,9 +2502,9 @@ const Sidebar=memo(function Sidebar({slots,isLive,activeTier,onTierSelect}){
                           return <div key={si} style={{flex:1,height:2,background:filled?col:`${col}18`,transition:'background .4s'}}/>;
                         })}
                       </div>
-                      <span style={{color:DS.textLo,fontFamily:F.mono,fontSize:10,letterSpacing:'.05em'}}>{occ}/{tot}</span>
+                      <span style={{color:DS.textLo,fontFamily:F.mono,fontSize:6,letterSpacing:'.05em'}}>{occ}/{tot}</span>
                     </div>
-                    <div style={{color:DS.textLo,fontFamily:F.mono,fontSize:10,letterSpacing:'.04em',opacity:.85}}>{extra}</div>
+                    <div style={{color:DS.textLo,fontFamily:F.mono,fontSize:6,letterSpacing:'.06em',opacity:.7}}>{extra}</div>
                   </div>
                 </div>
               );
@@ -2095,14 +2535,14 @@ const Sidebar=memo(function Sidebar({slots,isLive,activeTier,onTierSelect}){
                     borderRadius:tier==='epicenter'?'50%':0,
                   }}>{role?.icon}</div>
                   <div>
-                    <div style={{color:`${col}cc`,fontFamily:F.mono,fontSize:12,fontWeight:700,letterSpacing:'.08em'}}>{role?.role}</div>
-                    <div style={{color:DS.textLo,fontFamily:F.mono,fontSize:10}}>€{fmt(tier)}/j · {tot} slots</div>
+                    <div style={{color:`${col}cc`,fontFamily:F.mono,fontSize:8,fontWeight:700,letterSpacing:'.10em'}}>{role?.role}</div>
+                    <div style={{color:DS.textLo,fontFamily:F.mono,fontSize:6.5}}>€{fmt(tier)}/j · {tot} slots</div>
                   </div>
                 </div>
-                <div style={{color:DS.textMid,fontFamily:F.ui,fontSize:11,lineHeight:1.6,paddingLeft:31,marginBottom:4}}>{role?.desc}</div>
+                <div style={{color:DS.textMid,fontFamily:F.ui,fontSize:7.5,lineHeight:1.6,paddingLeft:31,marginBottom:3}}>{role?.desc}</div>
                 <div style={{display:'flex',justifyContent:'space-between',paddingLeft:31}}>
-                  <span style={{color:DS.textLo,fontFamily:F.mono,fontSize:10}}>{occ}/{tot} OCCUPÉS</span>
-                  <span style={{color:occ>0?`${col}88`:DS.textLo,fontFamily:F.mono,fontSize:10}}>{Math.round(occ/tot*100)}%</span>
+                  <span style={{color:DS.textLo,fontFamily:F.mono,fontSize:6}}>{occ}/{tot} OCCUPÉS</span>
+                  <span style={{color:occ>0?`${col}88`:DS.textLo,fontFamily:F.mono,fontSize:6}}>{Math.round(occ/tot*100)}%</span>
                 </div>
               </div>
             );
@@ -2113,8 +2553,8 @@ const Sidebar=memo(function Sidebar({slots,isLive,activeTier,onTierSelect}){
       {/* Footer — revenue */}
       <div style={{padding:'10px 14px',borderTop:`0.5px solid rgba(0,200,240,0.10)`,position:'relative',zIndex:2}}>
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'baseline',marginBottom:5}}>
-          <span style={{color:DS.textLo,fontFamily:F.mono,fontSize:10,letterSpacing:'.12em'}}>REVENUS·/·JOUR</span>
-          <span style={{color:DS.gold,fontFamily:F.mono,fontSize:17,fontWeight:700,letterSpacing:'.02em'}}>{rev.toLocaleString('fr-FR')} €</span>
+          <span style={{color:DS.textLo,fontFamily:F.mono,fontSize:6.5,letterSpacing:'.14em'}}>REVENUS·/·JOUR</span>
+          <span style={{color:DS.gold,fontFamily:F.mono,fontSize:15,fontWeight:700,letterSpacing:'.02em'}}>{rev.toLocaleString('fr-FR')} €</span>
         </div>
         <Sep col={DS.gold} style={{marginBottom:5,opacity:.3}}/>
         {/* Multi-tier bar */}
@@ -2126,7 +2566,7 @@ const Sidebar=memo(function Sidebar({slots,isLive,activeTier,onTierSelect}){
         </div>
         <div style={{
           display:'flex',justifyContent:'space-between',
-          color:DS.textLo,fontFamily:F.mono,fontSize:10,letterSpacing:'.08em',
+          color:DS.textLo,fontFamily:F.mono,fontSize:6,letterSpacing:'.10em',
         }}>
           <span>{totalOcc} ACTIFS</span>
           <span>SYS·{String(tick).padStart(2,'0')}</span>
@@ -2279,7 +2719,10 @@ export default function View3D({slots=[],isLive=false,onCheckout,onBuyout}){
   const sphereSlots=useMemo(()=>sorted.filter(s=>!['epicenter','prestige','elite'].includes(s?.tier)),[sorted]);
   const cosmosFaces=useMemo(()=>sortPole(buildIcoFaces(3)).map((f,i)=>({...f,slot:sphereSlots[i]||null})),[sphereSlots]);
 
-  const handleTierSelect=useCallback(idx=>{setActiveTier(idx);sceneRef.current?.setTierFocus(idx);},[]);
+  const handleTierSelect=useCallback(idx=>{
+    setActiveTier(idx);
+    sceneRef.current?.setTierFocus(idx);
+  },[]);
   const handleFilterSelect=useCallback(f=>{setActiveFilter(f);sceneRef.current?.setFilterPalette(f);},[]);
 
   useEffect(()=>{
@@ -2349,7 +2792,7 @@ export default function View3D({slots=[],isLive=false,onCheckout,onBuyout}){
         {/* ── Top-right — controls ── */}
         {!loading&&(
           <div style={{position:'absolute',top:12,right:12,zIndex:30,display:'flex',gap:3}}>
-            <LumBtn sm col={DS.gold} onClick={()=>sceneRef.current?.zoomToCenter()}
+            <LumBtn sm col={DS.gold} onClick={()=>{setActiveTier(0);sceneRef.current?.setTierFocus(0);}}
               style={{fontSize:7.5,padding:'5px 11px',clipPath:'polygon(0 0,calc(100% - 6px) 0,100% 6px,100% 100%,0 100%)'}}>
               ◉ ÉPICENTRE
             </LumBtn>
@@ -2364,32 +2807,26 @@ export default function View3D({slots=[],isLive=false,onCheckout,onBuyout}){
           </div>
         )}
 
-        {/* ── Bottom — tier + view filters ── */}
+        {/* ── Bottom — TierCommandBar ── */}
         {!loading&&(
-          <div style={{position:'absolute',bottom:36,left:'50%',transform:'translateX(-50%)',zIndex:30,display:'flex',flexDirection:'column',gap:4,alignItems:'center'}}>
-            {/* Tiers */}
-            <div style={{
-              padding:'5px 8px',
-              background:'rgba(0,4,18,0.94)',
-              border:`0.5px solid rgba(0,200,240,0.10)`,
-              clipPath:'polygon(0 0,calc(100% - 6px) 0,100% 6px,100% 100%,6px 100%,0 calc(100% - 6px))',
-              display:'flex',alignItems:'center',gap:4,
-            }}>
-              <span style={{color:DS.textLo,fontFamily:F.mono,fontSize:6,letterSpacing:'.14em',marginRight:3,paddingRight:6,borderRight:`0.5px solid rgba(0,200,240,0.10)`}}>TIERS</span>
-              <TierFilterBar activeTier={activeTier} onTierSelect={handleTierSelect}/>
-            </div>
-            {/* Filters */}
-            <div style={{
-              padding:'5px 8px',
-              background:'rgba(0,4,18,0.94)',
-              border:`0.5px solid rgba(0,200,240,0.10)`,
-              clipPath:'polygon(0 0,calc(100% - 6px) 0,100% 6px,100% 100%,6px 100%,0 calc(100% - 6px))',
-              display:'flex',alignItems:'center',gap:4,
-            }}>
-              <span style={{color:DS.textLo,fontFamily:F.mono,fontSize:6,letterSpacing:'.14em',marginRight:3,paddingRight:6,borderRight:`0.5px solid rgba(0,200,240,0.10)`}}>VUE</span>
-              <FilterBar activeFilter={activeFilter} onFilterSelect={handleFilterSelect}/>
-            </div>
+          <div style={{position:'absolute',bottom:20,left:'50%',transform:'translateX(-50%)',zIndex:30}}>
+            <TierCommandBar activeTier={activeTier} onTierSelect={handleTierSelect} slots={slots}/>
           </div>
+        )}
+
+        {/* ── Tier Panel — slide gauche ── */}
+        {!loading&&activeTier>=0&&(
+          <TierPanel
+            activeTier={activeTier}
+            slots={slots}
+            onClose={()=>{setActiveTier(-1);sceneRef.current?.setTierFocus(-1);}}
+            onCheckout={onCheckout}
+          />
+        )}
+
+        {/* ── VUE Dial — droite ── */}
+        {!loading&&(
+          <VueDial activeFilter={activeFilter} onFilterSelect={handleFilterSelect}/>
         )}
 
         {/* ── Hint bar ── */}
@@ -2412,6 +2849,7 @@ export default function View3D({slots=[],isLive=false,onCheckout,onBuyout}){
         @keyframes hpulse{0%,100%{opacity:1;}50%{opacity:.15;}}
         @keyframes hfadeUp{from{opacity:0;transform:translateX(-50%) translateY(6px);}to{opacity:1;transform:translateX(-50%) translateY(0);}}
         @keyframes scanMove{0%{transform:translateY(-100%);}100%{transform:translateY(100vh);}}
+        @keyframes panelReveal{from{opacity:0;transform:translateX(-100%);}to{opacity:1;transform:translateX(0);}}
         *{box-sizing:border-box;}
         ::-webkit-scrollbar{width:1.5px;}
         ::-webkit-scrollbar-track{background:transparent;}
