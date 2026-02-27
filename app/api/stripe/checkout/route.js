@@ -23,6 +23,8 @@ export async function POST(request) {
       // Merged block support
       merge_config,  // { x1, y1, x2, y2, slots: [{x,y,tier},...] }
       totalCents: overrideTotalCents, // pre-calculated total for merged blocks
+      // Duration discount
+      billing_type, discount_pct = 0,
     } = await request.json();
 
     // Support both single-slot (slotX/slotY) and anchor of merged block
@@ -108,11 +110,19 @@ export async function POST(request) {
 
     // Calculate price
     // For merged blocks, totalCents is pre-calculated by the frontend (sum of all tier prices)
-    // For single slots, calculate normally
+    // For single slots, calculate normally and apply duration discount
     const pricePerDay = TIER_PRICE[realTier];
+    const rawCents    = pricePerDay * days;
+    const discountedCents = Math.round(rawCents * (1 - Math.min(Math.max(discount_pct, 0), 0.5)));
     const totalCents  = isMerged && overrideTotalCents
       ? overrideTotalCents
-      : pricePerDay * days; // in cents — do NOT multiply by 100 again
+      : discountedCents; // in cents — do NOT multiply by 100 again
+
+    // Human-readable billing label for Stripe description
+    const billingLabel = billing_type === 'annuel' ? ' · ANNUEL −15%'
+      : billing_type === 'mensuel'  ? ' · MENSUEL −10%'
+      : billing_type === 'hebdo'    ? ' · HEBDOMADAIRE −5%'
+      : '';
 
     // Create Stripe Checkout Session
     const blockLabel = isMerged
@@ -129,7 +139,7 @@ export async function POST(request) {
             unit_amount: totalCents,
             product_data: {
               name: blockLabel,
-              description: `Réservation ${days} jours — ADS-SQUARE`,
+              description: `Réservation ${days} jours${billingLabel} — ADS-SQUARE`,
               metadata: {
                 slot_x: String(anchorX),
                 slot_y: String(anchorY),
@@ -148,6 +158,8 @@ export async function POST(request) {
         days: String(days),
         email,
         is_merged: String(isMerged),
+        billing_type: billing_type || 'comptant',
+        discount_pct: String(discount_pct || 0),
       },
       success_url: `${process.env.NEXT_PUBLIC_SITE_URL || 'https://ads-square.com'}?payment=success&slot=${anchorX}-${anchorY}`,
       cancel_url: `${process.env.NEXT_PUBLIC_SITE_URL || 'https://ads-square.com'}?payment=cancelled`,
@@ -196,6 +208,7 @@ export async function POST(request) {
       background_color: background_color || '#0d1828',
       content_type: content_type || 'link',
       badge: badge || 'CRÉATEUR',
+      billing_type: billing_type || 'comptant',
       ...(isMerged ? { merge_config } : {}),
     }]);
 

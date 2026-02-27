@@ -855,6 +855,14 @@ function BlockPreview({ tier, blockForm, category, CATS, SOCIALS, MUSIC_PLATS })
   );
 }
 
+// ─── Duration billing helper (mirrors View3D DurationPicker logic) ──────────
+function getBilling(days) {
+  if (days >= 90) return { type:'annuel',   label:'ANNUEL',       icon:'◈', discount:0.15, color:U.accent,  desc:'−15% · engagement 90j' };
+  if (days >= 30) return { type:'mensuel',  label:'MENSUEL',      icon:'◎', discount:0.10, color:U.cyan,    desc:'−10% · engagement 30j+' };
+  if (days >= 7)  return { type:'hebdo',    label:'HEBDOMADAIRE', icon:'▣', discount:0.05, color:U.violet,  desc:'−5% · engagement 7j+' };
+  return                 { type:'comptant', label:'COMPTANT',     icon:'▪', discount:0,    color:U.muted,   desc:'Paiement unique' };
+}
+
 function CheckoutModal({ slot, onClose }) {
   const { isMobile } = useScreenSize();
   const t = useT();
@@ -896,7 +904,7 @@ function CheckoutModal({ slot, onClose }) {
       );
     } finally { setAuthLoading(false); }
   };
-  const [days, setDays]       = useState(30);
+  const [days, setDays]       = useState(() => slot?.days || 30);
   const [loading, setLoading] = useState(false);
   const [error, setError]     = useState(null);
   // Contenu du bloc
@@ -911,7 +919,10 @@ function CheckoutModal({ slot, onClose }) {
 
   const tier = slot?.tier;
   const pricePerDay = priceEur(tier) || 1;
-  const totalPrice  = pricePerDay * days;
+  const billing     = getBilling(days);
+  const rawPrice    = pricePerDay * days;
+  const totalPrice  = Math.round(rawPrice * (1 - billing.discount));
+  const savings     = rawPrice - totalPrice;
   const c = TIER_COLOR[tier];
 
   const CATS = [
@@ -1005,6 +1016,8 @@ function CheckoutModal({ slot, onClose }) {
       const displayName = blockForm.title || email.split('@')[0];
       const { url } = await createCheckoutSession({
         slotX: slot.x, slotY: slot.y, tier: slot.tier, days, email,
+        billing_type: billing.type,
+        discount_pct: billing.discount,
         display_name: displayName,
         slogan: blockForm.slogan,
         cta_url: blockForm.url,
@@ -1134,13 +1147,43 @@ function CheckoutModal({ slot, onClose }) {
 
         {/* Durée */}
         <div style={{ marginBottom:20 }}>
-          <div style={{ color:U.muted, fontSize:10, fontWeight:600, letterSpacing:'0.07em', marginBottom:8 }}>DURÉE</div>
-          <div style={{ display:'flex', gap:8 }}>
-            {[7,30,90].map(d => (
-              <button key={d} onClick={() => setDays(d)} style={{ flex:1, padding:'9px 6px', borderRadius:8, cursor:'pointer', fontFamily:F.b, background:days===d?`${c}15`:U.faint, border:`1px solid ${days===d?c+'55':U.border}`, color:days===d?U.text:U.muted, fontWeight:days===d?600:400, fontSize:12, transition:'all 0.15s' }}>
-                {d}j <div style={{ fontSize:10, opacity:0.6, marginTop:1 }}>€{pricePerDay*d}</div>
-              </button>
-            ))}
+          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:10 }}>
+            <div style={{ color:U.muted, fontSize:10, fontWeight:600, letterSpacing:'0.07em' }}>DURÉE</div>
+            <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+              <span style={{ padding:'2px 8px', borderRadius:4, background:`${billing.color}18`, border:`1px solid ${billing.color}40`, color:billing.color, fontSize:10, fontWeight:700 }}>{billing.icon} {billing.label}</span>
+              <span style={{ color:U.muted, fontSize:10 }}>{billing.desc}</span>
+            </div>
+          </div>
+
+          {/* Slider */}
+          <div style={{ position:'relative', padding:'4px 0 2px' }}>
+            <style>{`
+              .dur-slider { -webkit-appearance:none; appearance:none; width:100%; height:4px; border-radius:2px; outline:none; cursor:pointer; background: linear-gradient(90deg, ${billing.color} ${((days-1)/89)*100}%, rgba(0,200,240,0.10) ${((days-1)/89)*100}%); }
+              .dur-slider::-webkit-slider-thumb { -webkit-appearance:none; width:14px; height:14px; border-radius:50%; background:${billing.color}; box-shadow:0 0 8px ${billing.color}88; cursor:pointer; }
+              .dur-slider::-moz-range-thumb { width:14px; height:14px; border-radius:50%; background:${billing.color}; box-shadow:0 0 8px ${billing.color}88; cursor:pointer; border:none; }
+            `}</style>
+            <input type="range" min={1} max={90} value={days} className="dur-slider"
+              onChange={e => setDays(Number(e.target.value))}
+              style={{ width:'100%' }} />
+          </div>
+
+          {/* Snap buttons */}
+          <div style={{ display:'flex', gap:6, marginTop:8 }}>
+            {[1,7,30,90].map(d => {
+              const b = getBilling(d);
+              const active = days === d;
+              return (
+                <button key={d} onClick={() => setDays(d)} style={{ flex:1, padding:'7px 4px', borderRadius:7, cursor:'pointer', fontFamily:F.b, background:active?`${b.color}15`:U.faint, border:`1px solid ${active?b.color+'55':U.border}`, color:active?b.color:U.muted, fontWeight:active?700:400, fontSize:11, transition:'all 0.15s', lineHeight:1.4 }}>
+                  {d}J<div style={{ fontSize:9, opacity:0.7, marginTop:1 }}>{b.label}</div>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Counter + savings */}
+          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginTop:8 }}>
+            <span style={{ color:U.text, fontSize:13, fontWeight:600 }}>{days} jour{days>1?'s':''}</span>
+            {savings > 0 && <span style={{ color:billing.color, fontSize:11, fontWeight:700 }}>−€{savings} économisés</span>}
           </div>
         </div>
 
@@ -1316,9 +1359,20 @@ function CheckoutModal({ slot, onClose }) {
         </div>
 
         {/* Récap prix */}
-        <div style={{ padding:'11px 14px', borderRadius:8, background:U.faint, border:`1px solid ${U.border}`, marginBottom:16, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-          <span style={{ color:U.muted, fontSize:13 }}>{days} jours × €{pricePerDay}</span>
-          <span style={{ color:U.text, fontWeight:700, fontSize:18, fontFamily:F.h }}>€{totalPrice}</span>
+        <div style={{ padding:'11px 14px', borderRadius:8, background:U.faint, border:`1px solid ${U.border}`, marginBottom:16 }}>
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom: billing.discount > 0 ? 6 : 0 }}>
+            <span style={{ color:U.muted, fontSize:13 }}>{days} jours × €{pricePerDay}</span>
+            {billing.discount > 0
+              ? <span style={{ color:U.muted, fontSize:13, textDecoration:'line-through' }}>€{rawPrice}</span>
+              : <span style={{ color:U.text, fontWeight:700, fontSize:18, fontFamily:F.h }}>€{totalPrice}</span>
+            }
+          </div>
+          {billing.discount > 0 && (
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+              <span style={{ color:billing.color, fontSize:12, fontWeight:600 }}>{billing.icon} {billing.label} · {Math.round(billing.discount*100)}% de remise</span>
+              <span style={{ color:U.text, fontWeight:700, fontSize:18, fontFamily:F.h }}>€{totalPrice}</span>
+            </div>
+          )}
         </div>
 
         {error && (
