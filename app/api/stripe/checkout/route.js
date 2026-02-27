@@ -161,7 +161,7 @@ export async function POST(request) {
         billing_type: billing_type || 'comptant',
         discount_pct: String(discount_pct || 0),
       },
-      success_url: `${process.env.NEXT_PUBLIC_SITE_URL || 'https://ads-square.com'}?payment=success&slot=${anchorX}-${anchorY}`,
+      success_url: `${process.env.NEXT_PUBLIC_SITE_URL || 'https://ads-square.com'}/merci?slot=${anchorX}-${anchorY}&email=${encodeURIComponent(email)}`,
       cancel_url: `${process.env.NEXT_PUBLIC_SITE_URL || 'https://ads-square.com'}?payment=cancelled`,
     });
 

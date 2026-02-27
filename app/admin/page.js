@@ -1,31 +1,31 @@
 'use client';
 import { useState, useEffect, useCallback, useRef } from 'react';
 
-// ─── Design System ─────────────────────────────────────────────────────────
+// ─── Design System · DYSON COSMOS ─────────────────────────────────────────
 const A = {
-  bg:      '#080808',
-  s1:      '#0e0e0e',
-  s2:      '#141414',
-  card:    '#181818',
-  card2:   '#1e1e1e',
-  border:  'rgba(255,255,255,0.07)',
-  border2: 'rgba(255,255,255,0.12)',
-  text:    '#f0f0f0',
-  muted:   'rgba(255,255,255,0.38)',
-  faint:   'rgba(255,255,255,0.04)',
-  accent:  '#f0b429',
-  accentFg:'#080808',
-  green:   '#22c55e',
-  red:     '#ef4444',
-  blue:    '#3b82f6',
-  purple:  '#a855f7',
-  cyan:    '#06b6d4',
-  orange:  '#f97316',
+  bg:      '#01020A',
+  s1:      'rgba(0,4,16,0.98)',
+  s2:      'rgba(0,8,24,0.97)',
+  card:    'rgba(1,6,18,0.96)',
+  card2:   'rgba(0,4,14,0.94)',
+  border:  'rgba(0,200,240,0.09)',
+  border2: 'rgba(0,200,240,0.18)',
+  text:    '#DDE6F2',
+  muted:   'rgba(140,180,220,0.60)',
+  faint:   'rgba(0,200,240,0.04)',
+  accent:  '#E8A020',
+  accentFg:'#01020A',
+  green:   '#00D880',
+  red:     '#D02848',
+  blue:    '#3B8FE8',
+  purple:  '#9060C8',
+  cyan:    '#00C8E4',
+  orange:  '#E87020',
 };
 const F = {
-  h: "'Clash Display','Syne',sans-serif",
-  b: "'DM Sans','Inter',sans-serif",
-  m: "'Courier New',monospace",
+  h:    "'Rajdhani','Sora',system-ui,sans-serif",
+  b:    "'Rajdhani','Sora',system-ui,sans-serif",
+  m:    "'JetBrains Mono','Fira Code',monospace",
 };
 
 // ── Tiers alignés sur lib/grid.js ────────────────────────────────────────────
@@ -1107,24 +1107,35 @@ function LoginScreen({ onLogin }) {
     finally { setLoading(false); }
   };
   return (
-    <div style={{ minHeight: '100vh', background: A.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: F.b }}>
-      <div style={{ width: 400, background: A.card, border: `1px solid ${A.border2}`, borderRadius: 16, padding: 40 }}>
-        <div style={{ textAlign: 'center', marginBottom: 32 }}>
-          <div style={{ fontSize: 32, fontWeight: 900, fontFamily: F.h, color: A.text, letterSpacing: '-0.02em' }}>
-            ADS-<span style={{ color: A.accent }}>SQUARE</span>
+    <div style={{ minHeight:'100vh', background:A.bg, display:'flex', alignItems:'center', justifyContent:'center', fontFamily:F.m }}>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600;700&display=swap');`}</style>
+      <div style={{
+        width:380,
+        background:'rgba(0,4,16,0.98)',
+        border:`0.5px solid rgba(0,200,240,0.20)`,
+        padding:'40px 36px',
+        clipPath:'polygon(0 0,calc(100% - 16px) 0,100% 16px,100% 100%,16px 100%,0 calc(100% - 16px))',
+        boxShadow:'0 0 80px rgba(0,200,240,0.06), 0 32px 80px rgba(0,0,0,0.9)',
+        position:'relative', overflow:'hidden',
+      }}>
+        {/* Top accent line */}
+        <div style={{ position:'absolute', top:0, left:0, right:0, height:'1.5px', background:'linear-gradient(90deg,transparent,rgba(0,200,240,0.50),rgba(232,160,32,0.30),transparent)', boxShadow:'0 0 8px rgba(0,200,240,0.30)' }}/>
+        <div style={{ textAlign:'center', marginBottom:32 }}>
+          <div style={{ fontSize:24, fontWeight:700, fontFamily:F.m, letterSpacing:'.18em', color:A.accent, marginBottom:6 }}>
+            ◈ DYSON·COSMOS
           </div>
-          <div style={{ color: A.muted, fontSize: 13, marginTop: 6 }}>Administration</div>
+          <div style={{ color:A.muted, fontSize:10, letterSpacing:'.18em' }}>ADMINISTRATION·MK·VII</div>
         </div>
         <input type="password" value={pwd} onChange={e => setPwd(e.target.value)} onKeyDown={e => e.key === 'Enter' && tryLogin()}
-          placeholder="Mot de passe admin" autoFocus
-          style={{ width: '100%', background: A.s1, border: `1px solid ${error ? A.red + '80' : A.border2}`, borderRadius: 9, color: A.text, fontFamily: F.b, fontSize: 14, padding: '12px 16px', outline: 'none', boxSizing: 'border-box', marginBottom: 8 }} />
-        {error && <div style={{ color: A.red, fontSize: 12, marginBottom: 10 }}>{error}</div>}
+          placeholder="MOT DE PASSE ADMIN" autoFocus
+          style={{ width:'100%', background:'rgba(0,4,14,0.80)', border:`0.5px solid ${error ? A.red+'80' : 'rgba(0,200,240,0.22)'}`, color:A.text, fontFamily:F.m, fontSize:12, padding:'12px 14px', outline:'none', boxSizing:'border-box', marginBottom:8, letterSpacing:'.08em', clipPath:'polygon(0 0,calc(100% - 6px) 0,100% 6px,100% 100%,0 100%)' }} />
+        {error && <div style={{ color:A.red, fontSize:11, marginBottom:10, fontFamily:F.m, letterSpacing:'.06em' }}>{error}</div>}
         <button onClick={tryLogin} disabled={loading || !pwd}
-          style={{ width: '100%', padding: '13px', borderRadius: 9, background: A.accent, border: 'none', color: A.accentFg, fontWeight: 700, fontSize: 14, cursor: loading || !pwd ? 'not-allowed' : 'pointer', opacity: loading || !pwd ? 0.6 : 1, fontFamily: F.b, marginTop: 4 }}>
-          {loading ? 'Vérification…' : 'Accéder au dashboard'}
+          style={{ width:'100%', padding:'12px', background: loading||!pwd ? `${A.accent}40` : A.accent, border:'none', color:A.accentFg, fontWeight:700, fontSize:12, cursor:loading||!pwd?'not-allowed':'pointer', opacity:1, fontFamily:F.m, letterSpacing:'.12em', marginTop:4, clipPath:'polygon(0 0,calc(100% - 8px) 0,100% 8px,100% 100%,8px 100%,0 calc(100% - 8px))' }}>
+          {loading ? 'VÉRIFICATION…' : 'ACCÉDER →'}
         </button>
-        <div style={{ textAlign: 'center', marginTop: 20, fontSize: 11, color: A.muted }}>
-          Variable d'env : <code style={{ color: A.accent }}>ADMIN_SECRET</code>
+        <div style={{ textAlign:'center', marginTop:20, fontSize:9, color:A.muted, fontFamily:F.m, letterSpacing:'.10em' }}>
+          ENV : <code style={{ color:A.accent }}>ADMIN_SECRET</code>
         </div>
       </div>
     </div>
@@ -1162,54 +1173,76 @@ export default function AdminDashboard() {
   return (
     <div style={{ minHeight: '100vh', background: A.bg, fontFamily: F.b, color: A.text }}>
       <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600;700&display=swap');
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar { width: 2px; height: 2px; }
         ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 3px; }
+        ::-webkit-scrollbar-thumb { background: rgba(0,200,240,0.15); border-radius: 0; }
         @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes scanMove { 0%{transform:translateY(-100%)} 100%{transform:translateY(100vh)} }
+        @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.2} }
         input[type=number]::-webkit-inner-spin-button { opacity: 0.4; }
       `}</style>
 
       {/* Sidebar */}
-      <div style={{ position: 'fixed', left: 0, top: 0, bottom: 0, width: 220, background: A.s1, borderRight: `1px solid ${A.border}`, display: 'flex', flexDirection: 'column', zIndex: 100 }}>
-        <div style={{ padding: '24px 20px 20px', borderBottom: `1px solid ${A.border}` }}>
-          <div style={{ fontSize: 20, fontWeight: 900, fontFamily: F.h, letterSpacing: '-0.01em' }}>
-            ADS-<span style={{ color: A.accent }}>SQUARE</span>
-          </div>
-          <div style={{ fontSize: 10, color: A.muted, marginTop: 3, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Administration</div>
+      <div style={{
+        position:'fixed', left:0, top:0, bottom:0, width:220,
+        background:'rgba(0,2,10,0.99)',
+        borderRight:`0.5px solid rgba(0,200,240,0.12)`,
+        display:'flex', flexDirection:'column', zIndex:100,
+        boxShadow:'4px 0 40px rgba(0,0,0,0.7)',
+        overflow:'hidden',
+      }}>
+        {/* Subtle scan line */}
+        <div style={{ position:'absolute', inset:0, pointerEvents:'none', overflow:'hidden', zIndex:0 }}>
+          <div style={{ position:'absolute', left:0, right:0, height:'1px', background:'linear-gradient(90deg,transparent,rgba(0,200,240,0.10),transparent)', animation:'scanMove 8s linear infinite' }}/>
         </div>
-        <nav style={{ flex: 1, padding: '12px 10px', display: 'flex', flexDirection: 'column', gap: 2 }}>
+        <div style={{ padding:'20px 16px 16px', borderBottom:`0.5px solid rgba(0,200,240,0.10)`, position:'relative', zIndex:1 }}>
+          <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:4 }}>
+            <span style={{ color:A.accent, fontSize:16, fontFamily:F.m }}>◈</span>
+            <div style={{ fontSize:13, fontWeight:700, fontFamily:F.m, letterSpacing:'.16em', color:A.accent }}>DYSON·COSMOS</div>
+          </div>
+          <div style={{ fontSize:9, color:A.muted, letterSpacing:'.16em', fontFamily:F.m }}>ADMINISTRATION·MK·VII</div>
+        </div>
+        <nav style={{ flex:1, padding:'10px 8px', display:'flex', flexDirection:'column', gap:2, position:'relative', zIndex:1 }}>
           {TABS.map(t => {
             const isActive = tab === t.id;
             return (
               <button key={t.id} onClick={() => setTab(t.id)} style={{
-                display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 8,
-                background: isActive ? `${A.accent}18` : 'transparent',
-                border: `1px solid ${isActive ? A.accent + '40' : 'transparent'}`,
-                color: isActive ? A.accent : A.muted, cursor: 'pointer',
-                fontSize: 13, fontWeight: isActive ? 700 : 500, fontFamily: F.b, textAlign: 'left', transition: 'all 0.15s',
+                display:'flex', alignItems:'center', gap:9, padding:'9px 11px', border:'none',
+                background: isActive ? `${A.accent}12` : 'transparent',
+                borderLeft: `2px solid ${isActive ? A.accent : 'transparent'}`,
+                color: isActive ? A.accent : A.muted, cursor:'pointer',
+                fontSize:11, fontWeight:700, letterSpacing:'.08em', fontFamily:F.m, textAlign:'left',
+                transition:'all .10s',
+                clipPath: isActive ? 'polygon(0 0,calc(100% - 5px) 0,100% 5px,100% 100%,0 100%)' : 'none',
               }}>
-                <span style={{ fontSize: 16, flexShrink: 0 }}>{t.icon}</span>{t.label}
+                <span style={{ fontSize:13, flexShrink:0 }}>{t.icon}</span>{t.label.toUpperCase()}
               </button>
             );
           })}
         </nav>
-        <div style={{ padding: '16px 14px', borderTop: `1px solid ${A.border}` }}>
-          <a href="/" target="_blank" style={{ display: 'block', marginBottom: 8, color: A.muted, fontSize: 11, textDecoration: 'none' }}>↗ Voir le site</a>
-          <button onClick={handleLogout} style={{ width: '100%', padding: '8px', borderRadius: 7, background: 'transparent', border: `1px solid ${A.border}`, color: A.muted, cursor: 'pointer', fontSize: 12, fontFamily: F.b }}>Déconnexion</button>
+        <div style={{ padding:'12px 12px', borderTop:`0.5px solid rgba(0,200,240,0.08)`, position:'relative', zIndex:1 }}>
+          <a href="/" target="_blank" style={{ display:'block', marginBottom:8, color:A.muted, fontSize:10, textDecoration:'none', fontFamily:F.m, letterSpacing:'.08em' }}>↗ VOIR·LE·SITE</a>
+          <button onClick={handleLogout} style={{ width:'100%', padding:'7px', border:`0.5px solid rgba(0,200,240,0.14)`, background:'transparent', color:A.muted, cursor:'pointer', fontSize:10, fontFamily:F.m, letterSpacing:'.08em' }}>DÉCONNEXION</button>
         </div>
       </div>
 
       {/* Main */}
-      <div style={{ marginLeft: 220, minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
-        <div style={{ padding: '18px 32px', borderBottom: `1px solid ${A.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: A.s1, position: 'sticky', top: 0, zIndex: 50 }}>
+      <div style={{ marginLeft:220, minHeight:'100vh', display:'flex', flexDirection:'column' }}>
+        <div style={{
+          padding:'14px 28px', borderBottom:`0.5px solid rgba(0,200,240,0.10)`,
+          display:'flex', alignItems:'center', justifyContent:'space-between',
+          background:'rgba(0,2,10,0.95)', position:'sticky', top:0, zIndex:50,
+          boxShadow:'0 4px 32px rgba(0,0,0,0.5)',
+        }}>
           <div>
-            <div style={{ fontSize: 18, fontWeight: 800, fontFamily: F.h }}>{TABS.find(t => t.id === tab)?.label}</div>
-            <div style={{ fontSize: 11, color: A.muted, marginTop: 2 }}>{new Date().toLocaleDateString('fr-FR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</div>
+            <div style={{ fontSize:16, fontWeight:700, fontFamily:F.m, letterSpacing:'.10em', color:A.text }}>{TABS.find(t => t.id === tab)?.label?.toUpperCase()}</div>
+            <div style={{ fontSize:9, color:A.muted, marginTop:2, fontFamily:F.m, letterSpacing:'.12em' }}>{new Date().toLocaleDateString('fr-FR', { weekday:'long', year:'numeric', month:'long', day:'numeric' }).toUpperCase()}</div>
           </div>
-          <Btn size="sm" variant="ghost" onClick={() => window.location.reload()}>↻ Rafraîchir</Btn>
+          <Btn size="sm" variant="ghost" onClick={() => window.location.reload()}>↻ RAFRAÎCHIR</Btn>
         </div>
-        <div style={{ flex: 1, padding: '28px 32px', maxWidth: 1400, overflowY: 'auto' }}>
+        <div style={{ flex:1, padding:'24px 28px', maxWidth:1400, overflowY:'auto', background:'rgba(0,1,8,0.50)' }}>
           {tab === 'overview'  && <TabOverview  api={api} />}
           {tab === 'bookings'  && <TabBookings  api={api} onToast={onToast} />}
           {tab === 'users'     && <TabUsers     api={api} onToast={onToast} />}
@@ -1220,7 +1253,7 @@ export default function AdminDashboard() {
         </div>
       </div>
 
-      <Toast msg={toast.msg} type={toast.type} onDismiss={() => setToast({ msg: '', type: '' })} />
+      <Toast msg={toast.msg} type={toast.type} onDismiss={() => setToast({ msg:'', type:'' })} />
     </div>
   );
 }

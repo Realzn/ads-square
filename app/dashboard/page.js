@@ -8,22 +8,38 @@ import {
 } from '../../lib/supabase-auth';
 import { TIER_LABEL, TIER_PRICE, TIER_COLOR } from '../../lib/grid';
 
-// ─── Design System ────────────────────────────────────────────
+// ─── Design System · DYSON COSMOS ─────────────────────────────
 const U = {
-  bg: '#080808', s1: '#0f0f0f', s2: '#121212', card: '#1a1a1a',
-  card2: '#1f1f1f', border: 'rgba(255,255,255,0.07)',
-  border2: 'rgba(255,255,255,0.13)',
-  text: '#f0f0f0', muted: 'rgba(255,255,255,0.36)',
-  faint: 'rgba(255,255,255,0.04)', accent: '#d4a84b',
-  accentFg: '#080808', err: '#e05252', green: '#22c55e',
+  bg:      '#01020A',
+  s1:      'rgba(0,4,16,0.98)',
+  s2:      'rgba(0,8,24,0.97)',
+  card:    'rgba(1,6,18,0.96)',
+  card2:   'rgba(0,4,14,0.94)',
+  border:  'rgba(0,200,240,0.09)',
+  border2: 'rgba(0,200,240,0.18)',
+  text:    '#DDE6F2',
+  muted:   'rgba(140,180,220,0.60)',
+  faint:   'rgba(0,200,240,0.04)',
+  accent:  '#E8A020',
+  accentFg:'#01020A',
+  err:     '#D02848',
+  green:   '#00D880',
+  cyan:    '#00C8E4',
 };
-const F = { h: "'Clash Display','Syne',sans-serif", b: "'DM Sans','Inter',sans-serif" };
+const F = {
+  h:    "'Rajdhani','Sora',system-ui,sans-serif",
+  b:    "'Rajdhani','Sora',system-ui,sans-serif",
+  mono: "'JetBrains Mono','Fira Code',monospace",
+};
 
 const inputStyle = (focused) => ({
-  width: '100%', padding: '12px 14px', background: U.s1,
-  border: `1px solid ${focused ? U.accent : U.border2}`,
-  borderRadius: 8, color: U.text, fontSize: 14, outline: 'none',
-  fontFamily: F.b, boxSizing: 'border-box', transition: 'border-color 0.2s',
+  width: '100%', padding: '11px 14px',
+  background: 'rgba(0,4,16,0.80)',
+  border: `0.5px solid ${focused ? U.accent : 'rgba(0,200,240,0.18)'}`,
+  color: U.text, fontSize: 13, outline: 'none',
+  fontFamily: "'JetBrains Mono','Fira Code',monospace",
+  boxSizing: 'border-box', transition: 'border-color 0.2s',
+  clipPath: 'polygon(0 0,calc(100% - 6px) 0,100% 6px,100% 100%,0 100%)',
 });
 
 // ─── Composants UI ────────────────────────────────────────────
@@ -46,17 +62,20 @@ function Field({ label, children }) {
 
 function Btn({ onClick, children, variant = 'primary', size = 'md', disabled, style: extra }) {
   const base = {
-    border: 'none', borderRadius: 8, fontWeight: 600,
+    border: 'none', fontWeight: 700,
     cursor: disabled ? 'not-allowed' : 'pointer',
-    fontFamily: F.b, transition: 'opacity 0.15s',
+    fontFamily: "'JetBrains Mono','Fira Code',monospace",
+    letterSpacing: '.08em',
+    transition: 'opacity 0.15s, box-shadow 0.15s',
     opacity: disabled ? 0.5 : 1,
-    padding: size === 'sm' ? '8px 14px' : '12px 20px',
-    fontSize: size === 'sm' ? 13 : 14,
+    padding: size === 'sm' ? '6px 12px' : '11px 18px',
+    fontSize: size === 'sm' ? 10 : 12,
+    clipPath: 'polygon(0 0,calc(100% - 6px) 0,100% 6px,100% 100%,6px 100%,0 calc(100% - 6px))',
   };
   const variants = {
-    primary: { background: U.accent, color: U.accentFg },
-    secondary: { background: U.faint, color: U.text, border: `1px solid ${U.border2}` },
-    danger: { background: 'rgba(224,82,82,0.12)', color: U.err, border: `1px solid rgba(224,82,82,0.3)` },
+    primary:   { background: U.accent, color: U.accentFg, boxShadow: `0 0 18px ${U.accent}40` },
+    secondary: { background: 'transparent', color: U.muted, border: `0.5px solid rgba(0,200,240,0.22)` },
+    danger:    { background: `${U.err}18`, color: U.err, border: `0.5px solid ${U.err}40` },
   };
   return (
     <button onClick={onClick} disabled={disabled} style={{ ...base, ...variants[variant], ...extra }}>
@@ -1270,93 +1289,105 @@ export default function DashboardPage() {
 
   return (
     <div style={{ minHeight: '100vh', background: U.bg, fontFamily: F.b, display: 'flex', flexDirection: 'column' }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600;700&display=swap');
+        @keyframes blink{0%,100%{opacity:1}50%{opacity:.2}}
+        @keyframes scanMove{0%{transform:translateY(-100%)}100%{transform:translateY(100vh)}}
+        *{box-sizing:border-box}
+        ::-webkit-scrollbar{width:2px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:rgba(0,200,240,.15)}
+      `}</style>
 
       {/* Topbar */}
       <div style={{
-        background: U.s1, borderBottom: `1px solid ${U.border}`,
+        background: 'rgba(0,2,10,0.99)',
+        borderBottom: `0.5px solid rgba(0,200,240,0.14)`,
         padding: '0 24px', display: 'flex', alignItems: 'center',
-        gap: 16, height: 56, flexShrink: 0,
+        gap: 16, height: 52, flexShrink: 0,
+        boxShadow: '0 4px 32px rgba(0,0,0,0.7)',
+        position: 'relative', overflow: 'hidden',
       }}>
-        <Link href="/" style={{
-          fontSize: 16, fontWeight: 800, color: U.accent,
-          textDecoration: 'none', letterSpacing: '0.06em', fontFamily: F.h,
-        }}>
-          ADS-SQUARE
+        <div style={{ position:'absolute', bottom:0, left:0, right:0, height:'0.5px', background:'linear-gradient(90deg,transparent,rgba(0,200,240,0.30),rgba(0,200,240,0.15),transparent)' }}/>
+        <Link href="/" style={{ display:'flex', alignItems:'center', gap:8, textDecoration:'none' }}>
+          <span style={{ color:U.accent, fontSize:15, fontFamily:F.mono }}>◈</span>
+          <span style={{ fontSize:13, fontWeight:700, color:U.accent, letterSpacing:'.16em', fontFamily:F.mono }}>DYSON·COSMOS</span>
         </Link>
-        <div style={{ width: 1, height: 20, background: U.border }} />
-        <span style={{ color: U.muted, fontSize: 13 }}>Espace client</span>
-        <div style={{ flex: 1 }} />
-
-        {/* User + signout */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div style={{ width:1, height:16, background:'rgba(0,200,240,0.15)' }} />
+        <span style={{ color:U.muted, fontSize:10, fontFamily:F.mono, letterSpacing:'.12em' }}>ESPACE·CLIENT</span>
+        <div style={{ flex:1 }} />
+        <div style={{ display:'flex', alignItems:'center', gap:12 }}>
           <div style={{
-            width: 32, height: 32, borderRadius: '50%',
-            background: 'rgba(212,168,75,0.15)', border: `1.5px solid ${U.accent}`,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 12, fontWeight: 700, color: U.accent,
+            width:28, height:28,
+            clipPath:'polygon(15% 0,85% 0,100% 15%,100% 85%,85% 100%,15% 100%,0 85%,0 15%)',
+            background:`${U.accent}15`, border:`1px solid ${U.accent}50`,
+            display:'flex', alignItems:'center', justifyContent:'center',
+            fontSize:11, fontWeight:700, color:U.accent, fontFamily:F.mono,
           }}>
             {(advertiser?.display_name || session?.user?.email || '?')[0].toUpperCase()}
           </div>
-          <span style={{ color: U.text, fontSize: 13 }}>
+          <span style={{ color:U.text, fontSize:12, fontFamily:F.mono }}>
             {advertiser?.display_name || session?.user?.email}
           </span>
           <Btn variant="secondary" size="sm" onClick={async () => { await signOut(); router.replace('/dashboard/login'); }}>
-            Déconnexion
+            DÉCONNEXION
           </Btn>
         </div>
       </div>
 
-      <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+      <div style={{ display:'flex', flex:1, overflow:'hidden' }}>
 
         {/* Sidebar */}
         <div style={{
-          width: 220, background: U.s1, borderRight: `1px solid ${U.border}`,
-          padding: '20px 12px', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 4,
+          width:220, background:'rgba(0,2,10,0.99)', borderRight:`0.5px solid rgba(0,200,240,0.10)`,
+          padding:'16px 10px', flexShrink:0, display:'flex', flexDirection:'column', gap:3,
+          boxShadow:'4px 0 32px rgba(0,0,0,0.5)',
         }}>
           {tabs.map(tab => (
             <button key={tab.id} onClick={() => setActiveTab(tab.id)}
               style={{
-                display: 'flex', alignItems: 'center', gap: 10,
-                padding: '11px 14px', borderRadius: 9, border: 'none',
-                background: activeTab === tab.id ? 'rgba(212,168,75,0.1)' : 'transparent',
-                color: activeTab === tab.id ? U.accent : U.muted,
-                fontSize: 14, fontWeight: activeTab === tab.id ? 700 : 500,
-                cursor: 'pointer', textAlign: 'left', width: '100%',
-                borderLeft: activeTab === tab.id ? `2px solid ${U.accent}` : '2px solid transparent',
-                transition: 'all 0.15s',
+                display:'flex', alignItems:'center', gap:10,
+                padding:'10px 12px', border:'none',
+                background: activeTab===tab.id ? `${U.accent}10` : 'transparent',
+                color: activeTab===tab.id ? U.accent : U.muted,
+                fontSize:12, fontWeight:700, letterSpacing:'.06em',
+                cursor:'pointer', textAlign:'left', width:'100%',
+                borderLeft: activeTab===tab.id ? `2px solid ${U.accent}` : '2px solid transparent',
+                transition:'all .12s', fontFamily:F.mono,
+                clipPath: activeTab===tab.id ? 'polygon(0 0,calc(100% - 5px) 0,100% 5px,100% 100%,0 100%)' : 'none',
               }}>
-              <span style={{ fontSize: 16 }}>{tab.icon}</span>
-              {tab.label}
+              <span style={{ fontSize:13 }}>{tab.icon}</span>
+              {tab.label.toUpperCase()}
             </button>
           ))}
 
-          <div style={{ flex: 1 }} />
+          <div style={{ flex:1 }} />
 
           {/* Bloc sélectionné */}
           {selectedBooking && (
             <div style={{
-              background: U.faint, border: `1px solid ${U.border}`,
-              borderRadius: 8, padding: '10px 12px', fontSize: 12,
+              background:`${U.accent}08`, border:`0.5px solid ${U.accent}30`,
+              padding:'10px 12px', fontSize:12,
+              clipPath:'polygon(0 0,calc(100% - 7px) 0,100% 7px,100% 100%,0 100%)',
+              marginBottom:8,
             }}>
-              <div style={{ color: U.muted, marginBottom: 4, fontSize: 10, letterSpacing: '0.1em', fontWeight: 700 }}>
-                BLOC SÉLECTIONNÉ
+              <div style={{ color:U.muted, marginBottom:4, fontSize:9, letterSpacing:'.14em', fontWeight:700, fontFamily:F.mono }}>
+                BLOC·SÉLECTIONNÉ
               </div>
-              <div style={{ color: U.text, fontWeight: 600 }}>{selectedBooking.display_name}</div>
-              <div style={{ color: U.muted }}>({selectedBooking.slot_x},{selectedBooking.slot_y})</div>
+              <div style={{ color:U.accent, fontWeight:700, fontFamily:F.mono, fontSize:12 }}>{selectedBooking.display_name}</div>
+              <div style={{ color:U.muted, fontFamily:F.mono, fontSize:10 }}>({selectedBooking.slot_x},{selectedBooking.slot_y})</div>
             </div>
           )}
 
           <Link href="/" style={{
-            display: 'flex', alignItems: 'center', gap: 8,
-            padding: '10px 14px', color: U.muted, fontSize: 13,
-            textDecoration: 'none', borderRadius: 8,
+            display:'flex', alignItems:'center', gap:7,
+            padding:'9px 12px', color:U.muted, fontSize:11,
+            textDecoration:'none', fontFamily:F.mono, letterSpacing:'.08em',
           }}>
-            ← Retour à la grille
+            ← RETOUR·GRILLE
           </Link>
         </div>
 
         {/* Main content */}
-        <div style={{ flex: 1, overflow: 'auto', padding: 32 }}>
+        <div style={{ flex:1, overflow:'auto', padding:28, background:'rgba(0,1,8,0.60)' }}>
           {activeTab === 'blocs' && (
             <TabMesBlocs bookings={bookings} onSelect={handleSelectBooking} selectedId={selectedBooking?.id} />
           )}
