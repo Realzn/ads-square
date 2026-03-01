@@ -357,7 +357,7 @@ void main(){
 const RING_FRAG=`
 precision highp float;
 uniform float uTime,uHov,uDim,uSlots,uOccCount,uRingIdx,uScrollSpeed;
-uniform vec3 uCol;
+uniform vec3 uCol,uBrandBg;
 varying vec2 vUV;varying vec3 vN,vWP,vPos;
 
 float hash(float n){return fract(sin(n)*43758.5453);}
@@ -437,9 +437,12 @@ void main(){
   float progFill=step(slotFrac,isOcc>.5?(seed*.5+.3):.08);
   float progress=progMask*progFill*contentY;
 
+  // ── Background brand fill quand occupé ──
+  vec3 brandBgFill=isOcc>.5?uBrandBg*(.6+.4*sin(t*.3+seed)):vec3(0.);
+
   // ── Ambient glow de la face (lueur interne LED-like) ──
   float centerGlow=exp(-pow((uv.y-.5)*2.2,2.)*.8)*exp(-pow((slotFrac-.5)*2.2,2.)*.8);
-  float ambientOcc=isOcc>.5?(.08+.04*sin(t*1.1+seed*6.28)):(.015+.005*sin(t*.4+seed*3.));
+  float ambientOcc=isOcc>.5?(.18+.08*sin(t*1.1+seed*6.28)):(.015+.005*sin(t*.4+seed*3.));
 
   // ── PBR métal pour les bords ──
   vec3 toStar=normalize(-vWP);vec3 viewDir=normalize(cameraPosition-vWP);
@@ -466,16 +469,19 @@ void main(){
 
   // Contenu billboard (face externe uniquement — gl_FrontFacing)
   if(gl_FrontFacing){
-    // Ticker text
-    col+=uCol*ticker*tickerMask*(.8+isOcc*.4)*(1.+.2*sin(t*2.+seed*6.));
+    // Brand bg fill (occupied slots only)
+    if(isOcc>.5)col=mix(col,brandBgFill,contentY*.55);
+    // Ticker text — plus lisible quand occupé
+    float tickerBright=isOcc>.5?2.2:.8;
+    col+=uCol*ticker*tickerMask*tickerBright*(1.+.3*sin(t*2.+seed*6.));
     // Scan line
-    col+=uCol*scanLine*(.4+.3*sin(t*4.+slotIdx));
+    col+=uCol*scanLine*(.6+.4*sin(t*4.+slotIdx));
     // Progress bar
-    col+=mix(vec3(.2,.4,.8),uCol,.6)*progress*1.2;
+    col+=mix(vec3(.2,.4,.8),uCol,.7)*progress*1.8;
     // Ambient glow
     col+=uCol*centerGlow*ambientOcc;
     // Hover boost
-    if(uHov>.5)col+=uCol*(.15+centerGlow*.25);
+    if(uHov>.5)col+=uCol*(.25+centerGlow*.40);
   }
 
   // Spéculaire métal partout
@@ -1090,6 +1096,7 @@ class Scene3D{
       const u={
         uTime:{value:0},
         uCol:{value:new T.Vector3(cr,cg,cb)},
+        uBrandBg:{value:new T.Vector3(.008,.010,.020)},
         uSlots:{value:cfg.slots},
         uOccCount:{value:0},
         uHov:{value:0},
@@ -1392,9 +1399,56 @@ class Scene3D{
   }
 
   assignTierSlots(eliteSlots,prestigeSlots){
+    const T=this.T;
     let ei=0;
-    this.eliteRings.forEach(ring=>{const rs=eliteSlots.slice(ei,ei+ring.cfg.slots);ring.slotData=rs;ring.u.uOccCount.value=rs.filter(s=>s?.occ).length;ei+=ring.cfg.slots;});
+    this.eliteRings.forEach(ring=>{
+      const rs=eliteSlots.slice(ei,ei+ring.cfg.slots);
+      ring.slotData=rs;
+      ring.u.uOccCount.value=rs.filter(s=>s?.occ).length;
+      // Update brand color from first occupied slot's primary_color
+      const firstOcc=rs.find(s=>s?.occ);
+      ring.firstOccSlot=firstOcc||null;
+      if(firstOcc){
+        const pc=firstOcc.primary_color||firstOcc.tenant?.primaryColor||ring.cfg.col;
+        const[r,g,b]=hex3(pc);
+        ring.u.uCol.value.set(r,g,b);
+        // Also set occupied brand bg color
+        const bc=firstOcc.background_color||'#0d1828';
+        const[br,bg2,bb]=hex3(bc);
+        if(ring.u.uBrandBg)ring.u.uBrandBg.value.set(br,bg2,bb);
+      }else{
+        // Restore default ring color when empty
+        const[r,g,b]=hex3(ring.cfg.col);
+        ring.u.uCol.value.set(r,g,b);
+        if(ring.u.uBrandBg)ring.u.uBrandBg.value.set(.008,.010,.020);
+      }
+      ei+=ring.cfg.slots;
+    });
     this.prestigeMoons.forEach((moon,idx)=>{moon.slot=prestigeSlots[idx]||null;moon.u.uOcc.value=moon.slot?.occ?1:0;});
+  }
+
+  // Retourne la position 2D (écran) du centre d'un anneau + slot data
+  getRingScreenData(ringIdx){
+    const ring=this.eliteRings[ringIdx];
+    if(!ring||!this.camera)return null;
+    const T=this.T;
+    // Centre de l'anneau = origine du systemGroup dans le repère monde
+    // On projette un point à la périphérie haute de l'anneau
+    const mR=ring.cfg.mR;
+    // Point "nord" sur l'anneau dans son repère local
+    const localPt=new T.Vector3(mR,0,0);
+    localPt.applyEuler(new T.Euler(ring.mesh.rotation.x,0,ring.mesh.rotation.z,'XYZ'));
+    this.systemGroup.localToWorld(localPt);
+    const proj=localPt.clone().project(this.camera);
+    const W=this.canvas.clientWidth||window.innerWidth;
+    const H=this.canvas.clientHeight||window.innerHeight;
+    return{
+      x:(proj.x*.5+.5)*W,
+      y:(-.5*proj.y+.5)*H,
+      visible:proj.z<1&&proj.z>-1,
+      slot:ring.firstOccSlot||null,
+      occ:ring.u.uOccCount.value>0,
+    };
   }
 
   setFaces(faces,eliteSlots,prestigeSlots,animate=false){
@@ -1466,7 +1520,11 @@ class Scene3D{
         this.prestigeMoons.forEach((m,i)=>{m.u.uHov.value=i===moonIdx?1:0;});
         this._setHov(fi>=0?fi:-1);
         if(isEpic)this.onHover?.({tier:'epicenter',_isEpic:true});
-        else if(isRing)this.onHover?.({tier:'elite',_ringIdx:ringIdx,_ring:this.eliteRings[ringIdx]});
+        else if(isRing){
+          const ring=this.eliteRings[ringIdx];
+          const slot=ring?.firstOccSlot||null;
+          this.onHover?.({tier:'elite',_ringIdx:ringIdx,_ring:ring,slot,_hasOccupant:!!slot});
+        }
         else if(isMoon)this.onHover?.(this.prestigeMoons[moonIdx].slot||{tier:'prestige',_moonIdx:moonIdx});
         else if(fi>=0)this.onHover?.(this.faceSlots[fi]);
         else this.onHover?.(null);
@@ -1481,7 +1539,12 @@ class Scene3D{
       if(!mv&&!wasDragging&&e.target===this.canvas){
         const fi=this._cast(e.clientX,e.clientY);
         if(fi===-3){this._setSel(-1);if(this._epU)this._epU.uSelected.value=1;this.onClick?.(this.epicSlot||{tier:'epicenter'},'epic');}
-        else if(fi<=-10&&fi>-100){const ri=-fi-10;this.onClick?.({tier:'elite',_ringIdx:ri,_ring:this.eliteRings[ri]},'ring',ri);}
+        else if(fi<=-10&&fi>-100){
+          const ri=-fi-10;
+          const ring=this.eliteRings[ri];
+          const slot=ring?.firstOccSlot||null;
+          this.onClick?.({tier:'elite',_ringIdx:ri,_ring:ring,slot,...(slot||{})},'ring',ri);
+        }
         else if(fi<=-100){
           const mi=-fi-100;const moon=this.prestigeMoons[mi];this.onClick?.(moon.slot||{tier:'prestige'},'moon',mi);
           if(moon){const T=this.T;const wp=new T.Vector3();moon.moonMesh.getWorldPosition(wp);const dir=wp.clone().normalize();this.zoomTo({x:dir.x*SPHERE_R*1.6,y:dir.y*SPHERE_R*1.6,z:dir.z*SPHERE_R*1.6+8});}
@@ -2409,6 +2472,86 @@ function DurationPicker({pricePerDay, col, onChange}){
   );
 }
 
+
+// ── RingPromoOverlay — texte de marque qui défile autour de l'anneau ───────────
+// Rendu CSS positionné sur le canvas via projection 3D→2D
+function RingPromoOverlay({ rings }) {
+  if (!rings || rings.length === 0) return null;
+  return (
+    <>
+      {rings.map((ring, i) => {
+        if (!ring.visible || !ring.occ || !ring.slot) return null;
+        const slot = ring.slot;
+        const col = slot.primary_color || '#00C8E4';
+        const bg  = slot.background_color || '#0d1828';
+        const name = slot.display_name || '';
+        const slogan = slot.slogan || '';
+        const badge  = slot.badge || 'CRÉATEUR';
+        const cta    = slot.cta_text || 'Visiter';
+        // Texte répété en boucle pour remplir la largeur
+        const ticker = [badge, name, slogan ? `· ${slogan}` : '', `◈ ${cta} ◈`, name, '·'].filter(Boolean).join('  ');
+        const full   = `${ticker}  ${ticker}  ${ticker}`;
+
+        return (
+          <div key={i} style={{
+            position: 'absolute',
+            left: 0, right: 0,
+            top: Math.max(8, ring.y - 18),
+            height: 36,
+            pointerEvents: 'none',
+            zIndex: 25,
+            overflow: 'hidden',
+            // Masque sur les bords pour fondre avec la scène
+            WebkitMaskImage: 'linear-gradient(90deg, transparent, black 10%, black 90%, transparent)',
+            maskImage: 'linear-gradient(90deg, transparent, black 10%, black 90%, transparent)',
+          }}>
+            {/* Fond semi-transparent de l'anneau */}
+            <div style={{
+              position: 'absolute', inset: 0,
+              background: `linear-gradient(180deg, transparent, ${bg}aa, ${bg}cc, ${bg}aa, transparent)`,
+              borderTop: `0.5px solid ${col}30`,
+              borderBottom: `0.5px solid ${col}30`,
+            }}/>
+            {/* Texte défilant */}
+            <div style={{
+              position: 'absolute',
+              top: '50%', transform: 'translateY(-50%)',
+              whiteSpace: 'nowrap',
+              animation: `ringScroll${i} ${Math.max(8, name.length * 0.6 + 12)}s linear infinite`,
+              fontFamily: "'JetBrains Mono','Fira Code',monospace",
+              fontSize: 11,
+              fontWeight: 700,
+              letterSpacing: '0.16em',
+              color: col,
+              textShadow: `0 0 12px ${col}cc, 0 0 24px ${col}66`,
+              zIndex: 2,
+            }}>
+              {full}
+            </div>
+            {/* Badge couleur à gauche */}
+            <div style={{
+              position: 'absolute', left: 0, top: 0, bottom: 0, width: 3,
+              background: `linear-gradient(180deg, transparent, ${col}, transparent)`,
+              boxShadow: `0 0 12px ${col}`,
+            }}/>
+            <div style={{
+              position: 'absolute', right: 0, top: 0, bottom: 0, width: 3,
+              background: `linear-gradient(180deg, transparent, ${col}, transparent)`,
+              boxShadow: `0 0 12px ${col}`,
+            }}/>
+            <style>{`
+              @keyframes ringScroll${i} {
+                from { transform: translateY(-50%) translateX(0); }
+                to   { transform: translateY(-50%) translateX(-33.33%); }
+              }
+            `}</style>
+          </div>
+        );
+      })}
+    </>
+  );
+}
+
 // Hover data chip — minimal holographic readout
 function HoverChip({info}){
   if(!info?.slot)return null;
@@ -3088,6 +3231,8 @@ export default function View3D({slots=[],isLive=false,onCheckout,onBuyout,onView
   const insideTimer=useRef(null);
   const[isPaused,setIsPaused]=useState(false);
   const[showSidebar,setShowSidebar]=useState(false);
+  const[ringPositions,setRingPositions]=useState([]);
+  const[hovRing,setHovRing]=useState(null);
   const isMobile=useIsMobile();
 
   const handleTogglePause=useCallback(()=>{
@@ -3116,7 +3261,18 @@ export default function View3D({slots=[],isLive=false,onCheckout,onBuyout,onView
       .then(([T,G])=>{
         if(!mounted)return;
         sc=new Scene3D(canvasRef.current);sceneRef.current=sc;sc.epicSlot=epicSlot;
-        sc.onHover=slot=>{clearTimeout(hovTimer.current);if(slot){hovTimer.current=setTimeout(()=>setHovInfo({slot}),80);}else setHovInfo(null);};
+        sc.onHover=info=>{
+          clearTimeout(hovTimer.current);
+          if(info?.tier==='elite'){
+            // Hover sur anneau — slot info inclus depuis PATCH 7
+            setHovRing(info);
+            setHovInfo(null);
+          }else{
+            setHovRing(null);
+            if(info){hovTimer.current=setTimeout(()=>setHovInfo({slot:info}),80);}
+            else setHovInfo(null);
+          }
+        };
         sc.onClick=(slot,type,idx)=>{
           if(type==='epic')setSelSlot(epicSlot||{tier:'epicenter'});
           else if(type==='ring'&&idx!=null)setSelSlot({...slot,tier:'elite',_ring:sc.eliteRings[idx]});
@@ -3128,7 +3284,15 @@ export default function View3D({slots=[],isLive=false,onCheckout,onBuyout,onView
       .then(()=>{
         if(!mounted)return;
         const s=sceneRef.current;s.setFaces(cosmosFaces,eliteSlots,prestigeSlots,false);setLoading(false);
-        insideTimer.current=setInterval(()=>{if(!sceneRef.current)return;setIsInside(p=>{const n=sceneRef.current._insideBlend>.30;return p!==n?n:p;});},500);
+        insideTimer.current=setInterval(()=>{
+          if(!sceneRef.current)return;
+          setIsInside(p=>{const n=sceneRef.current._insideBlend>.30;return p!==n?n:p;});
+          // Mettre à jour la position des anneaux pour les overlays
+          if(sceneRef.current.eliteRings){
+            const pos=sceneRef.current.eliteRings.map((_,i)=>sceneRef.current.getRingScreenData(i)).filter(Boolean);
+            setRingPositions(pos);
+          }
+        },80);
       })
       .catch(e=>{if(!mounted)return;console.error(e);setError('PIPELINE·v7·GPU·FAULT');setLoading(false);});
     return()=>{mounted=false;clearInterval(insideTimer.current);sc?.destroy();sceneRef.current=null;};
@@ -3260,8 +3424,21 @@ export default function View3D({slots=[],isLive=false,onCheckout,onBuyout,onView
           </div>
         )}
 
+        {/* ── Ring promo overlays — texte de marque défilant ── */}
+        {!loading&&<RingPromoOverlay rings={ringPositions}/>}
+
+        {/* ── Ring hover modal ── */}
+        {hovRing&&!selSlot&&hovRing.slot&&(
+          <SlotReveal
+            slot={hovRing.slot}
+            onClose={()=>setHovRing(null)}
+            onRent={s=>{setHovRing(null);handleClose();onCheckout?.(s);}}
+            onBuyout={s=>{setHovRing(null);handleClose();onBuyout?.(s);}}
+          />
+        )}
+
         {isInside&&<InsideChip/>}
-        {hovInfo&&!selSlot&&<HoverChip info={hovInfo}/>}
+        {hovInfo&&!selSlot&&!hovRing&&<HoverChip info={hovInfo}/>}
         {selSlot&&(<SlotReveal slot={selSlot} onClose={handleClose} onRent={s=>{handleClose();onCheckout?.(s);}} onBuyout={s=>{handleClose();onBuyout?.(s);}}/>)}
 
         {/* ── Mobile Sidebar bottom sheet ── */}
