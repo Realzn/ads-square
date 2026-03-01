@@ -1072,7 +1072,6 @@ class Scene3D{
         const t2=new T.CanvasTexture(c);t2.needsUpdate=true;return t2;
       })();
       u.uBrandTex.value=dummyTex;
-      ring._dummyTex=dummyTex; // keep ref for disposal
 
       const mat=new T.ShaderMaterial({
         vertexShader:RING_VERT,fragmentShader:RING_FRAG,uniforms:u,
