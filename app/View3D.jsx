@@ -1380,19 +1380,25 @@ class Scene3D{
   // Build a Canvas2D texture with brand text that scrolls around the ring
   _buildBrandTexture(slot){
     const T=this.T;
-    // Canvas 4096×192 — ratio généreux pour texte grand et lisible
+    // Les données créatives sont dans slot.tenant (noms courts depuis grid.js)
+    const tn = slot.tenant || slot; // fallback si appelé directement avec les champs plats
+
+    const bg  = tn.b  || slot.background_color || '#030810';
+    const fg  = tn.c  || slot.primary_color    || '#00C8E4';
+    const name   = tn.name   || slot.display_name  || '';
+    const slogan = tn.slogan || slot.slogan         || '';
+    const badge  = tn.badge  || slot.badge          || 'ANNEAU·DYSON';
+    const cta    = tn.cta    || slot.cta_text       || '';
+    const url    = tn.url    || slot.cta_url        || '';
+
+    // Log debug pour vérifier les données
+    console.log('[BrandTex]', {name, slogan, badge, fg, bg});
+
+    // ── Canvas 4096×192 — ratio généreux pour texte grand et lisible ──
     const W=4096, H=192;
     const cvs=document.createElement('canvas');
     cvs.width=W; cvs.height=H;
     const ctx=cvs.getContext('2d');
-
-    const bg  = slot.background_color || '#030810';
-    const fg  = slot.primary_color    || '#00C8E4';
-    const name   = slot.display_name  || '';
-    const slogan = slot.slogan        || '';
-    const badge  = slot.badge         || 'ANNEAU·DYSON';
-    const cta    = slot.cta_text      || '';
-    const url    = slot.url           || '';
 
     // ── Fond opaque sombre ──
     ctx.fillStyle = bg;
@@ -1507,10 +1513,10 @@ class Scene3D{
       const firstOcc=rs.find(s=>s?.occ);
       ring.firstOccSlot=firstOcc||null;
       if(firstOcc){
-        const pc=firstOcc.primary_color||firstOcc.tenant?.primaryColor||ring.cfg.col;
+        const pc=firstOcc.tenant?.c||firstOcc.primary_color||firstOcc.tenant?.primaryColor||ring.cfg.col;
         const[r,g,b]=hex3(pc);
         ring.u.uCol.value.set(r,g,b);
-        const bc=firstOcc.background_color||'#0d1828';
+        const bc=firstOcc.tenant?.b||firstOcc.background_color||'#0d1828';
         const[br,bg2,bb]=hex3(bc);
         if(ring.u.uBrandBg)ring.u.uBrandBg.value.set(br,bg2,bb);
         // ── Build Canvas texture avec le vrai texte de marque ──
