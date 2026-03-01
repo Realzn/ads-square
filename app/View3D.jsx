@@ -430,21 +430,35 @@ void main(){
     // ── Fond couleur de marque ──
     if(isOcc>.5) col=mix(col,brandBgFill,contentY*.60);
 
-    // ── TEXTURE MARQUE — scroll sur UV.x = rotation autour de l'anneau ──
-    // On sample toujours (WebGL valide le sampler même dans un if),
-    // puis on gate le résultat avec uHasTex
-    float texSpeed=uScrollSpeed*0.05;
+    // ── TICKER SCROLLANT — message de marque tournant autour de l'anneau ──
+    float texSpeed=uScrollSpeed*0.18;
     float texU=fract(uv.x - t*texSpeed);
-    float texV=clamp((uv.y-0.12)/0.76, 0., 1.);
+    float texV=clamp((uv.y-0.05)/0.90, 0., 1.);
     vec4 texSample=texture2D(uBrandTex, vec2(texU, 1.-texV));
     float texBlend=uHasTex*isOcc*contentY;
-    col=mix(col, texSample.rgb, texSample.a*texBlend*0.90);
-    float lum=dot(texSample.rgb,vec3(.2126,.7152,.0722));
-    col+=uCol*lum*texSample.a*texBlend*0.6*(0.8+0.2*sin(t*2.+seed));
+
+    // Assombrir fortement la base métal pour faire ressortir le texte néon
+    col=mix(col, col*0.08, texBlend*0.92);
+
+    // Fond de marque (couleur bg du slot)
+    col=mix(col, brandBgFill*1.4, texBlend*0.70);
+
+    // Appliquer la texture — couleurs nettes
+    col=mix(col, texSample.rgb, texSample.a*texBlend*0.98);
+
+    // Boost émissif — le texte brille comme un panneau néon
+    float texLum=dot(texSample.rgb,vec3(.2126,.7152,.0722));
+    col+=texSample.rgb*texSample.a*texBlend*1.4*(0.88+0.12*sin(t*1.5+seed*6.28));
+
+    // Halo derrière le texte en couleur marque
+    col+=uCol*texLum*texSample.a*texBlend*0.9*(0.7+0.3*sin(t*0.8+seed*3.14));
+
+    // Bords de l'anneau renforcés en couleur marque quand texte actif
+    col+=uCol*isEdge*(1.-isSep)*texBlend*0.8*(0.6+0.4*sin(t*0.7+seed*2.1));
 
     col+=uCol*scanLine*(.5+.4*sin(t*4.+slotIdx));
     col+=mix(vec3(.2,.4,.8),uCol,.7)*progress*1.8;
-    col+=uCol*centerGlow*ambientOcc*mix(1.0,0.25,uHasTex*isOcc);
+    col+=uCol*centerGlow*ambientOcc*mix(1.0,0.10,uHasTex*isOcc);
     if(uHov>.5)col+=uCol*(.30+centerGlow*.50);
   }
 
@@ -457,14 +471,16 @@ void main(){
 
   float alpha;
   if(isSep>.4){alpha=0.08*viewFade;}
-  else if(isEdge>.2){alpha=mix(.30,.55,isEdge)*(uHov>.5?1.15:1.)*viewFade;}
+  else if(isEdge>.2){alpha=mix(.35,.70,isEdge)*(uHov>.5?1.15:1.)*viewFade;}
   else{
-    float basA=isOcc>.5?0.55:0.20;
+    // Slots avec texture (loués) : bien plus opaques pour que le message soit lisible
+    float basA=uHasTex>.5&&isOcc>.5 ? 0.88 : (isOcc>.5?0.55:0.20);
     alpha=(basA+(scanLine*0.06)+(progress*0.10))*viewFade;
-    if(uHov>.5)alpha=min(alpha*1.3,0.88);
+    if(uHov>.5)alpha=min(alpha*1.1,0.97);
   }
 
-`
+  gl_FragColor=vec4(col,clamp(alpha,0.,1.));
+}`
 const MOON_VERT=`precision highp float;varying vec3 vN,vWP,vPos;void main(){vN=normalize(normalMatrix*normal);vec4 wp=modelMatrix*vec4(position,1.);vWP=wp.xyz;vPos=position;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`;
 const MOON_FRAG=`
 precision highp float;uniform float uTime,uOcc,uHov,uDim;uniform vec3 uBrandCol;varying vec3 vN,vWP,vPos;
@@ -772,7 +788,7 @@ class Scene3D{
     r.toneMappingExposure=1.6;
     r.outputColorSpace=THREE.SRGBColorSpace;
     r.shadowMap.enabled=true;
-    r.shadowMap.type=THREE.PCFSoftShadowMap;
+    r.shadowMap.type=THREE.PCFShadowMap;
     r.shadowMap.autoUpdate=false; // ★ Manuel — update seulement si besoin
     this.renderer=r;
 
@@ -1055,7 +1071,7 @@ class Scene3D{
         uHov:{value:0},
         uDim:{value:0},
         uRingIdx:{value:ringIdx},
-        uScrollSpeed:{value:0.6+ringIdx*.08},
+        uScrollSpeed:{value:1.2+ringIdx*.15},
         uHasTex:{value:0},
         uBrandTex:{value:null},
       };
@@ -1364,66 +1380,118 @@ class Scene3D{
   // Build a Canvas2D texture with brand text that scrolls around the ring
   _buildBrandTexture(slot){
     const T=this.T;
-    // Canvas wide (4096) et étroit (256) — ratio ~16:1 pour envelopper l'anneau
-    const W=4096, H=256;
+    // Canvas 4096×192 — ratio généreux pour texte grand et lisible
+    const W=4096, H=192;
     const cvs=document.createElement('canvas');
     cvs.width=W; cvs.height=H;
     const ctx=cvs.getContext('2d');
 
-    // ── Fond couleur marque ──
-    const bg=slot.background_color||'#0d1828';
-    const fg=slot.primary_color||'#00C8E4';
-    ctx.fillStyle=bg;
-    ctx.fillRect(0,0,W,H);
+    const bg  = slot.background_color || '#030810';
+    const fg  = slot.primary_color    || '#00C8E4';
+    const name   = slot.display_name  || '';
+    const slogan = slot.slogan        || '';
+    const badge  = slot.badge         || 'ANNEAU·DYSON';
+    const cta    = slot.cta_text      || '';
+    const url    = slot.url           || '';
 
-    // ── Gradient lumineux sur les bords hauts/bas ──
-    const gradEdge=ctx.createLinearGradient(0,0,0,H);
-    gradEdge.addColorStop(0,   fg+'99');
-    gradEdge.addColorStop(0.08,fg+'22');
-    gradEdge.addColorStop(0.92,fg+'22');
-    gradEdge.addColorStop(1,   fg+'99');
-    ctx.fillStyle=gradEdge;
-    ctx.fillRect(0,0,W,H);
+    // ── Fond opaque sombre ──
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, W, H);
 
-    // ── Ligne bord haut/bas ──
-    ctx.strokeStyle=fg+'cc';
-    ctx.lineWidth=3;
-    ctx.beginPath();ctx.moveTo(0,6);ctx.lineTo(W,6);ctx.stroke();
-    ctx.beginPath();ctx.moveTo(0,H-6);ctx.lineTo(W,H-6);ctx.stroke();
+    // ── Gradient subtil centre → bords (profondeur) ──
+    const radGrad = ctx.createLinearGradient(0,0,0,H);
+    radGrad.addColorStop(0,   fg+'18');
+    radGrad.addColorStop(0.5, fg+'06');
+    radGrad.addColorStop(1,   fg+'18');
+    ctx.fillStyle = radGrad;
+    ctx.fillRect(0, 0, W, H);
 
-    // ── Texte de la marque ──
-    const name    = slot.display_name || '';
-    const slogan  = slot.slogan || '';
-    const badge   = slot.badge || 'CRÉATEUR';
-    const cta     = slot.cta_text || 'Visiter →';
+    // ── Lignes néon haut et bas ──
+    const drawNeonLine = (y) => {
+      ctx.shadowColor  = fg;
+      ctx.shadowBlur   = 14;
+      ctx.strokeStyle  = fg;
+      ctx.lineWidth    = 3;
+      ctx.globalAlpha  = 0.95;
+      ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke();
+      ctx.shadowBlur   = 6;
+      ctx.strokeStyle  = '#ffffff';
+      ctx.lineWidth    = 1;
+      ctx.globalAlpha  = 0.60;
+      ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke();
+      ctx.globalAlpha  = 1.0;
+      ctx.shadowBlur   = 0;
+    };
+    drawNeonLine(5);
+    drawNeonLine(H - 5);
 
-    // Répéter le texte pour remplir toute la largeur sans vide
-    const unit = `  ${badge}  ◈  ${name}${slogan?' · '+slogan:''}  ◈  ${cta}  ◈`;
-    const reps = Math.ceil(W / (unit.length * 22)) + 2;
-    const fullText = unit.repeat(reps);
+    // ── Construction du texte ticker ──
+    // Ligne principale : NOM · SLOGAN
+    const mainParts = [name, slogan].filter(Boolean);
+    const mainUnit  = `  ◈  ${mainParts.join('  ·  ')}  `;
+    // Ligne secondaire : BADGE · URL/CTA
+    const subParts  = [badge, url||cta].filter(Boolean);
+    const subUnit   = `  ◆  ${subParts.join('  ·  ')}  `;
 
-    // Nom de marque grand — centré verticalement
-    const nameFontSize = Math.min(110, Math.floor(H * 0.52));
-    ctx.font = `700 ${nameFontSize}px 'JetBrains Mono', monospace`;
-    ctx.fillStyle = fg;
-    ctx.shadowColor = fg;
-    ctx.shadowBlur = 28;
+    // Taille de police : remplir ~72% de la hauteur
+    const mainSize = Math.floor(H * 0.46);
+    const subSize  = Math.floor(H * 0.24);
+
+    const fontFace = "'JetBrains Mono', 'Courier New', monospace";
     ctx.textBaseline = 'middle';
-    ctx.fillText(fullText, 0, H * 0.40);
 
-    // Badge + slogan en dessous, plus petit
-    const subFontSize = Math.floor(nameFontSize * 0.38);
-    ctx.font = `600 ${subFontSize}px 'JetBrains Mono', monospace`;
-    ctx.fillStyle = fg+'bb';
-    ctx.shadowBlur = 12;
-    ctx.fillText(fullText, 0, H * 0.74);
+    // Mesure pour calculer les répétitions nécessaires
+    ctx.font = `700 ${mainSize}px ${fontFace}`;
+    const mainUnitW = ctx.measureText(mainUnit).width;
+    const mainReps  = Math.ceil(W / mainUnitW) + 2;
+    const mainFull  = mainUnit.repeat(mainReps);
+
+    ctx.font = `600 ${subSize}px ${fontFace}`;
+    const subUnitW = ctx.measureText(subUnit).width;
+    const subReps  = Math.ceil(W / subUnitW) + 2;
+    const subFull  = subUnit.repeat(subReps);
+
+    // ── Dessin ligne principale — 3 passes (halo large, halo serré, texte net) ──
+    const drawNeonText = (text, font, y, color, passes) => {
+      ctx.font = font;
+      for (const [blur, alpha, col] of passes) {
+        ctx.shadowColor  = color;
+        ctx.shadowBlur   = blur;
+        ctx.fillStyle    = col;
+        ctx.globalAlpha  = alpha;
+        ctx.fillText(text, 0, y);
+      }
+      ctx.globalAlpha = 1.0;
+      ctx.shadowBlur  = 0;
+    };
+
+    const mainY = H * 0.40;
+    const subY  = H * 0.77;
+
+    // Ligne principale — gros néon lumineux
+    drawNeonText(mainFull, `700 ${mainSize}px ${fontFace}`, mainY, fg, [
+      [60, 0.25, fg],          // halo diffus large
+      [20, 0.50, fg],          // halo moyen
+      [8,  0.85, fg],          // bordure lumineuse
+      [0,  1.00, '#ffffff'],   // cœur blanc pur
+    ]);
+
+    // Ligne secondaire — néon plus fin, légèrement teinté
+    drawNeonText(subFull, `600 ${subSize}px ${fontFace}`, subY, fg, [
+      [18, 0.30, fg],
+      [6,  0.70, fg],
+      [0,  0.85, '#cceeff'],
+    ]);
 
     ctx.shadowBlur = 0;
 
     // ── Créer la texture Three.js ──
     const tex = new T.CanvasTexture(cvs);
-    tex.wrapS = T.RepeatWrapping;  // répétition horizontale (scroll)
-    tex.wrapT = T.ClampToEdgeWrapping;
+    tex.wrapS    = T.RepeatWrapping;       // tiling horizontal → scroll continu
+    tex.wrapT    = T.ClampToEdgeWrapping;
+    tex.minFilter= T.LinearFilter;
+    tex.magFilter= T.LinearFilter;
+    tex.anisotropy = 4;                    // netteté aux angles obliques
     tex.needsUpdate = true;
     return tex;
   }
