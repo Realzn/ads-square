@@ -356,162 +356,119 @@ void main(){
 }`;
 const RING_FRAG=`
 precision highp float;
-uniform float uTime,uHov,uDim,uSlots,uOccCount,uRingIdx,uScrollSpeed;
+uniform float uTime,uHov,uDim,uSlots,uOccCount,uRingIdx,uScrollSpeed,uHasTex;
 uniform vec3 uCol,uBrandBg;
+uniform sampler2D uBrandTex;
 varying vec2 vUV;varying vec3 vN,vWP,vPos;
 
 float hash(float n){return fract(sin(n)*43758.5453);}
-float hash2(vec2 n){return fract(sin(dot(n,vec2(127.1,311.7)))*43758.5);}
 float GGX(float NdotH,float rough){float a=rough*rough;float a2=a*a;float d=NdotH*NdotH*(a2-1.)+1.;return a2/(3.14159*d*d);}
-
-// Pseudo-text : lignes de "glyphs" pixelisés procéduraux
-float glyphLine(vec2 uv,float seed){
-  vec2 cell=floor(uv*vec2(14.,4.));
-  float g=hash2(cell+seed*17.3);
-  float on=step(.35,g);
-  vec2 sub=fract(uv*vec2(14.,4.));
-  float border=step(.05,sub.x)*step(.05,sub.y)*(1.-step(.92,sub.x))*(1.-step(.85,sub.y));
-  return on*border;
-}
 
 void main(){
   if(uDim>.5){gl_FragColor=vec4(.004,.005,.008,1.);return;}
   float t=uTime;
-  vec2 uv=vUV; // uv.x = position angulaire (0→1), uv.y = hauteur (-0.5→0.5 + 0.5 = 0→1)
+  vec2 uv=vUV;
 
-  // ── Slot segmentation sur l'axe angulaire ──
+  // ── Slot segmentation ──
   float slotRaw=uv.x*uSlots;
   float slotIdx=floor(slotRaw);
   float slotFrac=fract(slotRaw);
   float seed=hash(slotIdx*.37+uRingIdx*5.13+2.1);
   float isOcc=step(slotIdx,uOccCount-.5);
 
-  // ── Séparateurs entre slots (rainures métalliques) ──
+  // ── Séparateurs ──
   float sepW=.018;
   float sepMask=1.-smoothstep(0.,sepW*.5,min(slotFrac,1.-slotFrac)*2.);
   float isSep=sepMask>.4?1.:0.;
 
-  // ── Structure acier sci-fi — bords haut/bas du ruban ──
-  float edgeH=.055; // proportion de la hauteur pour le bord
-  float topEdge=1.-smoothstep(0.,edgeH,uv.y); // bord haut
-  float botEdge=smoothstep(1.-edgeH,1.,uv.y); // bord bas
+  // ── Bords haut/bas ──
+  float edgeH=.055;
+  float topEdge=1.-smoothstep(0.,edgeH,uv.y);
+  float botEdge=smoothstep(1.-edgeH,1.,uv.y);
   float isEdge=max(topEdge,botEdge);
 
-  // ── Nervures structurelles transversales (tous les 0.08 angulaire) ──
-  float ribFreq=8.; // nombre de nervures par slot
-  float ribRaw=fract(slotFrac*ribFreq);
-  float ribW=.06;
-  float rib=max(0.,1.-abs(ribRaw-.5)*2./ribW);
-  rib=pow(rib,4.)*(.04+isOcc*.03);
+  // ── Nervures ──
+  float ribFreq=8.;float ribRaw=fract(slotFrac*ribFreq);float ribW=.06;
+  float rib=pow(max(0.,1.-abs(ribRaw-.5)*2./ribW),4.)*(.04+isOcc*.03);
+  float hrib=pow(max(0.,1.-abs(fract(uv.y*5.)-.5)*2./.08),4.)*.03;
 
-  // Nervures horizontales (lignes de renfort)
-  float hribFreq=5.;
-  float hrib=pow(max(0.,1.-abs(fract(uv.y*hribFreq)-.5)*2./.08),4.)*.03;
-
-  // ── Zone active : contenu publicitaire (95% de la hauteur, hors bords) ──
+  // ── Zone active ──
   float contentY=smoothstep(edgeH,edgeH+.02,uv.y)*(1.-smoothstep(1.-edgeH-.02,1.-edgeH,uv.y));
 
-  // ── TICKER SCROLLANT ──
-  // scroll UV : défile de droite à gauche, vitesse par slot (légèrement différente)
+  // ── Scan line décorative ──
   float scrollRate=(1.2+seed*.6)*uScrollSpeed;
   float scrollOffset=fract(slotFrac-(t*scrollRate+seed*3.14));
-
-  // Zone ticker : bande de 25% de la hauteur, centrée légèrement bas
-  float tickerCenterY=.62;float tickerH=.20;
-  float tickerMask=smoothstep(0.,.03,uv.y-(tickerCenterY-tickerH*.5))*
-                   (1.-smoothstep(0.,.03,uv.y-(tickerCenterY+tickerH*.5)));
-  tickerMask*=contentY;
-
-  // Glyphs scrollants
-  vec2 tickerUV=vec2(scrollOffset,fract((uv.y-(tickerCenterY-tickerH*.5))/tickerH));
-  float ticker=glyphLine(tickerUV,slotIdx+uRingIdx*3.)*(isOcc>.5?1.:.3);
-
-  // ── Ligne de scan (active seulement si occupé) ──
-  float scanSpeed=.35+seed*.15;
   float scanPos=fract(scrollOffset*3.+seed);
-  float scanLine=exp(-abs(uv.y-scanPos)*60.)*.6*isOcc;
+  float scanLine=exp(-abs(uv.y-scanPos)*60.)*.5*isOcc;
 
-  // ── Barre de progression (bas du slot, occupe % du slot) ──
+  // ── Barre de progression ──
   float progY=.88;float progH=.025;
   float progMask=smoothstep(0.,.01,uv.y-(progY-progH*.5))*(1.-smoothstep(0.,.01,uv.y-(progY+progH*.5)));
   float progFill=step(slotFrac,isOcc>.5?(seed*.5+.3):.08);
   float progress=progMask*progFill*contentY;
 
-  // ── Background brand fill quand occupé ──
-  vec3 brandBgFill=isOcc>.5?uBrandBg*(.6+.4*sin(t*.3+seed)):vec3(0.);
-
-  // ── Ambient glow de la face (lueur interne LED-like) ──
+  // ── Glow ambiant ──
   float centerGlow=exp(-pow((uv.y-.5)*2.2,2.)*.8)*exp(-pow((slotFrac-.5)*2.2,2.)*.8);
   float ambientOcc=isOcc>.5?(.18+.08*sin(t*1.1+seed*6.28)):(.015+.005*sin(t*.4+seed*3.));
+  vec3 brandBgFill=isOcc>.5?uBrandBg*(.7+.3*sin(t*.3+seed)):vec3(0.);
 
-  // ── PBR métal pour les bords ──
+  // ── PBR métal ──
   vec3 toStar=normalize(-vWP);vec3 viewDir=normalize(cameraPosition-vWP);
   vec3 H=normalize(toStar+viewDir);float NdotH=max(0.,dot(normalize(vN),H));float NdotL=max(0.,dot(normalize(vN),toStar))*.5+.5;
-  float roughMetal=uHov>.5?.08:.18;
-  float spec=GGX(NdotH,roughMetal)*NdotL;
+  float roughMetal=uHov>.5?.08:.18;float spec=GGX(NdotH,roughMetal)*NdotL;
   vec3 specCol=mix(vec3(.7,.65,.55),uCol,.25)*spec*.8;
 
-  // ── Assemblage ──
-  vec3 steelDark =vec3(.012,.015,.022);  // acier sombre
-  vec3 steelMid  =vec3(.028,.034,.048);  // acier brossé
-  vec3 steelLight =vec3(.06,.075,.10);   // réflexion
-  vec3 edgeSteel =mix(steelMid,steelLight,spec*2.);
-
-  // Base métallique
+  // ── Assemblage base métal ──
+  vec3 steelDark=vec3(.012,.015,.022);vec3 steelMid=vec3(.028,.034,.048);vec3 steelLight=vec3(.06,.075,.10);
+  vec3 edgeSteel=mix(steelMid,steelLight,spec*2.);
   vec3 col=mix(steelDark,steelMid,NdotL*.4+rib+hrib);
-
-  // Bords structurels lumineux
   col=mix(col,edgeSteel+uCol*.12,isEdge*(1.-isSep));
   col+=uCol*isEdge*.06*(.6+.4*sin(t*.8+seed*3.14));
-
-  // Séparateurs (rainures sombres)
   col=mix(col,steelDark*.4,isSep*.85);
 
-  // Contenu billboard (face externe uniquement — gl_FrontFacing)
   if(gl_FrontFacing){
-    // Brand bg fill (occupied slots only)
-    if(isOcc>.5)col=mix(col,brandBgFill,contentY*.55);
-    // Ticker text — plus lisible quand occupé
-    float tickerBright=isOcc>.5?2.2:.8;
-    col+=uCol*ticker*tickerMask*tickerBright*(1.+.3*sin(t*2.+seed*6.));
-    // Scan line
-    col+=uCol*scanLine*(.6+.4*sin(t*4.+slotIdx));
-    // Progress bar
+    // ── Fond couleur de marque ──
+    if(isOcc>.5) col=mix(col,brandBgFill,contentY*.60);
+
+    // ── TEXTURE MARQUE — scroll sur UV.x = rotation autour de l'anneau ──
+    if(uHasTex>.5 && isOcc>.5){
+      // uv.x va de 0 a 1 autour de l'anneau.
+      // On scrolle la texture en soustrayant le temps : le texte tourne sur l'anneau.
+      float texSpeed=uScrollSpeed*0.05;
+      float texU=fract(uv.x - t*texSpeed);
+      // On mappe uv.y sur la zone centrale du ruban (hors bords)
+      float texV=clamp((uv.y-0.12)/0.76, 0., 1.);
+      vec4 tex=texture2D(uBrandTex, vec2(texU, 1.-texV));
+      // Blending: la texture s'affiche sur le fond de marque
+      col=mix(col, tex.rgb, tex.a*contentY*0.90);
+      // Halo lumineux autour du texte (bloom integré)
+      float lum=dot(tex.rgb,vec3(.2126,.7152,.0722));
+      col+=uCol*lum*tex.a*contentY*0.6*(0.8+0.2*sin(t*2.+seed));
+    }
+
+    col+=uCol*scanLine*(.5+.4*sin(t*4.+slotIdx));
     col+=mix(vec3(.2,.4,.8),uCol,.7)*progress*1.8;
-    // Ambient glow
-    col+=uCol*centerGlow*ambientOcc;
-    // Hover boost
-    if(uHov>.5)col+=uCol*(.25+centerGlow*.40);
+    col+=uCol*centerGlow*ambientOcc*(uHasTex>.5?0.25:1.0);
+    if(uHov>.5)col+=uCol*(.30+centerGlow*.50);
   }
 
-  // Spéculaire métal partout
   col+=specCol*(1.+isEdge*.8);
 
-  // ── Angle de vue — transparence aux extrémités (vue rasante) ──
-  // NdotV proche de 0 = vue de côté (extrémité) → on atténue fortement
   vec3 viewDir2=normalize(cameraPosition-vWP);
   float NdotV=abs(dot(normalize(vN),viewDir2));
-  // Fade douce : full opacity face-on, quasi-transparent edge-on
   float angleFade=smoothstep(0.0,0.38,NdotV);
-  // On garde une trace subtile même à 0° pour l'élégance
-  float minVis=0.08;
-  float viewFade=minVis+(1.-minVis)*angleFade;
+  float viewFade=0.08+(1.-0.08)*angleFade;
 
   float alpha;
-  if(isSep>.4){
-    alpha=.08*viewFade;
-  }else if(isEdge>.2){
-    alpha=mix(.30,.55,isEdge)*(uHov>.5?1.15:1.)*viewFade;
-  }else{
-    float basA=isOcc>.5?.40:.20;
-    alpha=(basA+(ticker*tickerMask*.15)+(scanLine*.06)+(progress*.10))*viewFade;
-    if(uHov>.5)alpha=min(alpha*1.2,.75);
+  if(isSep>.4){alpha=0.08*viewFade;}
+  else if(isEdge>.2){alpha=mix(.30,.55,isEdge)*(uHov>.5?1.15:1.)*viewFade;}
+  else{
+    float basA=isOcc>.5?0.55:0.20;
+    alpha=(basA+(scanLine*0.06)+(progress*0.10))*viewFade;
+    if(uHov>.5)alpha=min(alpha*1.3,0.88);
   }
 
-  gl_FragColor=vec4(clamp(col,0.,2.5),clamp(alpha,0.,.88));
-}`;
-
-
+`
 const MOON_VERT=`precision highp float;varying vec3 vN,vWP,vPos;void main(){vN=normalize(normalMatrix*normal);vec4 wp=modelMatrix*vec4(position,1.);vWP=wp.xyz;vPos=position;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`;
 const MOON_FRAG=`
 precision highp float;uniform float uTime,uOcc,uHov,uDim;uniform vec3 uBrandCol;varying vec3 vN,vWP,vPos;
@@ -1103,6 +1060,8 @@ class Scene3D{
         uDim:{value:0},
         uRingIdx:{value:ringIdx},
         uScrollSpeed:{value:0.6+ringIdx*.08},
+        uHasTex:{value:0},
+        uBrandTex:{value:null},
       };
 
       // ── Géométrie ruban LOD (segments) ──
@@ -1398,6 +1357,73 @@ class Scene3D{
     this.prestigeMoons.forEach(({u})=>{u.uBrandCol.value.set(pr,pg,pb);});
   }
 
+  // Build a Canvas2D texture with brand text that scrolls around the ring
+  _buildBrandTexture(slot){
+    const T=this.T;
+    // Canvas wide (4096) et étroit (256) — ratio ~16:1 pour envelopper l'anneau
+    const W=4096, H=256;
+    const cvs=document.createElement('canvas');
+    cvs.width=W; cvs.height=H;
+    const ctx=cvs.getContext('2d');
+
+    // ── Fond couleur marque ──
+    const bg=slot.background_color||'#0d1828';
+    const fg=slot.primary_color||'#00C8E4';
+    ctx.fillStyle=bg;
+    ctx.fillRect(0,0,W,H);
+
+    // ── Gradient lumineux sur les bords hauts/bas ──
+    const gradEdge=ctx.createLinearGradient(0,0,0,H);
+    gradEdge.addColorStop(0,   fg+'99');
+    gradEdge.addColorStop(0.08,fg+'22');
+    gradEdge.addColorStop(0.92,fg+'22');
+    gradEdge.addColorStop(1,   fg+'99');
+    ctx.fillStyle=gradEdge;
+    ctx.fillRect(0,0,W,H);
+
+    // ── Ligne bord haut/bas ──
+    ctx.strokeStyle=fg+'cc';
+    ctx.lineWidth=3;
+    ctx.beginPath();ctx.moveTo(0,6);ctx.lineTo(W,6);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(0,H-6);ctx.lineTo(W,H-6);ctx.stroke();
+
+    // ── Texte de la marque ──
+    const name    = slot.display_name || '';
+    const slogan  = slot.slogan || '';
+    const badge   = slot.badge || 'CRÉATEUR';
+    const cta     = slot.cta_text || 'Visiter →';
+
+    // Répéter le texte pour remplir toute la largeur sans vide
+    const unit = `  ${badge}  ◈  ${name}${slogan?' · '+slogan:''}  ◈  ${cta}  ◈`;
+    const reps = Math.ceil(W / (unit.length * 22)) + 2;
+    const fullText = unit.repeat(reps);
+
+    // Nom de marque grand — centré verticalement
+    const nameFontSize = Math.min(110, Math.floor(H * 0.52));
+    ctx.font = `700 ${nameFontSize}px 'JetBrains Mono', monospace`;
+    ctx.fillStyle = fg;
+    ctx.shadowColor = fg;
+    ctx.shadowBlur = 28;
+    ctx.textBaseline = 'middle';
+    ctx.fillText(fullText, 0, H * 0.40);
+
+    // Badge + slogan en dessous, plus petit
+    const subFontSize = Math.floor(nameFontSize * 0.38);
+    ctx.font = `600 ${subFontSize}px 'JetBrains Mono', monospace`;
+    ctx.fillStyle = fg+'bb';
+    ctx.shadowBlur = 12;
+    ctx.fillText(fullText, 0, H * 0.74);
+
+    ctx.shadowBlur = 0;
+
+    // ── Créer la texture Three.js ──
+    const tex = new T.CanvasTexture(cvs);
+    tex.wrapS = T.RepeatWrapping;  // répétition horizontale (scroll)
+    tex.wrapT = T.ClampToEdgeWrapping;
+    tex.needsUpdate = true;
+    return tex;
+  }
+
   assignTierSlots(eliteSlots,prestigeSlots){
     const T=this.T;
     let ei=0;
@@ -1412,15 +1438,22 @@ class Scene3D{
         const pc=firstOcc.primary_color||firstOcc.tenant?.primaryColor||ring.cfg.col;
         const[r,g,b]=hex3(pc);
         ring.u.uCol.value.set(r,g,b);
-        // Also set occupied brand bg color
         const bc=firstOcc.background_color||'#0d1828';
         const[br,bg2,bb]=hex3(bc);
         if(ring.u.uBrandBg)ring.u.uBrandBg.value.set(br,bg2,bb);
+        // ── Build Canvas texture avec le vrai texte de marque ──
+        if(ring._brandTex){ring._brandTex.dispose();}
+        ring._brandTex=this._buildBrandTexture(firstOcc);
+        ring.u.uBrandTex.value=ring._brandTex;
+        ring.u.uHasTex.value=1;
       }else{
-        // Restore default ring color when empty
+        // Pas de locataire — reset couleurs et supprimer texture
         const[r,g,b]=hex3(ring.cfg.col);
         ring.u.uCol.value.set(r,g,b);
         if(ring.u.uBrandBg)ring.u.uBrandBg.value.set(.008,.010,.020);
+        if(ring._brandTex){ring._brandTex.dispose();ring._brandTex=null;}
+        ring.u.uBrandTex.value=null;
+        ring.u.uHasTex.value=0;
       }
       ei+=ring.cfg.slots;
     });
@@ -1716,10 +1749,11 @@ class Scene3D{
     [this.panelMesh,this.epicMesh,this.godRays,this.viralSwarm,this.starfieldPoints].forEach(m=>{if(m){m.geometry?.dispose();/* material already disposed above */}});
     this.cosmicObjects.forEach(({m})=>{m?.geometry?.dispose();m?.material?.dispose();});
     this.cometMeshes.forEach(({m})=>{m?.geometry?.dispose();m?.material?.dispose();});
-    this.eliteRings.forEach(({mesh,solidMesh,trailLine})=>{
+    this.eliteRings.forEach(({mesh,solidMesh,trailLine,_brandTex})=>{
       mesh?.geometry?.dispose();mesh?.material?.dispose();
       solidMesh?.geometry?.dispose();solidMesh?.material?.dispose();
       trailLine?.geometry?.dispose();trailLine?.material?.dispose();
+      _brandTex?.dispose();
     });
     Object.values(this._ringGeoCache).forEach(g=>g?.dispose());this._ringGeoCache={};
     this.prestigeMoons.forEach(({moonMesh,haloMesh})=>{moonMesh?.geometry?.dispose();moonMesh?.material?.dispose();haloMesh?.geometry?.dispose();haloMesh?.material?.dispose();});
@@ -2473,84 +2507,6 @@ function DurationPicker({pricePerDay, col, onChange}){
 }
 
 
-// ── RingPromoOverlay — texte de marque qui défile autour de l'anneau ───────────
-// Rendu CSS positionné sur le canvas via projection 3D→2D
-function RingPromoOverlay({ rings }) {
-  if (!rings || rings.length === 0) return null;
-  return (
-    <>
-      {rings.map((ring, i) => {
-        if (!ring.visible || !ring.occ || !ring.slot) return null;
-        const slot = ring.slot;
-        const col = slot.primary_color || '#00C8E4';
-        const bg  = slot.background_color || '#0d1828';
-        const name = slot.display_name || '';
-        const slogan = slot.slogan || '';
-        const badge  = slot.badge || 'CRÉATEUR';
-        const cta    = slot.cta_text || 'Visiter';
-        // Texte répété en boucle pour remplir la largeur
-        const ticker = [badge, name, slogan ? `· ${slogan}` : '', `◈ ${cta} ◈`, name, '·'].filter(Boolean).join('  ');
-        const full   = `${ticker}  ${ticker}  ${ticker}`;
-
-        return (
-          <div key={i} style={{
-            position: 'absolute',
-            left: 0, right: 0,
-            top: Math.max(8, ring.y - 18),
-            height: 36,
-            pointerEvents: 'none',
-            zIndex: 25,
-            overflow: 'hidden',
-            // Masque sur les bords pour fondre avec la scène
-            WebkitMaskImage: 'linear-gradient(90deg, transparent, black 10%, black 90%, transparent)',
-            maskImage: 'linear-gradient(90deg, transparent, black 10%, black 90%, transparent)',
-          }}>
-            {/* Fond semi-transparent de l'anneau */}
-            <div style={{
-              position: 'absolute', inset: 0,
-              background: `linear-gradient(180deg, transparent, ${bg}aa, ${bg}cc, ${bg}aa, transparent)`,
-              borderTop: `0.5px solid ${col}30`,
-              borderBottom: `0.5px solid ${col}30`,
-            }}/>
-            {/* Texte défilant */}
-            <div style={{
-              position: 'absolute',
-              top: '50%', transform: 'translateY(-50%)',
-              whiteSpace: 'nowrap',
-              animation: `ringScroll${i} ${Math.max(8, name.length * 0.6 + 12)}s linear infinite`,
-              fontFamily: "'JetBrains Mono','Fira Code',monospace",
-              fontSize: 11,
-              fontWeight: 700,
-              letterSpacing: '0.16em',
-              color: col,
-              textShadow: `0 0 12px ${col}cc, 0 0 24px ${col}66`,
-              zIndex: 2,
-            }}>
-              {full}
-            </div>
-            {/* Badge couleur à gauche */}
-            <div style={{
-              position: 'absolute', left: 0, top: 0, bottom: 0, width: 3,
-              background: `linear-gradient(180deg, transparent, ${col}, transparent)`,
-              boxShadow: `0 0 12px ${col}`,
-            }}/>
-            <div style={{
-              position: 'absolute', right: 0, top: 0, bottom: 0, width: 3,
-              background: `linear-gradient(180deg, transparent, ${col}, transparent)`,
-              boxShadow: `0 0 12px ${col}`,
-            }}/>
-            <style>{`
-              @keyframes ringScroll${i} {
-                from { transform: translateY(-50%) translateX(0); }
-                to   { transform: translateY(-50%) translateX(-33.33%); }
-              }
-            `}</style>
-          </div>
-        );
-      })}
-    </>
-  );
-}
 
 // Hover data chip — minimal holographic readout
 function HoverChip({info}){
@@ -3231,7 +3187,6 @@ export default function View3D({slots=[],isLive=false,onCheckout,onBuyout,onView
   const insideTimer=useRef(null);
   const[isPaused,setIsPaused]=useState(false);
   const[showSidebar,setShowSidebar]=useState(false);
-  const[ringPositions,setRingPositions]=useState([]);
   const[hovRing,setHovRing]=useState(null);
   const isMobile=useIsMobile();
 
@@ -3287,11 +3242,7 @@ export default function View3D({slots=[],isLive=false,onCheckout,onBuyout,onView
         insideTimer.current=setInterval(()=>{
           if(!sceneRef.current)return;
           setIsInside(p=>{const n=sceneRef.current._insideBlend>.30;return p!==n?n:p;});
-          // Mettre à jour la position des anneaux pour les overlays
-          if(sceneRef.current.eliteRings){
-            const pos=sceneRef.current.eliteRings.map((_,i)=>sceneRef.current.getRingScreenData(i)).filter(Boolean);
-            setRingPositions(pos);
-          }
+
         },80);
       })
       .catch(e=>{if(!mounted)return;console.error(e);setError('PIPELINE·v7·GPU·FAULT');setLoading(false);});
@@ -3424,8 +3375,7 @@ export default function View3D({slots=[],isLive=false,onCheckout,onBuyout,onView
           </div>
         )}
 
-        {/* ── Ring promo overlays — texte de marque défilant ── */}
-        {!loading&&<RingPromoOverlay rings={ringPositions}/>}
+        {/* Ring brand text rendered directly on ring geometry via CanvasTexture */}
 
         {/* ── Ring hover modal ── */}
         {hovRing&&!selSlot&&hovRing.slot&&(
