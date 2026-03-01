@@ -431,24 +431,20 @@ void main(){
     if(isOcc>.5) col=mix(col,brandBgFill,contentY*.60);
 
     // ── TEXTURE MARQUE — scroll sur UV.x = rotation autour de l'anneau ──
-    if(uHasTex>.5 && isOcc>.5){
-      // uv.x va de 0 a 1 autour de l'anneau.
-      // On scrolle la texture en soustrayant le temps : le texte tourne sur l'anneau.
-      float texSpeed=uScrollSpeed*0.05;
-      float texU=fract(uv.x - t*texSpeed);
-      // On mappe uv.y sur la zone centrale du ruban (hors bords)
-      float texV=clamp((uv.y-0.12)/0.76, 0., 1.);
-      vec4 tex=texture2D(uBrandTex, vec2(texU, 1.-texV));
-      // Blending: la texture s'affiche sur le fond de marque
-      col=mix(col, tex.rgb, tex.a*contentY*0.90);
-      // Halo lumineux autour du texte (bloom integré)
-      float lum=dot(tex.rgb,vec3(.2126,.7152,.0722));
-      col+=uCol*lum*tex.a*contentY*0.6*(0.8+0.2*sin(t*2.+seed));
-    }
+    // On sample toujours (WebGL valide le sampler même dans un if),
+    // puis on gate le résultat avec uHasTex
+    float texSpeed=uScrollSpeed*0.05;
+    float texU=fract(uv.x - t*texSpeed);
+    float texV=clamp((uv.y-0.12)/0.76, 0., 1.);
+    vec4 texSample=texture2D(uBrandTex, vec2(texU, 1.-texV));
+    float texBlend=uHasTex*isOcc*contentY;
+    col=mix(col, texSample.rgb, texSample.a*texBlend*0.90);
+    float lum=dot(texSample.rgb,vec3(.2126,.7152,.0722));
+    col+=uCol*lum*texSample.a*texBlend*0.6*(0.8+0.2*sin(t*2.+seed));
 
     col+=uCol*scanLine*(.5+.4*sin(t*4.+slotIdx));
     col+=mix(vec3(.2,.4,.8),uCol,.7)*progress*1.8;
-    col+=uCol*centerGlow*ambientOcc*(uHasTex>.5?0.25:1.0);
+    col+=uCol*centerGlow*ambientOcc*mix(1.0,0.25,uHasTex*isOcc);
     if(uHov>.5)col+=uCol*(.30+centerGlow*.50);
   }
 
@@ -1069,6 +1065,15 @@ class Scene3D{
       const buildGeo=lod=>this._buildRingRibbonGeo(cfg.mR,cfg.tR,cfg.thick||cfg.mR*.015,segsLOD[lod]);
       const geo=buildGeo(1); // démarrer en LOD medium
 
+      // Dummy 1×1 texture so WebGL never receives a null sampler
+      const dummyTex=(()=>{
+        const c=document.createElement('canvas');c.width=1;c.height=1;
+        const ctx2d=c.getContext('2d');ctx2d.fillStyle='#000000';ctx2d.fillRect(0,0,1,1);
+        const t2=new T.CanvasTexture(c);t2.needsUpdate=true;return t2;
+      })();
+      u.uBrandTex.value=dummyTex;
+      ring._dummyTex=dummyTex; // keep ref for disposal
+
       const mat=new T.ShaderMaterial({
         vertexShader:RING_VERT,fragmentShader:RING_FRAG,uniforms:u,
         transparent:true,depthWrite:false,
@@ -1105,7 +1110,7 @@ class Scene3D{
       );
       this.systemGroup.add(trailLine);
 
-      this.eliteRings.push({mesh,solidMesh,u,cfg,slotOffset,trailLine,_currentLOD:1,_segsLOD:segsLOD});
+      this.eliteRings.push({mesh,solidMesh,u,cfg,slotOffset,trailLine,_currentLOD:1,_segsLOD:segsLOD,_brandTex:null,_dummyTex:dummyTex});
       slotOffset+=cfg.slots;
     });
   }
@@ -1452,7 +1457,7 @@ class Scene3D{
         ring.u.uCol.value.set(r,g,b);
         if(ring.u.uBrandBg)ring.u.uBrandBg.value.set(.008,.010,.020);
         if(ring._brandTex){ring._brandTex.dispose();ring._brandTex=null;}
-        ring.u.uBrandTex.value=null;
+        ring.u.uBrandTex.value=ring._dummyTex; // restore dummy — never null
         ring.u.uHasTex.value=0;
       }
       ei+=ring.cfg.slots;
@@ -1749,11 +1754,12 @@ class Scene3D{
     [this.panelMesh,this.epicMesh,this.godRays,this.viralSwarm,this.starfieldPoints].forEach(m=>{if(m){m.geometry?.dispose();/* material already disposed above */}});
     this.cosmicObjects.forEach(({m})=>{m?.geometry?.dispose();m?.material?.dispose();});
     this.cometMeshes.forEach(({m})=>{m?.geometry?.dispose();m?.material?.dispose();});
-    this.eliteRings.forEach(({mesh,solidMesh,trailLine,_brandTex})=>{
+    this.eliteRings.forEach(({mesh,solidMesh,trailLine,_brandTex,_dummyTex})=>{
       mesh?.geometry?.dispose();mesh?.material?.dispose();
       solidMesh?.geometry?.dispose();solidMesh?.material?.dispose();
       trailLine?.geometry?.dispose();trailLine?.material?.dispose();
       _brandTex?.dispose();
+      _dummyTex?.dispose();
     });
     Object.values(this._ringGeoCache).forEach(g=>g?.dispose());this._ringGeoCache={};
     this.prestigeMoons.forEach(({moonMesh,haloMesh})=>{moonMesh?.geometry?.dispose();moonMesh?.material?.dispose();haloMesh?.geometry?.dispose();haloMesh?.material?.dispose();});
