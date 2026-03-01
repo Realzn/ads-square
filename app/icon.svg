@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <rect width="32" height="32" rx="7" fill="#0a0b16"/>
+  <!-- Grid lines -->
+  <line x1="11" y1="4" x2="11" y2="28" stroke="#1e2240" stroke-width="0.5"/>
+  <line x1="21" y1="4" x2="21" y2="28" stroke="#1e2240" stroke-width="0.5"/>
+  <line x1="4" y1="11" x2="28" y2="11" stroke="#1e2240" stroke-width="0.5"/>
+  <line x1="4" y1="21" x2="28" y2="21" stroke="#1e2240" stroke-width="0.5"/>
+  <!-- Occupied blocks -->
+  <rect x="4" y="4" width="6" height="6" rx="1.5" fill="#f0b42920" stroke="#f0b429" stroke-width="0.8"/>
+  <rect x="22" y="12" width="6" height="6" rx="1" fill="#ff4d8f18" stroke="#ff4d8f" stroke-width="0.6"/>
+  <rect x="12" y="22" width="6" height="6" rx="1" fill="#00c8e418" stroke="#00c8e4" stroke-width="0.6"/>
+  <!-- Center block — epicenter -->
+  <rect x="12" y="12" width="8" height="8" rx="2" fill="#f0b42930" stroke="#f0b429" stroke-width="1"/>
+  <rect x="13.5" y="13.5" width="5" height="5" rx="1.5" fill="#f0b429"/>
+  <!-- Glow dots -->
+  <circle cx="7" cy="7" r="1.5" fill="#f0b429" opacity="0.8"/>
+  <circle cx="25" cy="15" r="1" fill="#ff4d8f" opacity="0.7"/>
+  <circle cx="15" cy="25" r="1" fill="#00c8e4" opacity="0.7"/>
+</svg>

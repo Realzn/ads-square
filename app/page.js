@@ -1,5 +1,5 @@
 'use client';
-import { useState, useMemo, useCallback, useRef, useEffect, memo, createContext, useContext } from 'react';
+import { useState, useMemo, useCallback, useRef, useEffect, createContext, useContext } from 'react';
 import dynamic from 'next/dynamic';
 
 // ─── Vue 3D (Three.js) — chargée dynamiquement (no SSR) ───────────────────
@@ -146,71 +146,13 @@ function useGridData() {
     return unsubscribe;
   }, [structuralGrid]);
 
+
   return { slots, isLive, loading };
 }
 
-// ─── Prix affichage (TIER_PRICE est en centimes pour Stripe) ──
-const priceEur = tier => TIER_PRICE[tier] / 100;
+// ─── Small Components ──────────────────────────────────────────────────────────
 
-// ─── Grid Layout Engine ────────────────────────────────────────
-const BASE_SIZE = { epicenter: 120, prestige: 54, elite: 34, business: 20, standard: 12, viral: 7 };
-const GAP = 2;
-
-function _buildBaseLayout() {
-  const structural = buildStructuralGrid();
-  const cw = Array.from({ length: GRID_COLS }, (_, x) => {
-    let m = 0;
-    for (let y = 0; y < GRID_ROWS; y++) m = Math.max(m, BASE_SIZE[structural[y * GRID_COLS + x].tier]);
-    return m;
-  });
-  const rh = Array.from({ length: GRID_ROWS }, (_, y) => {
-    let m = 0;
-    for (let x = 0; x < GRID_COLS; x++) m = Math.max(m, BASE_SIZE[structural[y * GRID_COLS + x].tier]);
-    return m;
-  });
-  const baseW = cw.reduce((a,b)=>a+b,0) + GAP*(GRID_COLS-1);
-  const baseH = rh.reduce((a,b)=>a+b,0) + GAP*(GRID_ROWS-1);
-  return { cw, rh, baseW, baseH };
-}
-const _BASE_LAYOUT = _buildBaseLayout();
-
-function useGridLayout(containerW, containerH, isMobile) {
-  const { cw, rh, baseW } = _BASE_LAYOUT;
-  const k = containerW > 0 ? Math.max(0.08, containerW / baseW) : (isMobile ? 0.18 : 1);
-
-  const tierSizes = useMemo(() => ({
-    epicenter: Math.round(BASE_SIZE.epicenter * k),
-    prestige:  Math.round(BASE_SIZE.prestige  * k),
-    elite:     Math.round(BASE_SIZE.elite     * k),
-    business:  Math.round(BASE_SIZE.business  * k),
-    standard:  Math.max(2, Math.round(BASE_SIZE.standard * k)),
-    viral:     Math.max(2, Math.round(BASE_SIZE.viral    * k)),
-  }), [k]);
-
-  const colWidths  = useMemo(() => cw.map(w => Math.round(w * k)), [k]);
-  const rowHeights = useMemo(() => _BASE_LAYOUT.rh.map(h => Math.round(h * k)), [k]);
-
-  const colOffsets = useMemo(() => {
-    // 1-indexed: colOffsets[slot.x] pour slot.x = 1..GRID_COLS
-    const o = [0, 0]; // o[0]=padding, o[1]=0 (1ère colonne)
-    for (let x = 1; x < GRID_COLS; x++) o.push(o[x] + colWidths[x - 1] + GAP);
-    return o;
-  }, [colWidths]);
-
-  const rowOffsets = useMemo(() => {
-    // 1-indexed: rowOffsets[slot.y] pour slot.y = 1..GRID_ROWS
-    const o = [0, 0]; // o[0]=padding, o[1]=0 (1ère rangée)
-    for (let y = 1; y < GRID_ROWS; y++) o.push(o[y] + rowHeights[y - 1] + GAP);
-    return o;
-  }, [rowHeights]);
-
-  const totalGridW = colOffsets[GRID_COLS] + colWidths[GRID_COLS - 1];
-  const totalGridH = rowOffsets[GRID_ROWS] + rowHeights[GRID_ROWS - 1];
-
-  return { colOffsets, rowOffsets, totalGridW, totalGridH, tierSizes, k, colWidths, rowHeights };
-}
-
-// ─── Small Components ──────────────────────────────────────────
+// ─── Waitlist Modal ────────────────────────────────────────────
 
 function BrandLogo({ size = 20, onClick }) {
   const [hov, setHov] = useState(false);
@@ -331,7 +273,6 @@ function Modal({ onClose, width = 480, children, isMobile }) {
   );
 }
 
-// ─── Waitlist Modal ────────────────────────────────────────────
 function WaitlistModal({ onClose }) {
   const { isMobile } = useScreenSize();
   const t = useT();
@@ -485,9 +426,6 @@ function WaitlistModal({ onClose }) {
   );
 }
 
-// ─── Checkout Modal ────────────────────────────────────────────
-
-// ─── Boost Modal (1€/h spotlight) ─────────────────────────────
 function BoostModal({ onClose }) {
   const { isMobile } = useScreenSize();
   const t = useT();
@@ -591,10 +529,6 @@ function BoostModal({ onClose }) {
   );
 }
 
-
-// ─── BlockPreview ──────────────────────────────────────────────
-// Réplique exacte de BlockCell + BlockMedia pour le preview live.
-// Rendu identique pixel-perfect à ce qui apparaîtra sur la grille.
 function BlockPreview({ tier, blockForm, category, CATS, SOCIALS, MUSIC_PLATS }) {
   const cat         = CATS.find(c => c.id === category) || CATS[2];
   const selSocial   = SOCIALS.find(s => s.id === blockForm.social_network);
@@ -1289,7 +1223,7 @@ function CheckoutModal({ slot, onClose }) {
                       if (!file || !file.type.startsWith('image/')) return;
                       setImgUploading(true);
                       try {
-                        const { uploadBlockImage } = await import('../../lib/supabase');
+                        const { uploadBlockImage } = await import('../lib/supabase-auth');
                         const url = await uploadBlockImage(file);
                         if (url) setF('image_url', url);
                       } catch(err) { console.error(err); }
@@ -1301,7 +1235,7 @@ function CheckoutModal({ slot, onClose }) {
                         if (!file) return;
                         setImgUploading(true);
                         try {
-                          const { uploadBlockImage } = await import('../../lib/supabase');
+                          const { uploadBlockImage } = await import('../lib/supabase-auth');
                           const url = await uploadBlockImage(file);
                           if (url) setF('image_url', url);
                         } catch(err) { console.error(err); }
@@ -1693,243 +1627,6 @@ function HoverStatsBadge({ slot, sz }) {
 }
 
 
-// ─── SlotWrapper — memo wrapper for each grid slot ──────────────────────────
-// Isolates the per-slot render: when filterTier/filterTheme changes,
-// only slots whose inFilter/neonColor actually changed re-render.
-// Eliminates 1369 wrapper div style objects + neon layers per render cycle.
-const SlotWrapper = memo(({
-  slot, colOffset, rowOffset, sz,
-  w, h,
-  isFiltering, inFilter, neonColor,
-  onFocus, onSelect,
-}) => {
-  const wrapperOpacity = isFiltering ? (inFilter ? 1 : 0.05) : 1;
-  const isLargeBlock   = Math.min(w ?? sz, h ?? sz) >= 40;
-
-  return (
-    <div
-      style={{
-        position:   'absolute',
-        left:        colOffset,
-        top:         rowOffset,
-        opacity:     wrapperOpacity,
-        transition: 'opacity 0.25s ease, transform 0.2s ease',
-        transform:   isFiltering && inFilter ? 'scale(1.04)' : 'scale(1)',
-        zIndex:      isFiltering && inFilter ? 2 : 1,
-      }}
-    >
-      <BlockCell
-        slot={slot}
-        isSelected={false}
-        onSelect={onSelect}
-        onFocus={onFocus}
-        sz={sz}
-        w={w}
-        h={h}
-        showStats={true}
-      />
-
-      {neonColor && (
-        <>
-          {/* Couche 1 — bordure néon nette */}
-          <div style={{
-            position: 'absolute', inset: 0, borderRadius: 'inherit',
-            boxShadow: `inset 0 0 0 ${isLargeBlock ? 2 : 1}px ${neonColor}`,
-            pointerEvents: 'none', zIndex: 6,
-          }} />
-
-          {/* Couche 2 — halo externe proche */}
-          <div style={{
-            position: 'absolute',
-            inset: isLargeBlock ? -3 : -2,
-            borderRadius: 'inherit',
-            boxShadow: `0 0 ${isLargeBlock ? 10 : 6}px ${isLargeBlock ? 4 : 2}px ${neonColor}70`,
-            pointerEvents: 'none', zIndex: 5,
-            animation: 'neonPulse 2.2s ease-in-out infinite',
-          }} />
-
-          {/* Couche 3 — glow diffus large (gros blocs seulement) */}
-          {isLargeBlock && (
-            <div style={{
-              position: 'absolute', inset: -8, borderRadius: 'inherit',
-              boxShadow: `0 0 28px 8px ${neonColor}35`,
-              pointerEvents: 'none', zIndex: 4,
-              animation: 'neonPulse 2.2s ease-in-out infinite',
-              animationDelay: '0.4s',
-            }} />
-          )}
-
-          {/* Couche 4 — teinte colorée (blocs vides/indisponibles) */}
-          {!slot.occ && (
-            <div style={{
-              position: 'absolute', inset: 0, borderRadius: 'inherit',
-              background: `${neonColor}12`,
-              pointerEvents: 'none', zIndex: 3,
-            }} />
-          )}
-
-          {/* Couche 5 — étiquette tier sur gros blocs libres */}
-          {!slot.occ && sz >= 48 && (
-            <div style={{
-              position: 'absolute', bottom: 4, left: '50%',
-              transform: 'translateX(-50%)',
-              fontSize: Math.max(7, sz * 0.1),
-              fontWeight: 800,
-              color: neonColor,
-              fontFamily: F.h,
-              letterSpacing: '0.04em',
-              textShadow: `0 0 8px ${neonColor}`,
-              pointerEvents: 'none', zIndex: 7,
-              whiteSpace: 'nowrap',
-            }}>
-              {TIER_LABEL[slot.tier]}
-            </div>
-          )}
-        </>
-      )}
-    </div>
-  );
-});
-SlotWrapper.displayName = 'SlotWrapper';
-
-// BlockCell — mémoïsé, reçoit sa taille via sz + w/h pour fill rectangulaire
-const BlockCell = memo(({ slot, isSelected, onSelect, onFocus, sz: szProp, w, h, showStats }) => {
-  const { tier, occ, tenant, hot } = slot;
-  const bw = w ?? szProp ?? TIER_SIZE[tier];
-  const bh = h ?? szProp ?? TIER_SIZE[tier];
-  let sz = Math.min(bw, bh);  // pour font/icon/radius sizing
-  const c = TIER_COLOR[tier];
-  const r = tier === 'epicenter' ? Math.round(sz * 0.1)
-          : tier === 'prestige'  ? Math.round(sz * 0.09)
-          : tier === 'elite'     ? Math.round(sz * 0.07)
-          : tier === 'business'  ? 3 : 2;
-  const available    = isTierAvailable(tier);
-  const isCornerTen  = tier === 'corner_ten';  // legacy tier: 4 diagonal corner slots of the "ten" ring
-
-  // Track impression when occupied block enters viewport (once per session per slot)
-  const ref = useRef(null);
-  useEffect(() => {
-    if (!occ || !tenant?.bookingId) return;
-    const sessionKey = `imp_${tenant?.bookingId}`;
-    if (sessionStorage.getItem(sessionKey)) return; // already tracked this session
-    const el = ref.current;
-    if (!el) return;
-    const obs = new IntersectionObserver(([entry]) => {
-      if (entry.isIntersecting) {
-        sessionStorage.setItem(sessionKey, '1');
-        fetch('/api/track', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ slotX: slot.x, slotY: slot.y, bookingId: tenant?.bookingId, event: 'impression' }),
-        }).catch(() => {});
-        obs.disconnect();
-      }
-    }, { threshold: 0.5 });
-    obs.observe(el);
-    return () => obs.disconnect();
-  }, [occ, tenant?.bookingId, slot.x, slot.y]);
-
-  const handleClick = useCallback(() => {
-    // Track EVERY click on the public grid (occupied ou libre) → heatmap réelle
-    fetch('/api/track', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        slotX: slot.x,
-        slotY: slot.y,
-        bookingId: tenant?.bookingId || null,
-        event: 'click',
-      }),
-    }).catch(() => {});
-
-    if (occ) { onFocus(slot); return; }
-    if (!available) { onFocus(slot); return; }
-    onSelect(slot);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [occ, available, onFocus, onSelect, slot.id, slot.x, slot.y, tenant?.bookingId]);
-
-  return (
-    <div
-      ref={ref}
-      onClick={handleClick}
-      title={
-        occ ? tenant?.name
-        : available ? `${TIER_LABEL[tier]} — €${priceEur(tier)}/j`
-        : `${TIER_LABEL[tier]} — Prochainement`
-      }
-      style={{
-        width: bw, height: bh,
-        borderRadius: r,
-        position: 'relative',
-        overflow: 'hidden',
-        cursor: occ ? 'pointer' : available ? 'pointer' : 'not-allowed',
-        flexShrink: 0,
-        opacity: !occ && !available ? 0.45 : 1,
-        border: `1px solid ${isSelected ? c : isCornerTen ? c + '70' : occ ? c + '40' : available ? U.border : c + '20'}`,
-        background: occ ? (tenant?.b || U.s2) : !available ? '#0a0a0a' : U.s2,
-        filter: !occ && !available ? 'saturate(0.3)' : 'none',
-        outline: isSelected ? `2px solid ${c}` : 'none',
-        outlineOffset: 1,
-        boxShadow: isSelected
-          ? `0 0 0 2px ${c}60, 0 0 ${sz * 0.5}px ${c}35`
-          : isCornerTen
-            ? `0 0 ${sz * 0.6}px ${c}28, inset 0 0 ${sz * 0.3}px ${c}08`
-            : occ && sz >= 24
-              ? `0 0 ${sz * 0.35}px ${c}22`
-              : !available && sz >= 20
-                ? `0 0 ${sz * 0.4}px ${c}18`
-                : 'none',
-        transition: 'opacity 0.2s, outline 0.1s, box-shadow 0.3s',
-      }}
-    >
-      {occ && <BlockMedia tenant={tenant} tier={tier} sz={sz} />}
-      {!occ && available && sz >= 8 && (
-        <div style={{ position: 'absolute', inset: 0, background: `${c}06`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          {sz >= 28 && <div style={{ width: '30%', height: 1, background: `${c}25`, borderRadius: 1 }} />}
-        </div>
-      )}
-      {/* Overlay blocs indisponibles — visuellement fort et compréhensible */}
-      {!occ && !available && (
-        <div style={{
-          position: 'absolute', inset: 0,
-          background: `repeating-linear-gradient(
-            45deg,
-            ${c}06 0px, ${c}06 2px,
-            transparent 2px, transparent 8px
-          )`,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          flexDirection: 'column', gap: 2,
-        }}>
-          {/* Ligne diagonale centrale pour gros blocs */}
-          {sz >= 40 && (
-            <svg style={{ position:'absolute', inset:0, width:'100%', height:'100%', opacity:0.18 }}>
-              <line x1="0" y1="0" x2="100%" y2="100%" stroke={c} strokeWidth="1"/>
-              <line x1="100%" y1="0" x2="0" y2="100%" stroke={c} strokeWidth="1"/>
-            </svg>
-          )}
-          {/* Cadenas pour blocs moyens */}
-          {sz >= 52 && (
-            <div style={{ position:'relative', zIndex:2, display:'flex', flexDirection:'column', alignItems:'center', gap:2 }}>
-              <div style={{ fontSize: Math.max(8, sz * 0.18), lineHeight:1, filter:'grayscale(0.5)', opacity:0.55 }}>🔒</div>
-              <div style={{ fontSize: Math.max(5, sz * 0.09), fontWeight:800, color:`${c}80`, letterSpacing:'0.06em', fontFamily:FF.h }}>BIENTÔT</div>
-            </div>
-          )}
-          {/* Trait simple pour petits blocs */}
-          {sz < 52 && sz >= 14 && (
-            <div style={{ width:'55%', height:1, background:`${c}45`, borderRadius:1, position:'relative', zIndex:2 }} />
-          )}
-        </div>
-      )}
-      {occ && hot && <div style={{ position: 'absolute', top: 2, right: 2, width: 4, height: 4, borderRadius: '50%', background: '#ff4455', animation: 'blink 1.5s infinite' }} />}
-      {showStats && occ && <HoverStatsBadge slot={slot} sz={sz} />}
-      {/* Mini badge permanent sur gros blocs */}
-      {showStats && occ && sz >= 40 && <LiveMiniBadge slot={slot} sz={sz} />}
-    </div>
-  );
-});
-BlockCell.displayName = 'BlockCell';
-
-// ─── Buyout Modal ──────────────────────────────────────────────
 function BuyoutModal({ slot, onClose }) {
   const { isMobile } = useScreenSize();
   const t = useT();
@@ -2114,9 +1811,7 @@ function AdvertiserProfileModal({ advertiserId, slots, onClose, onOpenSlot }) {
     if (!url || !key) return;
     const ids = advertiserSlots.map(s => s.tenant?.bookingId).filter(Boolean);
     if (!ids.length) return;
-    fetch(`${url}/rest/v1/booking_stats?booking_id=in.(${ids.join(',')})&select=clicks,impressions,ctr_pct,clicks_7d,impressions_7d`, {
-      headers: { apikey: key, Authorization: `Bearer ${key}` },
-    })
+    fetch(`/api/slots?type=stats&ids=${ids.join(',')}`)
       .then(r => r.json())
       .then(rows => {
         if (!Array.isArray(rows)) return;
@@ -2819,6 +2514,451 @@ function PreviewPlayer({ tenant, isMobile }) {
   );
 }
 
+// ─── AdViewModal — modal publicitaire pour blocs occupés ──────
+// Design identique à CheckoutModal, adapté par catégorie de contenu
+function AdViewModal({ slot, allSlots, onClose, onNavigate, onViewProfile, onGoAdvertiser }) {
+  const [entered, setEntered] = useState(false);
+  const [dir, setDir]         = useState(0);
+  const { isMobile }          = useScreenSize();
+  const [publicStats, setPublicStats] = useState(null);
+  const [liked, setLiked]     = useState(false);
+  const [likeAnim, setLikeAnim] = useState(false);
+
+  const occupiedSlots = useMemo(() => allSlots.filter(s => s.occ), [allSlots]);
+  const curIdx  = occupiedSlots.findIndex(s => s.id === slot?.id);
+  const hasPrev = curIdx > 0;
+  const hasNext = curIdx < occupiedSlots.length - 1;
+  const goPrev  = useCallback(() => { if (!hasPrev) return; setDir(-1); onNavigate(occupiedSlots[curIdx - 1]); setTimeout(() => setDir(0), 250); }, [hasPrev, curIdx, occupiedSlots, onNavigate]);
+  const goNext  = useCallback(() => { if (!hasNext) return; setDir(1); onNavigate(occupiedSlots[curIdx + 1]); setTimeout(() => setDir(0), 250); }, [hasNext, curIdx, occupiedSlots, onNavigate]);
+
+  useEffect(() => { const t = requestAnimationFrame(() => setEntered(true)); return () => cancelAnimationFrame(t); }, [slot]);
+  useEffect(() => {
+    const fn = e => { if (e.key === 'Escape') onClose(); if (e.key === 'ArrowLeft') goPrev(); if (e.key === 'ArrowRight') goNext(); };
+    window.addEventListener('keydown', fn); return () => window.removeEventListener('keydown', fn);
+  }, [onClose, goPrev, goNext]);
+
+  useEffect(() => {
+    if (!slot?.occ || !slot?.tenant?.bookingId) return;
+    fetch('/api/track', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ slotX: slot.x, slotY: slot.y, bookingId: slot.tenant?.bookingId, event:'impression' }) }).catch(()=>{});
+    fetchSlotStats(slot.x, slot.y).then(({data}) => setPublicStats(data)).catch(()=>{});
+    try { setLiked(localStorage.getItem(`like_slot_${slot.id}`) === '1'); } catch {}
+  }, [slot?.id]);
+
+  if (!slot || !slot.occ) return null;
+  const { tier, tenant } = slot;
+  const c  = tenant?.c || TIER_COLOR[tier];
+  const t  = tenant?.t;
+  const px = isMobile ? 18 : 24;
+
+  const handleLike = (e) => {
+    e.stopPropagation();
+    const nl = !liked;
+    try { localStorage.setItem(`like_slot_${slot.id}`, nl ? '1' : '0'); } catch {}
+    setLiked(nl);
+    if (nl) { setLikeAnim(true); setTimeout(() => setLikeAnim(false), 600); }
+  };
+
+  // ── Résolution embed ──
+  const yt    = tenant?.url?.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([A-Za-z0-9_-]+)/);
+  const vimeo = tenant?.url?.match(/vimeo\.com\/(\d+)/);
+  const tiktokV = tenant?.url?.match(/tiktok\.com\/@[^/]+\/video\/(\d+)/);
+  const spotify = tenant?.url?.match(/spotify\.com\/(track|album|playlist)\/([A-Za-z0-9]+)/);
+  const soundcloud = tenant?.url?.includes('soundcloud.com');
+  const deezer  = tenant?.url?.match(/deezer\.com\/[a-z]+\/track\/(\d+)/);
+
+  const SOCIAL_META = {
+    instagram:{ label:'Instagram', icon:'📸', color:'#e1306c', base:'https://instagram.com/' },
+    tiktok:   { label:'TikTok',    icon:'🎵', color:'#69c9d0', base:'https://tiktok.com/@' },
+    youtube:  { label:'YouTube',   icon:'▶',  color:'#ff0000', base:'https://youtube.com/@' },
+    twitter:  { label:'X / Twitter',icon:'✕', color:'#1da1f2', base:'https://x.com/' },
+    x:        { label:'X',         icon:'✕',  color:'#1da1f2', base:'https://x.com/' },
+    linkedin: { label:'LinkedIn',  icon:'in', color:'#0a66c2', base:'https://linkedin.com/in/' },
+    facebook: { label:'Facebook',  icon:'f',  color:'#1877f2', base:'https://facebook.com/' },
+    snapchat: { label:'Snapchat',  icon:'👻', color:'#fffc00', base:'https://snapchat.com/add/' },
+    twitch:   { label:'Twitch',    icon:'🎮', color:'#9146ff', base:'https://twitch.tv/' },
+    discord:  { label:'Discord',   icon:'💬', color:'#5865f2', base:'https://discord.gg/' },
+  };
+  const MUSIC_META = {
+    spotify:     { label:'Spotify',     icon:'🎵', color:'#1ed760' },
+    apple_music: { label:'Apple Music', icon:'🍎', color:'#fc3c44' },
+    soundcloud:  { label:'SoundCloud',  icon:'☁',  color:'#ff5500' },
+    deezer:      { label:'Deezer',      icon:'🎶', color:'#a238ff' },
+    youtube_music:{ label:'YT Music',   icon:'▶',  color:'#ff0000' },
+    bandcamp:    { label:'Bandcamp',    icon:'🎸', color:'#1da0c3' },
+  };
+  const socialMeta = SOCIAL_META[tenant?.social];
+  const musicMeta  = MUSIC_META[tenant?.music];
+  const storeCol   = APP_STORE_COLORS[tenant?.appStore] || c;
+
+  // ─── Zone MÉDIA selon catégorie ──────────────────────────────
+  function MediaZone() {
+    // VIDEO — embed YouTube/Vimeo ou thumbnail+play
+    if (t === 'video') {
+      if (yt) return (
+        <div style={{ position:'relative', width:'100%', paddingBottom:'56.25%', background:'#000', borderRadius:isMobile?0:12, overflow:'hidden', border:`1px solid ${c}30` }}>
+          <iframe src={`https://www.youtube.com/embed/${yt[1]}?autoplay=0&rel=0&modestbranding=1`}
+            style={{ position:'absolute', inset:0, width:'100%', height:'100%' }}
+            frameBorder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; picture-in-picture" allowFullScreen />
+        </div>
+      );
+      if (vimeo) return (
+        <div style={{ position:'relative', width:'100%', paddingBottom:'56.25%', background:'#000', borderRadius:12, overflow:'hidden', border:`1px solid ${c}30` }}>
+          <iframe src={`https://player.vimeo.com/video/${vimeo[1]}?autoplay=0`}
+            style={{ position:'absolute', inset:0, width:'100%', height:'100%' }}
+            frameBorder="0" allow="autoplay; fullscreen; picture-in-picture" allowFullScreen />
+        </div>
+      );
+      if (tiktokV) return (
+        <div style={{ display:'flex', justifyContent:'center', borderRadius:12, overflow:'hidden' }}>
+          <iframe src={`https://www.tiktok.com/embed/v2/${tiktokV[1]}`}
+            style={{ width:'100%', maxWidth:340, height:600, border:'none' }} scrolling="no" />
+        </div>
+      );
+      // Fallback thumbnail
+      return (
+        <div style={{ position:'relative', width:'100%', aspectRatio:'16/9', background:tenant?.b||'#0a0a14', borderRadius:12, overflow:'hidden', border:`1px solid ${c}30`, display:'flex', alignItems:'center', justifyContent:'center' }}>
+          {tenant?.img && <img src={tenant?.img} alt="" style={{ position:'absolute', inset:0, width:'100%', height:'100%', objectFit:'cover', opacity:0.5 }} />}
+          <div style={{ position:'absolute', inset:0, background:'linear-gradient(to bottom, rgba(0,0,0,0.1), rgba(0,0,0,0.6))' }} />
+          <a href={tenant?.url} target="_blank" rel="noopener noreferrer"
+            onClick={() => recordClick(slot.x, slot.y, tenant?.bookingId)}
+            style={{ position:'relative', width:72, height:72, borderRadius:'50%', background:'rgba(0,0,0,0.7)', border:`2.5px solid ${c}`, display:'flex', alignItems:'center', justifyContent:'center', textDecoration:'none', boxShadow:`0 0 40px ${c}70` }}>
+            <span style={{ color:c, fontSize:30, lineHeight:1, paddingLeft:'14%' }}>▶</span>
+          </a>
+        </div>
+      );
+    }
+
+    // MUSIQUE — lecteur intégré Spotify/SoundCloud/Deezer ou UI musicale
+    if (t === 'music') {
+      const col = musicMeta?.color || MUSIC_COLORS_MAP[tenant?.music] || c;
+      if (spotify) return (
+        <div style={{ borderRadius:12, overflow:'hidden', border:`1px solid ${col}40` }}>
+          <iframe src={`https://open.spotify.com/embed/${spotify[1]}/${spotify[2]}?utm_source=generator&theme=0`}
+            width="100%" height={152} frameBorder="0"
+            allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" />
+        </div>
+      );
+      if (soundcloud) return (
+        <div style={{ borderRadius:12, overflow:'hidden', border:`1px solid ${col}40` }}>
+          <iframe width="100%" height={120} scrolling="no" frameBorder="no"
+            src={`https://w.soundcloud.com/player/?url=${encodeURIComponent(tenant?.url)}&color=%23${col.slice(1)}&auto_play=false&hide_related=true&show_comments=false&show_user=true&show_reposts=false&show_teaser=false`} />
+        </div>
+      );
+      if (deezer) return (
+        <div style={{ borderRadius:12, overflow:'hidden', border:`1px solid ${col}40` }}>
+          <iframe src={`https://widget.deezer.com/widget/dark/track/${deezer[1]}`} width="100%" height={100} frameBorder="0" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" />
+        </div>
+      );
+      // UI musicale custom
+      const bars = [0.55,1,0.7,0.9,0.45,0.8,0.65];
+      return (
+        <div style={{ padding:'24px', borderRadius:12, background:`radial-gradient(ellipse at 50% 30%, ${col}22, ${col}05 60%, ${tenant?.b||'#0a0a14'} 100%)`, border:`1px solid ${col}30`, display:'flex', flexDirection:'column', alignItems:'center', gap:16 }}>
+          {tenant?.img
+            ? <img src={tenant?.img} alt="" style={{ width:96, height:96, borderRadius:14, objectFit:'cover', border:`2px solid ${col}60`, boxShadow:`0 12px 40px rgba(0,0,0,0.6), 0 0 24px ${col}50` }} />
+            : <div style={{ width:96, height:96, borderRadius:14, background:`${col}20`, border:`2px solid ${col}55`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:38, color:col }}>{MUSIC_ICONS_MAP[tenant?.music]||'🎵'}</div>
+          }
+          <div style={{ display:'flex', alignItems:'flex-end', gap:4, height:32 }}>
+            {bars.map((h,i)=>(<div key={i} style={{ width:5, borderRadius:3, background:col, height:32*h, animation:`eqBar${i%5} ${0.38+i*0.11}s ease-in-out infinite alternate`, boxShadow:`0 0 6px ${col}80` }} />))}
+          </div>
+          <a href={tenant?.url} target="_blank" rel="noopener noreferrer" onClick={()=>recordClick(slot.x,slot.y,tenant?.bookingId)}
+            style={{ display:'flex', alignItems:'center', gap:8, padding:'9px 18px', borderRadius:24, background:`${col}20`, border:`1.5px solid ${col}50`, color:col, fontWeight:700, fontSize:12, textDecoration:'none', letterSpacing:'0.04em' }}>
+            <span style={{ fontSize:14 }}>{musicMeta?.icon||'♪'}</span>
+            Écouter sur {musicMeta?.label||'la plateforme'}
+          </a>
+        </div>
+      );
+    }
+
+    // IMAGE / MARQUE / LIFESTYLE / VÊTEMENTS — image full-bleed
+    if (tenant?.img && (t === 'image' || t === 'brand' || t === 'lifestyle' || t === 'clothing')) {
+      return (
+        <div style={{ position:'relative', borderRadius:12, overflow:'hidden', border:`1px solid ${c}30`, aspectRatio: t==='clothing'?'3/4':'16/10' }}>
+          <img src={tenant?.img} alt={tenant?.name||''} style={{ width:'100%', height:'100%', objectFit:'cover', display:'block' }} />
+          <div style={{ position:'absolute', inset:0, background:`linear-gradient(to top, ${c}15, transparent 60%)` }} />
+          {t === 'clothing' && tenant?.slogan && (
+            <div style={{ position:'absolute', top:14, right:14, padding:'7px 14px', borderRadius:20, background:'rgba(0,0,0,0.85)', color:'#fff', fontSize:14, fontWeight:900, backdropFilter:'blur(10px)', border:'1.5px solid rgba(255,255,255,0.2)' }}>{tenant?.slogan}</div>
+          )}
+        </div>
+      );
+    }
+
+    // PUBLICATION (text) — article editorial
+    if (t === 'text') {
+      return (
+        <div style={{ padding:'20px 22px', borderRadius:12, background:tenant?.b||'#0d1828', border:`1px solid ${c}30`, position:'relative', overflow:'hidden' }}>
+          <div style={{ position:'absolute', inset:0, backgroundImage:`repeating-linear-gradient(0deg,transparent,transparent 22px,${c}06 22px,${c}06 23px)` }} />
+          <div style={{ position:'relative' }}>
+            <div style={{ width:'35%', height:2, background:`linear-gradient(90deg, ${c}, ${c}30)`, borderRadius:1, marginBottom:14 }} />
+            <div style={{ fontSize:16, fontWeight:900, color:c, lineHeight:1.35, letterSpacing:'-0.02em', marginBottom:12 }}>{tenant?.name||'Article'}</div>
+            {tenant?.slogan && <div style={{ fontSize:12, color:`${c}80`, lineHeight:1.6, marginBottom:14, fontStyle:'italic' }}>{tenant?.slogan}</div>}
+            {tenant?.description && <div style={{ fontSize:12, color:'rgba(255,255,255,0.55)', lineHeight:1.75, display:'-webkit-box', WebkitLineClamp:4, WebkitBoxOrient:'vertical', overflow:'hidden' }}>{tenant?.description}</div>}
+            <div style={{ marginTop:16, width:'22%', height:1.5, background:`linear-gradient(90deg, ${c}50, transparent)`, borderRadius:1 }} />
+          </div>
+        </div>
+      );
+    }
+
+    // RÉSEAUX SOCIAUX — grande icône plateforme + gradient
+    if (t === 'social') {
+      const col = SOCIAL_COLORS_MAP[tenant?.social] || c;
+      const ico = SOCIAL_ICONS_MAP[tenant?.social] || '⊕';
+      return (
+        <div style={{ padding:'28px', borderRadius:12, background:`radial-gradient(ellipse at 50% 35%, ${col}28, ${col}06 55%, ${tenant?.b||'#0a0a14'} 100%)`, border:`1px solid ${col}30`, display:'flex', flexDirection:'column', alignItems:'center', gap:14 }}>
+          <div style={{ fontSize:72, filter:`drop-shadow(0 0 24px ${col}90)` }}>{ico}</div>
+          {tenant?.name && <div style={{ fontSize:15, fontWeight:700, color:col, textAlign:'center' }}>{tenant?.name}</div>}
+          <a href={tenant?.url||`${socialMeta?.base||'#'}${(tenant?.social||'').replace('@','')}`} target="_blank" rel="noopener noreferrer" onClick={()=>recordClick(slot.x,slot.y,tenant?.bookingId)}
+            style={{ display:'flex', alignItems:'center', gap:7, padding:'9px 20px', borderRadius:24, background:`${col}20`, border:`1.5px solid ${col}55`, color:col, fontWeight:700, fontSize:12, textDecoration:'none', letterSpacing:'0.03em' }}>
+            <span style={{ fontSize:14 }}>{ico}</span>
+            Voir le profil
+          </a>
+        </div>
+      );
+    }
+
+    // APP — icône style App Store + badge store
+    if (t === 'app') {
+      return (
+        <div style={{ padding:'24px', borderRadius:12, background:`linear-gradient(135deg, ${tenant?.b||U.s2} 0%, ${U.s2} 100%)`, border:`1px solid ${storeCol}30`, display:'flex', flexDirection:'column', alignItems:'center', gap:16, position:'relative', overflow:'hidden' }}>
+          <div style={{ position:'absolute', inset:0, background:`radial-gradient(ellipse at 50% 110%, ${storeCol}30, transparent 60%)` }} />
+          {tenant?.img
+            ? <img src={tenant?.img} alt="" style={{ position:'relative', width:100, height:100, borderRadius:22, objectFit:'cover', border:`2.5px solid ${storeCol}50`, boxShadow:`0 16px 48px rgba(0,0,0,0.6), 0 0 32px ${storeCol}35` }} />
+            : <div style={{ position:'relative', width:100, height:100, borderRadius:22, background:`${storeCol}22`, border:`2.5px solid ${storeCol}55`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:40, fontWeight:900, color:storeCol, fontFamily:F.h }}>{tenant?.l}</div>
+          }
+          <div style={{ position:'relative', display:'flex', alignItems:'center', gap:7, padding:'7px 16px', borderRadius:20, background:'rgba(0,0,0,0.6)', border:`1px solid ${storeCol}40`, backdropFilter:'blur(8px)' }}>
+            <span style={{ fontSize:14 }}>{tenant?.appStore==='app_store'?'🍎':tenant?.appStore==='google_play'?'▶':'🌐'}</span>
+            <span style={{ color:storeCol, fontSize:12, fontWeight:700 }}>{tenant?.appStore==='app_store'?'App Store':tenant?.appStore==='google_play'?'Google Play':'Disponible sur le web'}</span>
+          </div>
+          {tenant?.slogan && <div style={{ position:'relative', fontSize:12, color:'rgba(255,255,255,0.5)', textAlign:'center' }}>{tenant?.slogan}</div>}
+        </div>
+      );
+    }
+
+    // LIEN — preview enrichie
+    if (tenant?.img) return (
+      <div style={{ position:'relative', borderRadius:12, overflow:'hidden', border:`1px solid ${c}30` }}>
+        <img src={tenant?.img} alt={tenant?.name||''} style={{ width:'100%', objectFit:'cover', display:'block', maxHeight:220 }} />
+        <div style={{ position:'absolute', inset:0, background:`linear-gradient(to top, ${tenant?.b||U.s1} 0%, transparent 55%)` }} />
+      </div>
+    );
+
+    // Défaut — initiales monumentales
+    return (
+      <div style={{ padding:'36px 24px', borderRadius:12, background:`radial-gradient(ellipse at 50% 30%, ${c}18, ${c}04 60%, ${tenant?.b||'#0a0a14'} 100%)`, border:`1px solid ${c}25`, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:8 }}>
+        <div style={{ fontSize:80, fontWeight:900, color:c, fontFamily:F.h, lineHeight:1, textShadow:`0 0 60px ${c}60`, letterSpacing:'-0.04em' }}>{tenant?.l||'?'}</div>
+        {tenant?.name && <div style={{ fontSize:13, fontWeight:700, color:`${c}cc`, textAlign:'center', maxWidth:'80%' }}>{tenant?.name}</div>}
+      </div>
+    );
+  }
+
+  // ─── Liens sociaux de l'annonceur ────────────────────────────
+  const socialLinks = [
+    tenant?.instagramUrl && { href:tenant?.instagramUrl, label:'Instagram', icon:'📸', color:'#e1306c' },
+    tenant?.tiktokUrl    && { href:tenant?.tiktokUrl,    label:'TikTok',    icon:'🎵', color:'#69c9d0' },
+    tenant?.twitterUrl   && { href:tenant?.twitterUrl,   label:'X',         icon:'✕',  color:'#1da1f2' },
+    tenant?.youtubeUrl   && { href:tenant?.youtubeUrl,   label:'YouTube',   icon:'▶',  color:'#ff0000' },
+    tenant?.linkedinUrl  && { href:tenant?.linkedinUrl,  label:'LinkedIn',  icon:'in', color:'#0a66c2' },
+    // Fallback réseau lié au bloc
+    !tenant?.instagramUrl && !tenant?.tiktokUrl && !tenant?.twitterUrl && !tenant?.youtubeUrl && !tenant?.linkedinUrl && socialMeta && tenant?.social && {
+      href: tenant?.url?.includes(socialMeta.base?.split('//')[1]?.split('/')[0]||'xxx') ? tenant?.url : `${socialMeta.base}${(tenant?.social||'').replace('@','')}`,
+      label: socialMeta.label, icon: socialMeta.icon, color: socialMeta.color,
+    },
+    !tenant?.instagramUrl && !tenant?.tiktokUrl && !tenant?.twitterUrl && !tenant?.youtubeUrl && !tenant?.linkedinUrl && musicMeta && tenant?.music && {
+      href: tenant?.url, label: musicMeta.label, icon: musicMeta.icon, color: musicMeta.color,
+    },
+  ].filter(Boolean);
+
+  const clipPath = isMobile ? 'none' : 'polygon(0 0,calc(100% - 18px) 0,100% 18px,100% 100%,18px 100%,0 calc(100% - 18px))';
+
+  return (
+    <div onClick={onClose} style={{ position:'fixed', inset:0, zIndex:2000, background:'rgba(0,1,6,0.92)', backdropFilter:'blur(20px) saturate(180%)', display:'flex', alignItems:isMobile?'flex-end':'center', justifyContent:'center', opacity:entered?1:0, transition:'opacity 0.2s ease' }}>
+      {/* Nav arrows desktop */}
+      {!isMobile && hasPrev && (
+        <button onClick={e=>{e.stopPropagation();goPrev();}} style={{ position:'fixed', left:'max(16px,calc(50% - 460px))', top:'50%', transform:'translateY(-50%)', width:44, height:44, borderRadius:'50%', background:U.s1, border:`1px solid ${U.border2}`, color:U.text, fontSize:20, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', zIndex:2010 }}>‹</button>
+      )}
+      {!isMobile && hasNext && (
+        <button onClick={e=>{e.stopPropagation();goNext();}} style={{ position:'fixed', right:'max(16px,calc(50% - 460px))', top:'50%', transform:'translateY(-50%)', width:44, height:44, borderRadius:'50%', background:U.s1, border:`1px solid ${U.border2}`, color:U.text, fontSize:20, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', zIndex:2010 }}>›</button>
+      )}
+
+      {/* Scanlines */}
+      <div style={{ position:'absolute', inset:0, backgroundImage:'repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,200,240,0.025) 2px,rgba(0,200,240,0.025) 3px)', pointerEvents:'none' }} />
+
+      {/* Carte principale */}
+      <div onClick={e=>e.stopPropagation()} style={{
+        position:'relative',
+        width: isMobile ? '100vw' : `min(96vw, 860px)`,
+        background:'rgba(0,4,18,0.98)',
+        border:`0.5px solid ${U.border2}`,
+        clipPath,
+        borderRadius: isMobile ? '20px 20px 0 0' : 0,
+        overflow:'hidden',
+        maxHeight: isMobile ? '93vh' : '88vh',
+        transform: entered
+          ? `translateX(${dir*-10}px)`
+          : isMobile ? 'translateY(32px)' : 'translateY(18px) scale(0.97)',
+        transition:'transform 0.28s cubic-bezier(0.22,1,0.36,1)',
+        boxShadow:`0 0 80px ${c}14, 0 32px 80px rgba(0,0,0,0.95)`,
+      }}>
+        {/* Barre énergie couleur annonceur */}
+        <div style={{ height:1.5, background:`linear-gradient(90deg,transparent,${c},${c}88,transparent)`, boxShadow:`0 0 8px ${c}` }} />
+
+        {/* Coins lumineux */}
+        {[['top','left'],['top','right'],['bottom','left'],['bottom','right']].map(([v,h],i) => (
+          <div key={i} style={{ position:'absolute', [v]:6, [h]:6, width:10, height:10, borderTop:v==='top'?`1px solid ${c}55`:'none', borderBottom:v==='bottom'?`1px solid ${c}55`:'none', borderLeft:h==='left'?`1px solid ${c}55`:'none', borderRight:h==='right'?`1px solid ${c}55`:'none', pointerEvents:'none', zIndex:10 }} />
+        ))}
+
+        {/* Bouton fermer */}
+        <button onClick={onClose} style={{ position:'absolute', top:12, right:12, width:28, height:28, clipPath:'polygon(0 0,calc(100% - 4px) 0,100% 4px,100% 100%,4px 100%,0 calc(100% - 4px))', border:`0.5px solid ${U.rose}33`, background:'transparent', color:`${U.rose}88`, cursor:'pointer', fontSize:12, zIndex:10, display:'flex', alignItems:'center', justifyContent:'center', transition:'all .10s', fontFamily:F.mono }}
+          onMouseEnter={e=>{e.currentTarget.style.color=U.rose;e.currentTarget.style.borderColor=`${U.rose}66`;}}
+          onMouseLeave={e=>{e.currentTarget.style.color=`${U.rose}88`;e.currentTarget.style.borderColor=`${U.rose}33`;}}>✕</button>
+
+        {/* Handle mobile */}
+        {isMobile && <div style={{ display:'flex', justifyContent:'center', padding:'10px 0 0' }}><div style={{ width:36, height:3, borderRadius:2, background:U.border2 }} /></div>}
+
+        {/* ── Layout 2 colonnes desktop / 1 colonne mobile ── */}
+        <div style={{ display:'flex', flexDirection:isMobile?'column':'row', maxHeight:isMobile?'90vh':'85vh', overflowY:isMobile?'auto':'hidden' }}>
+
+          {/* ── COLONNE GAUCHE : MÉDIA ── */}
+          <div style={{
+            width: isMobile ? '100%' : 380,
+            flexShrink: 0,
+            padding: isMobile ? '16px 16px 0' : '28px 24px',
+            overflowY: isMobile ? 'visible' : 'auto',
+            display:'flex', flexDirection:'column', gap:16,
+            background: isMobile ? 'transparent' : `${c}04`,
+            borderRight: isMobile ? 'none' : `1px solid ${U.border}`,
+          }}>
+            {/* Badge tier + position */}
+            <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+              <div style={{ padding:'2px 8px', borderRadius:4, background:`${TIER_COLOR[tier]}15`, border:`1px solid ${TIER_COLOR[tier]}30`, color:TIER_COLOR[tier], fontSize:9, fontWeight:700, letterSpacing:'0.06em' }}>{TIER_LABEL[tier]}</div>
+              <div style={{ color:U.muted, fontSize:10, fontFamily:F.mono }}>·  pos. {slot.x},{slot.y}</div>
+              {/* Navigation mobile */}
+              {isMobile && (hasPrev || hasNext) && (
+                <div style={{ marginLeft:'auto', display:'flex', gap:4 }}>
+                  {hasPrev && <button onClick={goPrev} style={{ width:28, height:28, borderRadius:'50%', background:U.s2, border:`1px solid ${U.border}`, color:U.muted, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', fontSize:14 }}>‹</button>}
+                  {hasNext && <button onClick={goNext} style={{ width:28, height:28, borderRadius:'50%', background:U.s2, border:`1px solid ${U.border}`, color:U.muted, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', fontSize:14 }}>›</button>}
+                </div>
+              )}
+            </div>
+
+            {/* Zone média centrale */}
+            <MediaZone />
+
+            {/* Stats publiques sous le média */}
+            {publicStats && (publicStats.impressions_7d > 0 || publicStats.clicks_7d > 0) && (
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:6, padding:'10px 12px', borderRadius:10, background:`${c}06`, border:`1px solid ${c}14` }}>
+                {[
+                  [publicStats.impressions_7d?.toLocaleString('fr-FR')||'0', 'vues / 7j'],
+                  [publicStats.clicks_7d?.toLocaleString('fr-FR')||'0', 'clics / 7j'],
+                  [publicStats.ctr_pct!=null?`${publicStats.ctr_pct}%`:'—', 'CTR'],
+                ].map(([v,l])=>(
+                  <div key={l} style={{ textAlign:'center' }}>
+                    <div style={{ color:c, fontWeight:800, fontSize:15, fontFamily:F.h, lineHeight:1 }}>{v}</div>
+                    <div style={{ color:'rgba(255,255,255,0.35)', fontSize:8, marginTop:2 }}>{l}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* ── COLONNE DROITE : INFOS ── */}
+          <div style={{ flex:1, padding:isMobile?'16px 16px 32px':'28px 28px 32px', overflowY:'auto', display:'flex', flexDirection:'column', gap:18 }}>
+
+            {/* Identité annonceur */}
+            <div style={{ display:'flex', alignItems:'flex-start', gap:14 }}>
+              {/* Avatar */}
+              <div style={{ width:56, height:56, borderRadius:13, flexShrink:0, background:tenant?.img?`url(${tenant?.img}) center/cover`:`${c}18`, border:`1.5px solid ${c}35`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:22, fontWeight:900, color:c, fontFamily:F.h, overflow:'hidden' }}>
+                {!tenant?.img && (tenant?.l||'?')}
+              </div>
+              {/* Nom + slogan + lien profil */}
+              <div style={{ flex:1, minWidth:0 }}>
+                <button onClick={()=>onViewProfile&&onViewProfile(tenant?.advertiserId)} style={{ background:'none', border:'none', cursor:'pointer', padding:0, textAlign:'left', display:'block', width:'100%' }}>
+                  <div style={{ display:'flex', alignItems:'center', gap:7, marginBottom:4 }}>
+                    <span style={{ color:U.text, fontWeight:800, fontSize:20, fontFamily:F.h, letterSpacing:'-0.02em' }}>{tenant?.name}</span>
+                    <span style={{ color:c, fontSize:10, opacity:0.7 }}>↗ profil</span>
+                  </div>
+                </button>
+                {tenant?.slogan && <div style={{ color:U.muted, fontSize:13, lineHeight:1.5 }}>{tenant?.slogan}</div>}
+              </div>
+              {/* Like */}
+              <button onClick={handleLike} style={{ display:'flex', alignItems:'center', gap:4, padding:'7px 12px', borderRadius:24, cursor:'pointer', fontFamily:F.b, fontSize:13, background:liked?`${c}18`:'rgba(255,255,255,0.04)', border:`1.5px solid ${liked?c+'45':'rgba(255,255,255,0.09)'}`, color:liked?c:'rgba(255,255,255,0.35)', transition:'all 0.22s', transform:likeAnim?'scale(1.1)':'scale(1)', flexShrink:0 }}>
+                <span style={{ fontSize:16, transition:'transform 0.3s cubic-bezier(0.34,1.56,0.64,1)', transform:likeAnim?'scale(1.5)':'scale(1)', display:'inline-block' }}>{liked?'♥':'♡'}</span>
+              </button>
+            </div>
+
+            {/* Séparateur */}
+            <div style={{ height:1, background:`linear-gradient(90deg, ${c}30, ${c}08 60%, transparent)` }} />
+
+            {/* Description */}
+            {tenant?.description && (
+              <div style={{ padding:'14px 16px', borderRadius:11, background:`${c}06`, border:`1px solid ${c}14`, position:'relative' }}>
+                <div style={{ position:'absolute', left:0, top:10, bottom:10, width:2.5, borderRadius:2, background:`linear-gradient(to bottom, ${c}70, ${c}15)` }} />
+                <p style={{ margin:0, paddingLeft:12, color:'rgba(255,255,255,0.65)', fontSize:13, lineHeight:1.75, whiteSpace:'pre-line' }}>{tenant?.description}</p>
+              </div>
+            )}
+
+            {/* Badge promo */}
+            {tenant?.badge && (
+              <div style={{ display:'inline-flex', alignItems:'center', gap:6, padding:'5px 12px', borderRadius:7, background:`${c}10`, border:`1px solid ${c}20`, fontSize:11, color:c, fontWeight:700, alignSelf:'flex-start' }}>
+                ✦ {tenant?.badge}
+              </div>
+            )}
+
+            {/* Réseaux sociaux de l'annonceur */}
+            {socialLinks.length > 0 && (
+              <div>
+                <div style={{ fontSize:9, fontWeight:700, color:'rgba(255,255,255,0.28)', letterSpacing:'0.14em', marginBottom:10 }}>RETROUVER SUR</div>
+                <div style={{ display:'flex', flexWrap:'wrap', gap:7 }}>
+                  {socialLinks.map((link,i) => (
+                    <a key={i} href={link.href} target="_blank" rel="noopener noreferrer"
+                      style={{ display:'flex', alignItems:'center', gap:6, padding:'7px 14px', borderRadius:24, background:`${link.color}12`, border:`1px solid ${link.color}28`, color:link.color, fontSize:12, fontWeight:700, textDecoration:'none', transition:'all 0.18s', letterSpacing:'0.01em' }}
+                      onMouseEnter={e=>{e.currentTarget.style.background=`${link.color}22`;e.currentTarget.style.borderColor=`${link.color}55`;}}
+                      onMouseLeave={e=>{e.currentTarget.style.background=`${link.color}12`;e.currentTarget.style.borderColor=`${link.color}28`;}}>
+                      <span style={{ fontSize:14 }}>{link.icon}</span>
+                      <span>{link.label}</span>
+                    </a>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Séparateur */}
+            <div style={{ height:1, background:`linear-gradient(90deg, ${c}20, transparent)` }} />
+
+            {/* Lien profil annonceur complet */}
+            {tenant?.advertiserId && (
+              <button onClick={()=>{onClose();setTimeout(()=>onViewProfile&&onViewProfile(tenant?.advertiserId),50);}}
+                style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 14px', borderRadius:10, background:'rgba(255,255,255,0.03)', border:`1px solid rgba(255,255,255,0.07)`, cursor:'pointer', fontFamily:F.b, textAlign:'left', transition:'all 0.18s', width:'100%' }}
+                onMouseEnter={e=>{e.currentTarget.style.background=`${c}0e`;e.currentTarget.style.borderColor=`${c}30`;}}
+                onMouseLeave={e=>{e.currentTarget.style.background='rgba(255,255,255,0.03)';e.currentTarget.style.borderColor='rgba(255,255,255,0.07)';}}>
+                <div style={{ width:36, height:36, borderRadius:9, flexShrink:0, background:`${c}15`, border:`1px solid ${c}30`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:15, color:c, fontFamily:F.h, fontWeight:900 }}>{tenant?.l||'?'}</div>
+                <div style={{ flex:1, minWidth:0 }}>
+                  <div style={{ color:U.text, fontWeight:700, fontSize:12, marginBottom:2 }}>Voir le profil complet</div>
+                  <div style={{ color:U.muted, fontSize:11 }}>Tous les blocs, stats et réseaux de <span style={{ color:c }}>{tenant?.name}</span></div>
+                </div>
+                <div style={{ color:c, fontSize:18, opacity:0.6, flexShrink:0 }}>›</div>
+              </button>
+            )}
+
+            {/* CTA principal */}
+            {tenant?.url && tenant?.url !== '#' && (
+              <a href={tenant?.url} target="_blank" rel="noopener noreferrer"
+                onClick={()=>recordClick(slot.x, slot.y, tenant?.bookingId)}
+                style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:8, padding:'14px 20px', borderRadius:12, background:`linear-gradient(135deg, ${c} 0%, ${c}cc 100%)`, color:U.accentFg, fontWeight:800, fontSize:14, fontFamily:F.b, textDecoration:'none', letterSpacing:'0.01em', boxShadow:`0 4px 28px ${c}38`, transition:'transform 0.18s, box-shadow 0.18s' }}
+                onMouseEnter={e=>{e.currentTarget.style.transform='translateY(-1px)';e.currentTarget.style.boxShadow=`0 8px 36px ${c}55`;}}
+                onMouseLeave={e=>{e.currentTarget.style.transform='translateY(0)';e.currentTarget.style.boxShadow=`0 4px 28px ${c}38`;}}>
+                {tenant?.cta || 'Découvrir'} →
+              </a>
+            )}
+
+            {/* Bouton partager */}
+            <ShareBlocButton x={slot.x} y={slot.y} name={tenant?.name} slogan={tenant?.slogan} />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function FocusModal({ slot, allSlots, onClose, onNavigate, onGoAdvertiser, onViewProfile, onWaitlist }) {
   const [entered, setEntered] = useState(false);
   const t = useT();
@@ -3203,1443 +3343,6 @@ function FocusModal({ slot, allSlots, onClose, onNavigate, onGoAdvertiser, onVie
     </div>
   );
 }
-
-// ─── TikTok Feed ───────────────────────────────────────────────
-function TikTokFeed({ slots, isLive }) {
-  const feedRef = useRef(null);
-  const t = useT();
-  const [currentIdx, setCurrentIdx] = useState(0);
-  const { isMobile } = useScreenSize();
-
-  const feedSlots = useMemo(() => slots.filter(s => s.occ), [slots]);
-
-  useEffect(() => {
-    const container = feedRef.current;
-    if (!container) return;
-    const cards = container.querySelectorAll('[data-card]');
-    const obs = new IntersectionObserver(entries => {
-      entries.forEach(e => { if (e.isIntersecting && e.intersectionRatio >= 0.5) setCurrentIdx(parseInt(e.target.dataset.card)); });
-    }, { threshold: 0.5, root: container });
-    cards.forEach(c => obs.observe(c));
-    return () => obs.disconnect();
-  }, [feedSlots.length]);
-
-  const scrollTo = useCallback(idx => {
-    feedRef.current?.querySelectorAll('[data-card]')?.[idx]?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }, []);
-
-  if (feedSlots.length === 0) return (
-    <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: U.muted, fontSize: 14 }}>{t('feed.no_slots')}</div>
-  );
-
-  return (
-    <div ref={feedRef} style={{ flex: 1, overflowY: 'scroll', overflowX: 'hidden', scrollSnapType: 'y mandatory', WebkitOverflowScrolling: 'touch', position: 'relative' }}>
-      {feedSlots.map((slot, idx) => {
-        const { tier, occ, tenant } = slot;
-        const c = occ ? (tenant?.c || TIER_COLOR[tier]) : TIER_COLOR[tier];
-        const isActive = currentIdx === idx;
-        return (
-          <div key={slot.id} data-card={idx} style={{ scrollSnapAlign: 'start', width: '100%', height: '100%', minHeight: '100%', position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: isMobile ? 20 : 28, padding: isMobile ? '16px 16px 16px 8px' : '24px 60px 24px 24px', boxSizing: 'border-box', overflow: 'hidden', background: U.bg }}>
-
-            {occ && tenant?.img && (<>
-              <div style={{ position: 'absolute', inset: 0, overflow: 'hidden' }}>
-                <img src={tenant?.img} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: 0.05, filter: 'blur(32px)', transform: 'scale(1.15)' }} onError={e => e.target.style.display='none'} />
-              </div>
-              <div style={{ position: 'absolute', inset: 0, background: `linear-gradient(180deg, ${U.bg}cc 0%, transparent 40%, ${U.bg}ee 100%)` }} />
-            </>)}
-
-            {/* Tier badge */}
-            <div style={{ position: 'absolute', top: 16, left: 16, zIndex: 2 }}>
-              <span style={{ padding: '3px 9px', borderRadius: 4, background: `${TIER_COLOR[tier]}15`, border: `1px solid ${TIER_COLOR[tier]}30`, color: TIER_COLOR[tier], fontSize: 9, fontWeight: 700, letterSpacing: '0.06em' }}>{TIER_LABEL[tier]}</span>
-            </div>
-            {isLive && (
-              <div style={{ position: 'absolute', top: 16, right: isMobile ? 16 : 48, zIndex: 2, display: 'flex', alignItems: 'center', gap: 5, padding: '3px 8px', borderRadius: 4, background: U.faint, border: `1px solid ${U.border}` }}>
-                <div style={{ width: 5, height: 5, borderRadius: '50%', background: '#4caf50', animation: 'blink 2s infinite' }} />
-                <span style={{ color: U.muted, fontSize: 9, fontWeight: 600, letterSpacing: '0.05em' }}>LIVE</span>
-              </div>
-            )}
-
-            {/* Block visual */}
-            <div style={{ position: 'relative', zIndex: 1, width: isMobile ? 176 : 232, height: isMobile ? 176 : 232, borderRadius: tier === 'epicenter' ? 24 : 18, background: occ ? (tenant?.b || U.s2) : U.s2, border: `1px solid ${c}30`, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'border-color 0.4s, box-shadow 0.4s', boxShadow: isActive ? `0 0 48px ${c}30, 0 0 12px ${c}18` : `0 0 16px ${c}08` }}>
-              {occ && tenant?.img && <img src={tenant?.img} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', opacity: 0.55 }} onError={e => e.target.style.display='none'} />}
-              <div style={{ position: 'relative', zIndex: 1, textAlign: 'center', padding: 16 }}>
-                {occ ? (
-                  <>
-                    <div style={{ fontSize: tier === 'epicenter' ? 52 : 36, fontWeight: 900, color: c, fontFamily: F.h, lineHeight: 1, marginBottom: 6 }}>{tenant?.l}</div>
-                    {tier !== 'viral' && <div style={{ color: `${c}cc`, fontSize: tier === 'epicenter' ? 13 : 10, fontWeight: 700 }}>{tenant?.name}</div>}
-                  </>
-                ) : (
-                  <>
-                    <div style={{ color: `${c}60`, fontSize: 36, fontWeight: 300, lineHeight: 1 }}>+</div>
-                    <div style={{ color: U.muted, fontSize: 10, fontWeight: 600, marginTop: 8, letterSpacing: '0.05em' }}>{t('feed.available')}</div>
-                    <div style={{ color: U.muted, fontSize: 9, marginTop: 3, opacity: 0.6 }}>€{priceEur(tier)}/j</div>
-                  </>
-                )}
-              </div>
-            </div>
-
-            {/* Info card */}
-            <div style={{ position: 'relative', zIndex: 1, width: '100%', maxWidth: isMobile ? '92vw' : 400, padding: isMobile ? '16px' : '20px 22px', borderRadius: 14, background: U.s1, border: `1px solid ${U.border2}` }}>
-              {occ ? (<>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-                  <div style={{ width: 40, height: 40, borderRadius: 10, background: `${c}18`, border: `1px solid ${c}30`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, fontWeight: 900, color: c, fontFamily: F.h, flexShrink: 0 }}>{tenant?.l}</div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ color: U.text, fontWeight: 700, fontSize: 15, fontFamily: F.h, letterSpacing: '-0.02em' }}>{tenant?.name}</div>
-                    <div style={{ color: U.muted, fontSize: 11, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tenant?.slogan}</div>
-                  </div>
-                </div>
-                <a href={tenant?.url} target="_blank" rel="noopener noreferrer" onClick={() => recordClick(slot.x, slot.y, slot.bookingId)} style={{ display: 'block', padding: '10px 14px', borderRadius: 9, background: c, color: U.accentFg, fontWeight: 700, fontSize: 12, fontFamily: F.b, textDecoration: 'none', textAlign: 'center', boxShadow: `0 0 18px ${c}50` }}>
-                  {tenant?.cta}{' ->'}
-                </a>
-              </>) : null}
-            </div>
-
-            {/* Progress dots */}
-            <div style={{ position: 'absolute', right: isMobile ? 8 : 18, top: '50%', transform: 'translateY(-50%)', display: 'flex', flexDirection: 'column', gap: 5, zIndex: 2 }}>
-              {feedSlots.map((_, i) => (
-                <div key={i} onClick={() => scrollTo(i)} style={{ width: i === currentIdx ? 3 : 2, height: i === currentIdx ? 18 : 4, borderRadius: 2, background: i === currentIdx ? U.accent : U.border2, cursor: 'pointer', transition: 'all 0.3s' }} />
-              ))}
-            </div>
-
-            <div style={{ position: 'absolute', bottom: 14, left: '50%', transform: 'translateX(-50%)', color: U.muted, fontSize: 10, fontWeight: 500, letterSpacing: '0.04em', zIndex: 2 }}>{idx + 1} / {feedSlots.length}</div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-
-// ─── FeedInvitePanel ───────────────────────────────────────────
-// Apparaît en deux cas :
-//   1. Inactivité > 60s sur la grille
-//   2. Toutes les 3min même avec activité (invitation douce, disparaît en 8s)
-function FeedInvitePanel({ slots, onSwitchToFeed, onDismiss }) {
-  const [entered, setEntered] = useState(false);
-  const occupiedSlots = useMemo(() => slots.filter(s => s.occ).slice(0, 3), [slots]);
-
-  useEffect(() => {
-    const t = requestAnimationFrame(() => setEntered(true));
-    return () => cancelAnimationFrame(t);
-  }, []);
-
-  const c = U.accent;
-
-  return (
-    <div
-      style={{
-        position: 'fixed',
-        right: entered ? 0 : -320,
-        top: '50%',
-        transform: 'translateY(-50%)',
-        zIndex: 500,
-        transition: 'right 0.45s cubic-bezier(0.34,1.2,0.64,1)',
-        width: 280,
-      }}
-    >
-      <div style={{
-        background: U.s1,
-        border: `1px solid ${U.border2}`,
-        borderRight: 'none',
-        borderRadius: '16px 0 0 16px',
-        boxShadow: '-8px 0 40px rgba(0,0,0,0.6), -2px 0 0 ' + c + '30',
-        overflow: 'hidden',
-      }}>
-        {/* Bande accent en haut */}
-        <div style={{ height: 3, background: `linear-gradient(90deg, transparent, ${c}, ${c}90)` }} />
-
-        <div style={{ padding: '18px 18px 16px' }}>
-          {/* Header */}
-          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 14 }}>
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 4 }}>
-                <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#00e8a2', boxShadow: '0 0 6px #00e8a2', animation: 'blink 1.5s infinite' }} />
-                <span style={{ fontSize: 9, fontWeight: 700, color: '#00e8a2', letterSpacing: '0.1em' }}>DÉCOUVERTE</span>
-              </div>
-              <div style={{ color: U.text, fontWeight: 800, fontSize: 15, fontFamily: F.h, lineHeight: 1.2, letterSpacing: '-0.01em' }}>
-                Explorez les blocs
-              </div>
-              <div style={{ color: U.text, fontWeight: 800, fontSize: 15, fontFamily: F.h, lineHeight: 1.2, letterSpacing: '-0.01em' }}>
-                en mode <span style={{ color: c }}>Feed</span>
-              </div>
-            </div>
-            <button
-              onClick={onDismiss}
-              style={{ width: 24, height: 24, borderRadius: '50%', background: U.faint, border: `1px solid ${U.border}`, color: U.muted, cursor: 'pointer', fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 2 }}
-            >×</button>
-          </div>
-
-          {/* Preview de 3 blocs */}
-          {occupiedSlots.length > 0 && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 14 }}>
-              {occupiedSlots.map((slot, i) => {
-                const c2 = slot.tenant?.c || TIER_COLOR[slot.tier];
-                return (
-                  <div key={slot.id} style={{
-                    display: 'flex', alignItems: 'center', gap: 10,
-                    padding: '8px 10px', borderRadius: 10,
-                    background: `${c2}08`, border: `1px solid ${c2}20`,
-                    animation: `fadeUp 0.4s ease ${i * 0.08}s both`,
-                  }}>
-                    {/* Miniature colorée */}
-                    <div style={{
-                      width: 34, height: 34, borderRadius: 8, flexShrink: 0,
-                      background: slot.tenant?.img
-                        ? `url(${slot.tenant?.img}) center/cover`
-                        : `${c2}20`,
-                      border: `1.5px solid ${c2}40`,
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      overflow: 'hidden',
-                    }}>
-                      {!slot.tenant?.img && (
-                        <span style={{ color: c2, fontWeight: 900, fontSize: 13, fontFamily: F.h }}>
-                          {slot.tenant?.l || slot.tenant?.name?.charAt(0) || '?'}
-                        </span>
-                      )}
-                    </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ color: U.text, fontWeight: 700, fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {slot.tenant?.name || 'Annonceur'}
-                      </div>
-                      <div style={{ color: U.muted, fontSize: 10, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {slot.tenant?.slogan || TIER_LABEL[slot.tier]}
-                      </div>
-                    </div>
-                    <div style={{ width: 6, height: 6, borderRadius: '50%', background: c2, flexShrink: 0, opacity: 0.6 }} />
-                  </div>
-                );
-              })}
-            </div>
-          )}
-
-          {/* Description */}
-          <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11, lineHeight: 1.6, marginBottom: 14 }}>
-            Naviguez bloc par bloc, découvrez les offres et inspirations des annonceurs actifs.
-          </div>
-
-          {/* CTA */}
-          <button
-            onClick={onSwitchToFeed}
-            style={{
-              width: '100%', padding: '10px',
-              borderRadius: 10, fontFamily: F.b,
-              cursor: 'pointer', fontWeight: 700, fontSize: 13,
-              background: c, border: 'none', color: U.accentFg,
-              boxShadow: `0 0 20px ${c}40`,
-              transition: 'opacity 0.15s',
-            }}
-          >
-            Ouvrir le Feed →
-          </button>
-
-          {/* Skip */}
-          <button
-            onClick={onDismiss}
-            style={{ width: '100%', marginTop: 7, padding: '6px', background: 'none', border: 'none', color: 'rgba(255,255,255,0.25)', fontSize: 10, cursor: 'pointer', fontFamily: F.b }}
-          >
-            Continuer à explorer la grille
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── Public View ───────────────────────────────────────────────
-// ─── Boost Ticker (scrolling banner of boosted slots only) ──────
-function BoostTicker({ slots, authUser, userBookings, onBoost, onGoAdvertiser }) {
-  const [showTickerToast, setShowTickerToast] = useState(false);
-
-  // Only show slots explicitly boosted
-  const boosted = slots.filter(s => s.occ && s.tenant && s.tenant.boosted);
-
-  // Determine CTA state
-  const hasActiveBooking = userBookings && userBookings.length > 0;
-  const isLoggedIn = !!authUser;
-
-  const handleCTA = () => {
-    if (!isLoggedIn || !hasActiveBooking) {
-      setShowTickerToast(true);
-      setTimeout(() => setShowTickerToast(false), 4000);
-    } else {
-      onBoost();
-    }
-  };
-
-  const ctaLabel = !isLoggedIn
-    ? '⚡ Booster mon bloc'
-    : !hasActiveBooking
-    ? '⚡ Booster mon bloc'
-    : '⚡ Booster votre bloc';
-
-  // Empty state message items
-  const emptyItems = [
-    '⚡ Boostez votre bloc pour apparaître ici et obtenir une visibilité maximale',
-    '🚀 Votre marque vue par tous les visiteurs en temps réel',
-    '✦ Réservez un bloc ADSMostFair et activez le boost pour rejoindre cette barre',
-    '💡 Les annonceurs boostés obtiennent 3× plus de clics',
-  ];
-
-  return (
-    <div style={{ borderBottom: `1px solid ${U.accent}25`, background: `${U.accent}08`, flexShrink: 0, overflow: 'hidden', height: 30, display: 'flex', alignItems: 'center', position: 'relative' }}>
-      {/* Tooltip toast */}
-      {showTickerToast && (
-        <div style={{ position: 'absolute', bottom: 36, right: 12, zIndex: 100, background: U.s1, border: `1px solid ${U.accent}40`, borderRadius: 10, padding: '10px 14px', boxShadow: '0 8px 32px rgba(0,0,0,0.5)', maxWidth: 260, animation: 'fadeIn 0.2s ease' }}>
-          {!isLoggedIn ? (
-            <>
-              <div style={{ color: U.text, fontWeight: 700, fontSize: 12, marginBottom: 4 }}>Vous n'avez pas encore de bloc</div>
-              <div style={{ color: U.muted, fontSize: 11, lineHeight: 1.5, marginBottom: 8 }}>Réservez un bloc ADSMostFair pour profiter d'un boost de visibilité et apparaître ici.</div>
-              <button onClick={() => { setShowTickerToast(false); onGoAdvertiser(); }} style={{ padding: '6px 12px', borderRadius: 7, background: U.accent, border: 'none', color: U.accentFg, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
-                Voir les blocs disponibles →
-              </button>
-            </>
-          ) : (
-            <>
-              <div style={{ color: U.text, fontWeight: 700, fontSize: 12, marginBottom: 4 }}>Aucun bloc actif</div>
-              <div style={{ color: U.muted, fontSize: 11, lineHeight: 1.5, marginBottom: 8 }}>Le boost est disponible une fois que vous avez réservé et activé un bloc.</div>
-              <button onClick={() => { setShowTickerToast(false); onGoAdvertiser(); }} style={{ padding: '6px 12px', borderRadius: 7, background: U.accent, border: 'none', color: U.accentFg, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
-                Réserver un bloc →
-              </button>
-            </>
-          )}
-        </div>
-      )}
-
-      {/* Left label */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '0 10px 0 12px', flexShrink: 0, borderRight: `1px solid ${U.accent}30`, height: '100%', background: `${U.accent}10`, zIndex: 2 }}>
-        <span style={{ fontSize: 9 }}>⚡</span>
-        <span style={{ color: U.accent, fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', whiteSpace: 'nowrap' }}>BOOST</span>
-      </div>
-
-      {/* Scrolling track */}
-      <div style={{ flex: 1, overflow: 'hidden', position: 'relative', maskImage: 'linear-gradient(to right, transparent 0%, black 3%, black 97%, transparent 100%)', WebkitMaskImage: 'linear-gradient(to right, transparent 0%, black 3%, black 97%, transparent 100%)' }}>
-        {boosted.length > 0 ? (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 0, animation: 'tickerScroll 40s linear infinite', width: 'max-content', willChange: 'transform' }}>
-            {[...boosted, ...boosted].map((slot, i) => {
-              const theme = getSlotTheme(slot);
-              const c = theme?.color || slot.tenant?.c || U.accent;
-              return (
-                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '0 18px', borderRight: `1px solid ${U.border}`, height: 30, cursor: 'pointer', flexShrink: 0 }}
-                  onClick={() => window.open(slot.tenant?.url, '_blank')}>
-                  <span style={{ width: 16, height: 16, borderRadius: 4, background: `${c}22`, border: `1px solid ${c}50`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 8, fontWeight: 900, color: c, fontFamily: 'monospace', flexShrink: 0 }}>{slot.tenant?.l?.charAt(0)}</span>
-                  <span style={{ color: 'rgba(255,255,255,0.7)', fontSize: 10, fontWeight: 600, whiteSpace: 'nowrap' }}>{slot.tenant?.name}</span>
-                  {theme && <span style={{ color: c, fontSize: 8, opacity: 0.7 }}>{theme.icon}</span>}
-                  <span style={{ color: 'rgba(255,255,255,0.28)', fontSize: 9, whiteSpace: 'nowrap' }}>{slot.tenant?.cta}</span>
-                </div>
-              );
-            })}
-          </div>
-        ) : (
-          // Empty state — invitation scrolling
-          <div style={{ display: 'flex', alignItems: 'center', animation: 'tickerScroll 60s linear infinite', width: 'max-content', willChange: 'transform' }}>
-            {[...emptyItems, ...emptyItems].map((msg, i) => (
-              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 0, padding: '0 32px', borderRight: `1px solid ${U.border}`, height: 30, flexShrink: 0 }}>
-                <span style={{ color: 'rgba(255,255,255,0.35)', fontSize: 10, fontWeight: 500, whiteSpace: 'nowrap', fontStyle: 'italic' }}>{msg}</span>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Right CTA — always visible but context-aware */}
-      <button onClick={handleCTA} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '0 12px', height: '100%', background: `${U.accent}15`, border: 'none', borderLeft: `1px solid ${U.accent}30`, cursor: 'pointer', flexShrink: 0, color: U.accent, fontSize: 9, fontWeight: 700, fontFamily: 'inherit', letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>
-        {ctaLabel}
-      </button>
-    </div>
-  );
-}
-
-function PublicView({ slots, isLive, onGoAdvertiser, onWaitlist, authUser, userBookings }) {
-  const t = useT();
-  const containerRef  = useRef(null);
-  const [containerW, setContainerW] = useState(0);
-  const [containerH, setContainerH] = useState(0);
-  const [focusSlot, setFocusSlot]   = useState(null);
-  const [filterTier, setFilterTier] = useState('all');
-  const [filterTheme, setFilterTheme] = useState('all');
-  const [feedMode, setFeedMode]     = useState(false);
-  const [showFeedInvite, setShowFeedInvite] = useState(false);
-  const [profileAdvertiserId, setProfileAdvertiserId] = useState(null);
-  const { isMobile } = useScreenSize();
-
-  // ── Logique d'invitation au Feed ──────────────────────────────
-  const INACTIVITY_MS  = 60_000;  // 60s sans interaction → panneau
-  const PERIODIC_MS    = 180_000; // 3min même avec activité → rappel
-  const inactivityTimer = useRef(null);
-  const periodicTimer   = useRef(null);
-  const dismissedRef    = useRef(false); // évite le re-show immédiat après dismiss
-
-  const showInvite = () => {
-    if (feedMode) return; // pas en mode Feed, inutile
-    setShowFeedInvite(true);
-  };
-
-  const resetInactivityTimer = () => {
-    clearTimeout(inactivityTimer.current);
-    if (dismissedRef.current) return; // l'user a fermé, on respecte
-    inactivityTimer.current = setTimeout(showInvite, INACTIVITY_MS);
-  };
-
-  useEffect(() => {
-    if (feedMode) {
-      // En mode feed — on annule tout
-      setShowFeedInvite(false);
-      clearTimeout(inactivityTimer.current);
-      clearTimeout(periodicTimer.current);
-      return;
-    }
-
-    // Inactivité : reset au moindre mouvement souris / tactile / scroll
-    const events = ['mousemove', 'mousedown', 'touchstart', 'touchmove', 'scroll', 'keydown'];
-    const onActivity = () => { if (!dismissedRef.current) resetInactivityTimer(); };
-    events.forEach(e => window.addEventListener(e, onActivity, { passive: true }));
-    resetInactivityTimer();
-
-    // Invitation périodique — toutes les 3min, même avec activité
-    // 8s de visibilité puis disparaît automatiquement (non intrusif)
-    periodicTimer.current = setInterval(() => {
-      if (feedMode || dismissedRef.current) return;
-      setShowFeedInvite(true);
-      // Auto-dismiss après 8s si l'user ne fait rien
-      setTimeout(() => setShowFeedInvite(v => v ? false : v), 8_000);
-    }, PERIODIC_MS);
-
-    return () => {
-      events.forEach(e => window.removeEventListener(e, onActivity));
-      clearTimeout(inactivityTimer.current);
-      clearInterval(periodicTimer.current);
-    };
-  }, [feedMode]);
-
-  const handleDismissInvite = () => {
-    setShowFeedInvite(false);
-    dismissedRef.current = true;
-    // Réactiver après 5min pour ne pas être trop insistant
-    setTimeout(() => { dismissedRef.current = false; resetInactivityTimer(); }, 300_000);
-  };
-
-  const handleSwitchToFeed = () => {
-    setShowFeedInvite(false);
-    setFeedMode(true);
-    dismissedRef.current = false;
-  };
-
-  useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
-    const obs = new ResizeObserver(e => { setContainerW(e[0].contentRect.width); setContainerH(e[0].contentRect.height); });
-    obs.observe(el);
-    setContainerW(el.clientWidth); setContainerH(el.clientHeight);
-    return () => obs.disconnect();
-  }, []);
-
-  const { colOffsets, rowOffsets, totalGridW, totalGridH, tierSizes, k, colWidths, rowHeights } =
-    useGridLayout(containerW, containerH, isMobile);
-
-  // Centre sur ÉPICENTRE au premier rendu + à chaque retour depuis Feed
-  const centeredRef = useRef(false);
-  useEffect(() => {
-    if (feedMode) { centeredRef.current = false; return; }
-    if (centeredRef.current || !containerRef.current || containerW === 0) return;
-    const el = containerRef.current;
-    el.scrollLeft = colOffsets[CENTER_X] + tierSizes.epicenter / 2 - el.clientWidth / 2;
-    el.scrollTop  = rowOffsets[CENTER_Y] + tierSizes.epicenter / 2 - el.clientHeight / 2;
-    centeredRef.current = true;
-  }, [feedMode, colOffsets, rowOffsets, tierSizes, containerW]);
-
-  const filteredSlots = useMemo(() => {
-    let s = slots;
-    // Tier filter: inclut TOUS les slots du tier (occupés, libres ET indisponibles)
-    // pour un dimming uniforme identique à la vue annonceur.
-    if (filterTier !== 'all') s = s.filter(sl => sl.tier === filterTier);
-    // Theme filter: ne dimme que les blocs occupés qui ne matchent pas;
-    // les blocs vides/indisponibles du tier restent à pleine opacité.
-    if (filterTheme !== 'all') {
-      const theme = THEMES.find(t => t.id === filterTheme);
-      if (theme) s = s.filter(sl => !sl.occ || theme.match?.(sl.tenant?.t, sl.tenant?.name, sl.tenant?.url));
-    }
-    return new Set(s.map(sl => sl.id));
-  }, [slots, filterTier, filterTheme]);
-
-  const stats = useMemo(() => ({ occupied: slots.filter(s => s.occ).length, vacant: slots.filter(s => !s.occ).length }), [slots]);
-
-  // ── Stable references — prevent 1369 new closures per render ──
-  const NOOP_SELECT  = useCallback(() => {}, []);
-  const isFiltering  = filterTier !== 'all' || filterTheme !== 'all';
-
-  const tierFilters = useMemo(() => [
-    ['all', t('toolbar.all')],
-    ['epicenter', t('toolbar.epicenter')],
-    ['prestige',  t('toolbar.prestige')],
-    ['elite',     t('toolbar.elite')],
-    ['business',  t('toolbar.business')],
-    ['standard',  t('toolbar.standard')],
-    ['viral',     t('toolbar.viral')],
-  ], [t]);
-
-  return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: U.bg }}>
-      {/* ── Row 1: View toggle + Tier filters + Live stats ── */}
-      <div style={{ borderBottom: `1px solid ${U.border}`, background: `${U.s1}f5`, backdropFilter: 'blur(12px)', flexShrink: 0, overflowX: 'auto', overflowY: 'hidden', WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 14px', height: 40, minWidth: 'max-content' }}>
-          {/* View toggle */}
-          <div style={{ display: 'flex', background: U.faint, border: `1px solid ${U.border}`, borderRadius: 7, overflow: 'hidden', flexShrink: 0 }}>
-            {[['grid','Grille'], ['feed','Feed']].map(([id, label]) => (
-              <button key={id} onClick={() => setFeedMode(id === 'feed')} style={{ padding: '4px 11px', fontFamily: F.b, cursor: 'pointer', fontSize: 11, background: (feedMode ? 'feed' : 'grid') === id ? U.s2 : 'transparent', border: 'none', color: (feedMode ? 'feed' : 'grid') === id ? U.text : U.muted, fontWeight: (feedMode ? 'feed' : 'grid') === id ? 600 : 400, transition: 'all 0.15s', whiteSpace: 'nowrap' }}>{t(id === 'grid' ? 'toolbar.grid' : 'toolbar.feed')}</button>
-            ))}
-          </div>
-
-          {!feedMode && <>
-            <div style={{ width: 1, height: 16, background: U.border, flexShrink: 0 }} />
-            {tierFilters.map(([id, label]) => (
-              <button key={id} onClick={() => setFilterTier(id)} style={{ padding: '4px 9px', borderRadius: 6, fontFamily: F.b, cursor: 'pointer', fontSize: 11, background: filterTier === id ? U.s2 : 'transparent', border: `1px solid ${filterTier === id ? U.border2 : 'transparent'}`, color: filterTier === id ? U.text : U.muted, fontWeight: filterTier === id ? 600 : 400, transition: 'all 0.15s', whiteSpace: 'nowrap' }}>{label}</button>
-            ))}
-          </>}
-
-          <div style={{ marginLeft: 'auto', display: 'flex', gap: 10, alignItems: 'center', paddingLeft: 12, flexShrink: 0 }}>
-            {isLive && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                <div style={{ width: 5, height: 5, borderRadius: '50%', background: '#4caf50', animation: 'blink 2s infinite' }} />
-                <span style={{ color: U.muted, fontSize: 10, fontWeight: 500 }}>{t('toolbar.live')}</span>
-              </div>
-            )}
-            {!isMobile && (
-              <>
-                <span style={{ color: U.muted, fontSize: 11 }}><span style={{ color: U.text, fontWeight: 600 }}>{stats.occupied}</span> {t('toolbar.active')}</span>
-                <span style={{ color: U.muted, fontSize: 11 }}><span style={{ color: U.text, fontWeight: 600 }}>{stats.vacant}</span> {t('toolbar.free')}</span>
-              </>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* ── Row 2: Theme filters (grid only) ── */}
-      {!feedMode && (
-        <div style={{ borderBottom: `1px solid ${U.border}`, background: U.bg, flexShrink: 0, overflowX: 'auto', overflowY: 'hidden', WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '0 14px', height: 36, minWidth: 'max-content' }}>
-            {THEMES.map(th => {
-              const active = filterTheme === th.id;
-              const col = th.color || U.muted;
-              return (
-                <button key={th.id} onClick={() => setFilterTheme(th.id)} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '3px 9px', borderRadius: 20, fontFamily: F.b, cursor: 'pointer', fontSize: 10, fontWeight: active ? 700 : 400, whiteSpace: 'nowrap', transition: 'all 0.15s', background: active ? `${col}22` : 'transparent', border: `1px solid ${active ? col + '66' : 'transparent'}`, color: active ? col : U.muted }}>
-                  <span style={{ fontSize: 9 }}>{th.icon}</span>
-                  {t(th.labelKey)}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* ── Boost ticker — only for logged-in users ── */}
-      {authUser && <BoostTicker slots={slots} authUser={authUser} userBookings={userBookings} onBoost={onGoAdvertiser} onGoAdvertiser={onGoAdvertiser} />}
-
-      {/* Les deux vues restent dans le DOM — display:none évite le remount et préserve containerW */}
-      <div style={{ flex: 1, display: feedMode ? 'none' : 'flex', overflow: 'auto', alignItems: 'flex-start', justifyContent: 'center', minHeight: 0 }} ref={containerRef}>
-        <div style={{ position: 'relative', width: totalGridW, height: totalGridH, flexShrink: 0 }}>
-          {slots.map(slot => {
-            const inFilter  = filteredSlots.has(slot.id);
-            // isFiltering is hoisted above the map — stable per render, not per slot
-
-            // ── Couleur néon selon le filtre actif ──────────────
-            // Tier  → s'allume sur tous les blocs du tier sélectionné
-            // Theme → s'allume UNIQUEMENT sur les blocs dont la catégorie
-            //         correspond exactement au thème choisi (pas les vides)
-            let neonColor = null;
-            if (isFiltering && inFilter) {
-              if (filterTier !== 'all') {
-                neonColor = TIER_COLOR[slot.tier];
-              } else if (filterTheme !== 'all') {
-                const slotTheme = getSlotTheme(slot);
-                const activeTheme = THEMES.find(th => th.id === filterTheme);
-                if (slotTheme?.id === filterTheme) {
-                  neonColor = activeTheme?.color || TIER_COLOR[slot.tier];
-                }
-              }
-            }
-
-            const sz = tierSizes[slot.tier] || 10;
-
-            return (
-              <SlotWrapper
-                key={slot.id}
-                slot={slot}
-                colOffset={colOffsets[slot.x]}
-                rowOffset={rowOffsets[slot.y]}
-                sz={sz}
-                w={colWidths[slot.x - 1]}
-                h={rowHeights[slot.y - 1]}
-                isFiltering={isFiltering}
-                inFilter={inFilter}
-                neonColor={neonColor}
-                onFocus={setFocusSlot}
-                onSelect={NOOP_SELECT}
-              />
-            );
-          })}
-        </div>
-      </div>
-      <div style={{ flex: 1, display: feedMode ? 'flex' : 'none', flexDirection: 'column', overflow: 'hidden' }}>
-        <TikTokFeed slots={slots} isLive={isLive} />
-      </div>
-      {focusSlot && <FocusModal
-        slot={focusSlot}
-        allSlots={slots}
-        onClose={() => setFocusSlot(null)}
-        onNavigate={setFocusSlot}
-        onGoAdvertiser={onGoAdvertiser}
-        onWaitlist={onWaitlist}
-        onViewProfile={(advId) => { setFocusSlot(null); setTimeout(() => setProfileAdvertiserId(advId), 50); }}
-      />}
-
-      {/* ── Feed Invite Panel ── */}
-      {showFeedInvite && !feedMode && (
-        <FeedInvitePanel
-          slots={slots}
-          onSwitchToFeed={handleSwitchToFeed}
-          onDismiss={handleDismissInvite}
-        />
-      )}
-
-      {/* ── Advertiser Profile Modal ── */}
-      {profileAdvertiserId && (
-        <AdvertiserProfileModal
-          advertiserId={profileAdvertiserId}
-          slots={slots}
-          onClose={() => setProfileAdvertiserId(null)}
-          onOpenSlot={(slot) => setFocusSlot(slot)}
-        />
-      )}
-    </div>
-  );
-}
-
-// ─── heatColor — interpolation 6 stops pour la heatmap ────────────
-function heatColor(ratio) {
-  const stops = [
-    { t: 0,    r: 13,  g: 24,  b: 40  },
-    { t: 0.15, r: 30,  g: 40,  b: 90  },
-    { t: 0.35, r: 70,  g: 50,  b: 190 },
-    { t: 0.55, r: 0,   g: 200, b: 230 },
-    { t: 0.75, r: 255, g: 140, b: 0   },
-    { t: 1,    r: 255, g: 30,  b: 60  },
-  ];
-  let lo = stops[0], hi = stops[stops.length - 1];
-  for (let i = 0; i < stops.length - 1; i++) {
-    if (ratio >= stops[i].t && ratio <= stops[i+1].t) { lo = stops[i]; hi = stops[i+1]; break; }
-  }
-  const span = hi.t - lo.t || 1;
-  const f    = (ratio - lo.t) / span;
-  return `rgb(${Math.round(lo.r + (hi.r - lo.r) * f)},${Math.round(lo.g + (hi.g - lo.g) * f)},${Math.round(lo.b + (hi.b - lo.b) * f)})`;
-}
-
-// ─── AdvSlotWrapper — miroir exact de SlotWrapper (vue publique) ──────────────
-// BlockCell reçoit w+h pour remplir la cellule complète (pas de centering)
-const AdvSlotWrapper = memo(({
-  slot, colOffset, rowOffset, sz, w, h,
-  isChosen, isTierFiltering, tierMatch,
-  heatmapMode, heatClicks, heatMax,
-  isHeatHovered, onChoose, onHeatHover, onHeatLeave,
-}) => {
-  const c     = TIER_COLOR[slot.tier];
-  const ratio = heatmapMode && heatMax > 0 ? Math.min(heatClicks / heatMax, 1) : 0;
-  // effective block size for glow/radius (min of actual rendered dimensions)
-  const bw = w ?? sz;
-  const bh = h ?? sz;
-  const effectiveSz = Math.min(bw, bh);
-
-  const handleClick = useCallback(() => onChoose(slot), [slot, onChoose]);
-
-  const opacity = heatmapMode
-    ? 0.08
-    : isTierFiltering
-      ? (tierMatch ? 1 : 0.05)
-      : 1;
-
-  return (
-    <div
-      style={{
-        position: 'absolute',
-        left: colOffset,
-        top: rowOffset,
-        opacity,
-        transition: 'opacity 0.25s ease',
-        zIndex: isChosen ? 3 : 1,
-      }}
-      onMouseEnter={heatmapMode ? onHeatHover : undefined}
-      onMouseLeave={heatmapMode ? onHeatLeave : undefined}
-    >
-      {/* BlockCell fills the full column×row cell, same as SlotWrapper in public view */}
-      <BlockCell
-        slot={slot}
-        isSelected={isChosen}
-        onSelect={handleClick}
-        onFocus={handleClick}
-        sz={sz}
-        w={w}
-        h={h}
-        showStats={!heatmapMode}
-      />
-
-      {/* ── Overlay sélection ── */}
-      {isChosen && (
-        <div style={{
-          position: 'absolute', inset: -2,
-          borderRadius: slot.tier === 'epicenter' ? Math.round(effectiveSz * 0.1) + 2
-                      : slot.tier === 'prestige' || slot.tier === 'elite' ? Math.round(effectiveSz * 0.09) + 2
-                      : slot.tier === 'business' ? 5 : 4,
-          border: `2px solid ${c}`,
-          boxShadow: `0 0 0 1px ${c}25, 0 0 ${Math.max(12, effectiveSz * 0.55)}px ${c}40`,
-          pointerEvents: 'none', zIndex: 10,
-          animation: 'selectedPulse 2.4s ease-in-out infinite',
-        }} />
-      )}
-
-      {/* ── Tooltip heatmap on hover — canvas draws the dots, this just shows data ── */}
-      {heatmapMode && isHeatHovered && heatClicks > 0 && (
-        <div style={{
-          position: 'absolute',
-          bottom: effectiveSz + 14,
-          left: '50%',
-          transform: 'translateX(-50%)',
-          background: 'rgba(2,4,10,0.96)',
-          border: '1px solid rgba(255,120,60,0.35)',
-          borderRadius: 10,
-          padding: '10px 14px',
-          whiteSpace: 'nowrap',
-          zIndex: 500,
-          boxShadow: '0 12px 40px rgba(0,0,0,0.9), 0 0 24px rgba(255,100,40,0.12)',
-          pointerEvents: 'none',
-          backdropFilter: 'blur(20px)',
-        }}>
-          {slot.tenant?.name && (
-            <div style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.85)', marginBottom: 7, letterSpacing: '-0.01em' }}>
-              {slot.tenant?.name}
-            </div>
-          )}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div style={{
-              width: 8, height: 8, borderRadius: '50%',
-              background: ratio > 0.75 ? '#fffbe0' : ratio > 0.45 ? '#ffcc44' : ratio > 0.2 ? '#ff8c30' : '#ff4d8f',
-              boxShadow: `0 0 8px ${ratio > 0.75 ? '#fffbe0' : ratio > 0.45 ? '#ffcc44' : '#ff8c30'}aa`,
-              flexShrink: 0,
-            }} />
-            <div>
-              <span style={{ fontSize: 17, fontWeight: 900, color: ratio > 0.75 ? '#fffbe0' : ratio > 0.45 ? '#ffcc44' : ratio > 0.2 ? '#ff9944' : '#ff6677', fontFamily: F.h, letterSpacing: '-0.02em' }}>
-                {heatClicks.toLocaleString('fr-FR')}
-              </span>
-              <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.3)', marginLeft: 6 }}>clics</span>
-            </div>
-          </div>
-          {heatMax > 0 && (
-            <div style={{ marginTop: 8, height: 3, width: 100, borderRadius: 3, background: 'rgba(255,255,255,0.07)', overflow: 'hidden' }}>
-              <div style={{ height: '100%', width: `${Math.round(ratio * 100)}%`, background: 'linear-gradient(90deg,#ff4d8f,#ff8c30,#ffcc44,#fffbe0)', borderRadius: 3, transition: 'width 0.6s cubic-bezier(0.34,1.56,0.64,1)' }} />
-            </div>
-          )}
-          <div style={{ position: 'absolute', bottom: -5, left: '50%', transform: 'translateX(-50%) rotate(45deg)', width: 8, height: 8, background: 'rgba(2,4,10,0.96)', border: '1px solid rgba(255,120,60,0.25)', borderTop: 'none', borderLeft: 'none' }} />
-        </div>
-      )}
-    </div>
-  );
-});
-AdvSlotWrapper.displayName = 'AdvSlotWrapper';
-
-// ─── HeatmapDotCanvas — canvas overlay rendu dots lumineux (rose→jaune→blanc) ──
-function HeatmapDotCanvas({ slots, heatmapData, heatmapMax, colOffsets, rowOffsets, colWidths, rowHeights, totalGridW, totalGridH }) {
-  const canvasRef = useRef(null);
-  const frameRef  = useRef(null);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas || !heatmapData || totalGridW === 0 || totalGridH === 0) return;
-    const ctx    = canvas.getContext('2d');
-    const dpr    = window.devicePixelRatio || 1;
-    canvas.width        = Math.ceil(totalGridW * dpr);
-    canvas.height       = Math.ceil(totalGridH * dpr);
-    canvas.style.width  = totalGridW + 'px';
-    canvas.style.height = totalGridH + 'px';
-    ctx.scale(dpr, dpr);
-
-    // Build dot list — one per slot that has at least 1 click
-    const dots = [];
-    for (const slot of slots) {
-      const clicks = heatmapData.get(`${slot.x},${slot.y}`) || 0;
-      if (clicks === 0) continue;
-      const ratio  = heatmapMax > 0 ? Math.min(clicks / heatmapMax, 1) : 0;
-      const cw     = colWidths[slot.x - 1]  || 0;
-      const ch     = rowHeights[slot.y - 1] || 0;
-      const cx     = (colOffsets[slot.x]  || 0) + cw / 2;
-      const cy     = (rowOffsets[slot.y]  || 0) + ch / 2;
-      // base radius = half the smallest cell dimension, clamped so tiny cells still glow
-      const baseR  = Math.max(6, Math.min(cw, ch) * 0.55);
-      // phase offset for staggered pulse
-      const phase  = (cx * 0.009 + cy * 0.013) % (Math.PI * 2);
-      dots.push({ cx, cy, baseR, ratio, phase, clicks });
-    }
-
-    // Colour palette: rose → orange → jaune → blanc
-    function dotRGB(ratio) {
-      if (ratio < 0.3) {
-        const t = ratio / 0.3;
-        return [Math.round(205 + 50 * t), Math.round(50 + 70 * t), Math.round(110 - 60 * t)];
-      } else if (ratio < 0.6) {
-        const t = (ratio - 0.3) / 0.3;
-        return [255, Math.round(120 + 110 * t), Math.round(50 - 30 * t)];
-      } else if (ratio < 0.85) {
-        const t = (ratio - 0.6) / 0.25;
-        return [255, Math.round(230 + 25 * t), Math.round(20 + 80 * t)];
-      } else {
-        const t = (ratio - 0.85) / 0.15;
-        return [255, 255, Math.round(100 + 155 * t)];
-      }
-    }
-
-    let startTs = null;
-    function draw(ts) {
-      if (!startTs) startTs = ts;
-      const elapsed = (ts - startTs) / 1000;
-      ctx.clearRect(0, 0, totalGridW, totalGridH);
-      ctx.globalCompositeOperation = 'screen';
-
-      for (const { cx, cy, baseR, ratio, phase } of dots) {
-        if (ratio < 0.015) continue;
-        const [r, g, b] = dotRGB(ratio);
-        // gentle oscillating pulse — amplitude grows with intensity
-        const pulse = 1 + (0.06 + ratio * 0.12) * Math.sin(elapsed * 1.1 + phase);
-
-        // ── Layer 1: outer diffuse halo ─────────────────────────────
-        const haloR = baseR * (3.5 + ratio * 5.5) * pulse;
-        const g1    = ctx.createRadialGradient(cx, cy, 0, cx, cy, haloR);
-        const a1max = 0.09 + ratio * 0.13;
-        g1.addColorStop(0,   `rgba(${r},${g},${b},${a1max.toFixed(3)})`);
-        g1.addColorStop(0.35,`rgba(${r},${g},${b},${(a1max * 0.55).toFixed(3)})`);
-        g1.addColorStop(0.7, `rgba(${r},${g},${b},${(a1max * 0.15).toFixed(3)})`);
-        g1.addColorStop(1,   `rgba(${r},${g},${b},0)`);
-        ctx.fillStyle = g1;
-        ctx.beginPath(); ctx.arc(cx, cy, haloR, 0, Math.PI * 2); ctx.fill();
-
-        // ── Layer 2: mid glow ring ───────────────────────────────────
-        const midR  = baseR * (1.6 + ratio * 2.2) * pulse;
-        const g2    = ctx.createRadialGradient(cx, cy, 0, cx, cy, midR);
-        const a2max = 0.35 + ratio * 0.4;
-        g2.addColorStop(0,   `rgba(${r},${g},${b},${a2max.toFixed(3)})`);
-        g2.addColorStop(0.45,`rgba(${r},${g},${b},${(a2max * 0.55).toFixed(3)})`);
-        g2.addColorStop(1,   `rgba(${r},${g},${b},0)`);
-        ctx.fillStyle = g2;
-        ctx.beginPath(); ctx.arc(cx, cy, midR, 0, Math.PI * 2); ctx.fill();
-
-        // ── Layer 3: bright core ─────────────────────────────────────
-        const coreR = Math.max(2.5, baseR * (0.22 + ratio * 0.28)) * pulse;
-        const g3    = ctx.createRadialGradient(cx, cy, 0, cx, cy, coreR);
-        const coreAlpha = 0.7 + ratio * 0.3;
-        g3.addColorStop(0,   `rgba(255,255,255,${coreAlpha.toFixed(3)})`);
-        g3.addColorStop(0.3, `rgba(${r},${g},${b},${(coreAlpha * 0.9).toFixed(3)})`);
-        g3.addColorStop(0.7, `rgba(${r},${g},${b},${(coreAlpha * 0.45).toFixed(3)})`);
-        g3.addColorStop(1,   `rgba(${r},${g},${b},0)`);
-        ctx.fillStyle = g3;
-        ctx.beginPath(); ctx.arc(cx, cy, coreR, 0, Math.PI * 2); ctx.fill();
-      }
-
-      ctx.globalCompositeOperation = 'source-over';
-      frameRef.current = requestAnimationFrame(draw);
-    }
-
-    frameRef.current = requestAnimationFrame(draw);
-    return () => { cancelAnimationFrame(frameRef.current); };
-  }, [slots, heatmapData, heatmapMax, colOffsets, rowOffsets, colWidths, rowHeights, totalGridW, totalGridH]);
-
-  return (
-    <canvas
-      ref={canvasRef}
-      style={{ position: 'absolute', top: 0, left: 0, pointerEvents: 'none', zIndex: 20 }}
-    />
-  );
-}
-
-// ─── AnonBlock ─────────────────────────────────────────────────
-const AnonBlock = memo(({ slot, chosenSlot, activeTier, onChoose, sz: szProp, w, h }) => {
-  const { tier: t, occ } = slot;
-  const bw = w ?? szProp ?? TIER_SIZE[t];
-  const bh = h ?? szProp ?? TIER_SIZE[t];
-  const sz = Math.min(bw, bh);
-  const c  = TIER_COLOR[t];
-  const isChosen = chosenSlot?.id === slot.id;
-  const isTierHighlighted = activeTier && t === activeTier;
-  const r = t === 'epicenter' ? Math.round(sz * 0.1) : t === 'prestige' ? Math.round(sz * 0.09) : t === 'elite' ? Math.round(sz * 0.07) : t === 'business' ? 3 : 2;
-  const available = isTierAvailable(t);
-
-  if (occ) return (
-    <div onClick={() => onChoose(slot)} style={{ width: bw, height: bh, borderRadius: r, background: slot.tenant?.b || U.s2, border: `1px solid ${isTierHighlighted ? c + '50' : isChosen ? c + '80' : c + '25'}`, position: 'relative', overflow: 'hidden', flexShrink: 0, cursor: 'pointer', outline: isChosen ? `2px solid ${c}` : 'none', outlineOffset: 1, transition: 'box-shadow 0.25s', boxShadow: isChosen ? `0 0 0 2px ${c}55, 0 0 ${sz * 0.5}px ${c}35` : isTierHighlighted ? `0 0 ${sz * 0.4}px ${c}18` : 'none' }}>
-      {sz >= 12 && slot.tenant && (
-        <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: slot.tenant?.b || U.s2 }}>
-          {sz >= 24 && <span style={{ color: slot.tenant?.c, fontSize: Math.min(sz * 0.38, 28), fontWeight: 900, fontFamily: F.h, lineHeight: 1 }}>{slot.tenant?.l}</span>}
-        </div>
-      )}
-    </div>
-  );
-
-  // ── Bloc indisponible ──────────────────────────────────────────
-  if (!available) {
-    return (
-      <div
-        onClick={() => onChoose(slot)}
-        style={{
-          width: bw, height: bh, flexShrink: 0, position: 'relative', borderRadius: r,
-          background: isChosen ? `${c}14` : `${c}06`,
-          border: `1px solid ${isChosen ? c + '55' : c + '18'}`,
-          outline: isChosen ? `2px solid ${c}60` : 'none',
-          outlineOffset: 1, cursor: 'pointer', opacity: 0.75, overflow: 'hidden',
-          transition: 'border-color 0.2s, background 0.2s',
-        }}
-      >
-        <div style={{ position: 'absolute', inset: 0, background: `repeating-linear-gradient(45deg, ${c}06 0px, ${c}06 1px, transparent 1px, transparent 7px)`, borderRadius: r }} />
-        {sz >= 20 && (
-          <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: Math.max(2, sz * 0.05) }}>
-            <span style={{ fontSize: Math.max(7, sz * 0.22), lineHeight: 1, opacity: 0.55 }}>🔒</span>
-            {sz >= 52 && (
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, marginTop: 2 }}>
-                <div style={{ fontSize: Math.max(5, sz * 0.075), fontWeight: 800, color: `${c}90`, letterSpacing: '0.05em', fontFamily: F.h, textAlign: 'center', lineHeight: 1.2 }}>DISPONIBLE</div>
-                <div style={{ fontSize: Math.max(5, sz * 0.07), fontWeight: 700, color: `${c}60`, letterSpacing: '0.04em', fontFamily: F.h, textAlign: 'center', lineHeight: 1.2 }}>PROCHAINEMENT</div>
-              </div>
-            )}
-            {sz >= 32 && sz < 52 && (
-              <div style={{ fontSize: Math.max(5, sz * 0.09), fontWeight: 800, color: `${c}70`, letterSpacing: '0.05em', fontFamily: F.h, textAlign: 'center', lineHeight: 1.2 }}>BIENTÔT</div>
-            )}
-          </div>
-        )}
-        {sz < 20 && sz >= 10 && (
-          <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <div style={{ width: '50%', height: 1, background: `${c}40`, borderRadius: 1 }} />
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  // ── Bloc libre disponible ──────────────────────────────────────
-  return (
-    <div onClick={() => onChoose(slot)} style={{ width: bw, height: bh, flexShrink: 0, position: 'relative', borderRadius: r, background: isChosen ? `${c}18` : isTierHighlighted ? `${c}0c` : U.s2, border: `1px solid ${isChosen ? c + '80' : isTierHighlighted ? c + '40' : U.border}`, outline: isChosen ? `2px solid ${c}` : 'none', outlineOffset: 1, cursor: 'pointer', boxShadow: isChosen ? `0 0 0 2px ${c}55, 0 0 ${sz * 0.5}px ${c}35` : isTierHighlighted ? `0 0 ${sz * 0.4}px ${c}22` : 'none', transition: 'border-color 0.2s, background 0.2s, box-shadow 0.25s' }}>
-      {isChosen && sz >= 18 && (
-        <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <svg width={sz * 0.4} height={sz * 0.4} viewBox="0 0 12 12" fill="none">
-            <polyline points="2,6 5,9 10,3" stroke={c} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
-        </div>
-      )}
-    </div>
-  );
-});
-AnonBlock.displayName = 'AnonBlock';
-
-// ─── Advertiser View ───────────────────────────────────────────
-function AdvertiserView({ slots, isLive, onWaitlist, onCheckout }) {
-  const t = useT();
-  const [selectedSlot, setSelectedSlot] = useState(null);
-  const [chosenSlot, setChosenSlot]     = useState(null);
-  const [hoveredTier, setHoveredTier]   = useState(null);
-  const [selectedTier, setSelectedTier] = useState(null);
-  const [slotStats, setSlotStats]       = useState(null);
-  const [statsLoading, setStatsLoading] = useState(false);
-  const [neighborStats, setNeighborStats] = useState(null); // stats zone pour slots libres
-  const [heatmapMode, setHeatmapMode]     = useState(false);
-  const [heatmapPeriod, setHeatmapPeriod] = useState('1d');
-  const [heatmapData, setHeatmapData]     = useState(null);   // Map<'x,y', clickCount>
-  const [heatmapLoading, setHeatmapLoading] = useState(false);
-  const [heatmapHovered, setHeatmapHovered] = useState(null); // slot.id
-
-  // Check if all slots in a tier are occupied (enables buyout offer)
-  const tierOccupancy = useMemo(() => {
-    const counts = { epicenter: 0, prestige: 0, elite: 0, business: 0, standard: 0, viral: 0 };
-    const total   = { epicenter: 1, prestige: 8, elite: 40, business: 176, standard: 400, viral: 671 };
-    slots.forEach(s => { if (s.occ && counts[s.tier] !== undefined) counts[s.tier]++; });
-    const full = {};
-    Object.keys(counts).forEach(k => full[k] = counts[k] >= total[k]);
-    return full;
-  }, [slots]);
-  const containerRef  = useRef(null);
-  const [containerW, setContainerW] = useState(0); // ✅ Fix hydration: init 0, set real in ResizeObserver
-  const [containerH, setContainerH] = useState(0);
-  const { isMobile } = useScreenSize();
-
-  useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
-    const obs = new ResizeObserver(e => { setContainerW(e[0].contentRect.width); setContainerH(e[0].contentRect.height); });
-    obs.observe(el);
-    setContainerW(el.clientWidth); setContainerH(el.clientHeight);
-    return () => obs.disconnect();
-  }, []);
-
-  const { colOffsets, rowOffsets, totalGridW, totalGridH, tierSizes, colWidths, rowHeights } =
-    useGridLayout(containerW, containerH, isMobile);
-
-  // Centre sur le bloc central à l'arrivée dans la vue annonceur
-  const centeredAdvRef = useRef(false);
-  useEffect(() => {
-    if (centeredAdvRef.current || !containerRef.current || containerW === 0) return;
-    const el = containerRef.current;
-    el.scrollLeft = colOffsets[CENTER_X] + tierSizes.epicenter / 2 - el.clientWidth / 2;
-    el.scrollTop  = rowOffsets[CENTER_Y] + tierSizes.epicenter / 2 - el.clientHeight / 2;
-    centeredAdvRef.current = true;
-  }, [colOffsets, rowOffsets, tierSizes, containerW]);
-
-  const handleChoose = useCallback(slot => {
-    setChosenSlot(prev => prev?.id === slot.id ? null : slot);
-  }, []);
-
-  // Fetch stats when slot is chosen
-  useEffect(() => {
-    if (!chosenSlot) { setSlotStats(null); setNeighborStats(null); return; }
-
-    if (chosenSlot.occ) {
-      // Slot occupé — stats directes
-      setStatsLoading(true);
-      setNeighborStats(null);
-      fetchSlotStats(chosenSlot.x, chosenSlot.y)
-        .then(({ data }) => setSlotStats(data))
-        .catch(() => setSlotStats(null))
-        .finally(() => setStatsLoading(false));
-    } else {
-      // Slot libre — stats des voisins occupés du même tier
-      setSlotStats(null);
-      const neighbors = slots.filter(s =>
-        s.occ && s.tier === chosenSlot.tier && s.id !== chosenSlot.id
-      ).slice(0, 3);
-      if (!neighbors.length) { setNeighborStats(null); return; }
-      Promise.all(neighbors.map(s => fetchSlotStats(s.x, s.y)))
-        .then(results => {
-          const valid = results.map(r => r.data).filter(Boolean);
-          if (!valid.length) { setNeighborStats(null); return; }
-          const avg = {
-            impressions_7d: Math.round(valid.reduce((a,b) => a + (b.impressions_7d||0), 0) / valid.length),
-            clicks_7d:      Math.round(valid.reduce((a,b) => a + (b.clicks_7d||0), 0) / valid.length),
-            ctr_pct:        +(valid.reduce((a,b) => a + (b.ctr_pct||0), 0) / valid.length).toFixed(1),
-          };
-          setNeighborStats({ ...avg, sampleSize: valid.length });
-        })
-        .catch(() => setNeighborStats(null));
-    }
-  }, [chosenSlot?.id, slots]);
-
-  // ── Generate seeded demo heatmap (Chebyshev-weighted) ──────────
-  function generateDemoHeatmap(slots) {
-    const map = new Map();
-    const rng = (seed) => {
-      // deterministic pseudo-random for reproducible demo
-      let x = Math.sin(seed) * 10000;
-      return x - Math.floor(x);
-    };
-    slots.forEach(slot => {
-      const d = Math.max(Math.abs(slot.x - CENTER_X), Math.abs(slot.y - CENTER_Y));
-      const maxD = 18;
-      const proximity = Math.max(0, 1 - d / maxD);
-      // Chebyshev weight: center = very hot, edges = cold
-      const weight = Math.pow(proximity, 1.8);
-      // Add noise with deterministic seed
-      const noise = rng(slot.x * 37 + slot.y * 13);
-      const noiseWeight = rng(slot.x * 71 + slot.y * 97) * 0.4;
-      const combined = weight * 0.7 + noiseWeight;
-      if (combined < 0.015) return; // skip very cold areas
-      // Clicks ~ 0..500, higher near center
-      const clicks = Math.round(combined * 480 + noise * 40 + 1);
-      if (clicks > 2) map.set(`${slot.x},${slot.y}`, clicks);
-    });
-    return map;
-  }
-
-  // ── Fetch heatmap data when mode/period changes ──
-  useEffect(() => {
-    if (!heatmapMode) return;
-    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-    if (!url || !key) {
-      // No Supabase — use seeded demo data
-      setHeatmapData(generateDemoHeatmap(slots));
-      return;
-    }
-
-    setHeatmapLoading(true);
-    const now    = new Date();
-    let   since  = null;
-    if (heatmapPeriod === '1d')  since = new Date(now - 1  * 86400000).toISOString();
-    if (heatmapPeriod === '7d')  since = new Date(now - 7  * 86400000).toISOString();
-    if (heatmapPeriod === '30d') since = new Date(now - 30 * 86400000).toISOString();
-
-    const params = new URLSearchParams({
-      select: 'slot_x,slot_y',
-      event_type: 'eq.click',
-      order: 'created_at.desc',
-      limit: '100000',
-    });
-    if (since) params.set('created_at', `gte.${since}`);
-
-    fetch(`${url}/rest/v1/slot_clicks?${params}`, {
-      headers: { apikey: key, Authorization: `Bearer ${key}` },
-    })
-      .then(r => r.json())
-      .then(rows => {
-        if (!Array.isArray(rows) || rows.length === 0) {
-          // Empty DB — fallback to demo data
-          setHeatmapData(generateDemoHeatmap(slots));
-          return;
-        }
-        const map = new Map();
-        rows.forEach(({ slot_x, slot_y }) => {
-          const k = `${slot_x},${slot_y}`;
-          map.set(k, (map.get(k) || 0) + 1);
-        });
-        // If real data is too sparse, supplement with demo
-        if (map.size < 20) {
-          const demo = generateDemoHeatmap(slots);
-          demo.forEach((v, k) => { if (!map.has(k)) map.set(k, v); });
-        }
-        setHeatmapData(map);
-      })
-      .catch(() => setHeatmapData(generateDemoHeatmap(slots)))
-      .finally(() => setHeatmapLoading(false));
-  }, [heatmapMode, heatmapPeriod]);
-
-  const heatmapMax = useMemo(() => {
-    if (!heatmapData) return 1;
-    return Math.max(1, ...heatmapData.values());
-  }, [heatmapData]);
-
-  const tiers = [
-    { id: 'epicenter', label: t('adv.tier.epicenter'), price: 1000, count: 1,   desc: t('adv.tier.center') },
-    { id: 'prestige',  label: t('adv.tier.prestige'),  price: 100,  count: 8,   desc: t('adv.tier.crown') },
-    { id: 'elite',     label: t('adv.tier.elite'),     price: 50,   count: 40,  desc: t('adv.tier.elite.desc') },
-    { id: 'business',  label: t('adv.tier.business'),  price: 10,   count: 176, desc: t('adv.tier.mid') },
-    { id: 'standard',  label: t('adv.tier.standard'),  price: 3,    count: 400, desc: t('adv.tier.standard.desc') },
-    { id: 'viral',     label: t('adv.tier.viral'),     price: 1,    count: 671, desc: t('adv.tier.perimeter') },
-  ];
-
-  const activeTier = selectedTier || hoveredTier;
-
-  return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: isMobile ? 'column' : 'row', overflow: 'hidden', background: U.bg, minHeight: 0 }}>
-      {/* Sidebar */}
-      <div style={{ width: isMobile ? '100%' : 280, flexShrink: 0, background: U.s1, borderRight: isMobile ? 'none' : `1px solid ${U.border}`, borderBottom: isMobile ? `1px solid ${U.border}` : 'none', overflowY: 'auto', display: 'flex', flexDirection: 'column', order: isMobile ? 2 : 0, maxHeight: isMobile ? '55vh' : undefined, minHeight: 0 }}>
-        <div style={{ padding: isMobile ? '16px 16px' : '24px 20px', borderBottom: `1px solid ${U.border}` }}>
-          <div style={{ color: U.muted, fontSize: 10, fontWeight: 600, letterSpacing: '0.07em', marginBottom: 14 }}>{t('adv.choose')}</div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {tiers.map(tier => {
-              const isActive = activeTier === tier.id;
-              const c = TIER_COLOR[tier.id];
-              return (
-                <div key={tier.id}
-                  onMouseEnter={() => setHoveredTier(tier.id)}
-                  onMouseLeave={() => setHoveredTier(null)}
-                  onClick={() => setSelectedTier(prev => prev === tier.id ? null : tier.id)}
-                  style={{ padding: '10px 12px', borderRadius: 8, background: isActive ? `${c}0d` : U.faint, border: `1px solid ${isActive ? c + '50' : U.border}`, cursor: 'pointer', transition: 'all 0.2s', display: 'flex', alignItems: 'center', gap: 10, boxShadow: isActive ? `0 0 16px ${c}18, inset 0 0 20px ${c}06` : 'none' }}
-                >
-                  <div style={{ width: 8, height: 8, borderRadius: 2, background: c, flexShrink: 0, opacity: isActive ? 1 : 0.5 }} />
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ color: isActive ? U.text : U.muted, fontWeight: 600, fontSize: 12, transition: 'color 0.15s' }}>{tier.label}</div>
-                    <div style={{ color: U.muted, fontSize: 10, marginTop: 1 }}>{tier.desc}</div>
-                  </div>
-                  <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                    <div style={{ color: isActive ? U.text : U.muted, fontWeight: 700, fontSize: 12, fontFamily: F.h }}>€{tier.price}<span style={{ fontSize: 9, fontWeight: 400 }}>{t('adv.tier.perday')}</span></div>
-                    <div style={{ color: U.muted, fontSize: 9 }}>{tier.count} {t('adv.tier.blocks')}</div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {chosenSlot ? (
-          <div style={{ margin: '16px', borderRadius: 10, background: U.faint, border: `1px solid ${TIER_COLOR[chosenSlot.tier]}25`, overflow: 'hidden' }}>
-            {/* Header */}
-            <div style={{ padding: '14px 16px 12px', borderBottom: `1px solid ${U.border}` }}>
-              <div style={{ display: 'inline-block', padding: '2px 7px', borderRadius: 4, background: `${TIER_COLOR[chosenSlot.tier]}15`, border: `1px solid ${TIER_COLOR[chosenSlot.tier]}30`, color: TIER_COLOR[chosenSlot.tier], fontSize: 9, fontWeight: 700, letterSpacing: '0.06em', marginBottom: 8 }}>
-  {chosenSlot.occ ? t('adv.occupied') : TIER_LABEL[chosenSlot.tier]}
-              </div>
-              <div style={{ color: U.text, fontWeight: 700, fontSize: 13, fontFamily: F.h }}>
-  {chosenSlot.occ ? (chosenSlot.tenant?.name || t('adv.occupied')) : t('adv.selected')}
-              </div>
-              <div style={{ color: U.muted, fontSize: 11, marginTop: 2 }}>
-                ({chosenSlot.x}, {chosenSlot.y}) · €{priceEur(chosenSlot.tier)}/j
-              </div>
-            </div>
-
-            {/* Stats panel enrichi — toujours visible */}
-            <div style={{ padding: '12px 16px', borderBottom: `1px solid ${U.border}` }}>
-              <div style={{ color: U.muted, fontSize: 9, fontWeight: 600, letterSpacing: '0.07em', marginBottom: 10 }}>{t('adv.stats.title')}</div>
-              {chosenSlot.occ ? (
-                statsLoading ? (
-                  <div style={{ color: U.muted, fontSize: 11, textAlign: 'center', padding: '8px 0' }}>{t('adv.stats.loading')}</div>
-                ) : slotStats ? (
-                  <div style={{ display: 'flex', flexDirection:'column', gap: 6 }}>
-                    {/* Ligne impressions globales */}
-                    <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:6 }}>
-                      <div style={{ padding:'8px 10px', borderRadius:7, background:U.s2, border:`1px solid ${U.border}` }}>
-                        <div style={{ color:U.text, fontWeight:700, fontSize:15, fontFamily:F.h }}>{slotStats.impressions?.toLocaleString() ?? '—'}</div>
-                        <div style={{ color:U.muted, fontSize:9, marginTop:2 }}>Vues totales</div>
-                      </div>
-                      <div style={{ padding:'8px 10px', borderRadius:7, background:U.s2, border:`1px solid ${U.border}` }}>
-                        <div style={{ color:U.text, fontWeight:700, fontSize:15, fontFamily:F.h }}>{slotStats.ctr_pct != null ? `${slotStats.ctr_pct}%` : '—'}</div>
-                        <div style={{ color:U.muted, fontSize:9, marginTop:2 }}>CTR</div>
-                      </div>
-                    </div>
-                    {/* Clics par période */}
-                    <div style={{ fontSize:9, color:U.muted, fontWeight:600, letterSpacing:'0.07em', marginTop:4 }}>CLICS PAR PÉRIODE</div>
-                    <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:6 }}>
-                      {[
-                        [slotStats.clicks_today?.toLocaleString() ?? '0', "Aujourd'hui"],
-                        [slotStats.clicks_7d?.toLocaleString()    ?? '0', '7 jours'],
-                        [slotStats.clicks_30d?.toLocaleString()   ?? '0', '30 jours'],
-                      ].map(([v, l]) => (
-                        <div key={l} style={{ padding:'8px 6px', borderRadius:7, background:U.s2, border:`1px solid ${U.border}`, textAlign:'center' }}>
-                          <div style={{ color:U.accent, fontWeight:700, fontSize:14, fontFamily:F.h }}>{v}</div>
-                          <div style={{ color:U.muted, fontSize:9, marginTop:2 }}>{l}</div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ) : (
-                  <div style={{ color: U.muted, fontSize: 11, textAlign: 'center', padding: '6px 0', fontStyle: 'italic' }}>{t('adv.stats.nodemo')}</div>
-                )
-              ) : (
-                // Slot libre — stats voisins ou message
-                neighborStats && (neighborStats.impressions_7d > 0 || neighborStats.clicks_7d > 0) ? (
-                  <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
-                    <div style={{ fontSize:9, color:U.muted, fontStyle:'italic', marginBottom:4 }}>Moyenne des blocs voisins du même tier</div>
-                    <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:5 }}>
-                      {[[neighborStats.impressions_7d?.toLocaleString('fr-FR')??'0','vues / 7j'],[neighborStats.clicks_7d?.toLocaleString('fr-FR')??'0','clics / 7j'],[`${neighborStats.ctr_pct??0}%`,'CTR moy.']].map(([v,l]) => (
-                        <div key={l} style={{ textAlign:'center', padding:'7px 4px', borderRadius:6, background:U.s2, border:`1px solid ${U.border}` }}>
-                          <div style={{ color:U.accent, fontWeight:800, fontSize:14, fontFamily:F.h }}>{v}</div>
-                          <div style={{ color:U.muted, fontSize:8, marginTop:2 }}>{l}</div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ) : (
-                  <div style={{ color: U.muted, fontSize: 11, textAlign: 'center', padding: '6px 0', fontStyle: 'italic' }}>
-                    Bloc disponible — loué, les stats apparaîtront ici
-                  </div>
-                )
-              )}
-            </div>
-
-            {/* CTA */}
-            <div style={{ padding: '12px 16px' }}>
-              {chosenSlot.occ ? (() => {
-                const tierIsFull = tierOccupancy[chosenSlot.tier];
-                return (
-                  <>
-                    {/* Indicateur tier complet */}
-                    {!tierIsFull && (
-                      <div style={{ marginBottom:10, padding:'7px 10px', borderRadius:7, background:'#f0b42912', border:'1px solid #f0b42925', fontSize:10, color:'#f0b429', lineHeight:1.5 }}>
-                        ⚠️ Des blocs <strong>{TIER_LABEL[chosenSlot.tier]}</strong> sont encore libres — l'offre de rachat sera disponible quand ce tier sera complet.
-                      </div>
-                    )}
-                    <button
-                      onClick={() => tierIsFull ? onCheckout(chosenSlot) : null}
-                      disabled={!tierIsFull}
-                      style={{ width:'100%', padding:'11px', borderRadius:8, fontFamily:F.b,
-                        cursor: tierIsFull ? 'pointer' : 'not-allowed',
-                        background: tierIsFull ? U.accent : 'transparent',
-                        border: tierIsFull ? 'none' : `1px solid ${U.border2}`,
-                        color: tierIsFull ? U.accentFg : U.muted,
-                        fontWeight:700, fontSize:13,
-                        boxShadow: tierIsFull ? `0 0 20px ${U.accent}50` : 'none',
-                        opacity: tierIsFull ? 1 : 0.45,
-                        filter: tierIsFull ? 'none' : 'blur(0.3px)',
-                        marginBottom:8, transition:'all 0.2s' }}>
-                      {t('adv.cta.offer')}
-                    </button>
-                    <div style={{ color: U.muted, fontSize: 10, textAlign: 'center', lineHeight: 1.5 }}>
-                      {tierIsFull ? t('adv.cta.offer.sub') : `Disponible quand les ${['epicenter','prestige','elite'].includes(chosenSlot.tier) ? TIER_LABEL[chosenSlot.tier] : 'blocs de ce tier'} sont tous occupés`}
-                    </div>
-                  </>
-                );
-              })() : (
-                isTierAvailable(chosenSlot.tier) ? (<>
-                  {/* Stats zone voisine — preuve de trafic pour slots libres */}
-                  {neighborStats && (neighborStats.impressions_7d > 0 || neighborStats.clicks_7d > 0) && (
-                    <div style={{ marginBottom:12, padding:'10px 12px', borderRadius:9, background:`${U.accent}08`, border:`1px solid ${U.accent}20` }}>
-                      <div style={{ fontSize:9, color:U.muted, fontWeight:700, letterSpacing:'0.07em', marginBottom:8 }}>
-                        TRAFIC DES BLOCS VOISINS ({neighborStats.sampleSize} blocs analysés)
-                      </div>
-                      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:5 }}>
-                        {[
-                          [neighborStats.impressions_7d?.toLocaleString('fr-FR') ?? '0', 'vues / 7j'],
-                          [neighborStats.clicks_7d?.toLocaleString('fr-FR') ?? '0', 'clics / 7j'],
-                          [`${neighborStats.ctr_pct ?? 0}%`, 'CTR moy.'],
-                        ].map(([v, l]) => (
-                          <div key={l} style={{ textAlign:'center', padding:'7px 4px', borderRadius:6, background:U.s2, border:`1px solid ${U.border}` }}>
-                            <div style={{ color:U.accent, fontWeight:800, fontSize:14, fontFamily:F.h }}>{v}</div>
-                            <div style={{ color:U.muted, fontSize:8, marginTop:2 }}>{l}</div>
-                          </div>
-                        ))}
-                      </div>
-                      <div style={{ marginTop:7, fontSize:9, color:'rgba(255,255,255,0.22)', textAlign:'center' }}>
-                        Performances réelles · blocs {TIER_LABEL[chosenSlot.tier]} actifs
-                      </div>
-                    </div>
-                  )}
-                  <button onClick={() => onCheckout(chosenSlot)} style={{ width: '100%', padding: '11px', borderRadius: 8, fontFamily: F.b, cursor: 'pointer', background: U.accent, border: 'none', color: U.accentFg, fontWeight: 700, fontSize: 13, boxShadow: `0 0 20px ${U.accent}50`, marginBottom: 8 }}>
-                    {t('adv.cta.rent')}
-                  </button>
-                  <div style={{ color: U.muted, fontSize: 10, textAlign: 'center' }}>
-                    {t('adv.cta.rent.sub', priceEur(chosenSlot.tier))}
-                  </div>
-                </>) : (() => {
-                  const c = TIER_COLOR[chosenSlot.tier];
-                  return (
-                    <div style={{ padding: '16px 0' }}>
-                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, marginBottom: 20 }}>
-                        <div style={{ width: 48, height: 48, borderRadius: 14, background: `${c}12`, border: `1.5px solid ${c}40`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22 }}>🔒</div>
-                        <div style={{ textAlign: 'center' }}>
-                          <div style={{ color: c, fontWeight: 800, fontSize: 14, fontFamily: F.h, letterSpacing: '0.04em', marginBottom: 4 }}>PROCHAINEMENT</div>
-                          <div style={{ color: U.muted, fontSize: 11, lineHeight: 1.6 }}>
-                            Les blocs <strong style={{ color: U.text }}>{TIER_LABEL[chosenSlot.tier]}</strong> ouvrent en phase 2.<br />
-                            Réservez votre place en avant-première.
-                          </div>
-                        </div>
-                      </div>
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 16 }}>
-                        {[
-                          ['Prix', `€${priceEur(chosenSlot.tier)}/j`],
-                          ['Tier', TIER_LABEL[chosenSlot.tier]],
-                          ['Position', `(${chosenSlot.x}, ${chosenSlot.y})`],
-                          ['Lancement', 'Phase 2'],
-                        ].map(([label, val]) => (
-                          <div key={label} style={{ padding: '8px 12px', borderRadius: 8, background: `${c}08`, border: `1px solid ${c}20`, textAlign: 'center' }}>
-                            <div style={{ color: U.muted, fontSize: 9, fontWeight: 700, letterSpacing: '0.06em', marginBottom: 3 }}>{label}</div>
-                            <div style={{ color: U.text, fontWeight: 700, fontSize: 13, fontFamily: F.h }}>{val}</div>
-                          </div>
-                        ))}
-                      </div>
-                      <button onClick={onWaitlist} style={{ width: '100%', padding: '12px', borderRadius: 8, fontFamily: F.b, cursor: 'pointer', background: `${c}18`, border: `1.5px solid ${c}50`, color: c, fontWeight: 700, fontSize: 13 }}>
-                        ✉ Me prévenir à l'ouverture
-                      </button>
-                      <div style={{ color: U.muted, fontSize: 10, textAlign: 'center', marginTop: 8 }}>Accès prioritaire garanti aux premiers inscrits</div>
-                    </div>
-                  );
-                })()
-              )}
-            </div>
-          </div>
-        ) : (
-          <div style={{ margin: '16px', borderRadius: 10, background: U.faint, border: `1px solid ${U.border}`, padding: '20px' }}>
-            <div style={{ color: U.muted, fontSize: 12, lineHeight: 1.7, textAlign: 'center' }}>
-              {t('adv.empty').split('\n').map((l, i) => <span key={i}>{l}{i === 0 && <br/>}</span>)}
-            </div>
-          </div>
-        )}
-
-        <div style={{ padding: '0 20px 20px', marginTop: 'auto' }}>
-          <button onClick={onWaitlist} style={{ width: '100%', padding: '11px', borderRadius: 8, fontFamily: F.b, cursor: 'pointer', background: 'transparent', border: `1px solid ${U.border2}`, color: U.muted, fontWeight: 600, fontSize: 12 }}>
-            {t('adv.waitlist')}
-          </button>
-        </div>
-      </div>
-
-      {/* Grid + heatmap toolbar */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', order: isMobile ? 1 : 0, minHeight: 0, maxHeight: isMobile ? '45vh' : undefined }}>
-
-        {/* ── Heatmap toolbar ── */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 12px', height: 38, background: `${U.s1}f0`, borderBottom: `1px solid ${heatmapMode ? 'rgba(255,80,140,0.2)' : U.border}`, flexShrink: 0, transition: 'border-color 0.4s' }}>
-          <button
-            onClick={() => setHeatmapMode(m => !m)}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 5,
-              padding: '4px 10px', borderRadius: 6, cursor: 'pointer',
-              fontFamily: F.b, fontSize: 11, fontWeight: 700,
-              border: heatmapMode ? '1px solid rgba(255,80,140,0.5)' : `1px solid ${U.border2}`,
-              background: heatmapMode ? 'rgba(255,60,120,0.1)' : U.faint,
-              color: heatmapMode ? '#ff6699' : U.muted,
-              transition: 'all 0.25s',
-              letterSpacing: '0.04em',
-            }}
-          >
-            <span style={{ fontSize: 12, filter: heatmapMode ? 'none' : 'grayscale(0.6)', transition: 'filter 0.3s' }}>🔥</span>
-            <span>HEATMAP</span>
-            {heatmapLoading && (
-              <div style={{ width: 12, height: 12, borderRadius: '50%', border: '1.5px solid rgba(255,100,160,0.4)', borderTopColor: '#ff6699', animation: 'spin 0.8s linear infinite' }} />
-            )}
-          </button>
-
-          {heatmapMode && (
-            <>
-              <div style={{ width: 1, height: 16, background: U.border, flexShrink: 0 }} />
-              {[['1d','24h'], ['7d','7 jours'], ['30d','30 jours']].map(([id, label]) => (
-                <button key={id}
-                  onClick={() => setHeatmapPeriod(id)}
-                  style={{
-                    padding: '3px 9px', borderRadius: 5, cursor: 'pointer',
-                    fontFamily: F.b, fontSize: 10, fontWeight: heatmapPeriod === id ? 700 : 400,
-                    border: `1px solid ${heatmapPeriod === id ? 'rgba(255,80,140,0.45)' : 'transparent'}`,
-                    background: heatmapPeriod === id ? 'rgba(255,60,120,0.1)' : 'transparent',
-                    color: heatmapPeriod === id ? '#ff6699' : U.muted,
-                    transition: 'all 0.15s',
-                  }}
-                >{label}</button>
-              ))}
-              <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 7 }}>
-                {/* Gradient legend — rose → orange → jaune → blanc */}
-                <div style={{ width: 72, height: 5, borderRadius: 3, background: 'linear-gradient(90deg, #cd3270, #ff5c20, #ffcc44, #fffbe0)', opacity: 0.85, boxShadow: '0 0 8px rgba(255,200,80,0.3)' }} />
-                <div style={{ display: 'flex', gap: 3, fontSize: 9, color: U.muted, alignItems: 'center' }}>
-                  <span style={{ color: '#cd3270' }}>faible</span>
-                  <span style={{ color: 'rgba(255,255,255,0.18)' }}>→</span>
-                  <span style={{ color: '#fffbe0' }}>fort</span>
-                </div>
-              </div>
-            </>
-          )}
-        </div>
-
-        {/* Grid scroll area */}
-        <div ref={containerRef} style={{ flex: 1, overflow: 'auto', background: heatmapMode ? '#000' : U.bg, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', transition: 'background 0.6s ease' }}>
-          <div style={{ position: 'relative', width: totalGridW, height: totalGridH, flexShrink: 0 }}>
-            {slots.map(slot => {
-              const tierMatch = !activeTier || slot.tier === activeTier || (activeTier === 'ten' && slot.tier === 'corner_ten');
-              const heatClicks = heatmapMode ? (heatmapData?.get(`${slot.x},${slot.y}`) || 0) : 0;
-              return (
-                <AdvSlotWrapper
-                  key={slot.id}
-                  slot={slot}
-                  colOffset={colOffsets[slot.x]}
-                  rowOffset={rowOffsets[slot.y]}
-                  sz={tierSizes[slot.tier]}
-                  w={colWidths[slot.x - 1]}
-                  h={rowHeights[slot.y - 1]}
-                  isChosen={chosenSlot?.id === slot.id}
-                  isTierFiltering={!!activeTier}
-                  tierMatch={tierMatch}
-                  heatmapMode={heatmapMode}
-                  heatClicks={heatClicks}
-                  heatMax={heatmapMax}
-                  isHeatHovered={heatmapHovered === slot.id}
-                  onChoose={handleChoose}
-                  onHeatHover={() => setHeatmapHovered(slot.id)}
-                  onHeatLeave={() => setHeatmapHovered(null)}
-                />
-              );
-            })}
-            {/* Canvas dot heatmap — rendered on top of the dimmed grid */}
-            {heatmapMode && heatmapData && (
-              <HeatmapDotCanvas
-                slots={slots}
-                heatmapData={heatmapData}
-                heatmapMax={heatmapMax}
-                colOffsets={colOffsets}
-                rowOffsets={rowOffsets}
-                colWidths={colWidths}
-                rowHeights={rowHeights}
-                totalGridW={totalGridW}
-                totalGridH={totalGridH}
-              />
-            )}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── Landing Mini-Grid Background ─────────────────────────────
 function LandingGrid({ slots }) {
   const { isMobile } = useScreenSize();
   const canvasRef = useRef(null);
@@ -4810,9 +3513,7 @@ function LandingPage({ slots, onPublic, onWaitlist }) {
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
     if (!url || !key) return;
-    fetch(`${url}/rest/v1/slot_clicks?select=event_type`, {
-      headers: { 'apikey': key, 'Authorization': `Bearer ${key}` }
-    })
+    fetch(`/api/slots?type=platform_stats`)
       .then(r => r.json())
       .then(rows => {
         if (!Array.isArray(rows)) return;
@@ -5269,17 +3970,18 @@ function ManifestModal({ onAccept }) {
 }
 
 // ─── Main App ──────────────────────────────────────────────────
+
+// ─── Main App — 3D ONLY ────────────────────────────────────────
 export default function App() {
   const [lang, setLang]             = useState('fr');
   const [view, setView]             = useState('landing');
-  const [view3D, setView3D]         = useState(true);    // ← 3D view exclusive
   const [manifestAccepted, setManifestAccepted] = useState(false);
   const [showWaitlist, setShowWaitlist] = useState(false);
   const [checkoutSlot, setCheckoutSlot] = useState(null);
   const [buyoutSlot, setBuyoutSlot]     = useState(null);
   const [showBoost, setShowBoost]       = useState(false);
+  const [adViewSlot, setAdViewSlot]     = useState(null);
   const [authUser, setAuthUser]         = useState(null);
-  const [userBookings, setUserBookings]  = useState([]);
   const { slots, isLive, loading }  = useGridData();
   const { isMobile } = useScreenSize();
   const handleWaitlist = useCallback(() => setShowWaitlist(true), []);
@@ -5312,23 +4014,10 @@ export default function App() {
     });
   }, []);
 
-  // Charger la session auth + bookings utilisateur au montage
+  // ── Auth session ──
   useEffect(() => {
     getSession().then(s => {
-      const user = s?.user || null;
-      setAuthUser(user);
-      if (user) {
-        // Fetch user's active bookings via Supabase REST
-        const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-        const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-        if (url && key) {
-          fetch(`${url}/rest/v1/bookings?advertiser_id=eq.${user.id}&status=in.(active,pending)&select=id,slot_x,slot_y,status,is_boosted`, {
-            headers: { 'apikey': key, 'Authorization': `Bearer ${key}` }
-          }).then(r => r.json()).then(data => {
-            if (Array.isArray(data)) setUserBookings(data);
-          }).catch(() => {});
-        }
-      }
+      setAuthUser(s?.user || null);
     });
   }, []);
 
@@ -5337,20 +4026,18 @@ export default function App() {
     setAuthUser(null);
   }, []);
 
- const handleCheckout = useCallback(slot => {
-  if (slot?.occ) {
-    setBuyoutSlot(slot);
-    return;
-  }
+  const handleCheckout = useCallback(slot => {
+    if (slot?.occ) {
+      setBuyoutSlot(slot);
+      return;
+    }
+    if (slot) {
+      setCheckoutSlot(slot);
+    } else {
+      setShowWaitlist(true);
+    }
+  }, []);
 
-  if (slot) {
-    setCheckoutSlot(slot);
-  } else {
-    setShowWaitlist(true);
-  }
-}, []);
-
-  const isGrid = view === 'public';
   const t = getT(lang);
 
   return (
@@ -5360,7 +4047,7 @@ export default function App() {
       <div style={{ display: 'flex', height: '100vh', background: '#01020A', fontFamily: F.b, color: U.text, flexDirection: 'column', overflow: view === 'landing' ? 'auto' : 'hidden' }}>
         <AnnouncementBar onWaitlist={handleWaitlist} />
 
-        {/* Header — STAR CITIZEN GRADE */}
+        {/* Header */}
         <header style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           padding: isMobile ? '0 12px' : '0 20px', height: 50, flexShrink: 0,
@@ -5374,29 +4061,23 @@ export default function App() {
           <BrandLogo size={isMobile ? 14 : 15} onClick={() => setView('landing')} />
 
           <nav style={{ display: 'flex', gap: 3, alignItems: 'center' }}>
-            {[
-              ['public', t('nav.explore'), '◈'],
-            ].map(([v, label, icon]) => {
-              const on = view === v;
-              return (
-                <button key={v} onClick={() => setView(v)} style={{
-                  padding: isMobile ? '5px 8px' : '5px 14px',
-                  background: on ? `${U.cyan}14` : 'transparent',
-                  border: `0.5px solid ${on ? U.cyan : U.border}`,
-                  clipPath: 'polygon(0 0,calc(100% - 6px) 0,100% 6px,100% 100%,0 100%)',
-                  color: on ? U.cyan : U.muted,
-                  fontFamily: F.mono, fontSize: isMobile ? 10 : 10.5,
-                  fontWeight: 700, letterSpacing: '.12em', textTransform: 'uppercase',
-                  cursor: 'pointer', outline: 'none',
-                  boxShadow: on ? `0 0 14px ${U.cyan}22` : 'none',
-                  transition: 'all 0.12s', whiteSpace: 'nowrap',
-                }}>
-                  {isMobile ? (on ? label : icon) : label}
-                </button>
-              );
-            })}
+            {/* EXPLORE → directement View3D */}
+            <button onClick={() => setView('public')} style={{
+              padding: isMobile ? '5px 8px' : '5px 14px',
+              background: view === 'public' ? `${U.cyan}14` : 'transparent',
+              border: `0.5px solid ${view === 'public' ? U.cyan : U.border}`,
+              clipPath: 'polygon(0 0,calc(100% - 6px) 0,100% 6px,100% 100%,0 100%)',
+              color: view === 'public' ? U.cyan : U.muted,
+              fontFamily: F.mono, fontSize: isMobile ? 10 : 10.5,
+              fontWeight: 700, letterSpacing: '.12em', textTransform: 'uppercase',
+              cursor: 'pointer', outline: 'none',
+              boxShadow: view === 'public' ? `0 0 14px ${U.cyan}22` : 'none',
+              transition: 'all 0.12s', whiteSpace: 'nowrap',
+            }}>
+              {isMobile ? '◈' : t('nav.explore')}
+            </button>
 
-            {/* CTA — Waitlist */}
+            {/* Waitlist CTA */}
             <button onClick={handleWaitlist} style={{
               padding: isMobile ? '5px 10px' : '6px 16px',
               background: `${U.accent}18`,
@@ -5412,7 +4093,7 @@ export default function App() {
               {isMobile ? t('nav.waitlist.short') : t('nav.waitlist')}
             </button>
 
-            {/* ── Auth icons ── */}
+            {/* Auth icons */}
             {authUser ? (
               <>
                 <a href="/dashboard" title="Mon dashboard" style={{
@@ -5420,7 +4101,7 @@ export default function App() {
                   clipPath: 'polygon(15% 0,85% 0,100% 15%,100% 85%,85% 100%,15% 100%,0 85%,0 15%)',
                   background: `${U.accent}14`, border: `1px solid ${U.accent}44`,
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  textDecoration: 'none', flexShrink: 0, cursor: 'pointer', transition: 'all 0.12s',
+                  textDecoration: 'none', flexShrink: 0, cursor: 'pointer',
                 }}>
                   <span style={{ fontSize: 13 }}>👤</span>
                 </a>
@@ -5430,7 +4111,7 @@ export default function App() {
                     clipPath: 'polygon(15% 0,85% 0,100% 15%,100% 85%,85% 100%,15% 100%,0 85%,0 15%)',
                     background: 'transparent', border: `0.5px solid ${U.border}`,
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    cursor: 'pointer', flexShrink: 0, transition: 'all 0.12s', color: U.muted,
+                    cursor: 'pointer', flexShrink: 0, color: U.muted,
                   }}
                   onMouseEnter={e => { e.currentTarget.style.borderColor = U.rose; e.currentTarget.style.color = U.rose; }}
                   onMouseLeave={e => { e.currentTarget.style.borderColor = U.border; e.currentTarget.style.color = U.muted; }}>
@@ -5444,7 +4125,7 @@ export default function App() {
                 clipPath: 'polygon(15% 0,85% 0,100% 15%,100% 85%,85% 100%,15% 100%,0 85%,0 15%)',
                 background: 'transparent', border: `0.5px solid ${U.border}`,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                textDecoration: 'none', flexShrink: 0, cursor: 'pointer', transition: 'all 0.12s',
+                textDecoration: 'none', flexShrink: 0, cursor: 'pointer',
               }}
               onMouseEnter={e => { e.currentTarget.style.borderColor = U.border2; e.currentTarget.style.background = `${U.cyan}08`; }}
               onMouseLeave={e => { e.currentTarget.style.borderColor = U.border; e.currentTarget.style.background = 'transparent'; }}>
@@ -5452,10 +4133,9 @@ export default function App() {
               </a>
             )}
 
-            {/* ── Language toggle ── */}
+            {/* Language toggle */}
             <button
               onClick={() => handleSetLang(l => l === 'fr' ? 'en' : 'fr')}
-              title={lang === 'fr' ? 'Switch to English' : 'Passer en français'}
               style={{
                 marginLeft: isMobile ? 1 : 3,
                 padding: isMobile ? '4px 7px' : '4px 10px',
@@ -5473,28 +4153,39 @@ export default function App() {
           </nav>
         </header>
 
-        {view === 'landing'    && <LandingPage    slots={slots} onPublic={() => setView('public')} onWaitlist={handleWaitlist} />}
-        {view === 'public'     && (
+        {/* Views */}
+        {view === 'landing' && (
+          <LandingPage
+            slots={slots}
+            onPublic={() => setView('public')}
+            onWaitlist={handleWaitlist}
+          />
+        )}
+        {view === 'public' && (
           <View3D
             slots={slots}
             isLive={isLive}
-            onGoAdvertiser={() => setShowBoost(true)}
-            onWaitlist={handleWaitlist}
             onCheckout={handleCheckout}
             onBuyout={setBuyoutSlot}
-            ExistingPublicView={(props) => (
-              <PublicView
-                {...props}
-                authUser={authUser}
-                userBookings={userBookings}
-              />
-            )}
+            onViewSlot={(slot) => setAdViewSlot(slot)}
           />
         )}
+
+        {/* Modals */}
         {showWaitlist  && <WaitlistModal  onClose={() => setShowWaitlist(false)} />}
         {checkoutSlot  && <CheckoutModal  slot={checkoutSlot} onClose={() => setCheckoutSlot(null)} />}
         {buyoutSlot    && <BuyoutModal    slot={buyoutSlot}   onClose={() => setBuyoutSlot(null)} />}
         {showBoost     && <BoostModal     onClose={() => setShowBoost(false)} />}
+        {adViewSlot && (
+          <AdViewModal
+            slot={adViewSlot}
+            allSlots={slots}
+            onClose={() => setAdViewSlot(null)}
+            onNavigate={(slot) => setAdViewSlot(slot)}
+            onViewProfile={() => setAdViewSlot(null)}
+            onGoAdvertiser={() => setAdViewSlot(null)}
+          />
+        )}
       </div>
     </LangSetterContext.Provider>
     </LangContext.Provider>

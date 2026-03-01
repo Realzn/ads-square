@@ -2665,7 +2665,7 @@ function SlotReveal({slot,onClose,onRent,onBuyout}){
 }
 
 // Sidebar — full Star Citizen mission panel
-const Sidebar=memo(function Sidebar({slots,isLive,activeTier,onTierSelect}){
+const Sidebar=memo(function Sidebar({slots,isLive,activeTier,onTierSelect,onViewSlot}){
   const[tab,setTab]=useState('cosmos');
   const[tick,setTick]=useState(0);
   const stats=useMemo(()=>{const c={};TIER_ORDER.forEach(t=>{c[t]=0;});(slots||[]).forEach(s=>{if(s?.occ&&c[s.tier]!==undefined)c[s.tier]++;});return c;},[slots]);
@@ -2721,7 +2721,7 @@ const Sidebar=memo(function Sidebar({slots,isLive,activeTier,onTierSelect}){
 
         {/* Tab switcher */}
         <div style={{display:'flex',gap:2}}>
-          {[['cosmos','COSMOS'],['tiers','TIERS']].map(([id,lbl])=>(
+          {[['cosmos','COSMOS'],['tiers','TIERS'],['occupied','OCCUPÉS']].map(([id,lbl])=>(
             <button key={id} onClick={()=>setTab(id)} style={{
               flex:1,padding:'5px 0',
               background:tab===id?`${DS.cyan}14`:'transparent',
@@ -2807,7 +2807,7 @@ const Sidebar=memo(function Sidebar({slots,isLive,activeTier,onTierSelect}){
               );
             })}
           </div>
-        ):(
+        ):tab==='tiers'?(
           TIER_ORDER.map(tier=>{
             const col=TIER_NEON[tier];
             const occ=stats[tier]||0;
@@ -2844,6 +2844,90 @@ const Sidebar=memo(function Sidebar({slots,isLive,activeTier,onTierSelect}){
               </div>
             );
           })
+        ):(
+          /* ── TAB OCCUPÉS ── */
+          (()=>{
+            const occupied=(slots||[]).filter(s=>s?.occ&&s?.tenant);
+            if(occupied.length===0) return(
+              <div style={{padding:'32px 14px',textAlign:'center'}}>
+                <div style={{fontSize:22,marginBottom:10,opacity:.4}}>◯</div>
+                <div style={{color:DS.textLo,fontFamily:F.mono,fontSize:8,letterSpacing:'.12em'}}>AUCUN SLOT ACTIF</div>
+              </div>
+            );
+            return(
+              <div>
+                {/* Résumé compteur */}
+                <div style={{padding:'7px 14px',borderBottom:`0.5px solid rgba(0,200,240,0.06)`,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                  <span style={{color:DS.textLo,fontFamily:F.mono,fontSize:6.5,letterSpacing:'.12em'}}>{occupied.length} SLOTS ACTIFS</span>
+                  <div style={{display:'flex',alignItems:'center',gap:4}}>
+                    <div style={{width:4,height:4,borderRadius:'50%',background:DS.green,animation:'hpulse 1.4s ease-in-out infinite'}}/>
+                    <span style={{color:DS.green,fontFamily:F.mono,fontSize:6,letterSpacing:'.10em'}}>LIVE</span>
+                  </div>
+                </div>
+                {occupied.map((slot,i)=>{
+                  const col=TIER_NEON[slot.tier]||DS.cyan;
+                  const tn=slot.tenant;
+                  const name=tn?.name||tn?.title||'—';
+                  const url=tn?.url||'';
+                  const type=tn?.t||'';
+                  const tierLabel=TIER_LABEL[slot.tier]||slot.tier;
+                  const typeIcon={
+                    video:'▶',image:'◻',link:'⌖',social:'⊕',
+                    music:'♪',app:'⬡',brand:'⬟',text:'≡',
+                  }[type]||'◈';
+                  return(
+                    <div key={slot.id||i}
+                    onClick={()=>onViewSlot&&onViewSlot(slot)}
+                    style={{
+                      padding:'7px 14px 7px 10px',
+                      borderLeft:`2px solid ${col}${onViewSlot?'70':'40'}`,
+                      borderBottom:`0.5px solid rgba(0,200,240,0.04)`,
+                      transition:'background .10s',
+                      cursor:onViewSlot?'pointer':'default',
+                    }}
+                    onMouseEnter={e=>{e.currentTarget.style.background=`${col}0e`;if(onViewSlot)e.currentTarget.style.borderLeftColor=`${col}cc`;}}
+                    onMouseLeave={e=>{e.currentTarget.style.background='transparent';e.currentTarget.style.borderLeftColor=`${col}${onViewSlot?'70':'40'}`;}}
+                    >
+                      <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:2}}>
+                        {/* Icône type */}
+                        <div style={{
+                          width:18,height:18,flexShrink:0,
+                          background:`${col}12`,
+                          border:`0.5px solid ${col}33`,
+                          display:'flex',alignItems:'center',justifyContent:'center',
+                          fontSize:9,color:`${col}cc`,
+                          clipPath:'polygon(15% 0,85% 0,100% 15%,100% 85%,85% 100%,15% 100%,0 85%,0 15%)',
+                        }}>{typeIcon}</div>
+                        {/* Nom */}
+                        <div style={{flex:1,minWidth:0}}>
+                          <div style={{
+                            color:DS.textHi,fontFamily:F.mono,fontSize:8,fontWeight:700,
+                            letterSpacing:'.04em',
+                            overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',
+                          }}>{name}</div>
+                          {url&&<div style={{
+                            color:DS.textLo,fontFamily:F.mono,fontSize:6,letterSpacing:'.04em',
+                            overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',
+                          }}>{url.replace(/^https?:\/\/(www\.)?/,'')}</div>}
+                        </div>
+                        {/* Badge tier */}
+                        <div style={{
+                          padding:'1px 5px',
+                          background:`${col}14`,
+                          border:`0.5px solid ${col}33`,
+                          color:col,
+                          fontFamily:F.mono,fontSize:5.5,fontWeight:700,letterSpacing:'.10em',
+                          flexShrink:0,
+                          clipPath:'polygon(0 0,calc(100% - 4px) 0,100% 4px,100% 100%,0 100%)',
+                        }}>{tierLabel.toUpperCase()}</div>
+                        {onViewSlot&&<span style={{color:`${col}55`,fontSize:8,flexShrink:0,marginLeft:2}}>›</span>}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })()
         )}
       </div>
 
@@ -2990,7 +3074,7 @@ function HUDLoader(){
 }
 
 // ── Main View3D ───────────────────────────────────────────────────────────────
-export default function View3D({slots=[],isLive=false,onCheckout,onBuyout}){
+export default function View3D({slots=[],isLive=false,onCheckout,onBuyout,onViewSlot}){
   const canvasRef=useRef(null),sceneRef=useRef(null);
   const[loading,setLoading]=useState(true);
   const[error,setError]=useState(null);
@@ -3201,14 +3285,14 @@ export default function View3D({slots=[],isLive=false,onCheckout,onBuyout}){
               <div style={{display:'flex',justifyContent:'center',padding:'12px 0 4px'}}>
                 <div style={{width:40,height:4,borderRadius:2,background:'rgba(0,200,240,0.20)'}}/>
               </div>
-              <Sidebar slots={slots} isLive={isLive} activeTier={activeTier} onTierSelect={t=>{handleTierSelect(t);setShowSidebar(false);}}/>
+              <Sidebar slots={slots} isLive={isLive} activeTier={activeTier} onTierSelect={t=>{handleTierSelect(t);setShowSidebar(false);}} onViewSlot={onViewSlot}/>
             </div>
           </div>
         )}
       </div>
 
       {/* Desktop sidebar */}
-      {!isMobile&&<Sidebar slots={slots} isLive={isLive} activeTier={activeTier} onTierSelect={handleTierSelect}/>}
+      {!isMobile&&<Sidebar slots={slots} isLive={isLive} activeTier={activeTier} onTierSelect={handleTierSelect} onViewSlot={onViewSlot}/>}
 
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600;700&display=swap');
