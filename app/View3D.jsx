@@ -1115,7 +1115,6 @@ class Scene3D{
       u.uBrandTex1.value=dummyTex;u.uBrandTex2.value=dummyTex;u.uBrandTex3.value=dummyTex;
       u.uBrandTex4.value=dummyTex;u.uBrandTex5.value=dummyTex;u.uBrandTex6.value=dummyTex;
       u.uBrandTex7.value=dummyTex;u.uBrandTex8.value=dummyTex;
-      ring._dummyTex=dummyTex; // also stored in push below
 
       const mat=new T.ShaderMaterial({
         vertexShader:RING_VERT,fragmentShader:RING_FRAG,uniforms:u,
