@@ -356,9 +356,12 @@ void main(){
 }`;
 const RING_FRAG=`
 precision highp float;
-uniform float uTime,uHov,uDim,uSlots,uOccCount,uRingIdx,uScrollSpeed,uHasTex;
+uniform float uTime,uHov,uDim,uSlots,uOccCount,uRingIdx,uScrollSpeed,uHasTex,uTexOffset;
 uniform vec3 uCol,uBrandBg;
 uniform sampler2D uBrandTex;
+uniform sampler2D uBrandTex1,uBrandTex2,uBrandTex3,uBrandTex4,uBrandTex5,uBrandTex6,uBrandTex7,uBrandTex8;
+uniform float uHasTex1,uHasTex2,uHasTex3,uHasTex4,uHasTex5,uHasTex6,uHasTex7,uHasTex8;
+uniform float uTexOffset1,uTexOffset2,uTexOffset3,uTexOffset4,uTexOffset5,uTexOffset6,uTexOffset7,uTexOffset8;
 varying vec2 vUV;varying vec3 vN,vWP,vPos;
 
 float hash(float n){return fract(sin(n)*43758.5453);}
@@ -426,15 +429,37 @@ void main(){
   col+=uCol*isEdge*.06*(.6+.4*sin(t*.8+seed*3.14));
   col=mix(col,steelDark*.4,isSep*.85);
 
+  // ── Slot tex info — calculé avant gl_FrontFacing pour l'alpha ──
+  float sid=slotIdx;
+  float slotHasTex;
+  if(sid<0.5)       slotHasTex=uHasTex1;
+  else if(sid<1.5)  slotHasTex=uHasTex2;
+  else if(sid<2.5)  slotHasTex=uHasTex3;
+  else if(sid<3.5)  slotHasTex=uHasTex4;
+  else if(sid<4.5)  slotHasTex=uHasTex5;
+  else if(sid<5.5)  slotHasTex=uHasTex6;
+  else if(sid<6.5)  slotHasTex=uHasTex7;
+  else              slotHasTex=uHasTex8;
+  float anyHasTex=max(max(max(max(uHasTex1,uHasTex2),max(uHasTex3,uHasTex4)),max(uHasTex5,uHasTex6)),max(uHasTex7,uHasTex8));
+
   if(gl_FrontFacing){
     // ── Fond couleur de marque ──
     if(isOcc>.5) col=mix(col,brandBgFill,contentY*.60);
 
-    // ── TICKER — texture scrollée via texture.offset.x côté CPU ──
-    // uv.x va de 0 à 1 autour de l'anneau, wrapS=RepeatWrapping + offset animé
+    // ── TICKER — texture scrollée par slot, uTexOffsetN passé via uniform CPU ──
     float texV=clamp((uv.y-0.04)/0.92, 0., 1.);
-    vec4 texSample=texture2D(uBrandTex, vec2(uv.x, 1.-texV));
-    float texBlend=uHasTex*isOcc*contentY;
+    float scrollU;
+    vec4 texSample;
+    // Sélection texture + offset selon slotIdx (0..8 slots max par anneau)
+    if(sid<0.5){       scrollU=fract(uv.x+uTexOffset1);  texSample=texture2D(uBrandTex1, vec2(scrollU,1.-texV));}
+    else if(sid<1.5){  scrollU=fract(uv.x+uTexOffset2);  texSample=texture2D(uBrandTex2, vec2(scrollU,1.-texV));}
+    else if(sid<2.5){  scrollU=fract(uv.x+uTexOffset3);  texSample=texture2D(uBrandTex3, vec2(scrollU,1.-texV));}
+    else if(sid<3.5){  scrollU=fract(uv.x+uTexOffset4);  texSample=texture2D(uBrandTex4, vec2(scrollU,1.-texV));}
+    else if(sid<4.5){  scrollU=fract(uv.x+uTexOffset5);  texSample=texture2D(uBrandTex5, vec2(scrollU,1.-texV));}
+    else if(sid<5.5){  scrollU=fract(uv.x+uTexOffset6);  texSample=texture2D(uBrandTex6, vec2(scrollU,1.-texV));}
+    else if(sid<6.5){  scrollU=fract(uv.x+uTexOffset7);  texSample=texture2D(uBrandTex7, vec2(scrollU,1.-texV));}
+    else{              scrollU=fract(uv.x+uTexOffset8);  texSample=texture2D(uBrandTex8, vec2(scrollU,1.-texV));}
+    float texBlend=slotHasTex*isOcc*contentY;
 
     // Fond sombre pour lisibilité
     col=mix(col, col*0.06, texBlend*0.95);
@@ -446,7 +471,7 @@ void main(){
     // Emission néon — les pixels clairs brillent
     col+=texSample.rgb*texSample.a*texBlend*1.8;
 
-    col+=uCol*centerGlow*ambientOcc*mix(1.0,0.05,uHasTex*isOcc);
+    col+=uCol*centerGlow*ambientOcc*mix(1.0,0.05,anyHasTex*isOcc);
     if(uHov>.5)col+=uCol*(.30+centerGlow*.50);
   }
 
@@ -462,7 +487,7 @@ void main(){
   else if(isEdge>.2){alpha=mix(.35,.70,isEdge)*(uHov>.5?1.15:1.)*viewFade;}
   else{
     // Slots avec texture (loués) : bien plus opaques pour que le message soit lisible
-    float basA=uHasTex>.5&&isOcc>.5 ? 0.88 : (isOcc>.5?0.55:0.20);
+    float basA=slotHasTex>.5&&isOcc>.5 ? 0.88 : (isOcc>.5?0.55:0.20);
     alpha=(basA+(scanLine*0.06)+(progress*0.10))*viewFade;
     if(uHov>.5)alpha=min(alpha*1.1,0.97);
   }
@@ -1062,6 +1087,17 @@ class Scene3D{
         uScrollSpeed:{value:1.2+ringIdx*.15},
         uHasTex:{value:0},
         uBrandTex:{value:null},
+        // ── Per-slot textures (max 9 slots) ──
+        uBrandTex1:{value:null},uBrandTex2:{value:null},uBrandTex3:{value:null},
+        uBrandTex4:{value:null},uBrandTex5:{value:null},uBrandTex6:{value:null},
+        uBrandTex7:{value:null},uBrandTex8:{value:null},
+        uHasTex1:{value:0},uHasTex2:{value:0},uHasTex3:{value:0},
+        uHasTex4:{value:0},uHasTex5:{value:0},uHasTex6:{value:0},
+        uHasTex7:{value:0},uHasTex8:{value:0},
+        uTexOffset1:{value:0},uTexOffset2:{value:0},uTexOffset3:{value:0},
+        uTexOffset4:{value:0},uTexOffset5:{value:0},uTexOffset6:{value:0},
+        uTexOffset7:{value:0},uTexOffset8:{value:0},
+        uTexOffset:{value:0},
       };
 
       // ── Géométrie ruban LOD (segments) ──
@@ -1076,6 +1112,10 @@ class Scene3D{
         const t2=new T.CanvasTexture(c);t2.needsUpdate=true;return t2;
       })();
       u.uBrandTex.value=dummyTex;
+      u.uBrandTex1.value=dummyTex;u.uBrandTex2.value=dummyTex;u.uBrandTex3.value=dummyTex;
+      u.uBrandTex4.value=dummyTex;u.uBrandTex5.value=dummyTex;u.uBrandTex6.value=dummyTex;
+      u.uBrandTex7.value=dummyTex;u.uBrandTex8.value=dummyTex;
+      ring._dummyTex=dummyTex; // also stored in push below
 
       const mat=new T.ShaderMaterial({
         vertexShader:RING_VERT,fragmentShader:RING_FRAG,uniforms:u,
@@ -1475,11 +1515,12 @@ class Scene3D{
   assignTierSlots(eliteSlots,prestigeSlots){
     const T=this.T;
     let ei=0;
+    const SLOT_KEYS=['1','2','3','4','5','6','7','8'];
     this.eliteRings.forEach(ring=>{
       const rs=eliteSlots.slice(ei,ei+ring.cfg.slots);
       ring.slotData=rs;
       ring.u.uOccCount.value=rs.filter(s=>s?.occ).length;
-      // Update brand color from first occupied slot's primary_color
+      // Update brand color from first occupied slot
       const firstOcc=rs.find(s=>s?.occ);
       ring.firstOccSlot=firstOcc||null;
       if(firstOcc){
@@ -1489,20 +1530,42 @@ class Scene3D{
         const bc=firstOcc.tenant?.b||firstOcc.background_color||'#0d1828';
         const[br,bg2,bb]=hex3(bc);
         if(ring.u.uBrandBg)ring.u.uBrandBg.value.set(br,bg2,bb);
-        // ── Build Canvas texture avec le vrai texte de marque ──
-        if(ring._brandTex){ring._brandTex.dispose();}
-        ring._brandTex=this._buildBrandTexture(firstOcc);
-        ring.u.uBrandTex.value=ring._brandTex;
-        ring.u.uHasTex.value=1;
       }else{
-        // Pas de locataire — reset couleurs et supprimer texture
         const[r,g,b]=hex3(ring.cfg.col);
         ring.u.uCol.value.set(r,g,b);
         if(ring.u.uBrandBg)ring.u.uBrandBg.value.set(.008,.010,.020);
-        if(ring._brandTex){ring._brandTex.dispose();ring._brandTex=null;}
-        ring.u.uBrandTex.value=ring._dummyTex; // restore dummy — never null
-        ring.u.uHasTex.value=0;
       }
+      // ── Build per-slot textures — chaque slot occupé a sa propre texture scrollante ──
+      // Dispose old slot textures
+      if(!ring._slotTextures)ring._slotTextures=[];
+      ring._slotTextures.forEach(t=>{if(t&&t!==ring._dummyTex)t.dispose();});
+      ring._slotTextures=[];
+      ring._slotOffsets=[];
+      SLOT_KEYS.forEach((k,i)=>{
+        const slot=rs[i];
+        const uT=ring.u[`uBrandTex${k}`];
+        const uH=ring.u[`uHasTex${k}`];
+        const uO=ring.u[`uTexOffset${k}`];
+        if(uT&&uH&&uO){
+          if(slot?.occ){
+            const tex=this._buildBrandTexture(slot);
+            ring._slotTextures[i]=tex;
+            ring._slotOffsets[i]=Math.random(); // offset initial aléatoire par slot
+            uT.value=tex;
+            uH.value=1;
+            uO.value=ring._slotOffsets[i];
+          }else{
+            ring._slotTextures[i]=null;
+            ring._slotOffsets[i]=0;
+            uT.value=ring._dummyTex;
+            uH.value=0;
+            uO.value=0;
+          }
+        }
+      });
+      // Legacy uHasTex/uBrandTex — garder cohérent
+      ring.u.uHasTex.value=rs.some(s=>s?.occ)?1:0;
+      ring.u.uBrandTex.value=ring._slotTextures[0]||ring._dummyTex;
       ei+=ring.cfg.slots;
     });
     this.prestigeMoons.forEach((moon,idx)=>{moon.slot=prestigeSlots[idx]||null;moon.u.uOcc.value=moon.slot?.occ?1:0;});
@@ -1729,10 +1792,18 @@ class Scene3D{
       mesh.rotation.x=cfg.rX+Math.sin(t*.08+i)*.005;mesh.rotation.z=cfg.rZ+spin;
       if(solidMesh){solidMesh.rotation.x=mesh.rotation.x;solidMesh.rotation.z=mesh.rotation.z;}
       if(trailLine){trailLine.rotation.x=mesh.rotation.x;trailLine.rotation.z=mesh.rotation.z;}
-      // ── Scroll du ticker — anime texture.offset.x chaque frame ──
-      if(ring._brandTex){
-        const scrollSpeed=0.00025*(1+i*0.12)*(i%2?1:-1); // sens alterné par anneau
-        ring._brandTex.offset.x=(ring._brandTex.offset.x||0)+scrollSpeed;
+      // ── Scroll du ticker — anime uTexOffsetN uniforms chaque frame (multi-slot) ──
+      if(ring._slotTextures){
+        const SLOT_KEYS=['1','2','3','4','5','6','7','8'];
+        SLOT_KEYS.forEach((k,si)=>{
+          const uH=ring.u[`uHasTex${k}`];
+          const uO=ring.u[`uTexOffset${k}`];
+          if(uH&&uH.value>.5&&uO){
+            // Vitesse alternée et légèrement différente par slot
+            const speed=0.00025*(1+i*0.10)*(si%2===0?1:-1)*(1+si*0.08);
+            uO.value=(uO.value+speed)%1.0;
+          }
+        });
       }
     });
 
@@ -1803,12 +1874,13 @@ class Scene3D{
     [this.panelMesh,this.epicMesh,this.godRays,this.viralSwarm,this.starfieldPoints].forEach(m=>{if(m){m.geometry?.dispose();/* material already disposed above */}});
     this.cosmicObjects.forEach(({m})=>{m?.geometry?.dispose();m?.material?.dispose();});
     this.cometMeshes.forEach(({m})=>{m?.geometry?.dispose();m?.material?.dispose();});
-    this.eliteRings.forEach(({mesh,solidMesh,trailLine,_brandTex,_dummyTex})=>{
+    this.eliteRings.forEach(({mesh,solidMesh,trailLine,_brandTex,_dummyTex,_slotTextures})=>{
       mesh?.geometry?.dispose();mesh?.material?.dispose();
       solidMesh?.geometry?.dispose();solidMesh?.material?.dispose();
       trailLine?.geometry?.dispose();trailLine?.material?.dispose();
       _brandTex?.dispose();
       _dummyTex?.dispose();
+      _slotTextures?.forEach(t=>t?.dispose());
     });
     Object.values(this._ringGeoCache).forEach(g=>g?.dispose());this._ringGeoCache={};
     this.prestigeMoons.forEach(({moonMesh,haloMesh})=>{moonMesh?.geometry?.dispose();moonMesh?.material?.dispose();haloMesh?.geometry?.dispose();haloMesh?.material?.dispose();});
