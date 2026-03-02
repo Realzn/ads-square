@@ -349,9 +349,12 @@ void main(){
 const RING_VERT=`
 precision highp float;
 varying vec2 vUV;varying vec3 vN,vWP,vPos;
+varying float vIsOuter;
 void main(){
   vUV=uv;vN=normalize(normalMatrix*normal);
   vec4 wp=modelMatrix*vec4(position,1.);vWP=wp.xyz;vPos=position;
+  // dot(normal, position) > 0 en espace modèle = face externe (normale pointe vers l'extérieur du tore)
+  vIsOuter = dot(normal, position) > 0.0 ? 1.0 : 0.0;
   gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);
 }`;
 const RING_FRAG=`
@@ -362,7 +365,7 @@ uniform sampler2D uBrandTex;
 uniform sampler2D uBrandTex1,uBrandTex2,uBrandTex3,uBrandTex4,uBrandTex5,uBrandTex6,uBrandTex7,uBrandTex8;
 uniform float uHasTex1,uHasTex2,uHasTex3,uHasTex4,uHasTex5,uHasTex6,uHasTex7,uHasTex8;
 uniform float uTexOffset1,uTexOffset2,uTexOffset3,uTexOffset4,uTexOffset5,uTexOffset6,uTexOffset7,uTexOffset8;
-varying vec2 vUV;varying vec3 vN,vWP,vPos;
+varying vec2 vUV;varying vec3 vN,vWP,vPos;varying float vIsOuter;
 
 float hash(float n){return fract(sin(n)*43758.5453);}
 float GGX(float NdotH,float rough){float a=rough*rough;float a2=a*a;float d=NdotH*NdotH*(a2-1.)+1.;return a2/(3.14159*d*d);}
@@ -448,9 +451,8 @@ void main(){
   // ── Fond couleur de marque — toujours, pas seulement front-facing ──
   if(slotIsOcc>.5) col=mix(col, brandBgFill, contentY*0.60);
 
-  // ── TICKER — texture sur la face EXTERNE uniquement ──
-  // dot(vN, vWP) > 0 → normale pointe vers l'extérieur du ring = face externe visible
-  float isOuterFace = step(0.0, dot(normalize(vN), normalize(vWP)));
+  // Face EXTERNE : vIsOuter calculé dans vertex shader (dot(normal,position)>0 en espace modèle)
+  float isOuterFace = vIsOuter;
 
   float texV = clamp(uv.y, 0.0, 1.0);
   float sharedOffset = uTexOffset1;
