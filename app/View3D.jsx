@@ -413,7 +413,22 @@ void main(){
   // ── Glow ambiant ──
   float centerGlow=exp(-pow((uv.y-.5)*2.2,2.)*.8)*exp(-pow((slotFrac-.5)*2.2,2.)*.8);
   float ambientOcc=isOcc>.5?(.18+.08*sin(t*1.1+seed*6.28)):(.015+.005*sin(t*.4+seed*3.));
-  // FIX: brandBgFill activé par slotHasTex (pas uniquement isOcc qui rate les slots hors position 0)
+
+  // ── Slot tex info — déclaré ICI avant brandBgFill qui en a besoin ──
+  float sid=slotIdx;
+  float slotHasTex;
+  if(sid<0.5)       slotHasTex=uHasTex1;
+  else if(sid<1.5)  slotHasTex=uHasTex2;
+  else if(sid<2.5)  slotHasTex=uHasTex3;
+  else if(sid<3.5)  slotHasTex=uHasTex4;
+  else if(sid<4.5)  slotHasTex=uHasTex5;
+  else if(sid<5.5)  slotHasTex=uHasTex6;
+  else if(sid<6.5)  slotHasTex=uHasTex7;
+  else              slotHasTex=uHasTex8;
+  float anyHasTex=max(max(max(max(uHasTex1,uHasTex2),max(uHasTex3,uHasTex4)),max(uHasTex5,uHasTex6)),max(uHasTex7,uHasTex8));
+  float slotIsOcc=max(slotHasTex,isOcc);
+
+  // brandBgFill activé par slotHasTex (pas uniquement isOcc)
   vec3 brandBgFill=slotHasTex>.5?uBrandBg*(.7+.3*sin(t*.3+seed)):(isOcc>.5?uBrandBg*(.4+.2*sin(t*.3+seed)):vec3(0.));
 
   // ── PBR métal ──
@@ -430,24 +445,9 @@ void main(){
   col+=uCol*isEdge*.06*(.6+.4*sin(t*.8+seed*3.14));
   col=mix(col,steelDark*.4,isSep*.85);
 
-  // ── Slot tex info — calculé avant gl_FrontFacing pour l'alpha ──
-  float sid=slotIdx;
-  float slotHasTex;
-  if(sid<0.5)       slotHasTex=uHasTex1;
-  else if(sid<1.5)  slotHasTex=uHasTex2;
-  else if(sid<2.5)  slotHasTex=uHasTex3;
-  else if(sid<3.5)  slotHasTex=uHasTex4;
-  else if(sid<4.5)  slotHasTex=uHasTex5;
-  else if(sid<5.5)  slotHasTex=uHasTex6;
-  else if(sid<6.5)  slotHasTex=uHasTex7;
-  else              slotHasTex=uHasTex8;
-  float anyHasTex=max(max(max(max(uHasTex1,uHasTex2),max(uHasTex3,uHasTex4)),max(uHasTex5,uHasTex6)),max(uHasTex7,uHasTex8));
+  // ── BUG FIX: slotHasTex et slotIsOcc désormais déclarés plus haut ──
 
-  // ── BUG FIX: isOcc = step(slotIdx, uOccCount-0.5) est un seuil sur l'INDEX.
-  // Si le slot loué est en position 2 et uOccCount=1, isOcc=0 pour ce slot → texture invisible.
-  // slotHasTex (depuis uHasTex1..8) est le vrai flag per-slot → l'utiliser à la place.
-  float slotIsOcc=max(slotHasTex,isOcc); // union: slot loué OU dans la plage occupée
-  // Pour la texture: utiliser UNIQUEMENT slotHasTex (il est déjà 1 ssi ce slot précis est loué)
+  // ── BUG FIX: slotHasTex et slotIsOcc désormais déclarés plus haut ──
 
   if(gl_FrontFacing){
     // ── Fond couleur de marque — activé par slotHasTex pour le slot exact ──
