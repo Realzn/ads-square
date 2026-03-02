@@ -451,14 +451,18 @@ void main(){
     float scrollU;
     vec4 texSample;
     // Sélection texture + offset selon slotIdx (0..8 slots max par anneau)
-    if(sid<0.5){       scrollU=fract(uv.x+uTexOffset1);  texSample=texture2D(uBrandTex1, vec2(scrollU,1.-texV));}
-    else if(sid<1.5){  scrollU=fract(uv.x+uTexOffset2);  texSample=texture2D(uBrandTex2, vec2(scrollU,1.-texV));}
-    else if(sid<2.5){  scrollU=fract(uv.x+uTexOffset3);  texSample=texture2D(uBrandTex3, vec2(scrollU,1.-texV));}
-    else if(sid<3.5){  scrollU=fract(uv.x+uTexOffset4);  texSample=texture2D(uBrandTex4, vec2(scrollU,1.-texV));}
-    else if(sid<4.5){  scrollU=fract(uv.x+uTexOffset5);  texSample=texture2D(uBrandTex5, vec2(scrollU,1.-texV));}
-    else if(sid<5.5){  scrollU=fract(uv.x+uTexOffset6);  texSample=texture2D(uBrandTex6, vec2(scrollU,1.-texV));}
-    else if(sid<6.5){  scrollU=fract(uv.x+uTexOffset7);  texSample=texture2D(uBrandTex7, vec2(scrollU,1.-texV));}
-    else{              scrollU=fract(uv.x+uTexOffset8);  texSample=texture2D(uBrandTex8, vec2(scrollU,1.-texV));}
+    // ── CORRECTION: utiliser slotFrac (0→1 dans le slot) pas uv.x (0→1/N) ──
+    // slotFrac donne la pleine largeur de la texture dans chaque slot,
+    // et puisque tous les offsets avancent à la même vitesse+direction,
+    // la jonction entre slots est continue → bandeau qui tourne autour de l'anneau.
+    if(sid<0.5){       scrollU=fract(slotFrac+uTexOffset1);  texSample=texture2D(uBrandTex1, vec2(scrollU,1.-texV));}
+    else if(sid<1.5){  scrollU=fract(slotFrac+uTexOffset2);  texSample=texture2D(uBrandTex2, vec2(scrollU,1.-texV));}
+    else if(sid<2.5){  scrollU=fract(slotFrac+uTexOffset3);  texSample=texture2D(uBrandTex3, vec2(scrollU,1.-texV));}
+    else if(sid<3.5){  scrollU=fract(slotFrac+uTexOffset4);  texSample=texture2D(uBrandTex4, vec2(scrollU,1.-texV));}
+    else if(sid<4.5){  scrollU=fract(slotFrac+uTexOffset5);  texSample=texture2D(uBrandTex5, vec2(scrollU,1.-texV));}
+    else if(sid<5.5){  scrollU=fract(slotFrac+uTexOffset6);  texSample=texture2D(uBrandTex6, vec2(scrollU,1.-texV));}
+    else if(sid<6.5){  scrollU=fract(slotFrac+uTexOffset7);  texSample=texture2D(uBrandTex7, vec2(scrollU,1.-texV));}
+    else{              scrollU=fract(slotFrac+uTexOffset8);  texSample=texture2D(uBrandTex8, vec2(scrollU,1.-texV));}
     float texBlend=slotHasTex*isOcc*contentY;
 
     // Fond sombre pour lisibilité
@@ -1549,7 +1553,9 @@ class Scene3D{
           if(slot?.occ){
             const tex=this._buildBrandTexture(slot);
             ring._slotTextures[i]=tex;
-            ring._slotOffsets[i]=Math.random(); // offset initial aléatoire par slot
+            // CORRECTION: offset initial identique pour tous les slots → continuité bandeau
+            // (on utilisera l'index i*0 pour qu'ils démarrent tous au même point)
+            ring._slotOffsets[i]=0;
             uT.value=tex;
             uH.value=1;
             uO.value=ring._slotOffsets[i];
@@ -1791,16 +1797,16 @@ class Scene3D{
       mesh.rotation.x=cfg.rX+Math.sin(t*.08+i)*.005;mesh.rotation.z=cfg.rZ+spin;
       if(solidMesh){solidMesh.rotation.x=mesh.rotation.x;solidMesh.rotation.z=mesh.rotation.z;}
       if(trailLine){trailLine.rotation.x=mesh.rotation.x;trailLine.rotation.z=mesh.rotation.z;}
-      // ── Scroll du ticker — anime uTexOffsetN uniforms chaque frame (multi-slot) ──
+      // ── Scroll du ticker — bandeau continu : même direction+vitesse pour tout l'anneau ──
+      // CORRECTION: si%2===0?1:-1 causait des slots alternés en sens inverse → cassait le bandeau
       if(ring._slotTextures){
         const SLOT_KEYS=['1','2','3','4','5','6','7','8'];
+        const ringSpeed=0.00028*(1+i*0.12); // vitesse unique par anneau, même direction
         SLOT_KEYS.forEach((k,si)=>{
           const uH=ring.u[`uHasTex${k}`];
           const uO=ring.u[`uTexOffset${k}`];
           if(uH&&uH.value>.5&&uO){
-            // Vitesse alternée et légèrement différente par slot
-            const speed=0.00025*(1+i*0.10)*(si%2===0?1:-1)*(1+si*0.08);
-            uO.value=(uO.value+speed)%1.0;
+            uO.value=(uO.value+ringSpeed)%1.0;
           }
         });
       }
