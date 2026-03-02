@@ -448,24 +448,28 @@ void main(){
   // ── Fond couleur de marque — toujours, pas seulement front-facing ──
   if(slotIsOcc>.5) col=mix(col, brandBgFill, contentY*0.60);
 
-  // ── TICKER — texture scrollée, appliquée sur TOUTE la surface (front ET back) ──
-  // Sans gl_FrontFacing : DoubleSide affiche les 2 faces, la texture doit être visible partout
+  // ── TICKER — texture scrollée sur TOUTE la circonférence (uv.x = 0→1 autour de l'anneau) ──
+  // uv.x donne la position autour du ring entier → bandeau continu
+  // repeat.x est géré côté CPU dans _buildBrandTexture (tex.repeat.set(3,1))
   float texV = clamp(uv.y, 0.0, 1.0);
-  float scrollU;
-  vec4 texSample;
-  if(sid<0.5){       scrollU=fract(slotFrac+uTexOffset1);  texSample=texture2D(uBrandTex1, vec2(scrollU, texV));}
-  else if(sid<1.5){  scrollU=fract(slotFrac+uTexOffset2);  texSample=texture2D(uBrandTex2, vec2(scrollU, texV));}
-  else if(sid<2.5){  scrollU=fract(slotFrac+uTexOffset3);  texSample=texture2D(uBrandTex3, vec2(scrollU, texV));}
-  else if(sid<3.5){  scrollU=fract(slotFrac+uTexOffset4);  texSample=texture2D(uBrandTex4, vec2(scrollU, texV));}
-  else if(sid<4.5){  scrollU=fract(slotFrac+uTexOffset5);  texSample=texture2D(uBrandTex5, vec2(scrollU, texV));}
-  else if(sid<5.5){  scrollU=fract(slotFrac+uTexOffset6);  texSample=texture2D(uBrandTex6, vec2(scrollU, texV));}
-  else if(sid<6.5){  scrollU=fract(slotFrac+uTexOffset7);  texSample=texture2D(uBrandTex7, vec2(scrollU, texV));}
-  else{              scrollU=fract(slotFrac+uTexOffset8);  texSample=texture2D(uBrandTex8, vec2(scrollU, texV));}
+  // Offset unique partagé par tout le ring (uTexOffset1 depuis le slot occupé)
+  float sharedOffset = uTexOffset1;
+  float scrollU = fract(uv.x + sharedOffset);
+  // Cherche la première texture disponible (slot occupé)
+  vec4 texSample = vec4(0.0);
+  float hasAnyTex = anyHasTex;
+  if(uHasTex1>.5)      texSample = texture2D(uBrandTex1, vec2(scrollU, texV));
+  else if(uHasTex2>.5) texSample = texture2D(uBrandTex2, vec2(fract(uv.x+uTexOffset2), texV));
+  else if(uHasTex3>.5) texSample = texture2D(uBrandTex3, vec2(fract(uv.x+uTexOffset3), texV));
+  else if(uHasTex4>.5) texSample = texture2D(uBrandTex4, vec2(fract(uv.x+uTexOffset4), texV));
+  else if(uHasTex5>.5) texSample = texture2D(uBrandTex5, vec2(fract(uv.x+uTexOffset5), texV));
+  else if(uHasTex6>.5) texSample = texture2D(uBrandTex6, vec2(fract(uv.x+uTexOffset6), texV));
+  else if(uHasTex7>.5) texSample = texture2D(uBrandTex7, vec2(fract(uv.x+uTexOffset7), texV));
+  else if(uHasTex8>.5) texSample = texture2D(uBrandTex8, vec2(fract(uv.x+uTexOffset8), texV));
 
-  // texBlend actif dès que slotHasTex=1, sans dépendre de contentY ni gl_FrontFacing
-  float texBlend = slotHasTex;
+  float texBlend = hasAnyTex;
 
-  // Fond sombre derrière le texte pour lisibilité
+  // Fond sombre pour lisibilité du texte
   col = mix(col, col*0.05, texBlend*0.98);
   col = mix(col, brandBgFill, texBlend*0.80);
 
@@ -1408,120 +1412,85 @@ class Scene3D{
     this.prestigeMoons.forEach(({u})=>{u.uBrandCol.value.set(pr,pg,pb);});
   }
 
-  // Build a Canvas2D texture with brand text that scrolls around the ring
   _buildBrandTexture(slot){
     const T=this.T;
-    // Les données créatives sont dans slot.tenant (noms courts depuis grid.js)
     const tn = slot.tenant || slot;
+    const bg    = tn.b   || slot.background_color || '#020c1a';
+    const fg    = tn.c   || slot.primary_color    || '#00C8E4';
+    const name  = tn.name   || slot.display_name  || 'ANNEAU DYSON';
+    const slogan= tn.slogan || slot.slogan         || '';
+    const url   = tn.url || tn.cta || slot.cta_url|| '';
 
-    const bg    = tn.b      || slot.background_color || '#020c1a';
-    const fg    = tn.c      || slot.primary_color    || '#00C8E4';
-    const name  = tn.name   || slot.display_name     || 'ANNEAU DYSON';
-    const slogan= tn.slogan || slot.slogan            || '';
-    const badge = tn.badge  || slot.badge             || '◈ ELITE';
-    const cta   = tn.cta    || slot.cta_text          || '';
-    const url   = tn.url    || slot.cta_url           || '';
-
-    // ── Canvas large, rapport ~32:1 pour texte ultra-lisible ──
-    const W = 8192;
-    const H = 256;
+    // ── Canvas compact : UNE seule unité de texte, WebGL tile avec wrapS ──
+    // 2048×128 → texte lisible ~56px, une répétition naturelle via texture.repeat
+    const H = 128;
     const cvs = document.createElement('canvas');
-    cvs.width  = W;
     cvs.height = H;
-    const ctx  = cvs.getContext('2d');
-    if(!ctx){console.error('[RINGS] ❌ canvas getContext(2d) failed!');return null;}
-    console.log('[RINGS] _buildBrandTexture → canvas OK, W=',W,'H=',H,'bg=',bg,'name=',name);
 
-    // ── 1. Fond opaque ──
+    // Mesure d'abord la largeur du texte pour dimensionner le canvas
+    const tmpCtx = document.createElement('canvas').getContext('2d');
+    const fontSz = Math.floor(H * 0.52); // ~66px
+    const subSz  = Math.floor(H * 0.28); // ~36px
+    const fontFace = "'Courier New', monospace";
+
+    const mainText = `  ◈  ${name}${slogan ? '  ·  '+slogan : ''}  `;
+    const subText  = `  ◆  ${url || name}  `;
+
+    tmpCtx.font = `700 ${fontSz}px ${fontFace}`;
+    const mainW = tmpCtx.measureText(mainText).width;
+    tmpCtx.font = `500 ${subSz}px ${fontFace}`;
+    const subW  = tmpCtx.measureText(subText).width;
+
+    // Canvas = largeur du texte principal (+ petite marge)
+    const W = Math.max(512, Math.ceil(Math.max(mainW, subW)) + 40);
+    cvs.width = W;
+
+    const ctx = cvs.getContext('2d');
+    if(!ctx){console.error('[RINGS] canvas ctx failed');return null;}
+    console.log('[RINGS] Texture:', W+'×'+H, 'text:', mainText);
+
+    // 1. Fond opaque
     ctx.fillStyle = bg;
     ctx.fillRect(0, 0, W, H);
 
-    // ── DIAGNOSTIC: bande de couleur vive toutes les 512px pour vérifier que la texture s'applique ──
-    // (à retirer une fois confirmé) — bandes alternées magenta/cyan bien visibles
-    for(let bx=0;bx<W;bx+=512){
-      ctx.globalAlpha=0.25;
-      ctx.fillStyle=(bx/512)%2===0?'#ff00ff':'#00ffff';
-      ctx.fillRect(bx,0,256,H);
-      ctx.globalAlpha=1;
-    }
+    // 2. Filets de bordure
+    ctx.fillStyle = fg;
+    ctx.globalAlpha = 0.9;
+    ctx.fillRect(0, 0, W, 3);
+    ctx.fillRect(0, H-3, W, 3);
+    ctx.globalAlpha = 1;
 
-    // ── 2. Filets lumineux haut et bas ──
-    const drawStripe = (y, w, a) => {
-      ctx.save();
-      ctx.globalAlpha  = a;
-      ctx.shadowColor  = fg;
-      ctx.shadowBlur   = 12;
-      ctx.fillStyle    = fg;
-      ctx.fillRect(0, y, W, w);
-      ctx.restore();
-    };
-    drawStripe(0,  4, 0.9);
-    drawStripe(H-4, 4, 0.9);
-
-    // ── 3. Construire la chaîne ticker ──
-    // Ligne principale : NOM · SLOGAN
-    const mainChunks = [name, slogan].filter(Boolean);
-    const separator  = '  ◈  ';
-    const mainUnit   = separator + mainChunks.join('  ·  ');
-
-    // Ligne secondaire : BADGE · URL/CTA
-    const subChunks  = [badge, url || cta].filter(Boolean);
-    const subUnit    = '  ◆  ' + (subChunks.join('  ·  ') || 'ANNEAU DYSON');
-
-    // ── 4. Tailles de police ──
-    const mainSz = Math.floor(H * 0.50);  // ~128px — gros et lisible
-    const subSz  = Math.floor(H * 0.26);  // ~66px
-
-    const fontFace = "'JetBrains Mono', 'Courier New', monospace";
-    ctx.textBaseline = 'middle';
-
-    // Mesure la largeur d'une unité pour calculer les répétitions
-    ctx.font = `700 ${mainSz}px ${fontFace}`;
-    const mainUnitW = Math.max(1, ctx.measureText(mainUnit).width);
-    const mainReps  = Math.ceil(W / mainUnitW) + 3;
-    const mainStr   = mainUnit.repeat(mainReps);
-
-    ctx.font = `500 ${subSz}px ${fontFace}`;
-    const subUnitW = Math.max(1, ctx.measureText(subUnit).width);
-    const subReps  = Math.ceil(W / subUnitW) + 3;
-    const subStr   = subUnit.repeat(subReps);
-
-    // ── 5. Dessin — 3 passes pour glow néon ──
-    const drawGlow = (text, font, y, color, size) => {
+    // 3. Texte principal — glow néon en 2 passes
+    const drawLine = (text, font, y, color) => {
       ctx.font = font;
-      // Halo large
+      ctx.textBaseline = 'middle';
+      // Halo
       ctx.save();
-      ctx.globalAlpha = 0.35;
-      ctx.shadowColor = color; ctx.shadowBlur = 40;
-      ctx.fillStyle   = color;
-      ctx.fillText(text, 4, y);
-      ctx.restore();
-      // Halo serré
-      ctx.save();
-      ctx.globalAlpha = 0.65;
-      ctx.shadowColor = color; ctx.shadowBlur = 12;
-      ctx.fillStyle   = color;
-      ctx.fillText(text, 4, y);
+      ctx.globalAlpha = 0.6;
+      ctx.shadowColor = color; ctx.shadowBlur = 18;
+      ctx.fillStyle = color;
+      ctx.fillText(text, 8, y);
       ctx.restore();
       // Texte net blanc
       ctx.save();
       ctx.globalAlpha = 1.0;
       ctx.shadowColor = color; ctx.shadowBlur = 6;
-      ctx.fillStyle   = '#ffffff';
-      ctx.fillText(text, 4, y);
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText(text, 8, y);
       ctx.restore();
     };
 
-    drawGlow(mainStr, `700 ${mainSz}px ${fontFace}`, H * 0.38, fg, mainSz);
-    drawGlow(subStr,  `500 ${subSz}px ${fontFace}`,  H * 0.76, fg, subSz);
+    drawLine(mainText, `700 ${fontSz}px ${fontFace}`, H * 0.37, fg);
+    drawLine(subText,  `500 ${subSz}px ${fontFace}`,  H * 0.75, fg);
 
-    // ── 6. Texture Three.js ──
+    // 4. Texture Three.js — wrapS=Repeat, repeat.x contrôle le nb de tuiles autour de l'anneau
     const tex = new T.CanvasTexture(cvs);
     tex.wrapS     = T.RepeatWrapping;
     tex.wrapT     = T.ClampToEdgeWrapping;
+    tex.repeat.set(3, 1); // 3 répétitions autour de l'anneau
     tex.minFilter = T.LinearFilter;
     tex.magFilter = T.LinearFilter;
-    tex.anisotropy = 8;
+    tex.anisotropy = Math.min(16, this.renderer?.capabilities?.getMaxAnisotropy?.()||8);
     tex.needsUpdate = true;
     return tex;
   }
@@ -1810,16 +1779,13 @@ class Scene3D{
       if(solidMesh){solidMesh.rotation.x=mesh.rotation.x;solidMesh.rotation.z=mesh.rotation.z;}
       if(trailLine){trailLine.rotation.x=mesh.rotation.x;trailLine.rotation.z=mesh.rotation.z;}
       // ── Scroll du ticker — bandeau continu : même direction+vitesse pour tout l'anneau ──
-      // CORRECTION: si%2===0?1:-1 causait des slots alternés en sens inverse → cassait le bandeau
+      // Scroll bandeau — vitesse lisible, tous offsets avancent ensemble
       if(ring._slotTextures){
         const SLOT_KEYS=['1','2','3','4','5','6','7','8'];
-        const ringSpeed=0.00028*(1+i*0.12); // vitesse unique par anneau, même direction
-        SLOT_KEYS.forEach((k,si)=>{
-          const uH=ring.u[`uHasTex${k}`];
+        const ringSpeed=0.0025*(1+i*0.08); // ~10s par tour, visible à l'œil nu
+        SLOT_KEYS.forEach((k)=>{
           const uO=ring.u[`uTexOffset${k}`];
-          if(uH&&uH.value>.5&&uO){
-            uO.value=(uO.value+ringSpeed)%1.0;
-          }
+          if(uO) uO.value=(uO.value+ringSpeed)%1.0;
         });
       }
     });
