@@ -1436,10 +1436,21 @@ class Scene3D{
     cvs.width  = W;
     cvs.height = H;
     const ctx  = cvs.getContext('2d');
+    if(!ctx){console.error('[RINGS] ❌ canvas getContext(2d) failed!');return null;}
+    console.log('[RINGS] _buildBrandTexture → canvas OK, W=',W,'H=',H,'bg=',bg,'name=',name);
 
     // ── 1. Fond opaque ──
     ctx.fillStyle = bg;
     ctx.fillRect(0, 0, W, H);
+
+    // ── DIAGNOSTIC: bande de couleur vive toutes les 512px pour vérifier que la texture s'applique ──
+    // (à retirer une fois confirmé) — bandes alternées magenta/cyan bien visibles
+    for(let bx=0;bx<W;bx+=512){
+      ctx.globalAlpha=0.25;
+      ctx.fillStyle=(bx/512)%2===0?'#ff00ff':'#00ffff';
+      ctx.fillRect(bx,0,256,H);
+      ctx.globalAlpha=1;
+    }
 
     // ── 2. Filets lumineux haut et bas ──
     const drawStripe = (y, w, a) => {
@@ -1526,10 +1537,12 @@ class Scene3D{
     const T=this.T;
     let ei=0;
     const SLOT_KEYS=['1','2','3','4','5','6','7','8'];
+    console.log('[RINGS] assignTierSlots called — eliteSlots total:', eliteSlots?.length, '| occupied:', eliteSlots?.filter(s=>s?.occ).length);
     this.eliteRings.forEach(ring=>{
       const rs=eliteSlots.slice(ei,ei+ring.cfg.slots);
       ring.slotData=rs;
       ring.u.uOccCount.value=rs.filter(s=>s?.occ).length;
+      console.log(`[RINGS] Ring#${ei} → ${rs.length} slots, ${rs.filter(s=>s?.occ).length} occupied. Names:`, rs.filter(s=>s?.occ).map(s=>s?.tenant?.name||s?.display_name||'?'));
       // Update brand color from first occupied slot
       const firstOcc=rs.find(s=>s?.occ);
       ring.firstOccSlot=firstOcc||null;
@@ -1560,12 +1573,11 @@ class Scene3D{
           if(slot?.occ){
             const tex=this._buildBrandTexture(slot);
             ring._slotTextures[i]=tex;
-            // CORRECTION: offset initial identique pour tous les slots → continuité bandeau
-            // (on utilisera l'index i*0 pour qu'ils démarrent tous au même point)
             ring._slotOffsets[i]=0;
             uT.value=tex;
             uH.value=1;
-            uO.value=ring._slotOffsets[i];
+            uO.value=0;
+            console.log(`[RINGS] ✅ Slot ${k} → texture built for "${slot?.tenant?.name||'?'}", uHasTex${k}=1`);
           }else{
             ring._slotTextures[i]=null;
             ring._slotOffsets[i]=0;
