@@ -413,7 +413,8 @@ void main(){
   // ── Glow ambiant ──
   float centerGlow=exp(-pow((uv.y-.5)*2.2,2.)*.8)*exp(-pow((slotFrac-.5)*2.2,2.)*.8);
   float ambientOcc=isOcc>.5?(.18+.08*sin(t*1.1+seed*6.28)):(.015+.005*sin(t*.4+seed*3.));
-  vec3 brandBgFill=isOcc>.5?uBrandBg*(.7+.3*sin(t*.3+seed)):vec3(0.);
+  // FIX: brandBgFill activé par slotHasTex (pas uniquement isOcc qui rate les slots hors position 0)
+  vec3 brandBgFill=slotHasTex>.5?uBrandBg*(.7+.3*sin(t*.3+seed)):(isOcc>.5?uBrandBg*(.4+.2*sin(t*.3+seed)):vec3(0.));
 
   // ── PBR métal ──
   vec3 toStar=normalize(-vWP);vec3 viewDir=normalize(cameraPosition-vWP);
@@ -442,19 +443,22 @@ void main(){
   else              slotHasTex=uHasTex8;
   float anyHasTex=max(max(max(max(uHasTex1,uHasTex2),max(uHasTex3,uHasTex4)),max(uHasTex5,uHasTex6)),max(uHasTex7,uHasTex8));
 
-  if(gl_FrontFacing){
-    // ── Fond couleur de marque ──
-    if(isOcc>.5) col=mix(col,brandBgFill,contentY*.60);
+  // ── BUG FIX: isOcc = step(slotIdx, uOccCount-0.5) est un seuil sur l'INDEX.
+  // Si le slot loué est en position 2 et uOccCount=1, isOcc=0 pour ce slot → texture invisible.
+  // slotHasTex (depuis uHasTex1..8) est le vrai flag per-slot → l'utiliser à la place.
+  float slotIsOcc=max(slotHasTex,isOcc); // union: slot loué OU dans la plage occupée
+  // Pour la texture: utiliser UNIQUEMENT slotHasTex (il est déjà 1 ssi ce slot précis est loué)
 
-    // ── TICKER — texture scrollée par slot, uTexOffsetN passé via uniform CPU ──
+  if(gl_FrontFacing){
+    // ── Fond couleur de marque — activé par slotHasTex pour le slot exact ──
+    if(slotIsOcc>.5) col=mix(col,brandBgFill,contentY*.60);
+
+    // ── TICKER — texture scrollée par slot ──
     float texV=clamp((uv.y-0.04)/0.92, 0., 1.);
     float scrollU;
     vec4 texSample;
-    // Sélection texture + offset selon slotIdx (0..8 slots max par anneau)
-    // ── CORRECTION: utiliser slotFrac (0→1 dans le slot) pas uv.x (0→1/N) ──
-    // slotFrac donne la pleine largeur de la texture dans chaque slot,
-    // et puisque tous les offsets avancent à la même vitesse+direction,
-    // la jonction entre slots est continue → bandeau qui tourne autour de l'anneau.
+    // CORRECTION: slotFrac (0→1 dans le slot) pas uv.x (0→1/N slots)
+    // → chaque slot affiche la texture en plein, tous avancent dans le même sens
     if(sid<0.5){       scrollU=fract(slotFrac+uTexOffset1);  texSample=texture2D(uBrandTex1, vec2(scrollU,1.-texV));}
     else if(sid<1.5){  scrollU=fract(slotFrac+uTexOffset2);  texSample=texture2D(uBrandTex2, vec2(scrollU,1.-texV));}
     else if(sid<2.5){  scrollU=fract(slotFrac+uTexOffset3);  texSample=texture2D(uBrandTex3, vec2(scrollU,1.-texV));}
@@ -463,9 +467,11 @@ void main(){
     else if(sid<5.5){  scrollU=fract(slotFrac+uTexOffset6);  texSample=texture2D(uBrandTex6, vec2(scrollU,1.-texV));}
     else if(sid<6.5){  scrollU=fract(slotFrac+uTexOffset7);  texSample=texture2D(uBrandTex7, vec2(scrollU,1.-texV));}
     else{              scrollU=fract(slotFrac+uTexOffset8);  texSample=texture2D(uBrandTex8, vec2(scrollU,1.-texV));}
-    float texBlend=slotHasTex*isOcc*contentY;
 
-    // Fond sombre pour lisibilité
+    // FIX: texBlend utilise slotHasTex seul — pas isOcc qui tue les slots hors position 0
+    float texBlend=slotHasTex*contentY;
+
+    // Fond sombre pour lisibilité du texte
     col=mix(col, col*0.06, texBlend*0.95);
     col=mix(col, brandBgFill, texBlend*0.85);
 
@@ -473,9 +479,9 @@ void main(){
     col=mix(col, texSample.rgb, texSample.a*texBlend);
 
     // Emission néon — les pixels clairs brillent
-    col+=texSample.rgb*texSample.a*texBlend*1.8;
+    col+=texSample.rgb*texSample.a*texBlend*2.2;
 
-    col+=uCol*centerGlow*ambientOcc*mix(1.0,0.05,anyHasTex*isOcc);
+    col+=uCol*centerGlow*ambientOcc*mix(1.0,0.05,anyHasTex);
     if(uHov>.5)col+=uCol*(.30+centerGlow*.50);
   }
 
@@ -484,14 +490,15 @@ void main(){
   vec3 viewDir2=normalize(cameraPosition-vWP);
   float NdotV=abs(dot(normalize(vN),viewDir2));
   float angleFade=smoothstep(0.0,0.38,NdotV);
-  float viewFade=0.08+(1.-0.08)*angleFade;
+  // FIX: slots avec texture → alpha élevé ignorant viewFade (sinon texte invisible à angle rasant)
+  float viewFade=slotHasTex>.5 ? mix(0.75,1.0,angleFade) : (0.08+(1.-0.08)*angleFade);
 
   float alpha;
   if(isSep>.4){alpha=0.08*viewFade;}
   else if(isEdge>.2){alpha=mix(.35,.70,isEdge)*(uHov>.5?1.15:1.)*viewFade;}
   else{
-    // Slots avec texture (loués) : bien plus opaques pour que le message soit lisible
-    float basA=slotHasTex>.5&&isOcc>.5 ? 0.88 : (isOcc>.5?0.55:0.20);
+    // FIX: basA utilise slotHasTex seul (pas slotHasTex&&isOcc)
+    float basA=slotHasTex>.5 ? 0.92 : (slotIsOcc>.5?0.55:0.20);
     alpha=(basA+(scanLine*0.06)+(progress*0.10))*viewFade;
     if(uHov>.5)alpha=min(alpha*1.1,0.97);
   }
