@@ -445,65 +445,58 @@ void main(){
   col+=uCol*isEdge*.06*(.6+.4*sin(t*.8+seed*3.14));
   col=mix(col,steelDark*.4,isSep*.85);
 
-  // ── BUG FIX: slotHasTex et slotIsOcc désormais déclarés plus haut ──
+  // ── Fond couleur de marque — toujours, pas seulement front-facing ──
+  if(slotIsOcc>.5) col=mix(col, brandBgFill, contentY*0.60);
 
-  // ── BUG FIX: slotHasTex et slotIsOcc désormais déclarés plus haut ──
+  // ── TICKER — texture scrollée, appliquée sur TOUTE la surface (front ET back) ──
+  // Sans gl_FrontFacing : DoubleSide affiche les 2 faces, la texture doit être visible partout
+  float texV = clamp(uv.y, 0.0, 1.0);
+  float scrollU;
+  vec4 texSample;
+  if(sid<0.5){       scrollU=fract(slotFrac+uTexOffset1);  texSample=texture2D(uBrandTex1, vec2(scrollU, texV));}
+  else if(sid<1.5){  scrollU=fract(slotFrac+uTexOffset2);  texSample=texture2D(uBrandTex2, vec2(scrollU, texV));}
+  else if(sid<2.5){  scrollU=fract(slotFrac+uTexOffset3);  texSample=texture2D(uBrandTex3, vec2(scrollU, texV));}
+  else if(sid<3.5){  scrollU=fract(slotFrac+uTexOffset4);  texSample=texture2D(uBrandTex4, vec2(scrollU, texV));}
+  else if(sid<4.5){  scrollU=fract(slotFrac+uTexOffset5);  texSample=texture2D(uBrandTex5, vec2(scrollU, texV));}
+  else if(sid<5.5){  scrollU=fract(slotFrac+uTexOffset6);  texSample=texture2D(uBrandTex6, vec2(scrollU, texV));}
+  else if(sid<6.5){  scrollU=fract(slotFrac+uTexOffset7);  texSample=texture2D(uBrandTex7, vec2(scrollU, texV));}
+  else{              scrollU=fract(slotFrac+uTexOffset8);  texSample=texture2D(uBrandTex8, vec2(scrollU, texV));}
 
-  if(gl_FrontFacing){
-    // ── Fond couleur de marque — activé par slotHasTex pour le slot exact ──
-    if(slotIsOcc>.5) col=mix(col,brandBgFill,contentY*.60);
+  // texBlend actif dès que slotHasTex=1, sans dépendre de contentY ni gl_FrontFacing
+  float texBlend = slotHasTex;
 
-    // ── TICKER — texture scrollée par slot ──
-    float texV=clamp((uv.y-0.04)/0.92, 0., 1.);
-    float scrollU;
-    vec4 texSample;
-    // CORRECTION: slotFrac (0→1 dans le slot) pas uv.x (0→1/N slots)
-    // → chaque slot affiche la texture en plein, tous avancent dans le même sens
-    if(sid<0.5){       scrollU=fract(slotFrac+uTexOffset1);  texSample=texture2D(uBrandTex1, vec2(scrollU,1.-texV));}
-    else if(sid<1.5){  scrollU=fract(slotFrac+uTexOffset2);  texSample=texture2D(uBrandTex2, vec2(scrollU,1.-texV));}
-    else if(sid<2.5){  scrollU=fract(slotFrac+uTexOffset3);  texSample=texture2D(uBrandTex3, vec2(scrollU,1.-texV));}
-    else if(sid<3.5){  scrollU=fract(slotFrac+uTexOffset4);  texSample=texture2D(uBrandTex4, vec2(scrollU,1.-texV));}
-    else if(sid<4.5){  scrollU=fract(slotFrac+uTexOffset5);  texSample=texture2D(uBrandTex5, vec2(scrollU,1.-texV));}
-    else if(sid<5.5){  scrollU=fract(slotFrac+uTexOffset6);  texSample=texture2D(uBrandTex6, vec2(scrollU,1.-texV));}
-    else if(sid<6.5){  scrollU=fract(slotFrac+uTexOffset7);  texSample=texture2D(uBrandTex7, vec2(scrollU,1.-texV));}
-    else{              scrollU=fract(slotFrac+uTexOffset8);  texSample=texture2D(uBrandTex8, vec2(scrollU,1.-texV));}
+  // Fond sombre derrière le texte pour lisibilité
+  col = mix(col, col*0.05, texBlend*0.98);
+  col = mix(col, brandBgFill, texBlend*0.80);
 
-    // FIX: texBlend utilise slotHasTex seul — pas isOcc qui tue les slots hors position 0
-    float texBlend=slotHasTex*contentY;
+  // Texture nettement
+  col = mix(col, texSample.rgb, texBlend);
 
-    // Fond sombre pour lisibilité du texte
-    col=mix(col, col*0.06, texBlend*0.95);
-    col=mix(col, brandBgFill, texBlend*0.85);
+  // Émission néon — pixels clairs brillent fort
+  col += texSample.rgb * texBlend * 3.0;
 
-    // Appliquer la texture nettement
-    col=mix(col, texSample.rgb, texSample.a*texBlend);
+  col += uCol*centerGlow*ambientOcc*mix(1.0,0.05,anyHasTex);
+  if(uHov>.5) col += uCol*(.30+centerGlow*.50);
 
-    // Emission néon — les pixels clairs brillent
-    col+=texSample.rgb*texSample.a*texBlend*2.2;
+  col += specCol*(1.+isEdge*.8);
 
-    col+=uCol*centerGlow*ambientOcc*mix(1.0,0.05,anyHasTex);
-    if(uHov>.5)col+=uCol*(.30+centerGlow*.50);
-  }
-
-  col+=specCol*(1.+isEdge*.8);
-
-  vec3 viewDir2=normalize(cameraPosition-vWP);
-  float NdotV=abs(dot(normalize(vN),viewDir2));
-  float angleFade=smoothstep(0.0,0.38,NdotV);
-  // FIX: slots avec texture → alpha élevé ignorant viewFade (sinon texte invisible à angle rasant)
-  float viewFade=slotHasTex>.5 ? mix(0.75,1.0,angleFade) : (0.08+(1.-0.08)*angleFade);
+  float NdotV = abs(dot(normalize(vN), normalize(cameraPosition-vWP)));
+  float angleFade = smoothstep(0.0, 0.25, NdotV);
+  // Slots avec texture : alpha maximal pour que le bandeau soit bien visible
+  float viewFade = slotHasTex>.5 ? mix(0.85, 1.0, angleFade) : (0.08+(0.92)*angleFade);
 
   float alpha;
-  if(isSep>.4){alpha=0.08*viewFade;}
-  else if(isEdge>.2){alpha=mix(.35,.70,isEdge)*(uHov>.5?1.15:1.)*viewFade;}
-  else{
-    // FIX: basA utilise slotHasTex seul (pas slotHasTex&&isOcc)
-    float basA=slotHasTex>.5 ? 0.92 : (slotIsOcc>.5?0.55:0.20);
-    alpha=(basA+(scanLine*0.06)+(progress*0.10))*viewFade;
-    if(uHov>.5)alpha=min(alpha*1.1,0.97);
+  if(isSep>.4){
+    alpha = slotHasTex>.5 ? 0.50*viewFade : 0.08*viewFade;
+  } else if(isEdge>.2){
+    alpha = mix(.35,.70,isEdge)*(uHov>.5?1.15:1.)*viewFade;
+  } else {
+    float basA = slotHasTex>.5 ? 0.95 : (slotIsOcc>.5 ? 0.55 : 0.20);
+    alpha = (basA + scanLine*0.04 + progress*0.06)*viewFade;
+    if(uHov>.5) alpha = min(alpha*1.1, 0.97);
   }
 
-  gl_FragColor=vec4(col,clamp(alpha,0.,1.));
+  gl_FragColor = vec4(col, clamp(alpha, 0., 1.));
 }`
 const MOON_VERT=`precision highp float;varying vec3 vN,vWP,vPos;void main(){vN=normalize(normalMatrix*normal);vec4 wp=modelMatrix*vec4(position,1.);vWP=wp.xyz;vPos=position;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`;
 const MOON_FRAG=`
