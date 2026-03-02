@@ -448,14 +448,13 @@ void main(){
   // ── Fond couleur de marque — toujours, pas seulement front-facing ──
   if(slotIsOcc>.5) col=mix(col, brandBgFill, contentY*0.60);
 
-  // ── TICKER — texture scrollée sur TOUTE la circonférence (uv.x = 0→1 autour de l'anneau) ──
-  // uv.x donne la position autour du ring entier → bandeau continu
-  // repeat.x est géré côté CPU dans _buildBrandTexture (tex.repeat.set(3,1))
+  // ── TICKER — texture sur la face EXTERNE uniquement ──
+  // dot(vN, vWP) > 0 → normale pointe vers l'extérieur du ring = face externe visible
+  float isOuterFace = step(0.0, dot(normalize(vN), normalize(vWP)));
+
   float texV = clamp(uv.y, 0.0, 1.0);
-  // Offset unique partagé par tout le ring (uTexOffset1 depuis le slot occupé)
   float sharedOffset = uTexOffset1;
   float scrollU = fract(uv.x + sharedOffset);
-  // Cherche la première texture disponible (slot occupé)
   vec4 texSample = vec4(0.0);
   float hasAnyTex = anyHasTex;
   if(uHasTex1>.5)      texSample = texture2D(uBrandTex1, vec2(scrollU, texV));
@@ -467,7 +466,8 @@ void main(){
   else if(uHasTex7>.5) texSample = texture2D(uBrandTex7, vec2(fract(uv.x+uTexOffset7), texV));
   else if(uHasTex8>.5) texSample = texture2D(uBrandTex8, vec2(fract(uv.x+uTexOffset8), texV));
 
-  float texBlend = hasAnyTex;
+  // Appliquer seulement sur face externe
+  float texBlend = hasAnyTex * isOuterFace;
 
   // Fond sombre pour lisibilité du texte
   col = mix(col, col*0.05, texBlend*0.98);
@@ -1779,10 +1779,10 @@ class Scene3D{
       if(solidMesh){solidMesh.rotation.x=mesh.rotation.x;solidMesh.rotation.z=mesh.rotation.z;}
       if(trailLine){trailLine.rotation.x=mesh.rotation.x;trailLine.rotation.z=mesh.rotation.z;}
       // ── Scroll du ticker — bandeau continu : même direction+vitesse pour tout l'anneau ──
-      // Scroll bandeau — vitesse lisible, tous offsets avancent ensemble
+      // Scroll bandeau — vitesse réduite, effet billboard naturel
       if(ring._slotTextures){
         const SLOT_KEYS=['1','2','3','4','5','6','7','8'];
-        const ringSpeed=0.0025*(1+i*0.08); // ~10s par tour, visible à l'œil nu
+        const ringSpeed=0.0006*(1+i*0.05); // ~25s par tour, vitesse panneau pub
         SLOT_KEYS.forEach((k)=>{
           const uO=ring.u[`uTexOffset${k}`];
           if(uO) uO.value=(uO.value+ringSpeed)%1.0;
