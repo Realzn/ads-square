@@ -353,8 +353,8 @@ varying float vIsOuter;
 void main(){
   vUV=uv;vN=normalize(normalMatrix*normal);
   vec4 wp=modelMatrix*vec4(position,1.);vWP=wp.xyz;vPos=position;
-  // dot(normal, position) > 0 en espace modèle = face externe (normale pointe vers l'extérieur du tore)
-  vIsOuter = dot(normal, position) > 0.0 ? 1.0 : 0.0;
+  // Outer face : normale radiale pointe vers l'extérieur → dot(normal.xz, position.xz) > 0
+  vIsOuter = dot(normal.xz, position.xz) > 0.0 ? 1.0 : 0.0;
   gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);
 }`;
 const RING_FRAG=`
@@ -365,7 +365,8 @@ uniform sampler2D uBrandTex;
 uniform sampler2D uBrandTex1,uBrandTex2,uBrandTex3,uBrandTex4,uBrandTex5,uBrandTex6,uBrandTex7,uBrandTex8;
 uniform float uHasTex1,uHasTex2,uHasTex3,uHasTex4,uHasTex5,uHasTex6,uHasTex7,uHasTex8;
 uniform float uTexOffset1,uTexOffset2,uTexOffset3,uTexOffset4,uTexOffset5,uTexOffset6,uTexOffset7,uTexOffset8;
-varying vec2 vUV;varying vec3 vN,vWP,vPos;varying float vIsOuter;
+varying vec2 vUV;varying vec3 vN,vWP,vPos;
+varying float vIsOuter;
 
 float hash(float n){return fract(sin(n)*43758.5453);}
 float GGX(float NdotH,float rough){float a=rough*rough;float a2=a*a;float d=NdotH*NdotH*(a2-1.)+1.;return a2/(3.14159*d*d);}
@@ -451,7 +452,8 @@ void main(){
   // ── Fond couleur de marque — toujours, pas seulement front-facing ──
   if(slotIsOcc>.5) col=mix(col, brandBgFill, contentY*0.60);
 
-  // Face EXTERNE : vIsOuter calculé dans vertex shader (dot(normal,position)>0 en espace modèle)
+  // ── TICKER — texture sur la face EXTERNE uniquement ──
+  // vIsOuter=1 sur face externe, calculé dans vertex shader via dot(normal.xz, position.xz)>0
   float isOuterFace = vIsOuter;
 
   float texV = clamp(uv.y, 0.0, 1.0);
@@ -2674,7 +2676,7 @@ function HoverChip({info}){
 }
 
 // Slot reveal panel — full holographic detail card
-function SlotReveal({slot,onClose,onRent,onBuyout}){
+function SlotReveal({slot,onClose,onRent,onBuyout,onViewSlot,user}){
   const[ph,setPh]=useState(0);
   const[tick,setTick]=useState(0);
   const[booking,setBooking]=useState({days:7,total:0,billing:getBilling(7)});
@@ -2792,80 +2794,107 @@ function SlotReveal({slot,onClose,onRent,onBuyout}){
 
         {/* Data grid */}
         <div style={{padding:'10px 14px',position:'relative',zIndex:2}}>
-          {/* Description */}
+          {/* Description du tier */}
           <div style={{
             color:DS.textMid,fontFamily:F.ui,fontSize:8,lineHeight:1.65,
             marginBottom:10,paddingBottom:8,
             borderBottom:`0.5px solid ${col}12`,
           }}>{role?.desc}</div>
 
-          {/* Stats grid */}
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:4,marginBottom:10}}>
-            {[
-              ['TIER', label, col],
-              ['PRIX/J', `€${fmt(slot.tier)}`, DS.gold],
-              ['STATUT', occ?'ACTIF':'LIBRE', occ?DS.green:DS.textLo],
-            ].map(([k,v,c])=>(
-              <div key={k} style={{
-                padding:'7px 6px',
-                background:`${c}06`,
-                border:`0.5px solid ${c}1a`,
-                textAlign:'center',
-                position:'relative',
-              }}>
-                <Brackets col={c} size={4} thickness={.5}/>
-                <div style={{color:c,fontFamily:F.mono,fontSize:10,fontWeight:700,letterSpacing:'.04em',marginBottom:2}}>{v}</div>
-                <div style={{color:DS.textLo,fontFamily:F.mono,fontSize:6,letterSpacing:'.12em'}}>{k}</div>
+          {occ && tenant ? (
+            /* ── SLOT LOUÉ : afficher le contenu promu ── */
+            <>
+              {/* Nom + slogan de l'annonceur */}
+              <div style={{marginBottom:10}}>
+                <div style={{color:col,fontFamily:F.mono,fontSize:13,fontWeight:700,letterSpacing:'.04em',marginBottom:3}}>
+                  {tenant.name}
+                </div>
+                {tenant.slogan&&<div style={{color:DS.textMid,fontFamily:F.ui,fontSize:9,lineHeight:1.55}}>{tenant.slogan}</div>}
               </div>
-            ))}
-          </div>
 
-          {/* Duration Picker — slots libres seulement */}
-          {!occ&&(
-            <DurationPicker
-              pricePerDay={TIER_PRICE[slot.tier]||100}
-              col={col}
-              onChange={b=>setBooking(b)}
-            />
-          )}
+              {/* Stats — uniquement si connecté en tant qu'annonceur */}
+              {user && (
+                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:4,marginBottom:10}}>
+                  {[
+                    ['TIER', label, col],
+                    ['PRIX/J', `€${fmt(slot.tier)}`, DS.gold],
+                    ['STATUT', 'ACTIF', DS.green],
+                  ].map(([k,v,c])=>(
+                    <div key={k} style={{
+                      padding:'7px 6px',background:`${c}06`,
+                      border:`0.5px solid ${c}1a`,textAlign:'center',position:'relative',
+                    }}>
+                      <Brackets col={c} size={4} thickness={.5}/>
+                      <div style={{color:c,fontFamily:F.mono,fontSize:10,fontWeight:700,letterSpacing:'.04em',marginBottom:2}}>{v}</div>
+                      <div style={{color:DS.textLo,fontFamily:F.mono,fontSize:6,letterSpacing:'.12em'}}>{k}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
 
-          {/* Price block (slot occupé) */}
-          {occ&&(
-            <div style={{
-              padding:'8px 12px',
-              background:`${col}06`,
-              border:`0.5px solid ${col}22`,
-              marginBottom:10,
-              display:'flex',alignItems:'baseline',gap:6,
-              position:'relative',
-            }}>
-              <Brackets col={col} size={5} thickness={.5}/>
-              <span style={{color:col,fontFamily:F.mono,fontSize:22,fontWeight:700,letterSpacing:'.02em'}}>€{fmt(slot.tier)}</span>
-              <span style={{color:DS.textLo,fontFamily:F.mono,fontSize:7,letterSpacing:'.10em'}}>/JOUR · EXCL. TAXES</span>
-            </div>
-          )}
+              {/* CTA principal → lien promu */}
+              {tenant.url && tenant.url !== '#' && (
+                <a
+                  href={tenant.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    display:'flex',alignItems:'center',justifyContent:'center',gap:6,
+                    padding:'11px 14px',marginBottom:8,width:'100%',
+                    background:`${col}18`,border:`0.5px solid ${col}55`,
+                    color:col,fontFamily:F.mono,fontSize:10,fontWeight:700,
+                    letterSpacing:'.08em',textDecoration:'none',cursor:'pointer',
+                    clipPath:'polygon(0 0,calc(100% - 10px) 0,100% 10px,100% 100%,10px 100%,0 calc(100% - 10px))',
+                    boxShadow:`0 0 20px ${col}18`,
+                  }}
+                >
+                  {tenant.cta||'VISITER'} <span style={{opacity:.6}}>→</span>
+                </a>
+              )}
 
-          {/* System status line */}
-          <div style={{
-            display:'flex',alignItems:'center',gap:6,
-            marginBottom:10,
-            color:DS.textLo,fontFamily:F.mono,fontSize:6.5,letterSpacing:'.10em',
-          }}>
-            <div style={{width:5,height:5,borderRadius:'50%',background:DS.green,animation:'hpulse 2s ease-in-out infinite'}}/>
-            SYS·PRÊT{dots}
-            <span style={{marginLeft:'auto',color:DS.textLo}}>ID:{Math.floor(Math.random()*0xFFFF).toString(16).toUpperCase()}</span>
-          </div>
-
-          {/* Action button */}
-          {!occ
-            ?<LumBtn onClick={()=>onRent({...slot,days:booking.days,total:booking.total,billing:booking.billing})} col={col} style={{width:'100%',clipPath:'polygon(0 0,calc(100% - 10px) 0,100% 10px,100% 100%,10px 100%,0 calc(100% - 10px))'}}>
-                RÉSERVER · {booking.days}J · {(booking.total/100).toLocaleString('fr-FR',{minimumFractionDigits:2})} € <span style={{opacity:.5}}>→</span>
+              {/* Bouton Vue détaillée */}
+              <LumBtn onClick={()=>onViewSlot?.(slot)} col={col}
+                style={{width:'100%',marginBottom:8,clipPath:'polygon(0 0,calc(100% - 10px) 0,100% 10px,100% 100%,10px 100%,0 calc(100% - 10px))'}}>
+                VOIR LA PROMOTION
               </LumBtn>
-            :<LumBtn onClick={()=>onBuyout(slot)} col={DS.textLo}
+
+              {/* RACHAT — toujours disponible */}
+              <LumBtn onClick={()=>onBuyout(slot)} col={DS.textLo}
                 style={{width:'100%',fontSize:9,clipPath:'polygon(0 0,calc(100% - 10px) 0,100% 10px,100% 100%,10px 100%,0 calc(100% - 10px))'}}>
                 PROPOSER UN RACHAT
               </LumBtn>
-          }
+            </>
+          ) : (
+            /* ── SLOT LIBRE : afficher le picker de réservation ── */
+            <>
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:4,marginBottom:10}}>
+                {[
+                  ['TIER', label, col],
+                  ['PRIX/J', `€${fmt(slot.tier)}`, DS.gold],
+                  ['STATUT', 'LIBRE', DS.textLo],
+                ].map(([k,v,c])=>(
+                  <div key={k} style={{
+                    padding:'7px 6px',background:`${c}06`,
+                    border:`0.5px solid ${c}1a`,textAlign:'center',position:'relative',
+                  }}>
+                    <Brackets col={c} size={4} thickness={.5}/>
+                    <div style={{color:c,fontFamily:F.mono,fontSize:10,fontWeight:700,letterSpacing:'.04em',marginBottom:2}}>{v}</div>
+                    <div style={{color:DS.textLo,fontFamily:F.mono,fontSize:6,letterSpacing:'.12em'}}>{k}</div>
+                  </div>
+                ))}
+              </div>
+
+              <DurationPicker
+                pricePerDay={TIER_PRICE[slot.tier]||100}
+                col={col}
+                onChange={b=>setBooking(b)}
+              />
+
+              <LumBtn onClick={()=>onRent({...slot,days:booking.days,total:booking.total,billing:booking.billing})} col={col} style={{width:'100%',clipPath:'polygon(0 0,calc(100% - 10px) 0,100% 10px,100% 100%,10px 100%,0 calc(100% - 10px))'}}>
+                RÉSERVER · {booking.days}J · {(booking.total/100).toLocaleString('fr-FR',{minimumFractionDigits:2})} € <span style={{opacity:.5}}>→</span>
+              </LumBtn>
+            </>
+          )}
         </div>
 
         {/* Bottom energy bar */}
@@ -3285,7 +3314,7 @@ function HUDLoader(){
 }
 
 // ── Main View3D ───────────────────────────────────────────────────────────────
-export default function View3D({slots=[],isLive=false,onCheckout,onBuyout,onViewSlot}){
+export default function View3D({slots=[],isLive=false,onCheckout,onBuyout,onViewSlot,user=null}){
   const canvasRef=useRef(null),sceneRef=useRef(null);
   const[loading,setLoading]=useState(true);
   const[error,setError]=useState(null);
@@ -3501,7 +3530,7 @@ export default function View3D({slots=[],isLive=false,onCheckout,onBuyout,onView
 
         {isInside&&<InsideChip/>}
         {hovInfo&&!selSlot&&!hovRing&&<HoverChip info={hovInfo}/>}
-        {selSlot&&(<SlotReveal slot={selSlot} onClose={handleClose} onRent={s=>{handleClose();onCheckout?.(s);}} onBuyout={s=>{handleClose();onBuyout?.(s);}}/>)}
+        {selSlot&&(<SlotReveal slot={selSlot} onClose={handleClose} user={user} onRent={s=>{handleClose();onCheckout?.(s);}} onBuyout={s=>{handleClose();onBuyout?.(s);}} onViewSlot={s=>{handleClose();onViewSlot?.(s);}}/>)}
 
         {/* ── Mobile Sidebar bottom sheet ── */}
         {isMobile&&showSidebar&&(
