@@ -1,713 +1,506 @@
 'use client';
-// app/cinema/page.js — CINEMA BLOCK STUDIO
-// Vue cinéma immersive 3D pour la Sphère de Dyson
-// Encodage vidéo HDR 4K via WebCodecs / MediaRecorder
+// app/cinema/page.js — DYSON SPHERE CINEMA STUDIO ◈ VERSION AAA
+// 1 296 panneaux sur la sphère complète · Étoile centrale · Anneaux orbitaux
+// Vent solaire · Nébuleuse · Faisceaux énergie · Encodage HDR 4K
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import * as THREE from 'three';
 import { getSupabaseClient } from '../../lib/supabase';
-import { TIER_COLOR, TIER_LABEL } from '../../lib/grid';
-import { CATEGORIES } from '../../lib/block-categories';
+import { TIER_COLOR, TIER_LABEL, getTier, GRID_COLS, GRID_ROWS } from '../../lib/grid';
 
-// ═══════════════════════════════════════════════════════
-//  CONSTANTES DESIGN
-// ═══════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════
+//  CONSTANTES
+// ═══════════════════════════════════════════════════════════════════
 
-const G  = '#f0b429';   // Gold
-const BG = '#05060f';   // Background profond
+const GOLD        = '#f0b429';
+const BG          = '#03030c';
+const SPHERE_R    = 9.4;
+const PANEL_COUNT = GRID_COLS * GRID_ROWS; // 1 296
 
-const RANK_META = {
-  elu:        { label: "L'Élu",        icon: '☀️', color: '#f0b429', tier: 'epicenter' },
-  architecte: { label: "L'Architecte", icon: '🔵', color: '#ff4d8f', tier: 'prestige'  },
-  gardien:    { label: "Le Gardien",   icon: '🟣', color: '#a855f7', tier: 'elite'     },
-  batisseur:  { label: "Le Bâtisseur", icon: '🟡', color: '#00d9f5', tier: 'business'  },
-  signal:     { label: "Le Signal",    icon: '⚪', color: '#00e8a2', tier: 'viral'     },
-};
-
-const ENVS = {
-  void_studio: { bg: '#000000', fog: '#000005', den: 0.055, stars: false, name: 'VOID STUDIO'   },
-  dark_studio: { bg: '#00000a', fog: '#00000f', den: 0.040, stars: true,  name: 'DARK STUDIO'   },
-  neon_city:   { bg: '#01020e', fog: '#050118', den: 0.028, stars: true,  name: 'NEON CITY'     },
-  cosmos:      { bg: '#000005', fog: '#000009', den: 0.006, stars: true,  name: 'COSMOS'        },
-  luxe_or:     { bg: '#060400', fog: '#0d0900', den: 0.050, stars: false, name: 'LUXE ORÉ'      },
-  arctique:    { bg: '#020a10', fog: '#030f1a', den: 0.032, stars: true,  name: 'ARCTIQUE'      },
-  matrix:      { bg: '#000c00', fog: '#001500', den: 0.045, stars: false, name: 'MATRIX'        },
-  inferno:     { bg: '#0c0000', fog: '#180000', den: 0.048, stars: false, name: 'INFERNO'       },
+const TIER_ORDER = ['epicenter','prestige','elite','business','standard','viral'];
+const TIER_META  = {
+  epicenter:{ label:'ÉPICENTRE', price:'€1 000/j', icon:'☀' },
+  prestige: { label:'PRESTIGE',  price:'€100/j',   icon:'◈' },
+  elite:    { label:'ELITE',     price:'€50/j',     icon:'◆' },
+  business: { label:'BUSINESS',  price:'€10/j',     icon:'◉' },
+  standard: { label:'STANDARD',  price:'€3/j',      icon:'○' },
+  viral:    { label:'VIRAL',     price:'€1/j',      icon:'·' },
 };
 
 const CAM_PRESETS = [
-  { id: 'face',    label: 'FACE',    h: 0,    v: 0,   z: 7.5, fov: 38 },
-  { id: 'trois4',  label: '3/4',     h: 38,   v: 18,  z: 8,   fov: 36 },
-  { id: 'cinema',  label: 'CINÉMA',  h: -24,  v: 16,  z: 9,   fov: 28 },
-  { id: 'plongee', label: 'PLONGÉE', h: 8,    v: 55,  z: 8.5, fov: 40 },
-  { id: 'macro',   label: 'MACRO',   h: 4,    v: 6,   z: 3.5, fov: 24 },
-  { id: 'pano',    label: 'PANO',    h: 20,   v: 12,  z: 17,  fov: 58 },
-  { id: 'low',     label: 'LOW',     h: -12,  v: -22, z: 8,   fov: 36 },
-  { id: 'orbit',   label: 'ORBIT',   h: 135,  v: 28,  z: 9,   fov: 38 },
-  { id: 'worm',    label: 'WORM',    h: 0,    v: -45, z: 7,   fov: 45 },
-  { id: 'dutch',   label: 'DUTCH',   h: 25,   v: 8,   z: 8,   fov: 35 },
+  { id:'overview', label:'VUE GLOBALE',  h:20,  v:18,  z:32, fov:42 },
+  { id:'equator',  label:'ÉQUATEUR',     h:0,   v:0,   z:26, fov:38 },
+  { id:'pole_n',   label:'PÔLE NORD',    h:0,   v:85,  z:24, fov:38 },
+  { id:'pole_s',   label:'PÔLE SUD',     h:0,   v:-85, z:24, fov:38 },
+  { id:'epic',     label:'ÉPICENTRE',    h:3,   v:2,   z:14, fov:28 },
+  { id:'cinema',   label:'CINÉMA',       h:-28, v:22,  z:34, fov:30 },
+  { id:'inside',   label:'INTÉRIEUR',    h:25,  v:10,  z:5,  fov:80 },
+  { id:'pano',     label:'PANORAMA',     h:45,  v:30,  z:55, fov:55 },
+  { id:'macro',    label:'MACRO PANEL',  h:5,   v:3,   z:12, fov:22 },
+  { id:'dutch',    label:'DUTCH ANGLE',  h:30,  v:15,  z:30, fov:36 },
 ];
 
 const VIDEO_FORMATS = [
-  { id: 'webm_vp9',  label: 'WebM VP9 — HDR 10-bit', mime: 'video/webm;codecs=vp9', ext: 'webm', hdr: true  },
-  { id: 'webm_vp8',  label: 'WebM VP8 — HD Standard', mime: 'video/webm;codecs=vp8', ext: 'webm', hdr: false },
-  { id: 'webm_h264', label: 'MP4 H.264 — Compatible',  mime: 'video/mp4',             ext: 'mp4',  hdr: false },
+  { id:'vp9_hdr', label:'VP9 WebM · HDR 10-bit', mime:'video/webm;codecs=vp9', ext:'webm', hdr:true,  mbps:80 },
+  { id:'vp9_sdr', label:'VP9 WebM · SDR',         mime:'video/webm;codecs=vp9', ext:'webm', hdr:false, mbps:40 },
+  { id:'vp8',     label:'VP8 WebM · Compatible',  mime:'video/webm;codecs=vp8', ext:'webm', hdr:false, mbps:20 },
+  { id:'mp4',     label:'H.264 MP4',              mime:'video/mp4',             ext:'mp4',  hdr:false, mbps:16 },
 ];
-
 const VIDEO_RES = [
-  { id: '4k',   label: '4K UHD',  w: 3840, h: 2160, fps: 30, mbps: 80  },
-  { id: '2k',   label: '2K QHD',  w: 2560, h: 1440, fps: 60, mbps: 40  },
-  { id: '1080', label: '1080p',   w: 1920, h: 1080, fps: 60, mbps: 16  },
-  { id: '720',  label: '720p',    w: 1280, h: 720,  fps: 60, mbps: 8   },
+  { id:'4k',   w:3840, h:2160, fps:30, label:'4K UHD'   },
+  { id:'2k',   w:2560, h:1440, fps:60, label:'2K QHD'   },
+  { id:'1080', w:1920, h:1080, fps:60, label:'1080p FHD' },
+  { id:'720',  w:1280, h:720,  fps:60, label:'720p HD'   },
 ];
 
-const ANIM_MODES = [
-  { id: 'static',  label: 'STATIQUE',      icon: '◉' },
-  { id: 'rotate',  label: 'ROTATION',      icon: '↻' },
-  { id: 'float',   label: 'FLOTTEMENT',    icon: '~' },
-  { id: 'flyby',   label: 'FLY-BY',        icon: '→' },
-  { id: 'reveal',  label: 'RÉVÉLATION',    icon: '✦' },
-  { id: 'keyframes', label: 'KEYFRAMES',   icon: '◆' },
-];
+const ENVS = {
+  cosmos:     { sky:'#000008', fog:null,      name:'COSMOS',        stars:true  },
+  deep_nebula:{ sky:'#01000f', fog:'#01000f', fogD:0.006, name:'NÉBULEUSE',  stars:true  },
+  void_black: { sky:'#000000', fog:null,      name:'VOID ABSOLU',   stars:false },
+  nova_red:   { sky:'#0c0000', fog:'#0c0000', fogD:0.009, name:'NOVA ROUGE', stars:true  },
+  cyber:      { sky:'#000d0d', fog:'#000d0d', fogD:0.007, name:'CYBER',      stars:true  },
+  dawn:       { sky:'#050208', fog:null,      name:'AUBE VIOLETTE', stars:true  },
+};
 
 const LUTS = [
-  { id: 'none',     label: 'AUCUN',         filter: 'none' },
-  { id: 'cinema',   label: 'CINÉMA',        filter: 'contrast(1.12) saturate(0.85) sepia(0.08)' },
-  { id: 'neon',     label: 'NEON',          filter: 'saturate(1.6) hue-rotate(10deg) contrast(1.1)' },
-  { id: 'teal_ora', label: 'TEAL & ORANGE', filter: 'saturate(1.3) hue-rotate(-8deg) contrast(1.15)' },
-  { id: 'bw',       label: 'NOIR & BLANC',  filter: 'grayscale(1) contrast(1.2)' },
-  { id: 'vintage',  label: 'VINTAGE',       filter: 'sepia(0.35) saturate(1.1) contrast(0.9) brightness(0.95)' },
-  { id: 'cold',     label: 'FROID',         filter: 'hue-rotate(20deg) saturate(1.2) contrast(1.05)' },
-  { id: 'warm',     label: 'CHAUD',         filter: 'hue-rotate(-12deg) saturate(1.3) brightness(1.05)' },
+  { id:'none',     label:'AUCUN',         filter:'none' },
+  { id:'cinema',   label:'CINÉMA',        filter:'contrast(1.12) saturate(0.88) sepia(0.07)' },
+  { id:'scifi',    label:'SCI-FI',        filter:'saturate(1.4) hue-rotate(15deg) contrast(1.1)' },
+  { id:'imax',     label:'IMAX',          filter:'contrast(1.2) brightness(1.06) saturate(1.15)' },
+  { id:'coldwar',  label:'GUERRE FROIDE', filter:'saturate(0.6) contrast(1.3) sepia(0.12)' },
+  { id:'neon',     label:'NEON',          filter:'saturate(2.0) hue-rotate(8deg) contrast(1.08)' },
+  { id:'warmgold', label:'DORÉ CHAUD',    filter:'hue-rotate(-10deg) saturate(1.4) brightness(1.04)' },
 ];
 
-const COMP_GUIDES = [
-  { id: 'none',   label: 'AUCUN'           },
-  { id: 'thirds', label: 'RÈGLE DES TIERS' },
-  { id: 'golden', label: 'NOMBRE D\'OR'    },
-  { id: 'center', label: 'CENTRE'          },
-];
+const INIT = {
+  cH:20, cV:18, zoom:32, fov:42, roll:0,
+  autoRot:false, rotSpeed:0.25,
+  dofOn:false, dofBlur:3,
+  starI:8, starPulse:true, starColor:'#fff8cc',
+  coronaI:1.4, coronaColor:'#ffaa22',
+  ringsOn:true, ringSpeed:1, ringOpacity:0.65,
+  panelGlow:1.2, waveOn:true, waveSpeed:0.8,
+  beamsOn:true, beamOpacity:0.3,
+  filterTier:'all',
+  env:'cosmos', fogOn:true, nebulaOn:true,
+  vignette:0.55, grain:0.18, chrAb:false,
+  brightness:1, contrast:1, saturation:1, exposure:1.4, lut:'none',
+  vidFmt:'vp9_hdr', vidRes:'4k', vidDur:15,
+};
 
-// ═══════════════════════════════════════════════════════
-//  THREE.JS HELPERS
-// ═══════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════
+//  SCENE BUILDERS
+// ═══════════════════════════════════════════════════════════════════
 
-function roundedRectShape(w, h, r) {
-  const s = new THREE.Shape();
-  const x = -w / 2, y = -h / 2;
-  s.moveTo(x + r, y);
-  s.lineTo(x + w - r, y);
-  s.quadraticCurveTo(x + w, y, x + w, y + r);
-  s.lineTo(x + w, y + h - r);
-  s.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
-  s.lineTo(x + r, y + h);
-  s.quadraticCurveTo(x, y + h, x, y + h - r);
-  s.lineTo(x, y + r);
-  s.quadraticCurveTo(x, y, x + r, y);
-  return s;
+function gridToSphere(gx, gy, r) {
+  var R     = r !== undefined ? r : SPHERE_R;
+  var theta = ((gx - 1 + 0.5) / GRID_COLS) * Math.PI * 2;
+  var phi   = ((gy - 1 + 0.5) / GRID_ROWS) * Math.PI;
+  var sinP  = Math.sin(phi);
+  return { x: R*sinP*Math.cos(theta), y: R*Math.cos(phi), z: R*sinP*Math.sin(theta), phi: phi, sinPhi: sinP };
 }
 
-function buildBlockTexture(cfg) {
-  const { title, slogan, pColor, bgColor, tier, rank, bW, bH, texQ } = cfg;
-  const RES = texQ || 2048;
-  const H   = Math.round(RES * (bH / bW));
-  const cv  = document.createElement('canvas');
-  cv.width  = RES; cv.height = H;
-  const ctx = cv.getContext('2d');
-
-  // — BG
-  const lbg = ctx.createLinearGradient(0, 0, RES, H);
-  lbg.addColorStop(0, bgColor);
-  lbg.addColorStop(1, shiftColor(bgColor, -20));
-  ctx.fillStyle = lbg;
-  ctx.fillRect(0, 0, RES, H);
-
-  // — Grid lines subtle
-  ctx.strokeStyle = pColor + '18';
-  ctx.lineWidth = 1;
-  for (let x = 0; x < RES; x += RES / 8) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
-  for (let y = 0; y < H;   y += H / 6)   { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(RES, y); ctx.stroke(); }
-
-  // — Vignette inner
-  const vig = ctx.createRadialGradient(RES/2, H*0.45, 0, RES/2, H/2, RES*0.75);
-  vig.addColorStop(0, 'rgba(255,255,255,0.04)');
-  vig.addColorStop(1, 'rgba(0,0,0,0.5)');
-  ctx.fillStyle = vig;
-  ctx.fillRect(0, 0, RES, H);
-
-  // — Border neon
-  const PAD = 24;
-  ctx.save();
-  ctx.shadowBlur = 60; ctx.shadowColor = pColor;
-  ctx.strokeStyle = pColor; ctx.lineWidth = 4;
-  // rounded rect stroke
-  const r = 14;
-  ctx.beginPath();
-  ctx.moveTo(PAD+r, PAD);
-  ctx.lineTo(RES-PAD-r, PAD);
-  ctx.quadraticCurveTo(RES-PAD, PAD, RES-PAD, PAD+r);
-  ctx.lineTo(RES-PAD, H-PAD-r);
-  ctx.quadraticCurveTo(RES-PAD, H-PAD, RES-PAD-r, H-PAD);
-  ctx.lineTo(PAD+r, H-PAD);
-  ctx.quadraticCurveTo(PAD, H-PAD, PAD, H-PAD-r);
-  ctx.lineTo(PAD, PAD+r);
-  ctx.quadraticCurveTo(PAD, PAD, PAD+r, PAD);
-  ctx.closePath();
-  ctx.stroke();
-  ctx.restore();
-
-  // — Corner brackets
-  const BL = 60, BT = 5;
-  ctx.strokeStyle = pColor; ctx.lineWidth = BT;
-  [[PAD, PAD, 1, 1], [RES-PAD, PAD, -1, 1], [RES-PAD, H-PAD, -1, -1], [PAD, H-PAD, 1, -1]]
-    .forEach(([cx, cy, dx, dy]) => {
-      ctx.beginPath();
-      ctx.moveTo(cx+dx*BL, cy); ctx.lineTo(cx, cy); ctx.lineTo(cx, cy+dy*BL);
-      ctx.stroke();
-    });
-
-  // — Rank badge (if rank)
-  if (rank && RANK_META[rank]) {
-    const rm = RANK_META[rank];
-    ctx.fillStyle = rm.color + '30';
-    ctx.fillRect(PAD, PAD, 200, 50);
-    ctx.fillStyle = rm.color;
-    ctx.font = `bold 24px 'Courier New', monospace`;
-    ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-    ctx.fillText(`${rm.icon} ${rm.label.toUpperCase()}`, PAD+12, PAD+25);
-  }
-
-  // — Tier badge top-right
-  if (tier && TIER_COLOR[tier]) {
-    const tc = TIER_COLOR[tier];
-    ctx.fillStyle = tc + '28';
-    ctx.fillRect(RES-PAD-180, PAD, 180, 50);
-    ctx.fillStyle = tc;
-    ctx.font = `bold 22px 'Courier New', monospace`;
-    ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
-    ctx.fillText(`◈ ${(TIER_LABEL[tier] || tier).toUpperCase()}`, RES-PAD-10, PAD+25);
-  }
-
-  // — Main title
-  ctx.save();
-  ctx.shadowBlur = 50; ctx.shadowColor = pColor;
-  ctx.fillStyle = '#ffffff';
-  let fs = Math.round(RES * 0.13);
-  ctx.font = `900 ${fs}px 'Arial Black', 'Impact', sans-serif`;
-  while (ctx.measureText(title.toUpperCase()).width > RES*0.84 && fs > 24) {
-    fs -= 3; ctx.font = `900 ${fs}px 'Arial Black', 'Impact', sans-serif`;
-  }
-  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.fillText(title.toUpperCase(), RES/2, H*0.44);
-  ctx.restore();
-
-  // — Divider
-  const lY = H * 0.6;
-  const grd = ctx.createLinearGradient(PAD*4, lY, RES-PAD*4, lY);
-  grd.addColorStop(0, 'transparent');
-  grd.addColorStop(0.25, pColor+'88');
-  grd.addColorStop(0.75, pColor+'88');
-  grd.addColorStop(1, 'transparent');
-  ctx.strokeStyle = grd; ctx.lineWidth = 1.5;
-  ctx.beginPath(); ctx.moveTo(PAD*4, lY); ctx.lineTo(RES-PAD*4, lY); ctx.stroke();
-
-  // — Slogan
-  ctx.fillStyle = 'rgba(255,255,255,0.7)';
-  ctx.font = `${Math.round(RES*0.038)}px 'Arial', sans-serif`;
-  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.fillText(slogan, RES/2, H*0.71);
-
-  // — Scan line subtle
-  ctx.fillStyle = 'rgba(0,0,0,0.05)';
-  for (let y2 = 0; y2 < H; y2 += 4) ctx.fillRect(0, y2, RES, 2);
-
-  // — Bottom band
-  const barH = H * 0.11;
-  const bg2 = ctx.createLinearGradient(0, H-barH, 0, H);
-  bg2.addColorStop(0, 'rgba(0,0,0,0)');
-  bg2.addColorStop(1, pColor+'44');
-  ctx.fillStyle = bg2; ctx.fillRect(0, H-barH, RES, barH);
-  ctx.fillStyle = 'rgba(255,255,255,0.45)';
-  ctx.font = `bold ${Math.round(barH*0.34)}px 'Courier New', monospace`;
-  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.fillText('◈ ADS SQUARE · SPHÈRE DE DYSON', RES/2, H-barH/2);
-
-  return new THREE.CanvasTexture(cv);
-}
-
-function shiftColor(hex, shift) {
-  const n = parseInt(hex.replace('#', ''), 16);
-  const r = Math.max(0, Math.min(255, ((n >> 16) & 0xff) + shift));
-  const g = Math.max(0, Math.min(255, ((n >>  8) & 0xff) + shift));
-  const b = Math.max(0, Math.min(255, ((n)       & 0xff) + shift));
-  return `#${r.toString(16).padStart(2,'0')}${g.toString(16).padStart(2,'0')}${b.toString(16).padStart(2,'0')}`;
-}
-
-function buildBlock3D(cfg) {
-  const { bW, bH, bD, bR, pColor, bgColor, glowI } = cfg;
-  const group = new THREE.Group();
-
-  // — Halo glow
-  const haloShape = roundedRectShape(bW+0.06, bH+0.06, bR+0.03);
-  const haloMesh  = new THREE.Mesh(
-    new THREE.ExtrudeGeometry(haloShape, { depth: 0.01, bevelEnabled: false }),
-    new THREE.MeshStandardMaterial({ color: pColor, emissive: pColor, emissiveIntensity: glowI * 2.2, transparent: true, opacity: 0.7 })
-  );
-  haloMesh.position.z = -bD/2 - 0.02;
-  group.add(haloMesh);
-
-  // — Body
-  const bodyShape = roundedRectShape(bW, bH, bR);
-  const bodyMesh  = new THREE.Mesh(
-    new THREE.ExtrudeGeometry(bodyShape, { depth: bD, bevelEnabled: false }),
-    new THREE.MeshStandardMaterial({ color: bgColor, metalness: 0.72, roughness: 0.28, emissive: pColor, emissiveIntensity: 0.04 })
-  );
-  bodyMesh.castShadow = true;
-  bodyMesh.position.z = -bD/2;
-  group.add(bodyMesh);
-
-  // — Front face
-  const tex   = buildBlockTexture(cfg);
-  const face  = new THREE.Mesh(
-    new THREE.PlaneGeometry(bW, bH),
-    new THREE.MeshStandardMaterial({ map: tex, metalness: 0.1, roughness: 0.5, emissiveMap: tex, emissive: new THREE.Color(pColor), emissiveIntensity: 0.045 })
-  );
-  face.position.z = bD/2 + 0.001;
-  group.add(face);
-
-  // — Edge glow strips
-  const eC = new THREE.Color(pColor);
-  [
-    { w: bW, h: 0.009, x: 0,       y: bH/2  },
-    { w: bW, h: 0.009, x: 0,       y: -bH/2 },
-    { w: 0.009, h: bH, x: -bW/2,   y: 0     },
-    { w: 0.009, h: bH, x: bW/2,    y: 0     },
-  ].forEach(({ w, h, x, y }) => {
-    const m = new THREE.Mesh(
-      new THREE.PlaneGeometry(w, h),
-      new THREE.MeshStandardMaterial({ color: eC, emissive: eC, emissiveIntensity: glowI * 3, transparent: true, opacity: 0.92 })
-    );
-    m.position.set(x, y, bD/2+0.002);
-    group.add(m);
+function buildNebula() {
+  var W = 2048, H = 1024;
+  var cv = document.createElement('canvas'); cv.width=W; cv.height=H;
+  var ctx = cv.getContext('2d');
+  ctx.fillStyle='#000008'; ctx.fillRect(0,0,W,H);
+  // Nebula clouds
+  var clouds = [
+    [400,300,500,350,'rgba(15,5,80,0.55)'],[1400,700,600,400,'rgba(50,0,30,0.45)'],
+    [900,200,700,300,'rgba(0,10,60,0.40)'],[1700,300,400,500,'rgba(5,30,50,0.35)'],
+    [300,750,450,300,'rgba(30,5,60,0.30)'],[1100,600,350,280,'rgba(0,40,40,0.28)'],
+  ];
+  clouds.forEach(function(c) {
+    var g = ctx.createRadialGradient(c[0],c[1],0,c[0],c[1],Math.max(c[2],c[3]));
+    g.addColorStop(0,c[4]); g.addColorStop(1,'transparent');
+    ctx.fillStyle=g; ctx.beginPath();
+    ctx.ellipse(c[0],c[1],c[2],c[3],0,0,Math.PI*2); ctx.fill();
   });
-
-  return group;
-}
-
-function buildReflectivePlane() {
-  return new THREE.Mesh(
-    new THREE.PlaneGeometry(80, 80),
-    new THREE.MeshStandardMaterial({ color: '#000014', metalness: 0.9, roughness: 0.88, transparent: true, opacity: 0.82 })
-  );
-}
-
-function buildStarField(n = 700) {
-  const geo  = new THREE.BufferGeometry();
-  const pos  = new Float32Array(n*3);
-  const col  = new Float32Array(n*3);
-  const size = new Float32Array(n);
-  for (let i = 0; i < n; i++) {
-    const r = 20 + Math.random()*14, phi = Math.random()*Math.PI*2, th = Math.random()*Math.PI;
-    pos[i*3]   = r*Math.sin(th)*Math.cos(phi);
-    pos[i*3+1] = r*Math.sin(th)*Math.sin(phi);
-    pos[i*3+2] = r*Math.cos(th);
-    const b = 0.3 + Math.random()*0.7;
-    col[i*3]=b; col[i*3+1]=b; col[i*3+2]=b;
-    size[i] = Math.random()*0.07+0.015;
+  // Stars
+  for (var i=0; i<3000; i++) {
+    var x=Math.random()*W, y=Math.random()*H, r=Math.random()*1.1;
+    var b=0.2+Math.random()*0.8;
+    ctx.fillStyle='rgba('+(200+Math.round(Math.random()*55))+','+(200+Math.round(Math.random()*55))+','+(220+Math.round(Math.random()*35))+','+b.toFixed(2)+')';
+    ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fill();
   }
-  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-  geo.setAttribute('color',    new THREE.BufferAttribute(col, 3));
-  return new THREE.Points(geo, new THREE.PointsMaterial({ size: 0.055, vertexColors: true, transparent: true, opacity: 0.85 }));
+  // Bright stars
+  for (var j=0; j<45; j++) {
+    var bx=Math.random()*W, by=Math.random()*H, br=1.2+Math.random()*1.8;
+    ctx.save(); ctx.shadowBlur=10; ctx.shadowColor='#aaccff';
+    ctx.fillStyle='rgba(255,255,255,'+(0.5+Math.random()*0.5).toFixed(2)+')';
+    ctx.beginPath(); ctx.arc(bx,by,br,0,Math.PI*2); ctx.fill(); ctx.restore();
+  }
+  var geo = new THREE.SphereGeometry(100,32,32); geo.scale(-1,1,1);
+  return new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ map:new THREE.CanvasTexture(cv), side:THREE.BackSide, depthWrite:false }));
 }
 
-function buildParticles(pColor, n = 120) {
-  const geo = new THREE.BufferGeometry();
-  const pos = new Float32Array(n*3);
-  const vel = [];
-  for (let i = 0; i < n; i++) {
-    pos[i*3]   = (Math.random()-0.5)*12;
-    pos[i*3+1] = (Math.random()-0.5)*8;
-    pos[i*3+2] = (Math.random()-0.5)*6;
-    vel.push({ x: (Math.random()-0.5)*0.006, y: Math.random()*0.004+0.001, z: (Math.random()-0.5)*0.003 });
+function buildStar() {
+  var group = new THREE.Group();
+  var coreMat = new THREE.MeshStandardMaterial({ color:'#ffffff', emissive:new THREE.Color('#fff8cc'), emissiveIntensity:10, roughness:1, metalness:0 });
+  var core = new THREE.Mesh(new THREE.SphereGeometry(1.35,32,32), coreMat);
+  group.add(core);
+  var halo1 = new THREE.Mesh(new THREE.SphereGeometry(2.2,16,16),
+    new THREE.MeshBasicMaterial({ color:'#ffee88', transparent:true, opacity:0.12, blending:THREE.AdditiveBlending, depthWrite:false }));
+  group.add(halo1);
+  var halo2 = new THREE.Mesh(new THREE.SphereGeometry(3.8,12,12),
+    new THREE.MeshBasicMaterial({ color:'#ff8800', transparent:true, opacity:0.04, blending:THREE.AdditiveBlending, depthWrite:false }));
+  group.add(halo2);
+  var keyLight  = new THREE.PointLight('#fff5cc', 8, 120);
+  var warmLight = new THREE.PointLight('#ff9944', 3, 55);
+  group.add(keyLight, warmLight);
+  return { group:group, core:core, halo1:halo1, halo2:halo2, keyLight:keyLight, warmLight:warmLight, coreMat:coreMat };
+}
+
+function buildDysonPanels(bookings) {
+  var bks = bookings || [];
+  var occMap = new Map(bks.map(function(b){ return [b.x+','+b.y, b]; }));
+  var COUNT  = PANEL_COUNT;
+  var panelGeo = new THREE.PlaneGeometry(1,1);
+  var glowGeo  = new THREE.PlaneGeometry(1,1);
+  var panelMat = new THREE.MeshStandardMaterial({ metalness:0.82, roughness:0.22 });
+  var glowMat  = new THREE.MeshBasicMaterial({ transparent:true, opacity:0, depthWrite:false, blending:THREE.AdditiveBlending });
+  var panels   = new THREE.InstancedMesh(panelGeo, panelMat, COUNT);
+  var glows    = new THREE.InstancedMesh(glowGeo,  glowMat,  COUNT);
+  var dummy    = new THREE.Object3D();
+  var cP       = new THREE.Color();
+  var cG       = new THREE.Color();
+  var panelData = [];
+  var idx = 0;
+  for (var gy=1; gy<=GRID_ROWS; gy++) {
+    for (var gx=1; gx<=GRID_COLS; gx++) {
+      var sph  = gridToSphere(gx, gy);
+      var tier = getTier(gx, gy);
+      var occ  = occMap.get(gx+','+gy);
+      var tC   = new THREE.Color(occ && occ.primary_color ? occ.primary_color : (TIER_COLOR[tier] || '#1a2040'));
+      var latS = Math.max(0.06, sph.sinPhi) * 1.05;
+      dummy.position.set(sph.x, sph.y, sph.z);
+      dummy.lookAt(0,0,0); dummy.rotateY(Math.PI);
+      dummy.scale.set(latS*0.90, 0.90, 1); dummy.updateMatrix();
+      panels.setMatrixAt(idx, dummy.matrix);
+      dummy.scale.set(latS*0.97, 0.97, 1); dummy.updateMatrix();
+      glows.setMatrixAt(idx, dummy.matrix);
+      cP.copy(tC).multiplyScalar(occ ? 0.55 : 0.12); panels.setColorAt(idx, cP);
+      cG.copy(tC);                                    glows.setColorAt(idx, cG);
+      panelData.push({ gx:gx, gy:gy, tier:tier, occ:!!occ, baseColor:tC.clone(), phi:sph.phi, idx:idx });
+      idx++;
+    }
   }
-  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-  const mat = new THREE.PointsMaterial({ color: pColor, size: 0.04, transparent: true, opacity: 0.55, blending: THREE.AdditiveBlending });
-  const pts = new THREE.Points(geo, mat);
-  pts.userData.vel = vel;
+  panels.instanceMatrix.needsUpdate = true; panels.instanceColor.needsUpdate = true;
+  glows.instanceMatrix.needsUpdate  = true; glows.instanceColor.needsUpdate  = true;
+  return { panels:panels, glows:glows, panelData:panelData };
+}
+
+function buildOrbitalRings() {
+  var cfgs = [
+    { r:12.2, tube:0.038, segs:160, rot:[0,0,0],                         color:'#f0b429', alpha:0.70, speed:0.0028  },
+    { r:11.5, tube:0.025, segs:140, rot:[Math.PI/4,0,0],                 color:'#ff4d8f', alpha:0.55, speed:-0.0042 },
+    { r:13.0, tube:0.020, segs:160, rot:[0,Math.PI/5,Math.PI/6],         color:'#00d9f5', alpha:0.50, speed:0.0018  },
+    { r:10.8, tube:0.016, segs:120, rot:[Math.PI/2,Math.PI/3,0],         color:'#a855f7', alpha:0.42, speed:-0.0060 },
+    { r:14.0, tube:0.010, segs:180, rot:[Math.PI/6,Math.PI/4,Math.PI/3], color:'#00e8a2', alpha:0.30, speed:0.0012  },
+  ];
+  return cfgs.map(function(cfg) {
+    var mat  = new THREE.MeshBasicMaterial({ color:cfg.color, transparent:true, opacity:cfg.alpha, blending:THREE.AdditiveBlending, depthWrite:false });
+    var mesh = new THREE.Mesh(new THREE.TorusGeometry(cfg.r, cfg.tube, 6, cfg.segs), mat);
+    mesh.rotation.set(cfg.rot[0], cfg.rot[1], cfg.rot[2]);
+    mesh.userData.speed = cfg.speed; mesh.userData.baseOpacity = cfg.alpha;
+    return mesh;
+  });
+}
+
+function buildSolarWind(n) {
+  var COUNT = n || 2500;
+  var geo = new THREE.BufferGeometry();
+  var pos = new Float32Array(COUNT*3);
+  var col = new Float32Array(COUNT*3);
+  var vel = [];
+  for (var i=0; i<COUNT; i++) {
+    var r  = 1.5+Math.random()*11;
+    var th = Math.random()*Math.PI*2, ph = Math.random()*Math.PI;
+    var nx = Math.sin(ph)*Math.cos(th), ny = Math.cos(ph), nz = Math.sin(ph)*Math.sin(th);
+    var spd = 0.012+Math.random()*0.028;
+    pos[i*3]=nx*r; pos[i*3+1]=ny*r; pos[i*3+2]=nz*r;
+    vel.push({ nx:nx,ny:ny,nz:nz,spd:spd,maxR:10+Math.random()*3 });
+    var t2 = r/13; col[i*3]=1-t2*0.3; col[i*3+1]=0.8-t2*0.4; col[i*3+2]=0.3+t2*0.4;
+  }
+  geo.setAttribute('position', new THREE.BufferAttribute(pos,3));
+  geo.setAttribute('color',    new THREE.BufferAttribute(col,3));
+  var mat = new THREE.PointsMaterial({ size:0.038, vertexColors:true, transparent:true, opacity:0.55, blending:THREE.AdditiveBlending, depthWrite:false });
+  var pts = new THREE.Points(geo, mat); pts.userData.vel = vel;
   return pts;
 }
 
-function tickParticles(pts) {
-  if (!pts) return;
-  const pos = pts.geometry.attributes.position;
-  const vel = pts.userData.vel;
-  for (let i = 0; i < vel.length; i++) {
-    pos.array[i*3]   += vel[i].x;
-    pos.array[i*3+1] += vel[i].y;
-    pos.array[i*3+2] += vel[i].z;
-    if (pos.array[i*3+1] > 5)  pos.array[i*3+1] = -4;
-    if (Math.abs(pos.array[i*3])   > 7) vel[i].x *= -1;
-    if (Math.abs(pos.array[i*3+2]) > 4) vel[i].z *= -1;
+function tickSolarWind(pts) {
+  var pos = pts.geometry.attributes.position;
+  var vel = pts.userData.vel;
+  for (var i=0; i<vel.length; i++) {
+    var v = vel[i];
+    pos.array[i*3]  +=v.nx*v.spd; pos.array[i*3+1]+=v.ny*v.spd; pos.array[i*3+2]+=v.nz*v.spd;
+    var r2 = pos.array[i*3]*pos.array[i*3]+pos.array[i*3+1]*pos.array[i*3+1]+pos.array[i*3+2]*pos.array[i*3+2];
+    if (r2>v.maxR*v.maxR) {
+      var r0=1.2+Math.random()*0.8; pos.array[i*3]=v.nx*r0; pos.array[i*3+1]=v.ny*r0; pos.array[i*3+2]=v.nz*r0;
+    }
   }
-  pos.needsUpdate = true;
+  pos.needsUpdate=true;
 }
 
-// ═══════════════════════════════════════════════════════
-//  COMPOSANTS UI RÉUTILISABLES
-// ═══════════════════════════════════════════════════════
+function buildEnergyBeams(bookings) {
+  if (!bookings || !bookings.length) return null;
+  var pts=[], cols=[];
+  var warm = new THREE.Color('#ffe8aa');
+  bookings.forEach(function(b) {
+    var sph = gridToSphere(b.x||1, b.y||1, SPHERE_R*0.96);
+    var tc  = new THREE.Color(b.primary_color || TIER_COLOR[getTier(b.x||1,b.y||1)] || GOLD);
+    pts.push(0,0,0); cols.push(warm.r,warm.g,warm.b);
+    pts.push(sph.x,sph.y,sph.z); cols.push(tc.r*0.8,tc.g*0.8,tc.b*0.8);
+  });
+  var geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pts,3));
+  geo.setAttribute('color',    new THREE.Float32BufferAttribute(cols,3));
+  return new THREE.LineSegments(geo, new THREE.LineBasicMaterial({ vertexColors:true, transparent:true, opacity:0.22, blending:THREE.AdditiveBlending, depthWrite:false }));
+}
 
-function Slider({ label, value, min, max, step = 0.01, unit = '', fmt, onChange, accent = G }) {
-  const display = fmt ? fmt(value) : (step < 1 ? value.toFixed(2) : Math.round(value));
+function buildCosmicDust() {
+  var n=800, pos=new Float32Array(n*3);
+  for (var i=0; i<n; i++) {
+    var r=15+Math.random()*20, th=Math.random()*Math.PI*2, ph=Math.random()*Math.PI;
+    pos[i*3]=r*Math.sin(ph)*Math.cos(th); pos[i*3+1]=r*Math.cos(ph); pos[i*3+2]=r*Math.sin(ph)*Math.sin(th);
+  }
+  var geo=new THREE.BufferGeometry(); geo.setAttribute('position',new THREE.BufferAttribute(pos,3));
+  return new THREE.Points(geo, new THREE.PointsMaterial({ color:'#3a4070',size:0.06,transparent:true,opacity:0.4,blending:THREE.AdditiveBlending,depthWrite:false }));
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  UI COMPONENTS
+// ═══════════════════════════════════════════════════════════════════
+
+function Sl({ label, value, min, max, step, unit, onChange, accent }) {
+  var a = accent || GOLD, s = step || 0.01, u = unit || '';
+  var disp = s < 1 ? value.toFixed(2) : Math.round(value);
   return (
-    <div style={{ marginBottom: 12 }}>
-      <div style={{ display:'flex', justifyContent:'space-between', marginBottom:4 }}>
-        <span style={{ fontSize:9, color:'#4a4f70', letterSpacing:1, fontFamily:'monospace' }}>{label}</span>
-        <span style={{ fontSize:9, color:accent, fontFamily:'monospace' }}>{display}{unit}</span>
+    <div style={{ marginBottom:11 }}>
+      <div style={{ display:'flex', justifyContent:'space-between', marginBottom:3 }}>
+        <span style={{ fontSize:8.5, color:'#3e4468', letterSpacing:1, fontFamily:'monospace' }}>{label}</span>
+        <span style={{ fontSize:8.5, color:a, fontFamily:'monospace' }}>{disp}{u}</span>
       </div>
-      <input type="range" min={min} max={max} step={step} value={value}
-        onChange={e => onChange(parseFloat(e.target.value))}
-        style={{ width:'100%', accentColor:accent, cursor:'pointer', height:3, outline:'none', background:'transparent' }} />
+      <input type="range" min={min} max={max} step={s} value={value}
+        onChange={function(e){ onChange(parseFloat(e.target.value)); }}
+        style={{ width:'100%', accentColor:a, cursor:'pointer', height:3 }} />
     </div>
   );
 }
 
-function ColorPick({ label, value, onChange }) {
-  return (
-    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:11 }}>
-      <span style={{ fontSize:9, color:'#4a4f70', letterSpacing:1, fontFamily:'monospace' }}>{label}</span>
-      <div style={{ display:'flex', gap:7, alignItems:'center' }}>
-        <span style={{ fontSize:9, color:'#2e3355', fontFamily:'monospace' }}>{value}</span>
-        <input type="color" value={value} onChange={e => onChange(e.target.value)}
-          style={{ width:28, height:20, border:'1px solid #141826', borderRadius:3, cursor:'pointer', padding:1, background:'none' }} />
-      </div>
-    </div>
-  );
-}
-
-function Toggle({ label, value, onChange, accent = G }) {
+function Tog({ label, value, onChange, accent }) {
+  var a = accent || GOLD;
   return (
     <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10 }}>
-      <span style={{ fontSize:9, color:'#4a4f70', letterSpacing:1, fontFamily:'monospace' }}>{label}</span>
-      <button onClick={() => onChange(!value)} style={{
-        background: value ? accent+'22' : 'transparent',
-        border:`1px solid ${value ? accent : '#1c2035'}`,
-        color: value ? accent : '#333855',
-        fontSize:8, padding:'3px 11px', cursor:'pointer',
-        fontFamily:'monospace', borderRadius:2, letterSpacing:1,
-      }}>{value ? 'ON' : 'OFF'}</button>
+      <span style={{ fontSize:8.5, color:'#3e4468', letterSpacing:1, fontFamily:'monospace' }}>{label}</span>
+      <button onClick={function(){ onChange(!value); }} style={{
+        background: value ? a+'22' : 'transparent', border:'1px solid '+(value?a:'#181c30'),
+        color: value ? a : '#2c3058', fontSize:8, padding:'3px 11px',
+        cursor:'pointer', fontFamily:'monospace', letterSpacing:1, borderRadius:2 }}>
+        {value ? 'ON' : 'OFF'}
+      </button>
     </div>
   );
 }
 
-function Sec({ title, children, accent = '#2a3060' }) {
+function Cp({ label, value, onChange }) {
   return (
-    <div style={{ marginBottom:18 }}>
-      <div style={{ fontSize:8, color:accent, letterSpacing:2.5, marginBottom:10, paddingBottom:6, borderBottom:'1px solid #0a0c18', fontFamily:'monospace' }}>{title}</div>
+    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10 }}>
+      <span style={{ fontSize:8.5, color:'#3e4468', letterSpacing:1, fontFamily:'monospace' }}>{label}</span>
+      <div style={{ display:'flex', gap:7, alignItems:'center' }}>
+        <span style={{ fontSize:8, color:'#222544', fontFamily:'monospace' }}>{value}</span>
+        <input type="color" value={value} onChange={function(e){ onChange(e.target.value); }}
+          style={{ width:26, height:18, border:'1px solid #141828', borderRadius:2, cursor:'pointer', padding:1, background:'none' }} />
+      </div>
+    </div>
+  );
+}
+
+function Sec({ title, children }) {
+  return (
+    <div style={{ marginBottom:16 }}>
+      <div style={{ fontSize:7.5, color:'#222540', letterSpacing:2.5, marginBottom:9, paddingBottom:5, borderBottom:'1px solid #090b18', fontFamily:'monospace' }}>{title}</div>
       {children}
     </div>
   );
 }
 
-function Pills({ options, value, onChange, small }) {
-  return (
-    <div style={{ display:'flex', flexWrap:'wrap', gap:4, marginBottom:10 }}>
-      {options.map(o => {
-        const id = typeof o === 'string' ? o : o.id;
-        const label = typeof o === 'string' ? o : (o.label || o.name || id);
-        const sel = value === id;
-        return (
-          <button key={id} onClick={() => onChange(id)} style={{
-            background: sel ? G+'22' : 'transparent',
-            border:`1px solid ${sel ? G : '#1c2035'}`,
-            color: sel ? G : '#2e3355',
-            fontSize: small ? 7 : 8, padding: small ? '2px 6px' : '3px 8px',
-            cursor:'pointer', fontFamily:'monospace', borderRadius:2, letterSpacing: small ? 0.3 : 0.8,
-          }}>{sel ? '◈ ' : ''}{label}</button>
-        );
-      })}
-    </div>
-  );
-}
-
-// ═══════════════════════════════════════════════════════
-//  ÉTAT INITIAL
-// ═══════════════════════════════════════════════════════
-
-const INIT = {
-  // Camera
-  cH:0, cV:0, zoom:7.5, fov:38, autoRot:false, rotSpeed:0.4, rollAng:0,
-  dofEnabled:false, dofBlur:3,
-  // Lights
-  ambI:0.12, ambC:'#0a0e2a',
-  keyI:2.5, keyC:'#ffffff', kX:5, kY:9, kZ:5,
-  filI:0.6, filC:'#0033dd', fX:-5, fY:2.5, fZ:4,
-  rimI:1.1, rimC:'#ff3300', rX:0.5, rY:-3, rZ:-7,
-  topI:0.5, topC:'#8800ff', tX:0, tY:12, tZ:0,
-  hemI:0.25, hemC:'#001155', hemGC:'#000000',
-  shadowI:0.65, floorRefl:true,
-  // Block
-  pColor:'#f0b429', bgColor:'#0d1828',
-  title:'BRAND NAME', slogan:'Votre tagline Sphère de Dyson', tier:'prestige', rank:'architecte',
-  bW:3.4, bH:2.2, bD:0.19, bR:0.13, glowI:1.2, texQ:2048,
-  particles:true, flicker:false,
-  // Environment
-  env:'dark_studio', fogOn:true,
-  // Post FX
-  vignette:0.6, grain:0.28, chrAb:false, lut:'none',
-  brightness:1, contrast:1.0, saturation:1,
-  bloom:0.0, compGuide:'none',
-  exposure:1.3,
-  // Animation
-  animMode:'float', animSpeed:1,
-  // Video
-  vidFmt:'webm_vp9', vidRes:'4k', vidDur:10,
-};
-
-// ═══════════════════════════════════════════════════════
-//  PANEL TABS
-// ═══════════════════════════════════════════════════════
-
 const TABS = [
-  { id:'cam',   icon:'◎', label:'CAM'    },
-  { id:'light', icon:'✦', label:'LIGHT'  },
-  { id:'bloc',  icon:'⬡', label:'BLOC'   },
-  { id:'env',   icon:'◈', label:'ENV'    },
-  { id:'fx',    icon:'✧', label:'FX'     },
-  { id:'rec',   icon:'⏺', label:'REC'    },
+  { id:'cam',   icon:'◎', label:'CAM'   },
+  { id:'star',  icon:'☀', label:'ÉTOILE'},
+  { id:'sphere',icon:'◈', label:'SPHÈRE'},
+  { id:'env',   icon:'✦', label:'ENV'   },
+  { id:'fx',    icon:'✧', label:'FX'    },
+  { id:'rec',   icon:'⏺', label:'REC'   },
 ];
 
-// ═══════════════════════════════════════════════════════
-//  PAGE PRINCIPALE
-// ═══════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════
+//  MAIN PAGE
+// ═══════════════════════════════════════════════════════════════════
 
 export default function CinemaPage() {
-  const canvasRef     = useRef(null);
-  const rendRef       = useRef(null);
-  const sceneRef      = useRef(null);
-  const camRef        = useRef(null);
-  const blockRef      = useRef(null);
-  const lightsRef     = useRef({});
-  const particlesRef  = useRef(null);
-  const starsRef      = useRef(null);
-  const frameRef      = useRef(null);
-  const tRef          = useRef(0);
-  const sRef          = useRef(INIT);
-  const drag          = useRef({ on:false, x0:0, y0:0, h0:0, v0:0 });
-  const recRef        = useRef(null);
-  const recChunks     = useRef([]);
-  const kfRef         = useRef([]);  // keyframes
+  var canvasRef    = useRef(null);
+  var rendRef      = useRef(null);
+  var sceneRef     = useRef(null);
+  var camRef       = useRef(null);
+  var starRef      = useRef(null);
+  var panelsRef    = useRef(null);
+  var glowsRef     = useRef(null);
+  var pdataRef     = useRef([]);
+  var ringsRef     = useRef([]);
+  var windRef      = useRef(null);
+  var beamsRef     = useRef(null);
+  var nebulaRef    = useRef(null);
+  var frameRef     = useRef(null);
+  var tRef         = useRef(0);
+  var sRef         = useRef(INIT);
+  var drag         = useRef({ on:false, x0:0, y0:0, h0:0, v0:0 });
+  var recRef       = useRef(null);
+  var recChunks    = useRef([]);
+  var fpsTimer     = useRef({ f:0, t:Date.now() });
 
-  const [s, setS]           = useState(INIT);
-  const [tab, setTab]       = useState('cam');
-  const [blocks, setBlocks] = useState([]);     // blocs Supabase
-  const [selBlock, setSel]  = useState(null);   // bloc sélectionné
-  const [recState, setRec]  = useState('idle'); // idle | recording | encoding
-  const [recProgress, setRecProg] = useState(0);
-  const [recDuration, setRecDur]  = useState(0);
-  const [fps, setFps]       = useState(0);
-  const [isExporting, setExp] = useState(false);
-  const [kfList, setKfList] = useState([]);
-  const [notification, setNotif] = useState(null);
-  const fpsTimer = useRef({ frames: 0, last: Date.now() });
+  var [s, setS]            = useState(INIT);
+  var [tab, setTab]        = useState('cam');
+  var [bookings, setBook]  = useState([]);
+  var [stats, setStats]    = useState({ total:PANEL_COUNT, occupied:0, byTier:{} });
+  var [fps, setFps]        = useState(0);
+  var [recState, setRec]   = useState('idle');
+  var [recDur, setRecDur]  = useState(0);
+  var [recProg, setRecP]   = useState(0);
+  var [exporting, setExp]  = useState(false);
+  var [notif, setNotif]    = useState(null);
 
-  // ─── sync sRef
-  useEffect(() => { sRef.current = s; }, [s]);
+  useEffect(function(){ sRef.current = s; }, [s]);
+  var upd   = useCallback(function(k,v){ setS(function(p){ return Object.assign({},p,{[k]:typeof v==='function'?v(p[k]):v}); }); }, []);
+  var multi = useCallback(function(obj){ setS(function(p){ return Object.assign({},p,obj); }); }, []);
+  var toast = useCallback(function(msg,c){ setNotif({msg:msg,c:c||GOLD}); setTimeout(function(){setNotif(null);},2800); }, []);
 
-  const upd = useCallback((k, v) => setS(p => ({ ...p, [k]: typeof v === 'function' ? v(p[k]) : v })), []);
-  const multi = useCallback(obj => setS(p => ({ ...p, ...obj })), []);
-
-  const notify = useCallback((msg, color = G) => {
-    setNotif({ msg, color });
-    setTimeout(() => setNotif(null), 2800);
-  }, []);
-
-  // ─── CHARGER BLOCS SUPABASE ─────────────────────────────
-  useEffect(() => {
+  // ── SUPABASE ──────────────────────────────────────────────────────
+  useEffect(function() {
     async function load() {
-      const sb = getSupabaseClient();
-      if (!sb) {
-        // Demo blocks si Supabase non configuré
-        setBlocks(DEMO_BLOCKS);
-        return;
+      var sb = getSupabaseClient();
+      var data = null;
+      if (sb) {
+        var res = await sb.from('active_slots').select('x,y,booking_id,primary_color,display_name,tier').eq('is_occupied',true);
+        data = res && res.data && res.data.length ? res.data : null;
       }
-      try {
-        const { data } = await sb.from('active_slots').select('*').eq('is_occupied', true).limit(50);
-        if (data?.length) {
-          setBlocks(data.map(b => ({
-            id: b.booking_id,
-            name: b.display_name,
-            tier: b.tier,
-            pColor: b.primary_color || TIER_COLOR[b.tier] || G,
-            bgColor: b.background_color || '#0d1828',
-            slogan: b.slogan || '',
-            rank: getRankFromTier(b.tier),
-          })));
-        } else {
-          setBlocks(DEMO_BLOCKS);
-        }
-      } catch { setBlocks(DEMO_BLOCKS); }
+      var bks = data || buildDemoBookings();
+      setBook(bks);
+      var byTier = {};
+      TIER_ORDER.forEach(function(tid){ byTier[tid] = bks.filter(function(b){ return getTier(b.x||1,b.y||1)===tid; }).length; });
+      setStats({ total:PANEL_COUNT, occupied:bks.length, byTier:byTier });
     }
     load();
   }, []);
 
-  // ─── APPLIQUER UN BLOC SUPABASE ─────────────────────────
-  const applyBlock = useCallback((blk) => {
-    setSel(blk.id);
-    multi({
-      title:   blk.name    || 'BRAND',
-      slogan:  blk.slogan  || 'Sphère de Dyson',
-      pColor:  blk.pColor  || G,
-      bgColor: blk.bgColor || '#0d1828',
-      tier:    blk.tier    || 'prestige',
-      rank:    blk.rank    || 'architecte',
-    });
-    notify(`◈ Bloc "${blk.name}" chargé`);
-  }, [multi, notify]);
-
-  // ─── INIT THREE.JS ──────────────────────────────────────
-  useEffect(() => {
-    const canvas = canvasRef.current;
+  // ── INIT THREE.JS ─────────────────────────────────────────────────
+  useEffect(function() {
+    var canvas = canvasRef.current;
     if (!canvas) return;
 
-    const renderer = new THREE.WebGLRenderer({ canvas, antialias:true, preserveDrawingBuffer:true });
+    var renderer = new THREE.WebGLRenderer({ canvas:canvas, antialias:true, preserveDrawingBuffer:true });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2.5));
-    renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = INIT.exposure;
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     rendRef.current = renderer;
 
-    const scene = new THREE.Scene();
+    var scene = new THREE.Scene();
     sceneRef.current = scene;
-
-    const camera = new THREE.PerspectiveCamera(INIT.fov, 1, 0.05, 400);
+    var camera = new THREE.PerspectiveCamera(INIT.fov, 1, 0.1, 400);
     camRef.current = camera;
 
-    // — Lights
-    const ambient   = new THREE.AmbientLight(INIT.ambC, INIT.ambI);
-    const hemi      = new THREE.HemisphereLight(INIT.hemC, INIT.hemGC, INIT.hemI);
-    const keyLight  = new THREE.DirectionalLight(INIT.keyC, INIT.keyI);
-    keyLight.position.set(INIT.kX, INIT.kY, INIT.kZ);
-    keyLight.castShadow = true;
-    keyLight.shadow.mapSize.set(4096, 4096);
-    keyLight.shadow.camera.far = 40;
-    keyLight.shadow.bias = -0.0002;
-    const fillLight = new THREE.PointLight(INIT.filC, INIT.filI, 35);
-    fillLight.position.set(INIT.fX, INIT.fY, INIT.fZ);
-    const rimLight  = new THREE.PointLight(INIT.rimC, INIT.rimI, 28);
-    rimLight.position.set(INIT.rX, INIT.rY, INIT.rZ);
-    const topLight  = new THREE.SpotLight(INIT.topC, INIT.topI, 35, Math.PI/4, 0.35);
-    topLight.position.set(INIT.tX, INIT.tY, INIT.tZ);
-    topLight.target.position.set(0,0,0);
-    scene.add(ambient, hemi, keyLight, fillLight, rimLight, topLight, topLight.target);
-    lightsRef.current = { ambient, hemi, keyLight, fillLight, rimLight, topLight };
+    var neb = buildNebula(); scene.add(neb); nebulaRef.current = neb;
+    var star = buildStar(); scene.add(star.group); starRef.current = star;
 
-    // — Floor
-    const floor = buildReflectivePlane();
-    floor.rotation.x = -Math.PI/2;
-    floor.position.y = -2.5;
-    floor.receiveShadow = true;
-    scene.add(floor);
+    var built = buildDysonPanels([]);
+    scene.add(built.panels, built.glows);
+    panelsRef.current = built.panels; glowsRef.current = built.glows; pdataRef.current = built.panelData;
 
-    // — Block
-    const blk = buildBlock3D(INIT);
-    scene.add(blk);
-    blockRef.current = blk;
+    var rings = buildOrbitalRings(); rings.forEach(function(r){ scene.add(r); }); ringsRef.current = rings;
+    var wind = buildSolarWind(2500); scene.add(wind); windRef.current = wind;
+    scene.add(buildCosmicDust());
+    scene.background = new THREE.Color(ENVS.cosmos.sky);
 
-    // — Stars
-    const stars = buildStarField(700);
-    scene.add(stars);
-    starsRef.current = stars;
-
-    // — Particles
-    const pts = buildParticles(INIT.pColor, 130);
-    scene.add(pts);
-    particlesRef.current = pts;
-
-    // — Environment
-    const env = ENVS[INIT.env];
-    scene.background = new THREE.Color(env.bg);
-    scene.fog = new THREE.FogExp2(env.fog, env.den);
-
-    // — Resize
-    const resize = () => {
-      const w = canvas.clientWidth, h = canvas.clientHeight;
-      renderer.setSize(w, h, false);
-      camera.aspect = w/h; camera.updateProjectionMatrix();
+    var resize = function() {
+      var w=canvas.clientWidth, h=canvas.clientHeight;
+      renderer.setSize(w,h,false); camera.aspect=w/h; camera.updateProjectionMatrix();
     };
     resize();
-    const ro = new ResizeObserver(resize);
-    ro.observe(canvas);
+    var ro = new ResizeObserver(resize); ro.observe(canvas);
 
-    // — Animation loop
-    let flickerTimer = 0;
-    const animate = () => {
+    var cTmp = new THREE.Color();
+
+    var animate = function() {
       frameRef.current = requestAnimationFrame(animate);
-      tRef.current += 0.004;
-      const t  = tRef.current;
-      const cs = sRef.current;
+      tRef.current += 0.005;
+      var t = tRef.current;
+      var cs = sRef.current;
 
       // FPS
-      fpsTimer.current.frames++;
-      const now = Date.now();
-      if (now - fpsTimer.current.last > 800) {
-        setFps(Math.round(fpsTimer.current.frames / ((now - fpsTimer.current.last) / 1000)));
-        fpsTimer.current = { frames:0, last: now };
+      fpsTimer.current.f++;
+      var now = Date.now();
+      if (now - fpsTimer.current.t > 900) {
+        setFps(Math.round(fpsTimer.current.f / ((now-fpsTimer.current.t)/1000)));
+        fpsTimer.current = { f:0, t:now };
       }
 
       // Camera
-      let cH = cs.cH;
-      if (cs.autoRot) {
-        setS(p => ({ ...p, cH: (p.cH + cs.rotSpeed * 0.15) % 360 }));
-        cH = cs.cH;
+      var cH = cs.cH;
+      if (cs.autoRot) { var next=(cs.cH+cs.rotSpeed*0.18)%360; setS(function(p){ return Object.assign({},p,{cH:next}); }); cH=next; }
+      var hR=cH*Math.PI/180, vR=cs.cV*Math.PI/180;
+      camera.position.set(cs.zoom*Math.sin(hR)*Math.cos(vR), cs.zoom*Math.sin(vR), cs.zoom*Math.cos(hR)*Math.cos(vR));
+      camera.up.set(Math.sin(cs.roll*Math.PI/180), Math.cos(cs.roll*Math.PI/180), 0);
+      camera.lookAt(0,0,0); camera.fov=cs.fov; camera.updateProjectionMatrix();
+
+      // Star pulse
+      if (starRef.current) {
+        var star2=starRef.current, pulse=cs.starPulse?1+Math.sin(t*1.8)*0.12:1;
+        star2.coreMat.emissiveIntensity = cs.starI*pulse;
+        star2.halo1.material.opacity    = 0.10*pulse*(cs.coronaI/1.4);
+        star2.halo2.material.opacity    = 0.035*pulse;
+        star2.keyLight.intensity        = cs.starI*pulse;
+        star2.warmLight.intensity       = cs.coronaI*pulse;
+        star2.coreMat.emissive.set(cs.starColor);
+        star2.halo1.material.color.set(cs.coronaColor);
+        star2.warmLight.color.set(cs.coronaColor);
       }
 
-      // Animation mode
-      let extraH = 0, extraV = 0, extraZ = 0;
-      switch (cs.animMode) {
-        case 'float':   extraV = Math.sin(t * cs.animSpeed) * 1.5; break;
-        case 'flyby':   extraH = t * cs.animSpeed * 12 % 360; break;
-        case 'reveal':  extraZ = Math.max(0, 14 - t * cs.animSpeed * 2.5); break;
-        case 'rotate':  setS(p => ({ ...p, cH: (p.cH + cs.animSpeed * 0.3) % 360 })); break;
-        default: break;
-      }
+      // Rings
+      ringsRef.current.forEach(function(ring) {
+        if (cs.ringsOn) { ring.rotation.z+=ring.userData.speed*cs.ringSpeed; ring.material.opacity=ring.userData.baseOpacity*cs.ringOpacity; ring.visible=true; }
+        else { ring.visible=false; }
+      });
 
-      const hR = ((cH + extraH) * Math.PI) / 180;
-      const vR = ((cs.cV + extraV) * Math.PI) / 180;
-      const zoom = cs.zoom + extraZ;
-      camera.position.x = zoom * Math.sin(hR) * Math.cos(vR);
-      camera.position.y = zoom * Math.sin(vR);
-      camera.position.z = zoom * Math.cos(hR) * Math.cos(vR);
-      camera.up.set(Math.sin(cs.rollAng*Math.PI/180), Math.cos(cs.rollAng*Math.PI/180), 0);
-      camera.lookAt(0, 0, 0);
-      camera.fov = cs.fov; camera.updateProjectionMatrix();
+      // Solar wind
+      if (windRef.current) tickSolarWind(windRef.current);
 
-      // Block bob
-      if (blockRef.current) {
-        blockRef.current.position.y = cs.animMode === 'static' ? 0 : Math.sin(t * cs.animSpeed) * 0.08;
-        // Flicker
-        if (cs.flicker) {
-          flickerTimer++;
-          if (flickerTimer % 18 === 0) {
-            blockRef.current.traverse(obj => {
-              if (obj.isMesh && obj.material.emissiveIntensity !== undefined) {
-                obj.material.emissiveIntensity *= 0.5 + Math.random();
-              }
-            });
+      // Panel wave
+      if (cs.waveOn && panelsRef.current && pdataRef.current.length) {
+        var panels2=panelsRef.current, glows2=glowsRef.current, data=pdataRef.current;
+        for (var i=0; i<data.length; i++) {
+          var d=data[i];
+          var wave = Math.sin(d.phi*5 - t*cs.waveSpeed*2.5)*0.5+0.5;
+          var show = cs.filterTier==='all'||cs.filterTier===d.tier;
+          if (show) {
+            cTmp.copy(d.baseColor).multiplyScalar(d.occ?(0.45+wave*0.35):(0.08+wave*0.07));
+            panels2.setColorAt(i,cTmp);
+            if(glows2){ cTmp.copy(d.baseColor).multiplyScalar(d.occ?(0.6+wave*0.6):0.05); glows2.setColorAt(i,cTmp); }
+          } else {
+            cTmp.setScalar(0.015); panels2.setColorAt(i,cTmp);
+            if(glows2){ cTmp.setScalar(0); glows2.setColorAt(i,cTmp); }
           }
         }
+        panels2.instanceColor.needsUpdate=true;
+        if(glows2) glows2.instanceColor.needsUpdate=true;
       }
 
-      // Stars
-      if (starsRef.current) starsRef.current.rotation.y = t * 0.012;
-
-      // Particles
-      if (particlesRef.current && cs.particles) {
-        tickParticles(particlesRef.current);
-        particlesRef.current.visible = true;
-      } else if (particlesRef.current) {
-        particlesRef.current.visible = false;
+      // Beams
+      if (beamsRef.current) {
+        beamsRef.current.material.opacity = cs.beamsOn ? cs.beamOpacity*(0.7+Math.sin(t*3)*0.3) : 0;
+        beamsRef.current.visible = cs.beamsOn;
       }
 
       renderer.toneMappingExposure = cs.exposure;
@@ -715,757 +508,526 @@ export default function CinemaPage() {
     };
     animate();
 
-    return () => {
-      cancelAnimationFrame(frameRef.current);
-      ro.disconnect();
-      renderer.dispose();
-    };
+    return function() { cancelAnimationFrame(frameRef.current); ro.disconnect(); renderer.dispose(); };
   }, []);
 
-  // ─── UPDATE LIGHTS ──────────────────────────────────────
-  useEffect(() => {
-    const L = lightsRef.current;
-    if (!L.ambient) return;
-    L.ambient.color.set(s.ambC);     L.ambient.intensity = s.ambI;
-    L.hemi.color.set(s.hemC);        L.hemi.groundColor.set(s.hemGC); L.hemi.intensity = s.hemI;
-    L.keyLight.color.set(s.keyC);    L.keyLight.intensity = s.keyI;   L.keyLight.position.set(s.kX, s.kY, s.kZ);
-    L.fillLight.color.set(s.filC);   L.fillLight.intensity = s.filI;  L.fillLight.position.set(s.fX, s.fY, s.fZ);
-    L.rimLight.color.set(s.rimC);    L.rimLight.intensity = s.rimI;   L.rimLight.position.set(s.rX, s.rY, s.rZ);
-    L.topLight.color.set(s.topC);    L.topLight.intensity = s.topI;   L.topLight.position.set(s.tX, s.tY, s.tZ);
-    if (L.keyLight.shadow) L.keyLight.shadow.intensity = s.shadowI;
-  }, [s.ambC, s.ambI, s.hemC, s.hemGC, s.hemI,
-      s.keyC, s.keyI, s.kX, s.kY, s.kZ,
-      s.filC, s.filI, s.fX, s.fY, s.fZ,
-      s.rimC, s.rimI, s.rX, s.rY, s.rZ,
-      s.topC, s.topI, s.tX, s.tY, s.tZ, s.shadowI]);
+  // ── REBUILD ON BOOKINGS ───────────────────────────────────────────
+  useEffect(function() {
+    var scene = sceneRef.current;
+    if (!scene || !bookings.length) return;
+    if (panelsRef.current) scene.remove(panelsRef.current);
+    if (glowsRef.current)  scene.remove(glowsRef.current);
+    if (beamsRef.current)  scene.remove(beamsRef.current);
+    var built = buildDysonPanels(bookings);
+    scene.add(built.panels, built.glows);
+    panelsRef.current = built.panels; glowsRef.current = built.glows; pdataRef.current = built.panelData;
+    var beams = buildEnergyBeams(bookings);
+    if (beams) { scene.add(beams); beamsRef.current = beams; }
+  }, [bookings]);
 
-  // ─── REBUILD BLOCK ──────────────────────────────────────
-  useEffect(() => {
-    if (!sceneRef.current || !blockRef.current) return;
-    sceneRef.current.remove(blockRef.current);
-    blockRef.current.traverse(obj => {
-      if (obj.isMesh) { obj.geometry.dispose(); if (obj.material.map) obj.material.map.dispose(); obj.material.dispose(); }
-    });
-    const nb = buildBlock3D(s);
-    sceneRef.current.add(nb);
-    blockRef.current = nb;
-    // Update particle color
-    if (particlesRef.current) particlesRef.current.material.color.set(s.pColor);
-  }, [s.pColor, s.bgColor, s.title, s.slogan, s.tier, s.rank, s.bW, s.bH, s.bD, s.bR, s.glowI, s.texQ]);
-
-  // ─── UPDATE ENVIRONMENT ─────────────────────────────────
-  useEffect(() => {
-    const scene = sceneRef.current;
+  // ── ENVIRONMENT ───────────────────────────────────────────────────
+  useEffect(function() {
+    var scene = sceneRef.current;
     if (!scene) return;
-    const env = ENVS[s.env];
-    scene.background = new THREE.Color(env.bg);
-    scene.fog = s.fogOn ? new THREE.FogExp2(env.fog, env.den) : null;
-    if (starsRef.current) starsRef.current.visible = env.stars;
-  }, [s.env, s.fogOn]);
+    var env = ENVS[s.env];
+    scene.background = new THREE.Color(env.sky);
+    scene.fog = (s.fogOn && env.fog) ? new THREE.FogExp2(env.fog, env.fogD||0.006) : null;
+    if (nebulaRef.current) nebulaRef.current.visible = s.nebulaOn;
+  }, [s.env, s.fogOn, s.nebulaOn]);
 
-  // ─── MOUSE CONTROLS ─────────────────────────────────────
-  const onMouseDown = useCallback(e => {
-    drag.current = { on:true, x0:e.clientX, y0:e.clientY, h0:sRef.current.cH, v0:sRef.current.cV };
-  }, []);
-  const onMouseMove = useCallback(e => {
-    if (!drag.current.on) return;
-    const dx = e.clientX - drag.current.x0;
-    const dy = e.clientY - drag.current.y0;
-    setS(p => ({ ...p,
-      cH: drag.current.h0 - dx * 0.4,
-      cV: Math.max(-88, Math.min(88, drag.current.v0 + dy * 0.3)),
-    }));
-  }, []);
-  const onMouseUp   = useCallback(() => { drag.current.on = false; }, []);
-  const onWheel     = useCallback(e => {
-    e.preventDefault();
-    setS(p => ({ ...p, zoom: Math.max(1.2, Math.min(25, p.zoom + e.deltaY*0.009)) }));
-  }, []);
+  // ── MOUSE ─────────────────────────────────────────────────────────
+  var onDown  = useCallback(function(e){ drag.current={on:true,x0:e.clientX,y0:e.clientY,h0:sRef.current.cH,v0:sRef.current.cV}; },[]);
+  var onMove  = useCallback(function(e){
+    if(!drag.current.on) return;
+    var dx=e.clientX-drag.current.x0, dy=e.clientY-drag.current.y0;
+    setS(function(p){ return Object.assign({},p,{cH:drag.current.h0-dx*0.38,cV:Math.max(-89,Math.min(89,drag.current.v0+dy*0.28))}); });
+  },[]);
+  var onUp    = useCallback(function(){ drag.current.on=false; },[]);
+  var onWheel = useCallback(function(e){ e.preventDefault(); setS(function(p){ return Object.assign({},p,{zoom:Math.max(3,Math.min(80,p.zoom+e.deltaY*0.018))}); }); },[]);
 
-  // ─── KEYFRAMES ──────────────────────────────────────────
-  const addKf = useCallback(() => {
-    const kf = { cH:s.cH, cV:s.cV, zoom:s.zoom, fov:s.fov, t:Date.now() };
-    setKfList(p => [...p, kf]);
-    kfRef.current = [...kfRef.current, kf];
-    notify(`◆ Keyframe #${kfRef.current.length} sauvegardé`);
-  }, [s.cH, s.cV, s.zoom, s.fov, notify]);
-
-  const clearKf = useCallback(() => { setKfList([]); kfRef.current = []; }, []);
-
-  // ─── EXPORT IMAGE 4K ────────────────────────────────────
-  const export4K = useCallback(() => {
-    const renderer = rendRef.current, scene = sceneRef.current, cam = camRef.current;
-    if (!renderer || !scene || !cam) return;
+  // ── EXPORT ────────────────────────────────────────────────────────
+  var export4K = useCallback(function() {
+    var renderer=rendRef.current, scene=sceneRef.current, cam=camRef.current;
+    if(!renderer||!scene||!cam) return;
     setExp(true);
-    setTimeout(() => {
-      const res = VIDEO_RES.find(r => r.id === s.vidRes) || VIDEO_RES[0];
-      const W = res.w, H = res.h;
-      renderer.setSize(W, H, false);
-      cam.aspect = W/H; cam.updateProjectionMatrix();
-      renderer.render(scene, cam);
-      const link = document.createElement('a');
-      link.download = `dyson-sphere-block-${W}x${H}-${Date.now()}.png`;
-      link.href = renderer.domElement.toDataURL('image/png');
-      link.click();
-      // restore
-      const cw = canvasRef.current.clientWidth, ch = canvasRef.current.clientHeight;
-      renderer.setSize(cw, ch, false);
-      cam.aspect = cw/ch; cam.updateProjectionMatrix();
-      setExp(false);
-      notify(`✦ Image ${W}×${H} exportée`, '#00e8a2');
-    }, 80);
-  }, [s.vidRes, notify]);
+    setTimeout(function(){
+      var res=VIDEO_RES.find(function(r){ return r.id===sRef.current.vidRes; })||VIDEO_RES[0];
+      renderer.setSize(res.w,res.h,false); cam.aspect=res.w/res.h; cam.updateProjectionMatrix();
+      renderer.render(scene,cam);
+      var a=document.createElement('a'); a.download='dyson-sphere-'+res.w+'x'+res.h+'-'+Date.now()+'.png';
+      a.href=renderer.domElement.toDataURL('image/png'); a.click();
+      var cv=canvasRef.current; renderer.setSize(cv.clientWidth,cv.clientHeight,false);
+      cam.aspect=cv.clientWidth/cv.clientHeight; cam.updateProjectionMatrix();
+      setExp(false); toast('✦ Screenshot '+res.w+'×'+res.h+' sauvegardé','#00e8a2');
+    },80);
+  },[toast]);
 
-  // ─── ENREGISTREMENT VIDÉO HDR ───────────────────────────
-  const startRec = useCallback(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    // Sélectionner le codec
-    const fmt  = VIDEO_FORMATS.find(f => f.id === s.vidFmt) || VIDEO_FORMATS[0];
-    const res  = VIDEO_RES.find(r => r.id === s.vidRes) || VIDEO_RES[0];
-
-    // Tenter WebCodecs HDR si disponible et VP9
-    const useWebCodecs = typeof VideoEncoder !== 'undefined' && s.vidFmt === 'webm_vp9';
-
-    recChunks.current = [];
-    let mediaRec = null;
-
+  // ── RECORD ────────────────────────────────────────────────────────
+  var startRec = useCallback(function() {
+    var canvas=canvasRef.current; if(!canvas) return;
+    var fmt=VIDEO_FORMATS.find(function(f){ return f.id===s.vidFmt; })||VIDEO_FORMATS[0];
+    var res=VIDEO_RES.find(function(r){ return r.id===s.vidRes; })||VIDEO_RES[0];
+    recChunks.current=[];
     try {
-      const stream = canvas.captureStream(res.fps);
-      const mimeType = fmt.mime;
-      const supported = MediaRecorder.isTypeSupported(mimeType);
-      const actualMime = supported ? mimeType : 'video/webm;codecs=vp8';
-
-      mediaRec = new MediaRecorder(stream, {
-        mimeType: actualMime,
-        videoBitsPerSecond: res.mbps * 1_000_000,
-      });
-
-      mediaRec.ondataavailable = e => { if (e.data.size > 0) recChunks.current.push(e.data); };
-      mediaRec.onstop = () => {
+      var stream=canvas.captureStream(res.fps);
+      var mime=MediaRecorder.isTypeSupported(fmt.mime)?fmt.mime:'video/webm;codecs=vp8';
+      var rec=new MediaRecorder(stream,{mimeType:mime,videoBitsPerSecond:fmt.mbps*1000000});
+      rec.ondataavailable=function(e){ if(e.data.size>0) recChunks.current.push(e.data); };
+      rec.onstop=function(){
         setRec('encoding');
-        setTimeout(() => {
-          const blob = new Blob(recChunks.current, { type: actualMime });
-          const url  = URL.createObjectURL(blob);
-          const a    = document.createElement('a');
-          a.download = `dyson-cinema-${res.w}x${res.h}-${s.vidDur}s-${Date.now()}.${fmt.ext}`;
-          a.href = url;
-          a.click();
-          URL.revokeObjectURL(url);
-          setRec('idle'); setRecProg(0); setRecDur(0);
-          notify(`⏺ Vidéo ${res.w}×${res.h} encodée !`, '#00e8a2');
-        }, 500);
+        setTimeout(function(){
+          var blob=new Blob(recChunks.current,{type:mime});
+          var url=URL.createObjectURL(blob);
+          var a=document.createElement('a'); a.download='dyson-sphere-'+res.w+'x'+res.h+'-'+s.vidDur+'s-'+Date.now()+'.'+fmt.ext;
+          a.href=url; a.click(); URL.revokeObjectURL(url);
+          setRec('idle'); setRecP(0); setRecDur(0);
+          toast('⏺ Vidéo '+res.w+'×'+res.h+' encodée !','#00e8a2');
+        },400);
       };
+      rec.start(100); recRef.current=rec; setRec('recording'); setRecDur(0);
+      var dur=s.vidDur*1000;
+      var tick=setInterval(function(){ setRecDur(function(p){ var n=p+100; setRecP(Math.min(100,n/dur*100)); return n; }); },100);
+      setTimeout(function(){ clearInterval(tick); if(rec.state==='recording') rec.stop(); },dur);
+    } catch(e){ toast('⚠ Erreur enregistrement','#ff4444'); }
+  },[s.vidFmt,s.vidRes,s.vidDur,toast]);
 
-      mediaRec.start(100); // collect every 100ms
-      recRef.current = mediaRec;
-      setRec('recording');
-      setRecDur(0);
+  var stopRec = useCallback(function(){ if(recRef.current&&recRef.current.state==='recording') recRef.current.stop(); },[]);
 
-      // Timer + progress
-      const dur = s.vidDur * 1000;
-      const tick = setInterval(() => {
-        setRecDur(p => {
-          const next = p + 100;
-          setRecProg(Math.min(100, (next / dur) * 100));
-          return next;
-        });
-      }, 100);
+  // ── CSS FILTER ────────────────────────────────────────────────────
+  var activeLut = LUTS.find(function(l){ return l.id===s.lut; })||LUTS[0];
+  var cssFilter = [
+    activeLut.filter!=='none'?activeLut.filter:'',
+    s.brightness!==1?'brightness('+s.brightness+')':'',
+    s.contrast!==1?'contrast('+s.contrast+')':'',
+    s.saturation!==1?'saturate('+s.saturation+')':'',
+  ].filter(Boolean).join(' ')||'none';
 
-      setTimeout(() => {
-        clearInterval(tick);
-        if (mediaRec.state === 'recording') mediaRec.stop();
-      }, dur);
-
-    } catch(err) {
-      console.error('[Cinema] Recording error:', err);
-      notify('⚠ Erreur enregistrement', '#ff4444');
-    }
-  }, [s.vidFmt, s.vidRes, s.vidDur, notify]);
-
-  const stopRec = useCallback(() => {
-    if (recRef.current?.state === 'recording') recRef.current.stop();
-  }, []);
-
-  // ═══════════════════════════════════════════════════════
-  //  RENDU
-  // ═══════════════════════════════════════════════════════
-
-  // Filter CSS pour LUT + post-fx
-  const activeLut = LUTS.find(l => l.id === s.lut) || LUTS[0];
-  const canvasFilter = [
-    activeLut.filter !== 'none' ? activeLut.filter : '',
-    s.brightness !== 1 ? `brightness(${s.brightness})` : '',
-    s.contrast   !== 1 ? `contrast(${s.contrast})`     : '',
-    s.saturation !== 1 ? `saturate(${s.saturation})`   : '',
-    s.bloom > 0 ? `drop-shadow(0 0 ${Math.round(s.bloom*28)}px rgba(${hexToRgb(s.pColor)},0.75))` : '',
-  ].filter(Boolean).join(' ') || 'none';
-
+  // ── RENDER ────────────────────────────────────────────────────────
   return (
-    <div style={{ width:'100%', height:'100vh', display:'flex', background:BG, overflow:'hidden', fontFamily:"'Courier New', monospace" }}>
+    <div style={{width:'100%',height:'100vh',display:'flex',background:BG,overflow:'hidden',fontFamily:"'Courier New',monospace"}}>
 
-      {/* ─── CANVAS ─────────────────────────────────────── */}
-      <div style={{ flex:1, position:'relative', overflow:'hidden' }}>
-
-        {/* DOF blur ring */}
-        {s.dofEnabled && (
-          <div style={{ position:'absolute', inset:0, pointerEvents:'none', zIndex:2,
-            boxShadow:`inset 0 0 ${s.dofBlur * 28}px ${s.dofBlur * 12}px rgba(0,0,0,0.9)`,
-            backdropFilter:`blur(${s.dofBlur * 0.6}px)`,
-            mask:'radial-gradient(ellipse 55% 55% at center, transparent 50%, black 100%)',
-            WebkitMask:'radial-gradient(ellipse 55% 55% at center, transparent 50%, black 100%)',
-          }} />
+      {/* CANVAS */}
+      <div style={{flex:1,position:'relative',overflow:'hidden'}}>
+        {s.dofOn && (
+          <div style={{position:'absolute',inset:0,pointerEvents:'none',zIndex:3,
+            boxShadow:'inset 0 0 '+(s.dofBlur*32)+'px '+(s.dofBlur*10)+'px rgba(0,0,0,0.95)',
+            backdropFilter:'blur('+(s.dofBlur*0.55)+'px)',
+            WebkitMaskImage:'radial-gradient(ellipse 48% 48% at center,transparent 45%,black 100%)',
+            maskImage:'radial-gradient(ellipse 48% 48% at center,transparent 45%,black 100%)'}}/>
         )}
-
-        <canvas ref={canvasRef}
-          style={{ width:'100%', height:'100%', display:'block', cursor:'crosshair', filter:canvasFilter }}
-          onMouseDown={onMouseDown} onMouseMove={onMouseMove}
-          onMouseUp={onMouseUp} onMouseLeave={onMouseUp} onWheel={onWheel} />
+        <canvas ref={canvasRef} style={{width:'100%',height:'100%',display:'block',cursor:'crosshair',filter:cssFilter}}
+          onMouseDown={onDown} onMouseMove={onMove} onMouseUp={onUp} onMouseLeave={onUp} onWheel={onWheel}/>
 
         {/* Vignette */}
-        <div style={{ position:'absolute', inset:0, pointerEvents:'none', zIndex:1,
-          background:`radial-gradient(ellipse at center, transparent 25%, rgba(0,0,0,${s.vignette}) 100%)` }} />
+        <div style={{position:'absolute',inset:0,pointerEvents:'none',zIndex:1,
+          background:'radial-gradient(ellipse at center,transparent 22%,rgba(0,0,0,'+s.vignette+') 100%)'}}/>
 
         {/* Grain */}
-        {s.grain > 0 && (
-          <svg style={{ position:'absolute', inset:0, width:'100%', height:'100%', pointerEvents:'none', zIndex:2, opacity:s.grain * 0.9, mixBlendMode:'overlay' }}>
-            <filter id="g"><feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="4" stitchTiles="stitch"/><feColorMatrix type="saturate" values="0"/></filter>
-            <rect width="100%" height="100%" filter="url(#g)" opacity="0.45"/>
+        {s.grain>0 && (
+          <svg style={{position:'absolute',inset:0,width:'100%',height:'100%',pointerEvents:'none',zIndex:2,opacity:s.grain,mixBlendMode:'overlay'}}>
+            <filter id="fn"><feTurbulence type="fractalNoise" baseFrequency="0.88" numOctaves="4" stitchTiles="stitch"/><feColorMatrix type="saturate" values="0"/></filter>
+            <rect width="100%" height="100%" filter="url(#fn)" opacity="0.4"/>
           </svg>
         )}
+        {s.chrAb && <>
+          <div style={{position:'absolute',inset:0,pointerEvents:'none',zIndex:3,background:'linear-gradient(135deg,rgba(255,0,0,0.03) 0%,transparent 40%)',mixBlendMode:'screen'}}/>
+          <div style={{position:'absolute',inset:0,pointerEvents:'none',zIndex:3,background:'linear-gradient(-45deg,rgba(0,0,255,0.03) 0%,transparent 40%)',mixBlendMode:'screen'}}/>
+        </>}
 
-        {/* Chromatic aberration */}
-        {s.chrAb && (
-          <>
-            <div style={{ position:'absolute', inset:0, pointerEvents:'none', zIndex:3, background:'linear-gradient(135deg, rgba(255,0,0,0.03) 0%, transparent 45%)', mixBlendMode:'screen' }}/>
-            <div style={{ position:'absolute', inset:0, pointerEvents:'none', zIndex:3, background:'linear-gradient(-45deg, rgba(0,0,255,0.03) 0%, transparent 45%)', mixBlendMode:'screen' }}/>
-          </>
-        )}
-
-        {/* Composition guide */}
-        {s.compGuide === 'thirds' && <GuideThirds />}
-        {s.compGuide === 'golden' && <GuideGolden />}
-        {s.compGuide === 'center' && <GuideCenter />}
+        {/* Lens flare glow at center */}
+        <div style={{position:'absolute',top:'50%',left:'50%',width:2,height:2,transform:'translate(-50%,-50%)',
+          pointerEvents:'none',zIndex:4,
+          boxShadow:'0 0 80px 40px rgba(255,240,160,0.07),0 0 160px 80px rgba(255,200,80,0.03)',borderRadius:'50%'}}/>
 
         {/* Camera presets */}
-        <div style={{ position:'absolute', top:12, left:12, display:'flex', gap:4, flexWrap:'wrap', zIndex:10 }}>
-          {CAM_PRESETS.map(p => (
-            <button key={p.id}
-              onClick={() => multi({ cH:p.h, cV:p.v, zoom:p.z, fov:p.fov })}
-              style={{ background:'rgba(0,0,0,0.78)', backdropFilter:'blur(4px)',
-                border:'1px solid #181c2e', color:'#383d5a',
-                fontSize:8, padding:'4px 9px', cursor:'pointer', borderRadius:2,
-                letterSpacing:1, transition:'all 0.15s' }}
-              onMouseEnter={e => { e.currentTarget.style.borderColor=G; e.currentTarget.style.color=G; }}
-              onMouseLeave={e => { e.currentTarget.style.borderColor='#181c2e'; e.currentTarget.style.color='#383d5a'; }}>
-              {p.label}
-            </button>
-          ))}
+        <div style={{position:'absolute',top:12,left:12,display:'flex',gap:4,flexWrap:'wrap',zIndex:10}}>
+          {CAM_PRESETS.map(function(p){
+            return (
+              <button key={p.id} onClick={function(){ multi({cH:p.h,cV:p.v,zoom:p.z,fov:p.fov}); }}
+                style={{background:'rgba(0,0,0,0.82)',backdropFilter:'blur(6px)',border:'1px solid #141828',
+                  color:'#2c3055',fontSize:7.5,padding:'3px 8px',cursor:'pointer',borderRadius:2,
+                  letterSpacing:0.8,transition:'all 0.15s'}}
+                onMouseEnter={function(e){e.currentTarget.style.borderColor=GOLD;e.currentTarget.style.color=GOLD;}}
+                onMouseLeave={function(e){e.currentTarget.style.borderColor='#141828';e.currentTarget.style.color='#2c3055';}}>
+                {p.label}
+              </button>
+            );
+          })}
         </div>
 
-        {/* FPS + REC indicator */}
-        <div style={{ position:'absolute', top:12, right:12, display:'flex', gap:8, alignItems:'center', zIndex:10 }}>
-          {recState === 'recording' && (
-            <div style={{ display:'flex', alignItems:'center', gap:5, background:'rgba(0,0,0,0.8)', padding:'4px 10px', borderRadius:2, border:'1px solid #ff2233' }}>
-              <div style={{ width:7, height:7, borderRadius:'50%', background:'#ff0022', animation:'pulse 1s infinite' }}/>
-              <span style={{ color:'#ff2233', fontSize:8, letterSpacing:1 }}>REC {(recDuration/1000).toFixed(1)}s</span>
-            </div>
-          )}
-          <div style={{ background:'rgba(0,0,0,0.75)', padding:'4px 9px', borderRadius:2, border:'1px solid #181c2e', color:'#2a3050', fontSize:8, letterSpacing:1 }}>
-            {fps} FPS
+        {/* Stats */}
+        <div style={{position:'absolute',top:12,right:12,zIndex:10}}>
+          <div style={{background:'rgba(0,0,0,0.82)',backdropFilter:'blur(6px)',border:'1px solid #141828',
+            padding:'9px 13px',borderRadius:2,fontSize:8,color:'#2c3055',fontFamily:'monospace',lineHeight:1.9}}>
+            <div style={{color:GOLD+'90',letterSpacing:1,marginBottom:2}}>◈ SPHÈRE DE DYSON</div>
+            <div>{stats.occupied} <span style={{color:'#1c2038'}}>/ {PANEL_COUNT}</span></div>
+            <div>{Math.round(stats.occupied/PANEL_COUNT*100)}% <span style={{color:'#1c2038'}}>CHARGÉ</span></div>
+            <div style={{color:'#1c2038'}}>{fps} FPS</div>
           </div>
         </div>
 
-        {/* Progress bar */}
-        {recState === 'recording' && (
-          <div style={{ position:'absolute', bottom:0, left:0, right:0, height:3, background:'#0a0c18', zIndex:10 }}>
-            <div style={{ height:'100%', width:`${recProgress}%`, background:G, transition:'width 0.1s' }}/>
+        {/* Tier filter pills */}
+        <div style={{position:'absolute',bottom:14,left:12,zIndex:10,display:'flex',gap:5,flexWrap:'wrap'}}>
+          {TIER_ORDER.map(function(tid){
+            var sel = s.filterTier===tid;
+            return (
+              <button key={tid} onClick={function(){ upd('filterTier',sel?'all':tid); }}
+                style={{background:sel?TIER_COLOR[tid]+'22':'rgba(0,0,0,0.75)',
+                  border:'1px solid '+(sel?TIER_COLOR[tid]:'#141828'),
+                  color:sel?TIER_COLOR[tid]:'#2c3055',
+                  fontSize:7,padding:'3px 8px',cursor:'pointer',fontFamily:'monospace',
+                  borderRadius:2,letterSpacing:0.8,backdropFilter:'blur(4px)'}}>
+                <span style={{fontSize:9}}>{TIER_META[tid].icon}</span> {tid.toUpperCase()}
+                {stats.byTier[tid]>0&&<span style={{color:TIER_COLOR[tid]+'80',marginLeft:4}}>{stats.byTier[tid]}</span>}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* REC indicator */}
+        {recState==='recording' && <>
+          <div style={{position:'absolute',top:'50%',left:'50%',transform:'translate(-50%,-50%)',
+            zIndex:20,pointerEvents:'none',border:'1px solid rgba(255,0,34,0.5)',
+            padding:'2px 8px',background:'rgba(0,0,0,0.7)',color:'#ff2233',fontSize:8,letterSpacing:2}}>
+            ⏺ REC {(recDur/1000).toFixed(1)}s
           </div>
-        )}
+          <div style={{position:'absolute',bottom:0,left:0,right:0,height:3,background:'#060810',zIndex:10}}>
+            <div style={{height:'100%',width:recProg+'%',background:GOLD,transition:'width 0.1s'}}/>
+          </div>
+        </>}
 
         {/* Notification */}
-        {notification && (
-          <div style={{ position:'absolute', bottom:24, left:'50%', transform:'translateX(-50%)', zIndex:20,
-            background:'rgba(0,0,0,0.9)', border:`1px solid ${notification.color}`,
-            color: notification.color, padding:'8px 20px', fontSize:10, letterSpacing:1.5,
-            borderRadius:2, backdropFilter:'blur(8px)', fontFamily:'monospace' }}>
-            {notification.msg}
+        {notif && (
+          <div style={{position:'absolute',bottom:52,left:'50%',transform:'translateX(-50%)',zIndex:20,
+            background:'rgba(0,0,0,0.92)',border:'1px solid '+notif.c,color:notif.c,
+            padding:'8px 20px',fontSize:9,letterSpacing:1.5,borderRadius:2,backdropFilter:'blur(8px)'}}>
+            {notif.msg}
           </div>
         )}
 
-        {/* Bottom watermark */}
-        <div style={{ position:'absolute', bottom:16, left:16, zIndex:10, color:'#1e2240', fontSize:9, lineHeight:1.6, letterSpacing:1 }}>
-          <div style={{ color:G+'60' }}>◈ SPHÈRE DE DYSON — ADS SQUARE</div>
-          <div>DRAG ORBIT · SCROLL ZOOM · {selBlock ? 'BLOC CHARGÉ' : 'MODE DEMO'}</div>
+        {/* Branding */}
+        <div style={{position:'absolute',bottom:44,right:12,zIndex:10,color:'#181c35',fontSize:8,letterSpacing:1,textAlign:'right'}}>
+          <div style={{color:GOLD+'45'}}>◈ ADS SQUARE</div>
+          <div>SPHÈRE DE DYSON · CINEMA AAA</div>
         </div>
       </div>
 
-      {/* ─── PANNEAU DE CONTRÔLE ─────────────────────────── */}
-      <div style={{ width:275, background:'#05060f', borderLeft:'1px solid #0a0c18', display:'flex', flexDirection:'column', overflow:'hidden' }}>
-
+      {/* PANEL */}
+      <div style={{width:272,background:'#050610',borderLeft:'1px solid #090b15',display:'flex',flexDirection:'column',overflow:'hidden'}}>
         {/* Header */}
-        <div style={{ padding:'13px 15px 11px', borderBottom:'1px solid #0a0c18', background:'#060710' }}>
-          <div style={{ color:G, fontSize:11, letterSpacing:2, fontWeight:700 }}>◈ CINEMA STUDIO</div>
-          <div style={{ color:'#1e2245', fontSize:8, marginTop:3, letterSpacing:1 }}>SPHÈRE DE DYSON · HDR 4K ENGINE</div>
-        </div>
-
-        {/* Bloc selector */}
-        <div style={{ padding:'10px 14px', borderBottom:'1px solid #0a0c18', background:'#060711' }}>
-          <div style={{ fontSize:8, color:'#2a304a', letterSpacing:2, marginBottom:8 }}>◈ BLOCS ACTIFS ({blocks.length})</div>
-          <div style={{ display:'flex', gap:4, flexWrap:'wrap', maxHeight:72, overflowY:'auto' }}>
-            {blocks.map(b => (
-              <button key={b.id} onClick={() => applyBlock(b)}
-                style={{ background: selBlock===b.id ? (TIER_COLOR[b.tier]||G)+'22' : 'transparent',
-                  border:`1px solid ${selBlock===b.id ? (TIER_COLOR[b.tier]||G) : '#181c30'}`,
-                  color: selBlock===b.id ? (TIER_COLOR[b.tier]||G) : '#2e3560',
-                  fontSize:7, padding:'3px 7px', cursor:'pointer', fontFamily:'monospace',
-                  borderRadius:2, letterSpacing:0.5, maxWidth:100, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
-                  {b.name?.substring(0,12) || b.id?.substring(0,8)}
-                </button>
-            ))}
-          </div>
+        <div style={{padding:'13px 14px 10px',borderBottom:'1px solid #090b15',background:'#06070f'}}>
+          <div style={{color:GOLD,fontSize:11,letterSpacing:2,fontWeight:700}}>◈ DYSON CINEMA</div>
+          <div style={{color:'#181c35',fontSize:7.5,marginTop:3,letterSpacing:1}}>SPHÈRE COMPLÈTE · 1 296 PANNEAUX · AAA</div>
         </div>
 
         {/* Tabs */}
-        <div style={{ display:'flex', borderBottom:'1px solid #0a0c18', flexShrink:0 }}>
-          {TABS.map(t => (
-            <button key={t.id} onClick={() => setTab(t.id)} style={{
-              flex:1, background: tab===t.id ? '#0a0c1a' : 'transparent',
-              border:'none', borderBottom:`2px solid ${tab===t.id ? G : 'transparent'}`,
-              color: tab===t.id ? G : '#252848',
-              fontSize:6.5, padding:'8px 2px 6px', cursor:'pointer', letterSpacing:0.3, transition:'all 0.12s',
-            }}>
-              <div style={{ fontSize:11, marginBottom:2 }}>{t.icon}</div>
-              <div>{t.label}</div>
-            </button>
-          ))}
+        <div style={{display:'flex',borderBottom:'1px solid #090b15'}}>
+          {TABS.map(function(t){
+            return (
+              <button key={t.id} onClick={function(){ setTab(t.id); }} style={{
+                flex:1,background:tab===t.id?'#090b18':'transparent',
+                border:'none',borderBottom:'2px solid '+(tab===t.id?GOLD:'transparent'),
+                color:tab===t.id?GOLD:'#202445',fontSize:6.5,
+                padding:'8px 2px 6px',cursor:'pointer',letterSpacing:0.3,transition:'all 0.12s'}}>
+                <div style={{fontSize:11,marginBottom:2}}>{t.icon}</div>
+                <div>{t.label}</div>
+              </button>
+            );
+          })}
         </div>
 
         {/* Scrollable content */}
-        <div style={{ flex:1, overflowY:'auto', padding:'13px 13px 5px',
-          scrollbarWidth:'thin', scrollbarColor:'#101325 transparent' }}>
+        <div style={{flex:1,overflowY:'auto',padding:'12px 13px',scrollbarWidth:'thin',scrollbarColor:'#0e1025 transparent'}}>
 
-          {/* ═══ CAMERA ═══ */}
-          {tab === 'cam' && (<>
-            <Sec title="POSITION & ORBITE">
-              <Slider label="HORIZONTAL" value={s.cH} min={-180} max={180} step={1} unit="°" onChange={v=>upd('cH',v)} />
-              <Slider label="VERTICAL"   value={s.cV} min={-88}  max={88}  step={1} unit="°" onChange={v=>upd('cV',v)} />
-              <Slider label="ZOOM"       value={s.zoom} min={1.2} max={25} step={0.05} onChange={v=>upd('zoom',v)} />
+          {/* ═══ CAM ═══ */}
+          {tab==='cam' && (<>
+            <Sec title="POSITION">
+              <Sl label="HORIZONTAL" value={s.cH} min={-180} max={180} step={1} unit="°" onChange={function(v){upd('cH',v);}}/>
+              <Sl label="VERTICAL"   value={s.cV} min={-89}  max={89}  step={1} unit="°" onChange={function(v){upd('cV',v);}}/>
+              <Sl label="DISTANCE"   value={s.zoom} min={3}  max={80}  step={0.1} onChange={function(v){upd('zoom',v);}}/>
             </Sec>
             <Sec title="OPTIQUE">
-              <Slider label="FOCALE (FOV)" value={s.fov} min={10} max={100} step={1} unit="°" onChange={v=>upd('fov',v)} />
-              <Slider label="ROLL"         value={s.rollAng} min={-30} max={30} step={0.5} unit="°" onChange={v=>upd('rollAng',v)} />
+              <Sl label="FOCALE (FOV)" value={s.fov}  min={10} max={100} step={1} unit="°" onChange={function(v){upd('fov',v);}}/>
+              <Sl label="ROLL"         value={s.roll} min={-30} max={30} step={0.5} unit="°" onChange={function(v){upd('roll',v);}}/>
             </Sec>
-            <Sec title="PROFONDEUR DE CHAMP">
-              <Toggle label="DOF ACTIVÉ" value={s.dofEnabled} onChange={v=>upd('dofEnabled',v)} />
-              {s.dofEnabled && <Slider label="BLUR INTENSITÉ" value={s.dofBlur} min={0.5} max={8} step={0.1} onChange={v=>upd('dofBlur',v)} />}
+            <Sec title="DOF">
+              <Tog label="PROFONDEUR DE CHAMP" value={s.dofOn} onChange={function(v){upd('dofOn',v);}}/>
+              {s.dofOn&&<Sl label="BLUR" value={s.dofBlur} min={0.5} max={10} step={0.1} onChange={function(v){upd('dofBlur',v);}}/>}
             </Sec>
-            <Sec title="AUTO-MOUVEMENT">
-              <Toggle label="ROTATION AUTO" value={s.autoRot} onChange={v=>upd('autoRot',v)} />
-              {s.autoRot && <Slider label="VITESSE" value={s.rotSpeed} min={0.05} max={2.5} step={0.05} onChange={v=>upd('rotSpeed',v)} />}
-            </Sec>
-            <Sec title="MODE ANIMATION">
-              <Pills options={ANIM_MODES.map(a => ({ id:a.id, label:`${a.icon} ${a.label}` }))} value={s.animMode} onChange={v=>upd('animMode',v)} small />
-              {s.animMode !== 'static' && <Slider label="VITESSE" value={s.animSpeed} min={0.1} max={3} step={0.05} onChange={v=>upd('animSpeed',v)} />}
-              {s.animMode === 'keyframes' && (
-                <div>
-                  <div style={{ display:'flex', gap:6, marginBottom:8 }}>
-                    <button onClick={addKf} style={{ flex:1, background:'transparent', border:`1px solid ${G}`, color:G, fontSize:8, padding:'5px', cursor:'pointer', fontFamily:'monospace', letterSpacing:1 }}>◆ + KF</button>
-                    <button onClick={clearKf} style={{ flex:1, background:'transparent', border:'1px solid #ff4444', color:'#ff4444', fontSize:8, padding:'5px', cursor:'pointer', fontFamily:'monospace', letterSpacing:1 }}>✕ CLEAR</button>
-                  </div>
-                  {kfList.map((kf, i) => (
-                    <div key={i} style={{ fontSize:8, color:'#2e3a5a', padding:'4px 8px', border:'1px solid #101428', marginBottom:3, fontFamily:'monospace' }}>
-                      KF {i+1} — H:{Math.round(kf.cH)}° V:{Math.round(kf.cV)}° Z:{kf.zoom.toFixed(1)}
-                    </div>
-                  ))}
-                </div>
-              )}
+            <Sec title="AUTO-ROTATION">
+              <Tog label="ACTIF"   value={s.autoRot}  onChange={function(v){upd('autoRot',v);}}/>
+              {s.autoRot&&<Sl label="VITESSE" value={s.rotSpeed} min={0.05} max={2} step={0.05} onChange={function(v){upd('rotSpeed',v);}}/>}
             </Sec>
           </>)}
 
-          {/* ═══ LUMIÈRE ═══ */}
-          {tab === 'light' && (<>
-            <Sec title="AMBIANTE & HÉMISPHÈRE">
-              <ColorPick label="AMBIANTE" value={s.ambC} onChange={v=>upd('ambC',v)} />
-              <Slider label="INTENSITÉ AMBIANTE" value={s.ambI} min={0} max={2} onChange={v=>upd('ambI',v)} />
-              <ColorPick label="HÉMISPHÈRE SKY" value={s.hemC} onChange={v=>upd('hemC',v)} />
-              <ColorPick label="HÉMISPHÈRE GROUND" value={s.hemGC} onChange={v=>upd('hemGC',v)} />
-              <Slider label="INTENSITÉ HÉMIS." value={s.hemI} min={0} max={1.5} onChange={v=>upd('hemI',v)} />
+          {/* ═══ ÉTOILE ═══ */}
+          {tab==='star' && (<>
+            <Sec title="ÉTOILE CENTRALE">
+              <Cp  label="COULEUR" value={s.starColor}   onChange={function(v){upd('starColor',v);}}/>
+              <Sl  label="INTENSITÉ" value={s.starI}       min={0} max={20} step={0.1} onChange={function(v){upd('starI',v);}}/>
+              <Tog label="PULSATION" value={s.starPulse}   onChange={function(v){upd('starPulse',v);}}/>
             </Sec>
-            <Sec title="KEY LIGHT ★ PRINCIPALE">
-              <ColorPick label="COULEUR" value={s.keyC} onChange={v=>upd('keyC',v)} />
-              <Slider label="INTENSITÉ" value={s.keyI} min={0} max={8}   onChange={v=>upd('keyI',v)} />
-              <Slider label="X" value={s.kX} min={-15} max={15} step={0.1} onChange={v=>upd('kX',v)} />
-              <Slider label="Y" value={s.kY} min={-5}  max={18} step={0.1} onChange={v=>upd('kY',v)} />
-              <Slider label="Z" value={s.kZ} min={-15} max={15} step={0.1} onChange={v=>upd('kZ',v)} />
-              <Slider label="OMBRE" value={s.shadowI} min={0} max={1} onChange={v=>upd('shadowI',v)} />
+            <Sec title="CORONA">
+              <Cp label="COULEUR"   value={s.coronaColor} onChange={function(v){upd('coronaColor',v);}}/>
+              <Sl label="INTENSITÉ" value={s.coronaI}     min={0} max={6} step={0.05} onChange={function(v){upd('coronaI',v);}}/>
             </Sec>
-            <Sec title="FILL LIGHT — REMPLISSAGE">
-              <ColorPick label="COULEUR" value={s.filC} onChange={v=>upd('filC',v)} />
-              <Slider label="INTENSITÉ" value={s.filI} min={0} max={5}   onChange={v=>upd('filI',v)} />
-              <Slider label="X" value={s.fX} min={-15} max={15} step={0.1} onChange={v=>upd('fX',v)} />
-              <Slider label="Y" value={s.fY} min={-8}  max={15} step={0.1} onChange={v=>upd('fY',v)} />
-              <Slider label="Z" value={s.fZ} min={-15} max={15} step={0.1} onChange={v=>upd('fZ',v)} />
+            <Sec title="ANNEAUX ORBITAUX">
+              <Tog label="VISIBLES" value={s.ringsOn}      onChange={function(v){upd('ringsOn',v);}}/>
+              <Sl  label="VITESSE"  value={s.ringSpeed}    min={0} max={5} step={0.05} onChange={function(v){upd('ringSpeed',v);}}/>
+              <Sl  label="OPACITÉ"  value={s.ringOpacity}  min={0} max={1} step={0.02} onChange={function(v){upd('ringOpacity',v);}}/>
             </Sec>
-            <Sec title="RIM LIGHT — CONTOUR">
-              <ColorPick label="COULEUR" value={s.rimC} onChange={v=>upd('rimC',v)} />
-              <Slider label="INTENSITÉ" value={s.rimI} min={0} max={5}   onChange={v=>upd('rimI',v)} />
-              <Slider label="X" value={s.rX} min={-15} max={15} step={0.1} onChange={v=>upd('rX',v)} />
-              <Slider label="Y" value={s.rY} min={-10} max={10} step={0.1} onChange={v=>upd('rY',v)} />
-              <Slider label="Z" value={s.rZ} min={-15} max={15} step={0.1} onChange={v=>upd('rZ',v)} />
-            </Sec>
-            <Sec title="SPOT ZÉNITH">
-              <ColorPick label="COULEUR" value={s.topC} onChange={v=>upd('topC',v)} />
-              <Slider label="INTENSITÉ" value={s.topI} min={0} max={4}   onChange={v=>upd('topI',v)} />
-              <Slider label="X" value={s.tX} min={-10} max={10} step={0.1} onChange={v=>upd('tX',v)} />
-              <Slider label="Y" value={s.tY} min={3}   max={22} step={0.1} onChange={v=>upd('tY',v)} />
-            </Sec>
-            <Sec title="PRESETS ÉCLAIRAGE">
+            <Sec title="TYPES D'ÉTOILE">
               {[
-                { n:'CINÉMA NOIR', v:{ keyC:'#fff5e0', keyI:3.5, filC:'#001a66', filI:0.35, rimC:'#440000', rimI:0.8, ambI:0.06 } },
-                { n:'NEON NIGHT',  v:{ keyC:'#ff00aa', keyI:1.8, filC:'#0000ff', filI:1.2, rimC:'#00ffaa', rimI:1.5, ambI:0.08 } },
-                { n:'GOLDEN HOUR', v:{ keyC:'#ffaa44', keyI:3.0, filC:'#ff6600', filI:0.9, rimC:'#ffeeaa', rimI:0.7, ambI:0.18 } },
-                { n:'ARCTIC',      v:{ keyC:'#ddeeff', keyI:2.8, filC:'#0055ff', filI:0.8, rimC:'#aaccff', rimI:1.0, ambI:0.20 } },
-              ].map(p => (
-                <button key={p.n} onClick={() => multi(p.v)} style={{ width:'100%', textAlign:'left',
-                  background:'transparent', border:'1px solid #141828', color:'#2e3560',
-                  fontSize:8, padding:'7px 10px', cursor:'pointer', fontFamily:'monospace',
-                  marginBottom:5, borderRadius:2, letterSpacing:1, transition:'all 0.15s' }}
-                  onMouseEnter={e => { e.currentTarget.style.borderColor=G+'80'; e.currentTarget.style.color=G; }}
-                  onMouseLeave={e => { e.currentTarget.style.borderColor='#141828'; e.currentTarget.style.color='#2e3560'; }}>
-                  ✦ {p.n}
-                </button>
-              ))}
+                { n:'SOLEIL',       v:{starColor:'#fff5cc',starI:8,  coronaColor:'#ff8800',coronaI:1.4} },
+                { n:'ÉTOILE BLEUE', v:{starColor:'#ccddff',starI:11, coronaColor:'#4488ff',coronaI:2.0} },
+                { n:'GÉANTE ROUGE', v:{starColor:'#ff6644',starI:7,  coronaColor:'#cc2200',coronaI:2.2} },
+                { n:'NAINE BLANCHE',v:{starColor:'#ffffff',starI:14, coronaColor:'#aaddff',coronaI:0.8} },
+                { n:'PULSAR',       v:{starColor:'#00ffdd',starI:16, coronaColor:'#00aaff',coronaI:3.0,starPulse:true} },
+                { n:'HYPERGÉANTE', v:{starColor:'#ffcc44',starI:18, coronaColor:'#ff4400',coronaI:4.0} },
+              ].map(function(p){
+                return (
+                  <button key={p.n} onClick={function(){multi(p.v);}}
+                    style={{width:'100%',textAlign:'left',background:'transparent',border:'1px solid #141828',
+                      color:'#2c3055',fontSize:8,padding:'7px 10px',cursor:'pointer',fontFamily:'monospace',
+                      marginBottom:4,borderRadius:2,letterSpacing:0.8,transition:'all 0.14s'}}
+                    onMouseEnter={function(e){e.currentTarget.style.borderColor=GOLD+'80';e.currentTarget.style.color=GOLD;}}
+                    onMouseLeave={function(e){e.currentTarget.style.borderColor='#141828';e.currentTarget.style.color='#2c3055';}}>
+                    ☀ {p.n}
+                  </button>
+                );
+              })}
             </Sec>
           </>)}
 
-          {/* ═══ BLOC ═══ */}
-          {tab === 'bloc' && (<>
-            <Sec title="CONTENU">
-              {[
-                { label:'TITRE',  key:'title',  placeholder:'BRAND NAME' },
-                { label:'SLOGAN', key:'slogan', placeholder:'Sphère de Dyson' },
-              ].map(({ label, key, placeholder }) => (
-                <div key={key} style={{ marginBottom:10 }}>
-                  <div style={{ fontSize:8, color:'#3a4065', letterSpacing:1, marginBottom:5 }}>{label}</div>
-                  <input value={s[key]} onChange={e => upd(key, e.target.value)}
-                    placeholder={placeholder}
-                    style={{ width:'100%', background:'#0a0c1c', border:'1px solid #141828',
-                      color: key==='title' ? G : '#8090aa', fontSize:key==='title'?11:10, padding:'7px 9px',
-                      boxSizing:'border-box', fontFamily:'monospace', outline:'none', letterSpacing:1 }} />
+          {/* ═══ SPHÈRE ═══ */}
+          {tab==='sphere' && (<>
+            <Sec title="PANNEAUX">
+              <Sl label="INTENSITÉ GLOW"   value={s.panelGlow}  min={0} max={4} step={0.05} onChange={function(v){upd('panelGlow',v);}}/>
+              <Tog label="ONDE ÉNERGÉTIQUE" value={s.waveOn}    onChange={function(v){upd('waveOn',v);}}/>
+              {s.waveOn&&<Sl label="VITESSE ONDE" value={s.waveSpeed} min={0.1} max={3} step={0.05} onChange={function(v){upd('waveSpeed',v);}}/>}
+            </Sec>
+            <Sec title="FAISCEAUX D'ÉNERGIE">
+              <Tog label="VISIBLES" value={s.beamsOn}     onChange={function(v){upd('beamsOn',v);}}/>
+              <Sl  label="OPACITÉ"  value={s.beamOpacity} min={0} max={1} step={0.02} onChange={function(v){upd('beamOpacity',v);}}/>
+            </Sec>
+            <Sec title="FILTRE PAR TIER">
+              <button onClick={function(){upd('filterTier','all');}}
+                style={{width:'100%',textAlign:'left',marginBottom:4,
+                  background:s.filterTier==='all'?GOLD+'18':'transparent',
+                  border:'1px solid '+(s.filterTier==='all'?GOLD:'#141828'),
+                  color:s.filterTier==='all'?GOLD:'#2c3055',fontSize:8,
+                  padding:'6px 10px',cursor:'pointer',fontFamily:'monospace',borderRadius:2,letterSpacing:1}}>
+                {s.filterTier==='all'?'◈':'○'} TOUS ({PANEL_COUNT})
+              </button>
+              {TIER_ORDER.map(function(tid){
+                var sel=s.filterTier===tid, tc=TIER_COLOR[tid];
+                return (
+                  <button key={tid} onClick={function(){upd('filterTier',tid);}}
+                    style={{width:'100%',textAlign:'left',display:'flex',justifyContent:'space-between',marginBottom:4,
+                      background:sel?tc+'18':'transparent',border:'1px solid '+(sel?tc:'#141828'),
+                      color:sel?tc:'#2c3055',fontSize:8,padding:'6px 10px',cursor:'pointer',fontFamily:'monospace',borderRadius:2,letterSpacing:0.8}}>
+                    <span>{sel?'◈':'○'} {TIER_META[tid].label}</span>
+                    <span style={{fontSize:7,opacity:0.7}}>{stats.byTier[tid]||0} occ</span>
+                  </button>
+                );
+              })}
+            </Sec>
+            <Sec title="STATS SPHÈRE">
+              <div style={{fontSize:8,color:'#2c3055',lineHeight:1.95,fontFamily:'monospace'}}>
+                <div>TOTAL <span style={{color:GOLD}}>{PANEL_COUNT}</span></div>
+                <div>OCCUPÉS <span style={{color:'#00e8a2'}}>{stats.occupied}</span></div>
+                <div>LIBRES <span style={{color:'#38bdf8'}}>{PANEL_COUNT-stats.occupied}</span></div>
+                <div style={{marginTop:6,borderTop:'1px solid #0e1025',paddingTop:6}}>
+                  {TIER_ORDER.map(function(tid){
+                    return (
+                      <div key={tid} style={{display:'flex',justifyContent:'space-between',marginBottom:2}}>
+                        <span style={{color:TIER_COLOR[tid]+'90'}}>{TIER_META[tid].icon} {tid.toUpperCase()}</span>
+                        <span style={{color:TIER_COLOR[tid]}}>{stats.byTier[tid]||0}</span>
+                      </div>
+                    );
+                  })}
                 </div>
-              ))}
-            </Sec>
-            <Sec title="RANG SPHÈRE DE DYSON">
-              <div style={{ display:'flex', flexDirection:'column', gap:4 }}>
-                {Object.entries(RANK_META).map(([id, rm]) => (
-                  <button key={id} onClick={() => upd('rank', id)} style={{
-                    textAlign:'left', display:'flex', alignItems:'center', gap:8,
-                    background: s.rank===id ? rm.color+'18' : 'transparent',
-                    border:`1px solid ${s.rank===id ? rm.color : '#141828'}`,
-                    color: s.rank===id ? rm.color : '#2e3560',
-                    fontSize:8, padding:'7px 10px', cursor:'pointer', fontFamily:'monospace', borderRadius:2, letterSpacing:0.8,
-                  }}>
-                    <span>{rm.icon}</span>
-                    <span>{rm.label.toUpperCase()}</span>
-                    <span style={{ marginLeft:'auto', fontSize:7, opacity:0.6 }}>{rm.tier}</span>
-                  </button>
-                ))}
               </div>
-            </Sec>
-            <Sec title="TIER">
-              <div style={{ display:'flex', flexWrap:'wrap', gap:4 }}>
-                {Object.entries(TIER_COLOR).map(([id, col]) => (
-                  <button key={id} onClick={() => upd('tier',id)} style={{
-                    background: s.tier===id ? col+'22' : 'transparent',
-                    border:`1px solid ${s.tier===id ? col : '#141828'}`,
-                    color: s.tier===id ? col : '#2e3560',
-                    fontSize:7, padding:'3px 7px', cursor:'pointer', fontFamily:'monospace', borderRadius:2, letterSpacing:0.5,
-                  }}>{id.toUpperCase()}</button>
-                ))}
-              </div>
-            </Sec>
-            <Sec title="COULEURS">
-              <ColorPick label="COULEUR PRINCIPALE" value={s.pColor}  onChange={v=>upd('pColor',v)} />
-              <ColorPick label="FOND DU BLOC"        value={s.bgColor} onChange={v=>upd('bgColor',v)} />
-            </Sec>
-            <Sec title="DIMENSIONS">
-              <Slider label="LARGEUR"    value={s.bW} min={1}    max={8}    step={0.05} onChange={v=>upd('bW',v)} />
-              <Slider label="HAUTEUR"    value={s.bH} min={0.5}  max={7}    step={0.05} onChange={v=>upd('bH',v)} />
-              <Slider label="ÉPAISSEUR"  value={s.bD} min={0.04} max={0.8}  step={0.01} onChange={v=>upd('bD',v)} />
-              <Slider label="ARRONDI"    value={s.bR} min={0}    max={0.4}  step={0.005} onChange={v=>upd('bR',v)} />
-            </Sec>
-            <Sec title="EFFETS BLOC">
-              <Slider label="GLOW INTENSITÉ"  value={s.glowI} min={0} max={4} step={0.05} onChange={v=>upd('glowI',v)} />
-              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10 }}>
-                <span style={{ fontSize:8, color:'#3a4065', letterSpacing:1 }}>QUALITÉ TEXTURE</span>
-                <Pills options={[{id:1024,label:'1K'},{id:2048,label:'2K'},{id:4096,label:'4K'}]} value={s.texQ} onChange={v=>upd('texQ',v)} small />
-              </div>
-              <Toggle label="PARTICULES AMBIANTES" value={s.particles} onChange={v=>upd('particles',v)} />
-              <Toggle label="EFFET FLICKER"         value={s.flicker}   onChange={v=>upd('flicker',v)} />
             </Sec>
           </>)}
 
-          {/* ═══ ENVIRONNEMENT ═══ */}
-          {tab === 'env' && (<>
-            <Sec title="ENVIRONNEMENT 3D">
-              <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
-                {Object.entries(ENVS).map(([id, env]) => (
-                  <button key={id} onClick={() => upd('env',id)} style={{
-                    textAlign:'left', background: s.env===id ? '#0c0e1e' : 'transparent',
-                    border:`1px solid ${s.env===id ? G : '#141828'}`,
-                    color: s.env===id ? G : '#2e3560',
-                    fontSize:8, padding:'8px 10px', cursor:'pointer', fontFamily:'monospace',
-                    borderRadius:2, display:'flex', justifyContent:'space-between', letterSpacing:1,
-                  }}>
-                    <span>{s.env===id ? '◈' : '○'} {env.name}</span>
-                    {env.stars && <span style={{ fontSize:7, color:'#2a3555' }}>★ STARS</span>}
+          {/* ═══ ENV ═══ */}
+          {tab==='env' && (<>
+            <Sec title="ESPACE">
+              {Object.entries(ENVS).map(function(entry){
+                var id=entry[0], env=entry[1];
+                return (
+                  <button key={id} onClick={function(){upd('env',id);}}
+                    style={{width:'100%',textAlign:'left',marginBottom:4,
+                      background:s.env===id?'#0a0c1e':'transparent',border:'1px solid '+(s.env===id?GOLD:'#141828'),
+                      color:s.env===id?GOLD:'#2c3055',fontSize:8,padding:'8px 10px',cursor:'pointer',
+                      fontFamily:'monospace',borderRadius:2,display:'flex',justifyContent:'space-between',letterSpacing:0.8}}>
+                    <span>{s.env===id?'◈':'○'} {env.name}</span>
+                    {env.stars&&<span style={{fontSize:7,color:'#222540'}}>★ STARS</span>}
                   </button>
-                ))}
-              </div>
+                );
+              })}
             </Sec>
             <Sec title="ATMOSPHÈRE">
-              <Toggle label="BROUILLARD VOLUMÉTRIQUE" value={s.fogOn} onChange={v=>upd('fogOn',v)} />
-              <Toggle label="RÉFLEXION SOL"            value={s.floorRefl} onChange={v=>upd('floorRefl',v)} />
+              <Tog label="NÉBULEUSE" value={s.nebulaOn} onChange={function(v){upd('nebulaOn',v);}}/>
+              <Tog label="BROUILLARD" value={s.fogOn}   onChange={function(v){upd('fogOn',v);}}/>
             </Sec>
           </>)}
 
-          {/* ═══ FX POST-PROD ═══ */}
-          {tab === 'fx' && (<>
-            <Sec title="EXPOSITION & TONEMAP">
-              <Slider label="EXPOSITION"   value={s.exposure}    min={0.2} max={4}   step={0.02} onChange={v=>upd('exposure',v)} />
-              <Slider label="LUMINOSITÉ"   value={s.brightness}  min={0.4} max={2.2} step={0.02} onChange={v=>upd('brightness',v)} />
-              <Slider label="CONTRASTE"    value={s.contrast}    min={0.5} max={2.5} step={0.02} onChange={v=>upd('contrast',v)} />
-              <Slider label="SATURATION"   value={s.saturation}  min={0}   max={3}   step={0.05} onChange={v=>upd('saturation',v)} />
+          {/* ═══ FX ═══ */}
+          {tab==='fx' && (<>
+            <Sec title="EXPOSITION">
+              <Sl label="EXPOSITION"  value={s.exposure}   min={0.2} max={4}   step={0.02} onChange={function(v){upd('exposure',v);}}/>
+              <Sl label="LUMINOSITÉ"  value={s.brightness} min={0.4} max={2.5} step={0.02} onChange={function(v){upd('brightness',v);}}/>
+              <Sl label="CONTRASTE"   value={s.contrast}   min={0.5} max={2.5} step={0.02} onChange={function(v){upd('contrast',v);}}/>
+              <Sl label="SATURATION"  value={s.saturation} min={0}   max={3}   step={0.05} onChange={function(v){upd('saturation',v);}}/>
             </Sec>
-            <Sec title="EFFETS CINÉMA">
-              <Slider label="VIGNETTE"          value={s.vignette} min={0} max={1}   step={0.02} onChange={v=>upd('vignette',v)} />
-              <Slider label="GRAIN FILM"         value={s.grain}    min={0} max={0.9} step={0.01} onChange={v=>upd('grain',v)} />
-              <Slider label="BLOOM / GLOW"       value={s.bloom}    min={0} max={1}   step={0.02} onChange={v=>upd('bloom',v)} />
-              <Toggle label="ABERRATION CHROM."  value={s.chrAb}    onChange={v=>upd('chrAb',v)} />
+            <Sec title="CINÉMA">
+              <Sl  label="VIGNETTE"   value={s.vignette} min={0} max={1}   step={0.02} onChange={function(v){upd('vignette',v);}}/>
+              <Sl  label="GRAIN FILM" value={s.grain}    min={0} max={0.9} step={0.01} onChange={function(v){upd('grain',v);}}/>
+              <Tog label="ABERRATION CHROMATIQUE" value={s.chrAb} onChange={function(v){upd('chrAb',v);}}/>
+              <Tog label="DOF" value={s.dofOn} onChange={function(v){upd('dofOn',v);}}/>
             </Sec>
-            <Sec title="LUT — COLOR GRADING">
-              <div style={{ display:'flex', flexDirection:'column', gap:4 }}>
-                {LUTS.map(l => (
-                  <button key={l.id} onClick={() => upd('lut',l.id)} style={{
-                    textAlign:'left', background: s.lut===l.id ? G+'18' : 'transparent',
-                    border:`1px solid ${s.lut===l.id ? G : '#141828'}`,
-                    color: s.lut===l.id ? G : '#2e3560',
-                    fontSize:8, padding:'6px 10px', cursor:'pointer', fontFamily:'monospace', borderRadius:2, letterSpacing:0.8,
-                  }}>{s.lut===l.id?'◈ ':''}{l.label}</button>
-                ))}
-              </div>
-            </Sec>
-            <Sec title="COMPOSITION">
-              <Pills options={COMP_GUIDES} value={s.compGuide} onChange={v=>upd('compGuide',v)} small />
+            <Sec title="LUT">
+              {LUTS.map(function(l){
+                return (
+                  <button key={l.id} onClick={function(){upd('lut',l.id);}}
+                    style={{width:'100%',textAlign:'left',background:s.lut===l.id?GOLD+'18':'transparent',
+                      border:'1px solid '+(s.lut===l.id?GOLD:'#141828'),color:s.lut===l.id?GOLD:'#2c3055',
+                      fontSize:8,padding:'6px 10px',cursor:'pointer',fontFamily:'monospace',marginBottom:4,borderRadius:2,letterSpacing:0.8}}>
+                    {s.lut===l.id?'◈ ':''}{l.label}
+                  </button>
+                );
+              })}
             </Sec>
             <Sec title="PRESETS CINÉMA">
               {[
-                { n:'BLOCKBUSTER',  v:{ vignette:0.7, grain:0.35, exposure:1.2, contrast:1.25, saturation:1.3, bloom:0.2, lut:'teal_ora', chrAb:true } },
-                { n:'NOIR ABSOLU',  v:{ vignette:0.9, grain:0.6,  exposure:0.85, contrast:1.4, saturation:0.5, bloom:0, lut:'bw', chrAb:false } },
-                { n:'NEON DREAMS',  v:{ vignette:0.6, grain:0.3,  exposure:1.1, contrast:1.1, saturation:2.2, bloom:0.5, lut:'neon', chrAb:true } },
-                { n:'GOLDEN ERA',   v:{ vignette:0.55, grain:0.25, exposure:1.4, contrast:0.95, saturation:1.1, bloom:0.15, lut:'warm', chrAb:false } },
-              ].map(p => (
-                <button key={p.n} onClick={() => multi(p.v)} style={{ width:'100%', textAlign:'left',
-                  background:'transparent', border:'1px solid #141828', color:'#2e3560',
-                  fontSize:8, padding:'7px 10px', cursor:'pointer', fontFamily:'monospace',
-                  marginBottom:5, borderRadius:2, letterSpacing:1, transition:'all 0.15s' }}
-                  onMouseEnter={e => { e.currentTarget.style.borderColor=G+'80'; e.currentTarget.style.color=G; }}
-                  onMouseLeave={e => { e.currentTarget.style.borderColor='#141828'; e.currentTarget.style.color='#2e3560'; }}>
-                  ✧ {p.n}
-                </button>
-              ))}
+                { n:'INTERSTELLAR',   v:{vignette:0.65,grain:0.3,exposure:1.3,contrast:1.2,saturation:0.9,lut:'cinema',chrAb:false} },
+                { n:'BLADE RUNNER',   v:{vignette:0.75,grain:0.45,exposure:1.1,contrast:1.3,saturation:1.5,lut:'neon',chrAb:true} },
+                { n:'2001 ODYSSÉE',   v:{vignette:0.5,grain:0.15,exposure:1.5,contrast:1.1,saturation:0.95,lut:'none',chrAb:false} },
+                { n:'DUNE',           v:{vignette:0.7,grain:0.25,exposure:1.4,contrast:1.15,saturation:1.2,lut:'warmgold',chrAb:false} },
+                { n:'GHOST IN SHELL', v:{vignette:0.8,grain:0.5,exposure:1.0,contrast:1.35,saturation:1.8,lut:'scifi',chrAb:true} },
+              ].map(function(p){
+                return (
+                  <button key={p.n} onClick={function(){multi(p.v);}}
+                    style={{width:'100%',textAlign:'left',background:'transparent',border:'1px solid #141828',
+                      color:'#2c3055',fontSize:8,padding:'7px 10px',cursor:'pointer',fontFamily:'monospace',
+                      marginBottom:4,borderRadius:2,letterSpacing:0.8,transition:'all 0.14s'}}
+                    onMouseEnter={function(e){e.currentTarget.style.borderColor=GOLD+'80';e.currentTarget.style.color=GOLD;}}
+                    onMouseLeave={function(e){e.currentTarget.style.borderColor='#141828';e.currentTarget.style.color='#2c3055';}}>
+                    ✧ {p.n}
+                  </button>
+                );
+              })}
             </Sec>
           </>)}
 
-          {/* ═══ ENREGISTREMENT ═══ */}
-          {tab === 'rec' && (<>
-            <Sec title="FORMAT VIDÉO">
-              <div style={{ display:'flex', flexDirection:'column', gap:5, marginBottom:10 }}>
-                {VIDEO_FORMATS.map(f => (
-                  <button key={f.id} onClick={() => upd('vidFmt',f.id)} style={{
-                    textAlign:'left', background: s.vidFmt===f.id ? G+'18' : 'transparent',
-                    border:`1px solid ${s.vidFmt===f.id ? G : '#141828'}`,
-                    color: s.vidFmt===f.id ? G : '#2e3560',
-                    fontSize:8, padding:'8px 10px', cursor:'pointer', fontFamily:'monospace',
-                    borderRadius:2, display:'flex', justifyContent:'space-between',
-                  }}>
+          {/* ═══ REC ═══ */}
+          {tab==='rec' && (<>
+            <Sec title="FORMAT">
+              {VIDEO_FORMATS.map(function(f){
+                return (
+                  <button key={f.id} onClick={function(){upd('vidFmt',f.id);}}
+                    style={{width:'100%',textAlign:'left',background:s.vidFmt===f.id?GOLD+'18':'transparent',
+                      border:'1px solid '+(s.vidFmt===f.id?GOLD:'#141828'),color:s.vidFmt===f.id?GOLD:'#2c3055',
+                      fontSize:8,padding:'8px 10px',cursor:'pointer',fontFamily:'monospace',marginBottom:4,
+                      borderRadius:2,display:'flex',justifyContent:'space-between',letterSpacing:0.7}}>
                     <span>{s.vidFmt===f.id?'◈ ':''}{f.label}</span>
-                    {f.hdr && <span style={{ fontSize:7, color:'#e8c000', border:'1px solid #e8c00055', padding:'1px 5px' }}>HDR</span>}
+                    {f.hdr&&<span style={{fontSize:7,color:'#e8c000',border:'1px solid #e8c00055',padding:'1px 4px'}}>HDR</span>}
                   </button>
-                ))}
-              </div>
+                );
+              })}
             </Sec>
             <Sec title="RÉSOLUTION">
-              <div style={{ display:'flex', flexDirection:'column', gap:5, marginBottom:10 }}>
-                {VIDEO_RES.map(r => (
-                  <button key={r.id} onClick={() => upd('vidRes',r.id)} style={{
-                    textAlign:'left', background: s.vidRes===r.id ? G+'18' : 'transparent',
-                    border:`1px solid ${s.vidRes===r.id ? G : '#141828'}`,
-                    color: s.vidRes===r.id ? G : '#2e3560',
-                    fontSize:8, padding:'8px 10px', cursor:'pointer', fontFamily:'monospace',
-                    borderRadius:2, display:'flex', justifyContent:'space-between',
-                  }}>
+              {VIDEO_RES.map(function(r){
+                return (
+                  <button key={r.id} onClick={function(){upd('vidRes',r.id);}}
+                    style={{width:'100%',textAlign:'left',background:s.vidRes===r.id?GOLD+'18':'transparent',
+                      border:'1px solid '+(s.vidRes===r.id?GOLD:'#141828'),color:s.vidRes===r.id?GOLD:'#2c3055',
+                      fontSize:8,padding:'8px 10px',cursor:'pointer',fontFamily:'monospace',marginBottom:4,
+                      borderRadius:2,display:'flex',justifyContent:'space-between',letterSpacing:0.7}}>
                     <span>{s.vidRes===r.id?'◈ ':''}{r.label} ({r.w}×{r.h})</span>
-                    <span style={{ fontSize:7, color:'#2e3560' }}>{r.fps}fps · {r.mbps}Mbps</span>
+                    <span style={{fontSize:7,color:'#222540'}}>{r.fps}fps</span>
                   </button>
-                ))}
-              </div>
+                );
+              })}
             </Sec>
             <Sec title="DURÉE">
-              <div style={{ display:'flex', gap:5, flexWrap:'wrap' }}>
-                {[5,10,20,30,60].map(d => (
-                  <button key={d} onClick={() => upd('vidDur',d)} style={{
-                    background: s.vidDur===d ? G+'22' : 'transparent',
-                    border:`1px solid ${s.vidDur===d ? G : '#141828'}`,
-                    color: s.vidDur===d ? G : '#2e3560',
-                    fontSize:8, padding:'4px 10px', cursor:'pointer', fontFamily:'monospace', borderRadius:2,
-                  }}>{d}s</button>
-                ))}
+              <div style={{display:'flex',gap:5,flexWrap:'wrap'}}>
+                {[5,10,15,20,30,60].map(function(d){
+                  return (
+                    <button key={d} onClick={function(){upd('vidDur',d);}}
+                      style={{background:s.vidDur===d?GOLD+'22':'transparent',border:'1px solid '+(s.vidDur===d?GOLD:'#141828'),
+                        color:s.vidDur===d?GOLD:'#2c3055',fontSize:8,padding:'4px 10px',cursor:'pointer',fontFamily:'monospace',borderRadius:2}}>
+                      {d}s
+                    </button>
+                  );
+                })}
               </div>
             </Sec>
-            <Sec title="INFO ENCODAGE">
-              <div style={{ fontSize:8, color:'#2e3560', lineHeight:1.9, fontFamily:'monospace' }}>
-                {(() => {
-                  const r = VIDEO_RES.find(x=>x.id===s.vidRes)||VIDEO_RES[0];
-                  const f = VIDEO_FORMATS.find(x=>x.id===s.vidFmt)||VIDEO_FORMATS[0];
-                  const estimMB = Math.round(r.mbps * s.vidDur / 8);
-                  return (<>
-                    <div style={{ color:'#3a4570' }}>RÉSOLUTION <span style={{ color:G }}>{r.w}×{r.h}</span></div>
-                    <div style={{ color:'#3a4570' }}>FRAMERATE  <span style={{ color:G }}>{r.fps} FPS</span></div>
-                    <div style={{ color:'#3a4570' }}>DÉBIT      <span style={{ color:G }}>{r.mbps} Mbps</span></div>
-                    <div style={{ color:'#3a4570' }}>DURÉE      <span style={{ color:G }}>{s.vidDur}s</span></div>
-                    <div style={{ color:'#3a4570' }}>TAILLE ~   <span style={{ color:G }}>{estimMB} MB</span></div>
-                    {f.hdr && <div style={{ color:'#e8c00080' }}>⚡ HDR 10-bit VP9</div>}
-                    <div style={{ marginTop:6, color:'#2a2e50', fontSize:7 }}>
-                      WebCodecs disponible: <span style={{ color: typeof VideoEncoder!=='undefined'?'#00e8a2':'#ff4444' }}>{typeof VideoEncoder!=='undefined'?'OUI':'NON'}</span>
-                    </div>
-                  </>);
-                })()}
-              </div>
-            </Sec>
-            {/* REC progress */}
-            {recState !== 'idle' && (
+            {recState==='recording'&&(
               <Sec title="PROGRESSION">
-                <div style={{ background:'#0a0c18', borderRadius:2, overflow:'hidden', marginBottom:8 }}>
-                  <div style={{ height:6, background: recState==='encoding'?'#00e8a2':G, width:`${recProgress}%`, transition:'width 0.1s' }}/>
+                <div style={{background:'#090b18',borderRadius:2,overflow:'hidden',marginBottom:7}}>
+                  <div style={{height:5,background:GOLD,width:recProg+'%',transition:'width 0.1s'}}/>
                 </div>
-                <div style={{ fontSize:8, color:'#3a4570', fontFamily:'monospace' }}>
-                  {recState==='recording' ? `⏺ ENREGISTREMENT... ${(recDuration/1000).toFixed(1)}s / ${s.vidDur}s` : '⚙ ENCODAGE...'}
-                </div>
+                <div style={{fontSize:8,color:'#404870',fontFamily:'monospace'}}>⏺ {(recDur/1000).toFixed(1)}s / {s.vidDur}s</div>
               </Sec>
             )}
           </>)}
         </div>
 
-        {/* ─── ACTIONS BOTTOM ─────────────────────────────── */}
-        <div style={{ padding:'9px 13px 13px', borderTop:'1px solid #0a0c18', background:'#060710', display:'flex', flexDirection:'column', gap:6 }}>
-
-          {/* Record / Stop */}
-          {recState === 'idle' ? (
-            <button onClick={startRec} style={{
-              background:'linear-gradient(135deg, #cc0020 0%, #880010 100%)',
-              border:'none', color:'#fff', fontSize:9, fontWeight:700,
-              padding:'10px', cursor:'pointer', fontFamily:'monospace',
-              letterSpacing:1.5, borderRadius:2, display:'flex', alignItems:'center', justifyContent:'center', gap:7,
-            }}>
-              <span style={{ width:8, height:8, borderRadius:'50%', background:'#ff4455', display:'inline-block' }}/>
-              ⏺ ENREGISTRER VIDÉO HDR
+        {/* Actions */}
+        <div style={{padding:'8px 12px 12px',borderTop:'1px solid #090b15',background:'#06070f',display:'flex',flexDirection:'column',gap:6}}>
+          {recState==='idle'?(
+            <button onClick={startRec} style={{background:'linear-gradient(135deg,#bb0018 0%,#770010 100%)',
+              border:'none',color:'#fff',fontSize:8.5,fontWeight:700,padding:'10px',cursor:'pointer',
+              fontFamily:'monospace',letterSpacing:1.5,borderRadius:2,display:'flex',alignItems:'center',justifyContent:'center',gap:7}}>
+              <span style={{width:8,height:8,borderRadius:'50%',background:'#ff3344',display:'inline-block'}}/>
+              ⏺ ENREGISTRER HDR
             </button>
-          ) : recState === 'recording' ? (
-            <button onClick={stopRec} style={{
-              background:'#1a0608', border:'1px solid #ff2233', color:'#ff4455',
-              fontSize:9, fontWeight:700, padding:'10px', cursor:'pointer', fontFamily:'monospace', letterSpacing:1.5, borderRadius:2,
-            }}>⏹ ARRÊTER ({(recDuration/1000).toFixed(1)}s)</button>
-          ) : (
-            <button disabled style={{ background:'#111328', border:'1px solid #2a3050', color:'#3a4570', fontSize:9, padding:'10px', fontFamily:'monospace', letterSpacing:1.5, borderRadius:2 }}>
+          ):recState==='recording'?(
+            <button onClick={stopRec} style={{background:'#160406',border:'1px solid #ff2233',
+              color:'#ff3344',fontSize:8.5,fontWeight:700,padding:'10px',cursor:'pointer',fontFamily:'monospace',letterSpacing:1.5,borderRadius:2}}>
+              ⏹ STOP ({(recDur/1000).toFixed(1)}s)
+            </button>
+          ):(
+            <button disabled style={{background:'#0e1020',border:'1px solid #1a1e38',color:'#2c3055',fontSize:8.5,padding:'10px',fontFamily:'monospace',letterSpacing:1.5,borderRadius:2}}>
               ⚙ ENCODAGE...
             </button>
           )}
-
-          {/* Export image */}
-          <button onClick={export4K} disabled={isExporting} style={{
-            background: isExporting ? '#111328' : `linear-gradient(135deg, ${G} 0%, #cc8800 100%)`,
-            border:'none', color: isExporting ? '#3a4570' : '#000',
-            fontSize:9, fontWeight:800, padding:'10px', cursor: isExporting ? 'wait' : 'pointer',
-            fontFamily:'monospace', letterSpacing:1.5, borderRadius:2,
-          }}>
-            {isExporting ? '⏳ EXPORT...' : '↓ SCREENSHOT 4K'}
+          <button onClick={export4K} disabled={exporting} style={{
+            background:exporting?'#0e1020':'linear-gradient(135deg,'+GOLD+' 0%,#cc8800 100%)',
+            border:'none',color:exporting?'#2c3055':'#000',fontSize:8.5,fontWeight:800,
+            padding:'10px',cursor:exporting?'wait':'pointer',fontFamily:'monospace',letterSpacing:1.5,borderRadius:2}}>
+            {exporting?'⏳ EXPORT...':'↓ SCREENSHOT 4K'}
           </button>
         </div>
       </div>
 
       <style>{`
-        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
-        input[type=range]::-webkit-slider-runnable-track { background:#0e1028; border-radius:1px; }
-        input[type=range]::-webkit-slider-thumb { width:10px; height:10px; border-radius:50%; margin-top:-3.5px; }
-        ::-webkit-scrollbar { width:4px; } ::-webkit-scrollbar-track { background:transparent; } ::-webkit-scrollbar-thumb { background:#101325; border-radius:2px; }
+        input[type=range]{-webkit-appearance:none;appearance:none}
+        input[type=range]::-webkit-slider-runnable-track{background:#0c0e22;height:3px;border-radius:2px}
+        input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:10px;height:10px;border-radius:50%;margin-top:-3.5px;cursor:pointer}
+        ::-webkit-scrollbar{width:3px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:#0e1025;border-radius:2px}
       `}</style>
     </div>
   );
 }
 
-// ═══════════════════════════════════════════════════════
-//  GUIDES DE COMPOSITION
-// ═══════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════
+//  DEMO DATA
+// ═══════════════════════════════════════════════════════════════════
 
-function GuideThirds() {
-  return (
-    <svg style={{ position:'absolute', inset:0, width:'100%', height:'100%', pointerEvents:'none', zIndex:5, opacity:0.25 }}>
-      <line x1="33.33%" y1="0" x2="33.33%" y2="100%" stroke="#fff" strokeWidth="0.5"/>
-      <line x1="66.66%" y1="0" x2="66.66%" y2="100%" stroke="#fff" strokeWidth="0.5"/>
-      <line x1="0" y1="33.33%" x2="100%" y2="33.33%" stroke="#fff" strokeWidth="0.5"/>
-      <line x1="0" y1="66.66%" x2="100%" y2="66.66%" stroke="#fff" strokeWidth="0.5"/>
-      {[['33.33%','33.33%'],['66.66%','33.33%'],['33.33%','66.66%'],['66.66%','66.66%']].map(([x,y],i)=>(
-        <circle key={i} cx={x} cy={y} r="4" fill="none" stroke="#f0b429" strokeWidth="1" opacity="0.7"/>
-      ))}
-    </svg>
-  );
+function buildDemoBookings() {
+  var bks = [];
+  var prob = { epicenter:1, prestige:0.88, elite:0.72, business:0.45, standard:0.28, viral:0.12 };
+  for (var gy=1; gy<=GRID_ROWS; gy++) {
+    for (var gx=1; gx<=GRID_COLS; gx++) {
+      var tier = getTier(gx,gy);
+      if (Math.random() < prob[tier]) {
+        bks.push({ x:gx, y:gy, primary_color:TIER_COLOR[tier], display_name:'BLOC '+gx+'-'+gy, tier:tier });
+      }
+    }
+  }
+  return bks;
 }
-
-function GuideGolden() {
-  return (
-    <svg style={{ position:'absolute', inset:0, width:'100%', height:'100%', pointerEvents:'none', zIndex:5, opacity:0.22 }}>
-      <line x1="38.2%" y1="0" x2="38.2%" y2="100%" stroke="#f0b429" strokeWidth="0.5"/>
-      <line x1="61.8%" y1="0" x2="61.8%" y2="100%" stroke="#f0b429" strokeWidth="0.5"/>
-      <line x1="0" y1="38.2%" x2="100%" y2="38.2%" stroke="#f0b429" strokeWidth="0.5"/>
-      <line x1="0" y1="61.8%" x2="100%" y2="61.8%" stroke="#f0b429" strokeWidth="0.5"/>
-      <ellipse cx="50%" cy="50%" rx="23%" ry="15%" fill="none" stroke="#f0b429" strokeWidth="0.5"/>
-    </svg>
-  );
-}
-
-function GuideCenter() {
-  return (
-    <svg style={{ position:'absolute', inset:0, width:'100%', height:'100%', pointerEvents:'none', zIndex:5, opacity:0.2 }}>
-      <line x1="50%" y1="0" x2="50%" y2="100%" stroke="#fff" strokeWidth="0.5"/>
-      <line x1="0" y1="50%" x2="100%" y2="50%" stroke="#fff" strokeWidth="0.5"/>
-      <circle cx="50%" cy="50%" r="4" fill="none" stroke="#f0b429" strokeWidth="1.5" opacity="0.8"/>
-      <circle cx="50%" cy="50%" r="20%" fill="none" stroke="#fff" strokeWidth="0.5" opacity="0.4"/>
-    </svg>
-  );
-}
-
-// ═══════════════════════════════════════════════════════
-//  UTILITAIRES
-// ═══════════════════════════════════════════════════════
-
-function hexToRgb(hex) {
-  const n = parseInt(hex.replace('#',''), 16);
-  return `${(n>>16)&255},${(n>>8)&255},${n&255}`;
-}
-
-function getRankFromTier(tier) {
-  return { epicenter:'elu', prestige:'architecte', elite:'gardien', business:'batisseur', standard:'batisseur', viral:'signal' }[tier] || 'signal';
-}
-
-// Demo blocks si Supabase non connecté
-const DEMO_BLOCKS = [
-  { id:'d1', name:'Nike Global',   tier:'epicenter', pColor:'#f0b429', bgColor:'#080400', slogan:'Just Do It', rank:'elu'       },
-  { id:'d2', name:'Dior Paris',    tier:'prestige',  pColor:'#ff4d8f', bgColor:'#0d0818', slogan:'Savoir-Faire', rank:'architecte' },
-  { id:'d3', name:'Rolex SA',      tier:'elite',     pColor:'#a855f7', bgColor:'#060010', slogan:'Perpetual Excellence', rank:'gardien' },
-  { id:'d4', name:'OpenAI',        tier:'business',  pColor:'#00d9f5', bgColor:'#020a10', slogan:'AGI for humanity', rank:'batisseur' },
-  { id:'d5', name:'SoundCloud',    tier:'standard',  pColor:'#38bdf8', bgColor:'#020810', slogan:'Discover Music', rank:'batisseur' },
-  { id:'d6', name:'Indie Studio',  tier:'viral',     pColor:'#00e8a2', bgColor:'#00100a', slogan:'Make it loud', rank:'signal' },
-];
