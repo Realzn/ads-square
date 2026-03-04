@@ -3970,8 +3970,8 @@ function ManifestModal({ onAccept }) {
 }
 
 // ─── Main App ──────────────────────────────────────────────────
+const CommunityChat = dynamic(() => import('./CommunityChat'), { ssr: false, loading: () => null });
 
-// ─── Main App — 3D ONLY ────────────────────────────────────────
 export default function App() {
   const [lang, setLang]             = useState('fr');
   const [view, setView]             = useState('landing');
@@ -4041,6 +4041,24 @@ export default function App() {
 
   const t = getT(lang);
 
+  const navBtn = (key, label, icon) => (
+    <button key={key} onClick={() => setView(key)} style={{
+      padding: isMobile ? '5px 9px' : '5px 14px',
+      background: view === key ? `${U.cyan}14` : 'transparent',
+      border: `0.5px solid ${view === key ? U.cyan : U.border}`,
+      clipPath: 'polygon(0 0,calc(100% - 6px) 0,100% 6px,100% 100%,0 100%)',
+      color: view === key ? U.cyan : U.muted,
+      fontFamily: F.mono, fontSize: isMobile ? 10 : 10.5,
+      fontWeight: 700, letterSpacing: '.12em', textTransform: 'uppercase',
+      cursor: 'pointer', outline: 'none',
+      boxShadow: view === key ? `0 0 14px ${U.cyan}22` : 'none',
+      transition: 'all 0.12s', whiteSpace: 'nowrap',
+      display: 'flex', alignItems: 'center', gap: isMobile ? 0 : 5,
+    }}>
+      <span>{icon}</span>{!isMobile && <span>{label}</span>}
+    </button>
+  );
+
   return (
     <LangContext.Provider value={lang}>
     <LangSetterContext.Provider value={handleSetLang}>
@@ -4048,7 +4066,7 @@ export default function App() {
       <div style={{ display: 'flex', height: '100vh', background: '#01020A', fontFamily: F.b, color: U.text, flexDirection: 'column', overflow: view === 'landing' ? 'auto' : 'hidden' }}>
         <AnnouncementBar onWaitlist={handleWaitlist} />
 
-        {/* Header */}
+        {/* ── Header ── */}
         <header style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           padding: isMobile ? '0 12px' : '0 20px', height: 50, flexShrink: 0,
@@ -4062,21 +4080,8 @@ export default function App() {
           <BrandLogo size={isMobile ? 14 : 15} onClick={() => setView('landing')} />
 
           <nav style={{ display: 'flex', gap: 3, alignItems: 'center' }}>
-            {/* EXPLORE → directement View3D */}
-            <button onClick={() => setView('public')} style={{
-              padding: isMobile ? '5px 8px' : '5px 14px',
-              background: view === 'public' ? `${U.cyan}14` : 'transparent',
-              border: `0.5px solid ${view === 'public' ? U.cyan : U.border}`,
-              clipPath: 'polygon(0 0,calc(100% - 6px) 0,100% 6px,100% 100%,0 100%)',
-              color: view === 'public' ? U.cyan : U.muted,
-              fontFamily: F.mono, fontSize: isMobile ? 10 : 10.5,
-              fontWeight: 700, letterSpacing: '.12em', textTransform: 'uppercase',
-              cursor: 'pointer', outline: 'none',
-              boxShadow: view === 'public' ? `0 0 14px ${U.cyan}22` : 'none',
-              transition: 'all 0.12s', whiteSpace: 'nowrap',
-            }}>
-              {isMobile ? '◈' : t('nav.explore')}
-            </button>
+            {navBtn('cosmos',    t('nav.explore'), '◈')}
+            {navBtn('community','COMMUNITY',       '◎')}
 
             {/* Waitlist CTA */}
             <button onClick={handleWaitlist} style={{
@@ -4094,18 +4099,16 @@ export default function App() {
               {isMobile ? t('nav.waitlist.short') : t('nav.waitlist')}
             </button>
 
-            {/* Auth icons */}
+            {/* Auth */}
             {authUser ? (
               <>
-                <a href="/dashboard" title="Mon dashboard" style={{
+                <a href="/dashboard" title="Dashboard" style={{
                   width: 30, height: 30,
                   clipPath: 'polygon(15% 0,85% 0,100% 15%,100% 85%,85% 100%,15% 100%,0 85%,0 15%)',
                   background: `${U.accent}14`, border: `1px solid ${U.accent}44`,
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   textDecoration: 'none', flexShrink: 0, cursor: 'pointer',
-                }}>
-                  <span style={{ fontSize: 13 }}>👤</span>
-                </a>
+                }}><span style={{ fontSize: 13 }}>👤</span></a>
                 {!isMobile && (
                   <button onClick={handleSignOut} title="Se déconnecter" style={{
                     width: 30, height: 30,
@@ -4134,54 +4137,55 @@ export default function App() {
               </a>
             )}
 
-            {/* Language toggle */}
-            <button
-              onClick={() => handleSetLang(l => l === 'fr' ? 'en' : 'fr')}
-              style={{
-                marginLeft: isMobile ? 1 : 3,
-                padding: isMobile ? '4px 7px' : '4px 10px',
-                clipPath: 'polygon(0 0,calc(100% - 4px) 0,100% 4px,100% 100%,0 100%)',
-                background: 'transparent', border: `0.5px solid ${U.border}`,
-                color: U.muted, fontFamily: F.mono,
-                fontSize: isMobile ? 9 : 10, fontWeight: 700, letterSpacing: '.14em',
-                cursor: 'pointer', outline: 'none', transition: 'all 0.12s', flexShrink: 0,
-              }}
-              onMouseEnter={e => { e.currentTarget.style.color = U.text; e.currentTarget.style.borderColor = U.border2; }}
-              onMouseLeave={e => { e.currentTarget.style.color = U.muted; e.currentTarget.style.borderColor = U.border; }}
-            >
+            {/* Lang */}
+            <button onClick={() => handleSetLang(l => l === 'fr' ? 'en' : 'fr')} style={{
+              marginLeft: isMobile ? 1 : 3, padding: isMobile ? '4px 7px' : '4px 10px',
+              clipPath: 'polygon(0 0,calc(100% - 4px) 0,100% 4px,100% 100%,0 100%)',
+              background: 'transparent', border: `0.5px solid ${U.border}`,
+              color: U.muted, fontFamily: F.mono, fontSize: isMobile ? 9 : 10,
+              fontWeight: 700, letterSpacing: '.14em', cursor: 'pointer', outline: 'none',
+              transition: 'all 0.12s', flexShrink: 0,
+            }}
+            onMouseEnter={e => { e.currentTarget.style.color = U.text; e.currentTarget.style.borderColor = U.border2; }}
+            onMouseLeave={e => { e.currentTarget.style.color = U.muted; e.currentTarget.style.borderColor = U.border; }}>
               {lang === 'fr' ? 'EN' : 'FR'}
             </button>
           </nav>
         </header>
 
-        {/* Views */}
+        {/* ── Vue Landing ── */}
         {view === 'landing' && (
           <LandingPage
             slots={slots}
-            onPublic={() => setView('public')}
+            onPublic={() => setView('cosmos')}
             onWaitlist={handleWaitlist}
           />
         )}
-        {view === 'public' && (
+
+        {/* ── Vue Cosmos 3D — toujours montée pour garder la scène en mémoire ── */}
+        <div style={{ flex: 1, display: view === 'cosmos' ? 'flex' : 'none', overflow: 'hidden' }}>
           <View3D
-            slots={slots}
-            isLive={isLive}
-            user={authUser}
-            onCheckout={handleCheckout}
-            onBuyout={setBuyoutSlot}
+            slots={slots} isLive={isLive} user={authUser}
+            onCheckout={handleCheckout} onBuyout={setBuyoutSlot}
             onViewSlot={(slot) => setAdViewSlot(slot)}
           />
+        </div>
+
+        {/* ── Vue Community Chat ── */}
+        {view === 'community' && (
+          <div style={{ flex: 1, overflow: 'hidden' }}>
+            <CommunityChat user={authUser} />
+          </div>
         )}
 
-        {/* Modals */}
+        {/* ── Modals ── */}
         {showWaitlist  && <WaitlistModal  onClose={() => setShowWaitlist(false)} />}
         {checkoutSlot  && <CheckoutModal  slot={checkoutSlot} onClose={() => setCheckoutSlot(null)} />}
         {buyoutSlot    && <BuyoutModal    slot={buyoutSlot}   onClose={() => setBuyoutSlot(null)} />}
         {showBoost     && <BoostModal     onClose={() => setShowBoost(false)} />}
         {adViewSlot && (
           <AdViewModal
-            slot={adViewSlot}
-            allSlots={slots}
+            slot={adViewSlot} allSlots={slots}
             onClose={() => setAdViewSlot(null)}
             onNavigate={(slot) => setAdViewSlot(slot)}
             onViewProfile={(advId) => { setAdViewSlot(null); if(advId) setAdvProfileId(advId); }}
@@ -4190,8 +4194,7 @@ export default function App() {
         )}
         {advProfileId && (
           <AdvertiserProfileModal
-            advertiserId={advProfileId}
-            slots={slots}
+            advertiserId={advProfileId} slots={slots}
             onClose={() => setAdvProfileId(null)}
             onOpenSlot={(slot) => { setAdvProfileId(null); setAdViewSlot(slot); }}
           />
