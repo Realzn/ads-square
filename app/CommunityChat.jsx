@@ -300,21 +300,30 @@ export default function CommunityChat({ user }) {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  const sendingRef = useRef(false);
+
   // ── Send ──────────────────────────────────────────────────────
   const send = useCallback(async () => {
     const text = input.trim();
     if (!text || !isNamed || ch.readOnly || !sb) return;
+    if (sendingRef.current) return; // anti double-envoi
+    sendingRef.current = true;
     setInput('');
     try {
-      const { error } = await sb.from('chat_messages').insert({
+      const { data, error } = await sb.from('chat_messages').insert({
         channel_id:   channel,
         author_id:    user?.id || null,
         author_name:  displayName,
         author_badge: user?.id ? 'MEMBRE' : null,
         content:      text,
-      });
-      if (error) console.error('chat insert error:', error.code, error.message, error.details);
-    } catch (e) { console.warn('chat send error', e); }
+      }).select();
+      if (error) console.error('chat insert error:', JSON.stringify(error));
+      else console.log('chat insert ok:', data);
+    } catch (e) {
+      console.warn('chat send error', e);
+    } finally {
+      sendingRef.current = false;
+    }
   }, [input, isNamed, channel, displayName, user, ch.readOnly]);
 
   // ── Computed pos ──────────────────────────────────────────────
