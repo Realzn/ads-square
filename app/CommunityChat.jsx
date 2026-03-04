@@ -31,12 +31,12 @@ const F = {
 // ── Canaux ────────────────────────────────────────────────────────
 const CHANNELS = [
   { id: 'general',   label: 'général',    icon: '◈', color: DS.cyan   },
-  { id: 'annonces',  label: 'annonces',   icon: '◆', color: DS.gold,  readOnly: true },
-  { id: 'createurs', label: 'créateurs',  icon: '◎', color: DS.purple },
-  { id: 'collab',    label: 'collab',     icon: '⊕', color: DS.green  },
-  { id: 'music',     label: 'musique',    icon: '♪', color: '#FF6B6B' },
-  { id: 'vitrines',  label: 'vitrines',   icon: '▣', color: '#40AAFF' },
-  { id: 'offtopic',  label: 'off-topic',  icon: '⚡', color: DS.muted  },
+  { id: 'annonces',  label: 'annonces',   icon: '◆', color: DS.gold,   readOnly: true },
+  { id: 'createurs', label: 'créateurs',  icon: '◎', color: DS.purple, authRequired: true },
+  { id: 'collab',    label: 'collab',     icon: '⊕', color: DS.green,  authRequired: true },
+  { id: 'music',     label: 'musique',    icon: '♪', color: '#FF6B6B', authRequired: true },
+  { id: 'vitrines',  label: 'vitrines',   icon: '▣', color: '#40AAFF', authRequired: true },
+  { id: 'offtopic',  label: 'off-topic',  icon: '⚡', color: DS.muted,  authRequired: true },
 ];
 
 const AVATAR_COLORS = ['#00C8E4','#E8A020','#9D7DFF','#00D880','#FF6B6B','#40AAFF','#FF9F40','#4BC0C0'];
@@ -194,6 +194,7 @@ export default function CommunityChat({ user }) {
   const ch = CHANNELS.find(c => c.id === channel) || CHANNELS[0];
   const displayName = user?.user_metadata?.display_name || user?.email?.split('@')[0] || guestName;
   const isNamed = !!displayName;
+  const isLocked = !!ch.authRequired && !user; // canal réservé aux connectés
 
   // ── Drag logic ───────────────────────────────────────────────────
   const onDragStart = useCallback((e) => {
@@ -305,17 +306,18 @@ export default function CommunityChat({ user }) {
   // ── Send ──────────────────────────────────────────────────────
   const send = useCallback(async () => {
     const text = input.trim();
-    if (!text || !isNamed || ch.readOnly || !sb) return;
+    if (!text || !isNamed || ch.readOnly || isLocked || !sb) return;
     if (sendingRef.current) return; // anti double-envoi
     sendingRef.current = true;
     setInput('');
     try {
       const { data, error } = await sb.from('chat_messages').insert({
         channel_id:   channel,
-        author_id:    user?.id || null,
         author_name:  displayName,
         author_badge: user?.id ? 'MEMBRE' : null,
         content:      text,
+        // author_id omis volontairement — FK contrainte sur advertisers,
+        // auth.uid() ≠ advertisers.id pour les utilisateurs non-annonceurs
       }).select();
       if (error) console.error('chat insert error:', JSON.stringify(error));
       else console.log('chat insert ok:', data);
@@ -525,6 +527,9 @@ export default function CommunityChat({ user }) {
             >
               <span style={{ fontSize: 11 }}>{c.icon}</span>
               <span>{c.label}</span>
+              {c.authRequired && !user && (
+                <span style={{ fontSize: 8, opacity: 0.5 }}>🔒</span>
+              )}
               {uCount > 0 && !active && (
                 <span style={{
                   position: 'absolute', top: -3, right: -3,
@@ -576,6 +581,15 @@ export default function CommunityChat({ user }) {
             {ch.readOnly ? (
               <div style={{ padding: '8px 10px', textAlign: 'center', color: DS.muted, fontSize: 10, fontFamily: F.mono }}>
                 📢 Lecture seule
+              </div>
+            ) : isLocked ? (
+              <div style={{ padding: '10px', textAlign: 'center' }}>
+                <div style={{ color: DS.muted, fontSize: 10, fontFamily: F.mono, marginBottom: 4 }}>
+                  🔒 Canal réservé aux membres
+                </div>
+                <div style={{ color: DS.cyan, fontSize: 9, fontFamily: F.mono, opacity: 0.7 }}>
+                  Connectez-vous pour écrire ici
+                </div>
               </div>
             ) : !isNamed ? (
               <GuestNameBar onSet={n => {
