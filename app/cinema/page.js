@@ -5,9 +5,9 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import * as THREE from 'three';
-import { getSupabaseClient } from '@/lib/supabase';
-import { TIER_COLOR, TIER_LABEL } from '@/lib/grid';
-import { CATEGORIES } from '@/lib/block-categories';
+import { getSupabaseClient } from '../../lib/supabase';
+import { TIER_COLOR, TIER_LABEL } from '../../lib/grid';
+import { CATEGORIES } from '../../lib/block-categories';
 
 // ═══════════════════════════════════════════════════════
 //  CONSTANTES DESIGN
