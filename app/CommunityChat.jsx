@@ -73,10 +73,15 @@ function injectStyles() {
 }
 
 // ── Message component ─────────────────────────────────────────────
-function ChatMsg({ msg, isOwn, onViewProfile }) {
+function ChatMsg({ msg, isOwn, onViewProfile, slots }) {
   const ac = avatarColor(msg.author_name);
   const initial = (msg.author_name || '?')[0].toUpperCase();
-  const canClick = !!msg.author_id && !!onViewProfile;
+
+  // Résoudre l'advertiserId — via author_id direct ou fallback par nom dans les slots
+  const resolvedAdvId = msg.author_id || (
+    slots?.find(s => s.occ && s.tenant?.name === msg.author_name)?.tenant?.advertiserId
+  ) || null;
+  const canClick = !!resolvedAdvId && !!onViewProfile;
   return (
     <div style={{
       display: 'flex', gap: 7, padding: '3px 10px',
@@ -85,7 +90,7 @@ function ChatMsg({ msg, isOwn, onViewProfile }) {
     }}>
       {/* Avatar mini — cliquable si author_id disponible */}
       <div
-        onClick={() => canClick && onViewProfile(msg.author_id)}
+        onClick={() => canClick && onViewProfile(resolvedAdvId)}
         title={canClick ? `Voir le profil de ${msg.author_name}` : undefined}
         onMouseEnter={e => { if (canClick) { e.currentTarget.style.transform = 'scale(1.2)'; e.currentTarget.style.opacity = '0.8'; }}}
         onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.opacity = '1'; }}
@@ -152,7 +157,7 @@ function GuestNameBar({ onSet }) {
 }
 
 // ── Main HUD Chat ─────────────────────────────────────────────────
-export default function CommunityChat({ user, onViewProfile }) {
+export default function CommunityChat({ user, onViewProfile, slots = [] }) {
   injectStyles();
 
   // ── Position & drag ──
@@ -325,11 +330,9 @@ export default function CommunityChat({ user, onViewProfile }) {
         author_name:  displayName,
         author_badge: user?.id ? 'MEMBRE' : null,
         content:      text,
-        // author_id omis volontairement — FK contrainte sur advertisers,
-        // auth.uid() ≠ advertisers.id pour les utilisateurs non-annonceurs
+        ...(user?.id ? { author_id: user.id } : {}),
       }).select();
       if (error) console.error('chat insert error:', JSON.stringify(error));
-      else console.log('chat insert ok:', data);
     } catch (e) {
       console.warn('chat send error', e);
     } finally {
@@ -576,7 +579,7 @@ export default function CommunityChat({ user, onViewProfile }) {
               </div>
             ) : (
               messages.map(msg => (
-                <ChatMsg key={msg.id} msg={msg} isOwn={msg.author_name === displayName} onViewProfile={onViewProfile} />
+                <ChatMsg key={msg.id} msg={msg} isOwn={msg.author_name === displayName} onViewProfile={onViewProfile} slots={slots} />
               ))
             )}
             <div ref={bottomRef} style={{ height: 4 }} />
