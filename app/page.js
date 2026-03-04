@@ -4081,7 +4081,6 @@ export default function App() {
 
           <nav style={{ display: 'flex', gap: 3, alignItems: 'center' }}>
             {navBtn('cosmos',    t('nav.explore'), '◈')}
-            {navBtn('community','COMMUNITY',       '◎')}
 
             {/* Waitlist CTA */}
             <button onClick={handleWaitlist} style={{
@@ -4171,11 +4170,9 @@ export default function App() {
           />
         </div>
 
-        {/* ── Vue Community Chat ── */}
-        {view === 'community' && (
-          <div style={{ flex: 1, overflow: 'hidden' }}>
-            <CommunityChat user={authUser} />
-          </div>
+        {/* ── HUD Chat flottant — toujours visible sur la sphère ── */}
+        {(view === 'cosmos' || view === 'landing') && (
+          <CommunityChat user={authUser} />
         )}
 
         {/* ── Modals ── */}
