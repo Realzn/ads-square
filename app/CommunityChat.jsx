@@ -306,14 +306,14 @@ export default function CommunityChat({ user }) {
     if (!text || !isNamed || ch.readOnly || !sb) return;
     setInput('');
     try {
-      await sb.from('chat_messages').insert({
+      const { error } = await sb.from('chat_messages').insert({
         channel_id:   channel,
         author_id:    user?.id || null,
         author_name:  displayName,
         author_badge: user?.id ? 'MEMBRE' : null,
         content:      text,
-        reactions:    {},
       });
+      if (error) console.error('chat insert error:', error.code, error.message, error.details);
     } catch (e) { console.warn('chat send error', e); }
   }, [input, isNamed, channel, displayName, user, ch.readOnly]);
 
