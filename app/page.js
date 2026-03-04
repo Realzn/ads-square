@@ -4172,7 +4172,7 @@ export default function App() {
 
         {/* ── HUD Chat flottant — toujours visible sur la sphère ── */}
         {(view === 'cosmos' || view === 'landing') && (
-          <CommunityChat user={authUser} />
+          <CommunityChat user={authUser} onViewProfile={(advId) => { if(advId) setAdvProfileId(advId); }} />
         )}
 
         {/* ── Modals ── */}
