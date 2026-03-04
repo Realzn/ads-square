@@ -73,23 +73,32 @@ function injectStyles() {
 }
 
 // ── Message component ─────────────────────────────────────────────
-function ChatMsg({ msg, isOwn }) {
+function ChatMsg({ msg, isOwn, onViewProfile }) {
   const ac = avatarColor(msg.author_name);
   const initial = (msg.author_name || '?')[0].toUpperCase();
+  const canClick = !!msg.author_id && !!onViewProfile;
   return (
     <div style={{
       display: 'flex', gap: 7, padding: '3px 10px',
       animation: 'msgIn 0.18s ease',
       opacity: 0.95,
     }}>
-      {/* Avatar mini */}
-      <div style={{
-        width: 20, height: 20, borderRadius: 4, flexShrink: 0,
-        background: `${ac}22`, border: `1px solid ${ac}50`,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        fontSize: 9, fontWeight: 800, color: ac, fontFamily: F.h,
-        marginTop: 1,
-      }}>{initial}</div>
+      {/* Avatar mini — cliquable si author_id disponible */}
+      <div
+        onClick={() => canClick && onViewProfile(msg.author_id)}
+        title={canClick ? `Voir le profil de ${msg.author_name}` : undefined}
+        onMouseEnter={e => { if (canClick) { e.currentTarget.style.transform = 'scale(1.2)'; e.currentTarget.style.opacity = '0.8'; }}}
+        onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.opacity = '1'; }}
+        style={{
+          width: 20, height: 20, borderRadius: 4, flexShrink: 0,
+          background: `${ac}22`, border: `1px solid ${ac}50`,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontSize: 9, fontWeight: 800, color: ac, fontFamily: F.h,
+          marginTop: 1,
+          cursor: canClick ? 'pointer' : 'default',
+          transition: 'transform 0.12s, opacity 0.12s',
+        }}
+      >{initial}</div>
 
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 5, marginBottom: 1 }}>
@@ -143,7 +152,7 @@ function GuestNameBar({ onSet }) {
 }
 
 // ── Main HUD Chat ─────────────────────────────────────────────────
-export default function CommunityChat({ user }) {
+export default function CommunityChat({ user, onViewProfile }) {
   injectStyles();
 
   // ── Position & drag ──
@@ -567,7 +576,7 @@ export default function CommunityChat({ user }) {
               </div>
             ) : (
               messages.map(msg => (
-                <ChatMsg key={msg.id} msg={msg} isOwn={msg.author_name === displayName} />
+                <ChatMsg key={msg.id} msg={msg} isOwn={msg.author_name === displayName} onViewProfile={onViewProfile} />
               ))
             )}
             <div ref={bottomRef} style={{ height: 4 }} />
