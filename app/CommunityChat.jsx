@@ -4,12 +4,9 @@
 //  Draggable · Multi-canaux · Toujours au-dessus de la sphère
 // ─────────────────────────────────────────────────────────────────
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { createClient } from '@supabase/supabase-js';
+import { getSupabaseClient } from '../lib/supabase';
 
-const sb = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-);
+const sb = getSupabaseClient();
 
 // ── Design System ─────────────────────────────────────────────────
 const DS = {
@@ -151,6 +148,33 @@ export default function CommunityChat({ user }) {
 
   // ── Position & drag ──
   const wrapRef   = useRef(null);
+  const tabsRef   = useRef(null);
+  const tabsDrag  = useRef({ active: false, startX: 0, scrollLeft: 0 });
+
+  const onTabsDragStart = useCallback((e) => {
+    const el = tabsRef.current;
+    if (!el) return;
+    const clientX = e.clientX ?? e.touches?.[0]?.clientX ?? 0;
+    tabsDrag.current = { active: true, startX: clientX, scrollLeft: el.scrollLeft };
+    el.style.cursor = 'grabbing';
+    const onMove = (ev) => {
+      if (!tabsDrag.current.active) return;
+      const x = ev.clientX ?? ev.touches?.[0]?.clientX ?? 0;
+      el.scrollLeft = tabsDrag.current.scrollLeft - (x - tabsDrag.current.startX);
+    };
+    const onUp = () => {
+      tabsDrag.current.active = false;
+      el.style.cursor = 'grab';
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+      window.removeEventListener('touchmove', onMove);
+      window.removeEventListener('touchend', onUp);
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    window.addEventListener('touchmove', onMove, { passive: true });
+    window.addEventListener('touchend', onUp);
+  }, []);
   const dragRef   = useRef({ dragging: false, ox: 0, oy: 0 });
   const [pos, setPos]         = useState({ x: 16, y: null, bottom: 72 }); // bottom-left default
   const [size, setSize]       = useState({ w: 300, h: 420 });
@@ -222,21 +246,20 @@ export default function CommunityChat({ user }) {
 
   // ── Load messages ─────────────────────────────────────────────
   useEffect(() => {
+    if (!sb) return;
     setLoading(true);
     setMessages([]);
     let cancelled = false;
+
     sb.from('chat_messages')
       .select('*')
       .eq('channel_id', channel)
       .order('created_at', { ascending: true })
       .limit(80)
-      .then(({ data }) => {
+      .then(({ data, error }) => {
         if (cancelled) return;
-        setMessages(data || []);
+        if (!error) setMessages(data || []);
         setLoading(false);
-      })
-      .catch(() => {
-        if (!cancelled) { setMessages([]); setLoading(false); }
       });
 
     // Realtime
@@ -262,6 +285,7 @@ export default function CommunityChat({ user }) {
 
   // Global listener for unread dots
   useEffect(() => {
+    if (!sb) return;
     const subs = CHANNELS.filter(c => c.id !== channel).map(c => {
       return sb.channel(`chat_unread:${c.id}`)
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages', filter: `channel_id=eq.${c.id}` },
@@ -279,16 +303,18 @@ export default function CommunityChat({ user }) {
   // ── Send ──────────────────────────────────────────────────────
   const send = useCallback(async () => {
     const text = input.trim();
-    if (!text || !isNamed || ch.readOnly) return;
+    if (!text || !isNamed || ch.readOnly || !sb) return;
     setInput('');
-    await sb.from('chat_messages').insert({
-      channel_id:   channel,
-      author_id:    user?.id || null,
-      author_name:  displayName,
-      author_badge: user?.id ? 'MEMBRE' : null,
-      content:      text,
-      reactions:    {},
-    }).catch(() => {});
+    try {
+      await sb.from('chat_messages').insert({
+        channel_id:   channel,
+        author_id:    user?.id || null,
+        author_name:  displayName,
+        author_badge: user?.id ? 'MEMBRE' : null,
+        content:      text,
+        reactions:    {},
+      });
+    } catch (e) { console.warn('chat send error', e); }
   }, [input, isNamed, channel, displayName, user, ch.readOnly]);
 
   // ── Computed pos ──────────────────────────────────────────────
@@ -450,13 +476,20 @@ export default function CommunityChat({ user }) {
       </div>
 
       {/* ── CHANNEL TABS ── */}
-      <div style={{
-        display: 'flex', gap: 1, padding: '4px 6px',
-        background: DS.bg2,
-        borderBottom: `1px solid ${DS.border}`,
-        overflowX: 'auto', flexShrink: 0,
-        scrollbarWidth: 'none',
-      }}>
+      <div
+        ref={tabsRef}
+        onMouseDown={onTabsDragStart}
+        onTouchStart={onTabsDragStart}
+        style={{
+          display: 'flex', gap: 1, padding: '4px 6px',
+          background: DS.bg2,
+          borderBottom: `1px solid ${DS.border}`,
+          overflowX: 'auto', flexShrink: 0,
+          scrollbarWidth: 'none',
+          cursor: 'grab',
+          userSelect: 'none',
+          WebkitOverflowScrolling: 'touch',
+        }}>
         {CHANNELS.map(c => {
           const active = c.id === channel;
           const uCount = unread[c.id] || 0;
@@ -464,7 +497,11 @@ export default function CommunityChat({ user }) {
             <button
               key={c.id}
               className="hud-ch-tab"
-              onClick={() => setChannel(c.id)}
+              onClick={(e) => {
+                // Ignorer si on vient de dragger (déplacement > 4px)
+                if (tabsDrag.current.active) return;
+                setChannel(c.id);
+              }}
               style={{
                 display: 'flex', alignItems: 'center', gap: 4,
                 padding: '3px 8px', borderRadius: 4, flexShrink: 0,
