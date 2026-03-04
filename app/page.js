@@ -3981,6 +3981,7 @@ export default function App() {
   const [buyoutSlot, setBuyoutSlot]     = useState(null);
   const [showBoost, setShowBoost]       = useState(false);
   const [adViewSlot, setAdViewSlot]     = useState(null);
+  const [advProfileId, setAdvProfileId] = useState(null); // profil annonceur
   const [authUser, setAuthUser]         = useState(null);
   const { slots, isLive, loading }  = useGridData();
   const { isMobile } = useScreenSize();
@@ -4183,8 +4184,16 @@ export default function App() {
             allSlots={slots}
             onClose={() => setAdViewSlot(null)}
             onNavigate={(slot) => setAdViewSlot(slot)}
-            onViewProfile={() => setAdViewSlot(null)}
+            onViewProfile={(advId) => { setAdViewSlot(null); if(advId) setAdvProfileId(advId); }}
             onGoAdvertiser={() => setAdViewSlot(null)}
+          />
+        )}
+        {advProfileId && (
+          <AdvertiserProfileModal
+            advertiserId={advProfileId}
+            slots={slots}
+            onClose={() => setAdvProfileId(null)}
+            onOpenSlot={(slot) => { setAdvProfileId(null); setAdViewSlot(slot); }}
           />
         )}
       </div>
