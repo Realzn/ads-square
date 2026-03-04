@@ -4165,6 +4165,7 @@ export default function App() {
           <View3D
             slots={slots}
             isLive={isLive}
+            user={authUser}
             onCheckout={handleCheckout}
             onBuyout={setBuyoutSlot}
             onViewSlot={(slot) => setAdViewSlot(slot)}
