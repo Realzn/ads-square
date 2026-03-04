@@ -353,8 +353,10 @@ varying float vIsOuter;
 void main(){
   vUV=uv;vN=normalize(normalMatrix*normal);
   vec4 wp=modelMatrix*vec4(position,1.);vWP=wp.xyz;vPos=position;
-  // Outer face : normale radiale pointe vers l'extérieur → dot(normal.xz, position.xz) > 0
-  vIsOuter = dot(normal.xz, position.xz) > 0.0 ? 1.0 : 0.0;
+  // Outer face : calculé en espace monde pour être robuste aux rotations de l'anneau
+  vec3 worldNormal=normalize(mat3(modelMatrix)*normal);
+  vec3 radial=normalize(vec3(wp.x,0.0,wp.z));
+  vIsOuter=dot(worldNormal,radial)>-0.1?1.0:0.0;
   gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);
 }`;
 const RING_FRAG=`
@@ -452,10 +454,7 @@ void main(){
   // ── Fond couleur de marque — toujours, pas seulement front-facing ──
   if(slotIsOcc>.5) col=mix(col, brandBgFill, contentY*0.60);
 
-  // ── TICKER — texture sur la face EXTERNE uniquement ──
-  // vIsOuter=1 sur face externe, calculé dans vertex shader via dot(normal.xz, position.xz)>0
-  float isOuterFace = vIsOuter;
-
+  // ── TICKER — texture sur toute la surface de l'anneau ──
   float texV = clamp(uv.y, 0.0, 1.0);
   float sharedOffset = uTexOffset1;
   float scrollU = fract(uv.x + sharedOffset);
@@ -470,8 +469,8 @@ void main(){
   else if(uHasTex7>.5) texSample = texture2D(uBrandTex7, vec2(fract(uv.x+uTexOffset7), texV));
   else if(uHasTex8>.5) texSample = texture2D(uBrandTex8, vec2(fract(uv.x+uTexOffset8), texV));
 
-  // Appliquer seulement sur face externe
-  float texBlend = hasAnyTex * isOuterFace;
+  // Appliquer sur toute la surface (plus de restriction face externe)
+  float texBlend = hasAnyTex;
 
   // Fond sombre pour lisibilité du texte
   col = mix(col, col*0.05, texBlend*0.98);
