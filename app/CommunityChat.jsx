@@ -251,7 +251,7 @@ export default function CommunityChat({ user }) {
     setMessages([]);
     let cancelled = false;
 
-    sb.from('chat_messages')
+    sb.from('chat_messages_enriched')
       .select('*')
       .eq('channel_id', channel)
       .order('created_at', { ascending: true })
@@ -264,7 +264,7 @@ export default function CommunityChat({ user }) {
 
     // Realtime
     const sub = sb.channel(`chat:${channel}`)
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages', filter: `channel_id=eq.${channel}` },
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages_enriched', filter: `channel_id=eq.${channel}` },
         (payload) => {
           if (cancelled) return;
           setMessages(prev => [...prev, payload.new]);
@@ -288,7 +288,7 @@ export default function CommunityChat({ user }) {
     if (!sb) return;
     const subs = CHANNELS.filter(c => c.id !== channel).map(c => {
       return sb.channel(`chat_unread:${c.id}`)
-        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages', filter: `channel_id=eq.${c.id}` },
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages_enriched', filter: `channel_id=eq.${c.id}` },
           () => setUnread(u => ({ ...u, [c.id]: (u[c.id] || 0) + 1 }))
         ).subscribe();
     });
@@ -306,7 +306,7 @@ export default function CommunityChat({ user }) {
     if (!text || !isNamed || ch.readOnly || !sb) return;
     setInput('');
     try {
-      await sb.from('chat_messages').insert({
+      await sb.from('chat_messages_enriched').insert({
         channel_id:   channel,
         author_id:    user?.id || null,
         author_name:  displayName,
