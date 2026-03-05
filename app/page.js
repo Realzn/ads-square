@@ -273,6 +273,194 @@ function Modal({ onClose, width = 480, children, isMobile }) {
   );
 }
 
+// ─── MobileBlockedModal — réservation desktop uniquement ─────────────────────
+function MobileBlockedModal({ onClose }) {
+  const [entered, setEntered] = useState(false);
+  useEffect(() => {
+    const t = requestAnimationFrame(() => setEntered(true));
+    return () => cancelAnimationFrame(t);
+  }, []);
+  useEffect(() => {
+    const fn = e => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', fn);
+    return () => window.removeEventListener('keydown', fn);
+  }, [onClose]);
+
+  const lines = [
+    "SIGNAL ENTRANT · IDENTIFIÉ",
+    "APPAREIL : MOBILE_UNIT_v0.7",
+    "PUISSANCE : INSUFFISANTE",
+    "AUTORISATION : REFUSÉE",
+  ];
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position:'fixed', inset:0, zIndex:3000,
+        background:'rgba(0,1,6,0.97)',
+        backdropFilter:'blur(24px)',
+        display:'flex', alignItems:'center', justifyContent:'center',
+        padding:'0 24px',
+        opacity: entered ? 1 : 0,
+        transition:'opacity .25s ease',
+      }}
+    >
+      <style>{`
+        @keyframes mScanDown { from{transform:translateY(-100%)} to{transform:translateY(100vh)} }
+        @keyframes mFadeUp   { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:translateY(0)} }
+        @keyframes mBlink    { 0%,100%{opacity:1} 50%{opacity:.2} }
+        @keyframes mGlitch   { 0%{transform:translate(0)} 20%{transform:translate(-2px,1px)} 40%{transform:translate(2px,-1px)} 60%{transform:translate(-1px,2px)} 80%{transform:translate(1px,-2px)} 100%{transform:translate(0)} }
+        @keyframes mPulseRed { from{box-shadow:0 0 12px rgba(208,40,72,0.4)} to{box-shadow:0 0 32px rgba(208,40,72,0.9)} }
+      `}</style>
+
+      {/* Scanline animée */}
+      <div style={{ position:'absolute', left:0, right:0, height:1, background:'linear-gradient(90deg,transparent,rgba(208,40,72,0.25),transparent)', animation:'mScanDown 3.5s linear infinite', pointerEvents:'none' }}/>
+
+      {/* Grille */}
+      <div style={{ position:'absolute', inset:0, pointerEvents:'none', backgroundImage:`linear-gradient(rgba(208,40,72,0.04) 1px,transparent 1px),linear-gradient(90deg,rgba(208,40,72,0.04) 1px,transparent 1px)`, backgroundSize:'32px 32px' }}/>
+
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{
+          width:'100%', maxWidth:380, position:'relative',
+          animation:'mFadeUp .35s ease both',
+        }}
+      >
+        {/* Card */}
+        <div style={{
+          background:'rgba(4,0,10,0.99)',
+          border:`0.5px solid rgba(208,40,72,0.50)`,
+          clipPath:'polygon(0 0,calc(100% - 18px) 0,100% 18px,100% 100%,18px 100%,0 calc(100% - 18px))',
+          boxShadow:'0 0 60px rgba(208,40,72,0.20), 0 0 120px rgba(208,40,72,0.08)',
+          overflow:'hidden', position:'relative',
+          animation:'mPulseRed 1.8s ease-in-out infinite alternate',
+        }}>
+
+          {/* Barre énergie ROUGE */}
+          <div style={{ height:1.5, background:'linear-gradient(90deg,transparent,#D02848,#D02848aa,transparent)', boxShadow:'0 0 8px #D02848' }}/>
+
+          {/* Scanlines internes */}
+          <div style={{ position:'absolute', inset:0, pointerEvents:'none', backgroundImage:'repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(208,40,72,0.022) 2px,rgba(208,40,72,0.022) 3px)' }}/>
+
+          {/* Brackets coins rouge */}
+          {[['top','left'],['top','right'],['bottom','left'],['bottom','right']].map(([v,h],i)=>(
+            <div key={i} style={{ position:'absolute', [v]:8, [h]:8, width:12, height:12, pointerEvents:'none', zIndex:10,
+              borderTop:v==='top'?'1px solid rgba(208,40,72,0.55)':'none',
+              borderBottom:v==='bottom'?'1px solid rgba(208,40,72,0.55)':'none',
+              borderLeft:h==='left'?'1px solid rgba(208,40,72,0.55)':'none',
+              borderRight:h==='right'?'1px solid rgba(208,40,72,0.55)':'none',
+            }}/>
+          ))}
+
+          <div style={{ padding:'28px 24px 28px', position:'relative', zIndex:2 }}>
+
+            {/* Header terminal */}
+            <div style={{ marginBottom:20 }}>
+              <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:14 }}>
+                {/* Icône alerte */}
+                <div style={{
+                  width:34, height:34, flexShrink:0,
+                  border:'1px solid rgba(208,40,72,0.60)',
+                  background:'rgba(208,40,72,0.10)',
+                  display:'flex', alignItems:'center', justifyContent:'center',
+                  fontSize:16, color:'#D02848',
+                  clipPath:'polygon(15% 0,85% 0,100% 15%,100% 85%,85% 100%,15% 100%,0 85%,0 15%)',
+                  animation:'mBlink 2.2s ease-in-out infinite',
+                }}>⊘</div>
+                <div>
+                  <div style={{ fontFamily:F.mono, fontSize:8, fontWeight:700, letterSpacing:'.22em', color:'rgba(208,40,72,0.80)', marginBottom:2 }}>DYSON·COSMOS · ACCÈS·REFUSÉ</div>
+                  <div style={{ fontFamily:F.mono, fontSize:7, letterSpacing:'.14em', color:'rgba(208,40,72,0.35)' }}>TERMINAL·MOBILE · DROITS·INSUFFISANTS</div>
+                </div>
+              </div>
+
+              {/* Log terminal */}
+              <div style={{
+                background:'rgba(208,40,72,0.04)',
+                border:'0.5px solid rgba(208,40,72,0.20)',
+                padding:'10px 12px',
+                clipPath:'polygon(0 0,calc(100% - 5px) 0,100% 5px,100% 100%,0 100%)',
+                marginBottom:18,
+              }}>
+                {lines.map((line, i) => (
+                  <div key={i} style={{ fontFamily:F.mono, fontSize:7.5, letterSpacing:'.10em', color:'rgba(208,40,72,0.55)', lineHeight:1.9, display:'flex', gap:8 }}>
+                    <span style={{ color:'rgba(208,40,72,0.30)', flexShrink:0 }}>&gt;</span>
+                    <span>{line}</span>
+                  </div>
+                ))}
+                <div style={{ fontFamily:F.mono, fontSize:7.5, letterSpacing:'.10em', color:'rgba(208,40,72,0.30)', lineHeight:1.9, display:'flex', gap:8, marginTop:4 }}>
+                  <span style={{ color:'rgba(208,40,72,0.20)', flexShrink:0 }}>&gt;</span>
+                  <span style={{ animation:'mBlink 1.1s ease-in-out infinite' }}>█</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Message LORE */}
+            <div style={{
+              borderLeft:'2px solid rgba(208,40,72,0.70)',
+              padding:'12px 14px',
+              background:'rgba(208,40,72,0.05)',
+              marginBottom:20,
+              clipPath:'polygon(0 0,calc(100% - 5px) 0,100% 5px,100% 100%,0 100%)',
+            }}>
+              <div style={{
+                fontFamily:F.h, fontSize:17, fontWeight:800,
+                color:'#DDE6F2', lineHeight:1.4, letterSpacing:'.02em',
+                marginBottom:6,
+              }}>
+                Tu pensais vraiment réserver<br/>
+                un <span style={{ color:'#E8A020' }}>panneau photovoltaïque</span><br/>
+                sur la <span style={{ color:'rgba(208,40,72,0.90)' }}>Sphère de Dyson</span><br/>
+                depuis ce terminal de poche ?
+              </div>
+              <div style={{
+                fontFamily:F.mono, fontSize:8, color:'rgba(140,180,220,0.45)',
+                letterSpacing:'.06em', lineHeight:1.7,
+              }}>
+                La mégastructure exige une interface à la hauteur.<br/>
+                Reviens depuis un poste de commande digne de ce nom.
+              </div>
+            </div>
+
+            {/* Instruction desktop */}
+            <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:20,
+              background:'rgba(0,200,240,0.04)', border:'0.5px solid rgba(0,200,240,0.15)',
+              padding:'10px 12px',
+              clipPath:'polygon(0 0,calc(100% - 5px) 0,100% 5px,100% 100%,0 100%)',
+            }}>
+              <span style={{ fontSize:18, flexShrink:0 }}>🖥</span>
+              <div>
+                <div style={{ fontFamily:F.mono, fontSize:8, fontWeight:700, letterSpacing:'.14em', color:'rgba(0,200,240,0.80)', marginBottom:2 }}>ACCÈS·COMPLET · DESKTOP·REQUIS</div>
+                <div style={{ fontFamily:F.mono, fontSize:7, letterSpacing:'.06em', color:'rgba(0,200,240,0.40)', lineHeight:1.6 }}>adsmostfair.com — sur PC ou tablette</div>
+              </div>
+            </div>
+
+            {/* Bouton fermer */}
+            <button onClick={onClose} style={{
+              width:'100%', padding:'12px 0',
+              background:'transparent',
+              border:'0.5px solid rgba(208,40,72,0.40)',
+              color:'rgba(208,40,72,0.70)',
+              fontFamily:F.mono, fontWeight:700, fontSize:9, letterSpacing:'.18em',
+              cursor:'pointer',
+              clipPath:'polygon(0 0,calc(100% - 8px) 0,100% 8px,100% 100%,8px 100%,0 calc(100% - 8px))',
+              transition:'all .15s',
+            }}
+              onMouseEnter={e=>{ e.currentTarget.style.background='rgba(208,40,72,0.10)'; e.currentTarget.style.borderColor='rgba(208,40,72,0.70)'; e.currentTarget.style.color='#D02848'; }}
+              onMouseLeave={e=>{ e.currentTarget.style.background='transparent'; e.currentTarget.style.borderColor='rgba(208,40,72,0.40)'; e.currentTarget.style.color='rgba(208,40,72,0.70)'; }}
+            >
+              CONTINUER EN MODE LECTURE →
+            </button>
+
+          </div>
+          {/* Barre bas */}
+          <div style={{ height:1, background:'linear-gradient(90deg,transparent,rgba(208,40,72,0.35),transparent)' }}/>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function WaitlistModal({ onClose }) {
   const { isMobile } = useScreenSize();
   const t = useT();
@@ -4195,6 +4383,7 @@ export default function App() {
   const [view, setView]             = useState('landing');
   const [manifestAccepted, setManifestAccepted] = useState(false);
   const [showWaitlist, setShowWaitlist] = useState(false);
+  const [showMobileBlocked, setShowMobileBlocked] = useState(false);
   const [checkoutSlot, setCheckoutSlot] = useState(null);
   const [buyoutSlot, setBuyoutSlot]     = useState(null);
   const [showBoost, setShowBoost]       = useState(false);
@@ -4246,6 +4435,11 @@ export default function App() {
   }, []);
 
   const handleCheckout = useCallback(slot => {
+    // Mobile → blocked, lecture seule
+    if (isMobile) {
+      setShowMobileBlocked(true);
+      return;
+    }
     if (slot?.occ) {
       setBuyoutSlot(slot);
       return;
@@ -4255,7 +4449,7 @@ export default function App() {
     } else {
       setShowWaitlist(true);
     }
-  }, []);
+  }, [isMobile]);
 
   const t = getT(lang);
 
@@ -4404,6 +4598,7 @@ export default function App() {
         )}
 
         {/* ── Modals ── */}
+        {showMobileBlocked && <MobileBlockedModal onClose={() => setShowMobileBlocked(false)} />}
         {showWaitlist  && <WaitlistModal  onClose={() => setShowWaitlist(false)} />}
         {checkoutSlot  && <CheckoutModal  slot={checkoutSlot} onClose={() => setCheckoutSlot(null)} />}
         {buyoutSlot    && <BuyoutModal    slot={buyoutSlot}   onClose={() => setBuyoutSlot(null)} />}
