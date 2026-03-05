@@ -268,51 +268,150 @@ precision highp float;
 uniform float uTime;
 varying vec3 vN,vWP,vTC,vBary;
 varying float vOcc,vTI,vFI,vFresnel,vHov,vSel,vDim;
+
 float edgeF(float w){vec3 d=fwidth(vBary);vec3 a=smoothstep(vec3(0.),d*w,vBary);return 1.-min(min(a.x,a.y),a.z);}
 float hash(float n){return fract(sin(n)*43758.5453);}
+float hash2(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
 float GGX(float NdotH,float rough){float a=rough*rough;float a2=a*a;float d=NdotH*NdotH*(a2-1.)+1.;return a2/(3.14159*d*d);}
+
+// ── UV panneau : projection sur plan tangent local ─────────────────────────────
+// On construit deux vecteurs tangents orthogonaux à la normale
+// et on projette vWP pour obtenir un UV stable par panneau
+vec2 panelUV(vec3 wp, vec3 n, float scale){
+  vec3 up = abs(n.y) < 0.95 ? vec3(0.,1.,0.) : vec3(1.,0.,0.);
+  vec3 T  = normalize(cross(up, n));
+  vec3 B  = cross(n, T);
+  return vec2(dot(wp, T), dot(wp, B)) * scale;
+}
+
+// ── Grille photovoltaïque ─────────────────────────────────────────────────────
+// Retourne : x = masque cellule (variation silicium), y = busbar, z = finger/grille
+vec3 pvGrid(vec2 uv){
+  // Cellules : 6 colonnes × 10 rangées par unité de 1.0 UV
+  float cellCols = 6.0, cellRows = 10.0;
+  vec2  cellUV   = vec2(uv.x * cellCols, uv.y * cellRows);
+  vec2  cellId   = floor(cellUV);
+  vec2  cellFrac = fract(cellUV);
+
+  // Variation de teinte silicium par cellule (cristaux monocristallins)
+  float cellSeed  = hash2(cellId * 0.317 + 1.7);
+  float cellVar   = cellSeed * 0.5;          // variation d'intensité 0..0.5
+
+  // Largeur des joints entre cellules (frame époxy noir)
+  float jointW = 0.04;
+  float jointX = 1.0 - smoothstep(0.0, jointW, min(cellFrac.x, 1.0-cellFrac.x)*2.0);
+  float jointY = 1.0 - smoothstep(0.0, jointW, min(cellFrac.y, 1.0-cellFrac.y)*2.0);
+  float joint  = max(jointX, jointY);        // 1 = dans un joint
+
+  // Busbars horizontaux (3 barres conductrices argentées, espacement 1/3)
+  float busbarW  = 0.025;
+  float busPos1  = fract(uv.y * 3.0 + 0.0);   // 3 busbars / unité
+  float busbar   = smoothstep(busbarW, 0.0, abs(busPos1 - 0.5) - 0.5 + busbarW);
+
+  // Micro-fingers : 4 fils fins par cellule
+  float fingerN  = 4.0;
+  float fingerW  = 0.007;
+  float fingersX = fract(cellFrac.x * fingerN);
+  float finger   = smoothstep(fingerW, 0.0, abs(fingersX - 0.5) - 0.5 + fingerW) * (1.0 - joint);
+
+  // Cadre aluminium (bord extérieur) — on ne peut pas connaître le contour exact
+  // mais on utilise le wire de barycentrique pour ça (géré séparément)
+
+  return vec3(cellVar, busbar, finger);
+}
+
 void main(){
-  float t=uTime;bool hov=vHov>.5,sel=vSel>.5,dim=vDim>.5;
-  float seed=hash(vFI*13.7+2.3);
-  float pulse=.88+.12*sin(t*(.4+seed*.2)+seed*6.28);
-  float wire=edgeF(.9),glow=edgeF(3.5);
+  float t   = uTime;
+  bool  hov = vHov > 0.5, sel = vSel > 0.5, dim = vDim > 0.5;
+  float seed  = hash(vFI * 13.7 + 2.3);
+  float pulse = 0.88 + 0.12 * sin(t * (0.4 + seed * 0.2) + seed * 6.28);
+  float wire  = edgeF(0.9), glow = edgeF(3.5);
+
+  // UV panneau stable (échelle ~2.4 pour que les cellules aient une bonne densité)
+  vec3  nN  = normalize(vN);
+  vec2  puv = panelUV(vWP, nN, 2.4);
+  vec3  pv  = pvGrid(puv);
+  float cellVar = pv.x;
+  float busbar  = pv.y;
+  float finger  = pv.z;
+
   if(gl_FrontFacing){
-    vec3 base=vec3(.018,.022,.032);
-    vec3 toStar=normalize(-vWP);vec3 viewDir=normalize(cameraPosition-vWP);
-    vec3 H=normalize(toStar+viewDir);float NdotH=max(0.,dot(vN,H)),NdotL=max(0.,dot(vN,toStar));
-    float spec=GGX(NdotH,.18)*NdotL*.35;
-    vec3 specCol=mix(vec3(.9,.85,.75),vTC,.3)*spec;
-    float rimStr=.08+vOcc*.06;
-    vec3 rim=vTC*pow(vFresnel,2.2)*rimStr*pulse;
-    float edgeStr=sel?1.4:(hov?.9:.38);edgeStr*=pulse;
-    vec3 edgeCol=vTC*wire*edgeStr*1.8+vTC*glow*edgeStr*.18;
-    vec3 brandFill=vec3(0.);
-    if(vOcc>.5){
-      float fs=vTI<.5?.06:(vTI<1.5?.04:.022);brandFill=vTC*fs*pulse;
-      float grid=max(step(.96,fract(vWP.x*2.2+vWP.y*1.1)),step(.96,fract(vWP.z*2.2+vWP.y*.8)));
-      brandFill+=vTC*grid*.015*pulse;
+    // ── BASE SILICIUM — revêtement anti-reflet TiO2/SiNx ──────────────────
+    // Couleur bleu-indigo foncé typique des panneaux monocristallins
+    vec3 siBase  = vec3(0.025 + cellVar*0.018, 0.035 + cellVar*0.010, 0.068 + cellVar*0.022);
+
+    // ── IRIDESCENCE — reflet arc-en-ciel subtil selon l'angle ─────────────
+    float iriAngle  = dot(nN, normalize(cameraPosition - vWP));
+    float iri        = pow(clamp(1.0 - iriAngle, 0.0, 1.0), 2.5);
+    vec3  iriCol     = vec3(
+      0.5 + 0.5 * sin(iriAngle * 8.0 + 0.0),
+      0.5 + 0.5 * sin(iriAngle * 8.0 + 2.09),
+      0.5 + 0.5 * sin(iriAngle * 8.0 + 4.18)
+    ) * 0.03 * iri;
+
+    // ── ÉCLAIRAGE PBR ─────────────────────────────────────────────────────
+    vec3 toStar  = normalize(-vWP);
+    vec3 viewDir = normalize(cameraPosition - vWP);
+    vec3 H       = normalize(toStar + viewDir);
+    float NdotH  = max(0.0, dot(nN, H));
+    float NdotL  = max(0.0, dot(nN, toStar));
+    float rough  = hov ? 0.12 : 0.22;
+    float spec   = GGX(NdotH, rough) * NdotL * 0.28;
+    // Reflet argenté sur les busbars/fingers — plus brillant
+    float specMetal = GGX(NdotH, 0.06) * NdotL * (busbar * 1.8 + finger * 0.9);
+    vec3  specCol   = mix(vec3(0.82, 0.80, 0.72), siBase + 0.1, 0.3) * spec;
+    vec3  metalCol  = vec3(0.72, 0.75, 0.82) * specMetal;
+
+    // ── BUSBARS + FINGERS argentés ─────────────────────────────────────────
+    vec3 busbarCol  = vec3(0.38, 0.40, 0.44) * (busbar + finger * 0.5);
+
+    // ── FRESNEL RIM ────────────────────────────────────────────────────────
+    float rimStr = 0.06 + vOcc * 0.05;
+    vec3  rim    = vTC * pow(vFresnel, 2.4) * rimStr * pulse;
+
+    // ── EDGE GLOW (contours des faces) ────────────────────────────────────
+    float edgeStr = sel ? 1.4 : (hov ? 0.9 : 0.32);
+    edgeStr *= pulse;
+    vec3 edgeCol  = vTC * wire * edgeStr * 1.6 + vTC * glow * edgeStr * 0.14;
+
+    // ── TEINTE TIER sur panneau occupé ────────────────────────────────────
+    vec3 tierFill = vec3(0.0);
+    if(vOcc > 0.5){
+      float fs   = vTI < 0.5 ? 0.055 : (vTI < 1.5 ? 0.038 : 0.020);
+      // Colore les cellules avec la couleur du tier — subtil
+      tierFill   = vTC * fs * pulse * (0.7 + cellVar * 0.6);
+      // Les busbars captent aussi la couleur du tier
+      tierFill  += vTC * busbar * 0.022 * pulse;
+      // Grid mondiale supprimée — remplacée par la micro-grille PV
     }
-    vec3 col=base+edgeCol+specCol+rim+brandFill;
-    if(sel)col+=vTC*wire*.5*(.7+.3*sin(t*6.));
-    if(dim){col=mix(col,vec3(.008,.010,.015),.88);col*=.18;}
-    gl_FragColor=vec4(col,1.);
+
+    // ── ASSEMBLAGE ────────────────────────────────────────────────────────
+    vec3 col = siBase + iriCol + specCol + metalCol + busbarCol + rim + edgeCol + tierFill;
+    if(sel) col += vTC * wire * 0.5 * (0.7 + 0.3 * sin(t * 6.0));
+    if(dim){ col = mix(col, vec3(0.006, 0.008, 0.012), 0.90); col *= 0.14; }
+
+    gl_FragColor = vec4(col, 1.0);
+
   }else{
-    vec3 toE=normalize(-vWP);float ir=max(0.,dot(-vN,toE));
-    float pulse2=.60+.40*sin(t*1.2+vFI*.38+hash(vFI*13.7+2.3)*3.14);
-    vec2 hUV=vec2(dot(vWP,vec3(.70,.42,.58)),dot(vWP,vec3(-.40,.82,-.40)))*.22;
-    vec2 hq=vec2(hUV.x*1.1547,hUV.y+hUV.x*.5774)*3.2;
-    vec2 hpf=fract(hq);float hv=abs(hpf.x*2.-1.),hh=abs(hpf.y*2.-1.);
-    float hex=1.-smoothstep(.36,.46,max(hv,(hv+hh)*.5));
-    float scan=pow(max(0.,sin(fract(dot(vWP,vec3(.577,.577,.577))*.14-t*.06+hash(vFI*13.7+2.3))*3.14159)),5.)*.5;
-    float energy=ir*(.4+.6*sin(t*.8+length(vWP.xy)*.15));
-    vec3 inner=vec3(.004,.008,.018);
-    inner+=vTC*hex*.22*energy*pulse2+vTC*scan*.14*energy;
-    inner+=mix(vec3(.005,.010,.025),vTC*.08,ir*.7)*pulse2+vTC*edgeF(2.5)*.25*energy*pulse2;
-    if(vOcc>.5)inner+=vTC*.20*ir*pulse2;
-    inner+=vTC*pow(vFresnel,2.)*.08*pulse2;
-    if(vOcc>.5)inner*=1.6+.4*sin(t*1.8+vFI*.22);
-    if(dim)inner=mix(inner,vec3(.002,.004,.008),.92);
-    gl_FragColor=vec4(inner,1.);
+    // ── FACE INTÉRIEURE — hologramme hexagonal inchangé ───────────────────
+    vec3  toE   = normalize(-vWP);
+    float ir    = max(0.0, dot(-nN, toE));
+    float pulse2 = 0.60 + 0.40 * sin(t * 1.2 + vFI * 0.38 + seed * 3.14);
+    vec2  hUV   = vec2(dot(vWP, vec3(0.70, 0.42, 0.58)), dot(vWP, vec3(-0.40, 0.82, -0.40))) * 0.22;
+    vec2  hq    = vec2(hUV.x * 1.1547, hUV.y + hUV.x * 0.5774) * 3.2;
+    vec2  hpf   = fract(hq);
+    float hv    = abs(hpf.x * 2.0 - 1.0), hh = abs(hpf.y * 2.0 - 1.0);
+    float hex   = 1.0 - smoothstep(0.36, 0.46, max(hv, (hv + hh) * 0.5));
+    float scan  = pow(max(0.0, sin(fract(dot(vWP, vec3(0.577, 0.577, 0.577)) * 0.14 - t * 0.06 + seed) * 3.14159)), 5.0) * 0.5;
+    float energy = ir * (0.4 + 0.6 * sin(t * 0.8 + length(vWP.xy) * 0.15));
+    vec3 inner  = vec3(0.004, 0.008, 0.018);
+    inner += vTC * hex * 0.22 * energy * pulse2 + vTC * scan * 0.14 * energy;
+    inner += mix(vec3(0.005, 0.010, 0.025), vTC * 0.08, ir * 0.7) * pulse2 + vTC * edgeF(2.5) * 0.25 * energy * pulse2;
+    if(vOcc > 0.5) inner += vTC * 0.20 * ir * pulse2;
+    inner += vTC * pow(vFresnel, 2.0) * 0.08 * pulse2;
+    if(vOcc > 0.5) inner *= 1.6 + 0.4 * sin(t * 1.8 + vFI * 0.22);
+    if(dim) inner = mix(inner, vec3(0.002, 0.004, 0.008), 0.92);
+    gl_FragColor = vec4(inner, 1.0);
   }
 }`;
 
