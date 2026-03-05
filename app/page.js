@@ -972,65 +972,283 @@ function CheckoutModal({ slot, onClose }) {
   if (!slot) return null;
 
   // ── Étape 0 : authentification ────────────────────────────────
+  // ── AUTH LOADING ─────────────────────────────────────────────────────────────
   if (authLoading && step === 0) return (
-    <Modal onClose={onClose} width={420} isMobile={isMobile}>
-      <div style={{ padding:48, textAlign:'center', color:U.muted, fontSize:14 }}>Chargement…</div>
+    <Modal onClose={onClose} width={440} isMobile={isMobile}>
+      <div style={{ padding:'52px 40px', textAlign:'center' }}>
+        <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:16 }}>
+          <div style={{
+            width:40, height:40, borderRadius:'50%',
+            border:`1.5px solid ${U.cyan}30`,
+            borderTop:`1.5px solid ${U.cyan}`,
+            animation:'spinAuth .8s linear infinite',
+          }}/>
+          <div style={{ fontFamily:F.mono, fontSize:9, letterSpacing:'.22em', color:`${U.cyan}60` }}>
+            VÉRIFICATION ACCÈS…
+          </div>
+        </div>
+        <style>{`@keyframes spinAuth{to{transform:rotate(360deg)}}`}</style>
+      </div>
     </Modal>
   );
 
+  // ── AUTH STEP : PORTAIL D'ACCÈS ───────────────────────────────────────────
   if (step === 0) return (
-    <Modal onClose={onClose} width={420} isMobile={isMobile}>
-      <div style={{ padding:'36px 32px' }}>
-        <div style={{ marginBottom:24 }}>
-          <div style={{ fontSize:20, fontWeight:800, color:U.text, marginBottom:6 }}>
-            {authMode === 'login' ? 'Connexion' : 'Créer un compte'}
+    <Modal onClose={onClose} width={440} isMobile={isMobile}>
+      <div style={{ position:'relative', overflow:'hidden' }}>
+
+        {/* ── Fond rayonnant selon le mode ── */}
+        <div style={{
+          position:'absolute', inset:0, pointerEvents:'none', zIndex:0,
+          background: authMode === 'login'
+            ? `radial-gradient(ellipse 80% 60% at 50% -10%, ${U.cyan}0a 0%, transparent 70%)`
+            : `radial-gradient(ellipse 80% 60% at 50% -10%, ${U.accent}0a 0%, transparent 70%)`,
+          transition:'background .4s ease',
+        }}/>
+
+        {/* ── Header LORE ── */}
+        <div style={{ position:'relative', zIndex:1, padding:'28px 32px 0' }}>
+
+          {/* Indicateur mode — toggle scanner */}
+          <div style={{
+            display:'flex', alignItems:'center', gap:0,
+            marginBottom:24,
+            background:'rgba(0,3,14,0.8)',
+            border:`0.5px solid ${U.border2}`,
+            padding:3,
+            clipPath:'polygon(0 0,calc(100% - 6px) 0,100% 6px,100% 100%,6px 100%,0 calc(100% - 6px))',
+          }}>
+            {[
+              { id:'login',  label:'ACCÈS·SPHÈRE',   icon:'◉' },
+              { id:'signup', label:'ENREGISTREMENT',  icon:'◈' },
+            ].map(({ id, label, icon }) => {
+              const on = authMode === id;
+              const col = id === 'login' ? U.cyan : U.accent;
+              return (
+                <button key={id}
+                  onClick={() => { setAuthMode(id); setAuthError(''); }}
+                  style={{
+                    flex:1, padding:'8px 0',
+                    background: on ? `${col}14` : 'transparent',
+                    border: 'none',
+                    borderBottom: on ? `1.5px solid ${col}` : '1.5px solid transparent',
+                    cursor:'pointer', outline:'none',
+                    display:'flex', alignItems:'center', justifyContent:'center', gap:6,
+                    transition:'all .2s cubic-bezier(.16,1,.3,1)',
+                  }}
+                >
+                  <span style={{ fontSize:10, color: on ? col : `${col}40`, transition:'color .2s' }}>{icon}</span>
+                  <span style={{
+                    fontFamily:F.mono, fontSize:8, fontWeight:700, letterSpacing:'.16em',
+                    color: on ? col : `${U.text}30`,
+                    textShadow: on ? `0 0 12px ${col}80` : 'none',
+                    transition:'all .2s',
+                  }}>{label}</span>
+                </button>
+              );
+            })}
           </div>
-          <div style={{ fontSize:13, color:U.muted, lineHeight:1.5 }}>
+
+          {/* Titre contextuel */}
+          <div style={{ marginBottom:6 }}>
+            <div style={{
+              fontFamily:F.h, fontSize:22, fontWeight:800, letterSpacing:'.04em',
+              color:U.text, lineHeight:1.1,
+            }}>
+              {authMode === 'login' ? 'Accéder à la Sphère' : 'Rejoindre la Sphère'}
+            </div>
+            <div style={{
+              fontFamily:F.mono, fontSize:8, letterSpacing:'.18em', marginTop:4,
+              color: authMode === 'login' ? `${U.cyan}60` : `${U.accent}60`,
+            }}>
+              {authMode === 'login'
+                ? `DYSON·COSMOS · ANNONCEUR·IDENTIFIÉ`
+                : `DYSON·COSMOS · NOUVEAU·VECTEUR`}
+            </div>
+          </div>
+
+          {/* Sous-texte */}
+          <div style={{
+            fontFamily:F.b, fontSize:12, color:`${U.text}55`, lineHeight:1.6,
+            marginBottom:24,
+          }}>
             {authMode === 'login'
-              ? 'Connectez-vous pour accéder au paiement et à votre espace annonceur.'
-              : 'Créez votre compte pour réserver ce bloc et gérer votre publicité.'}
+              ? 'Identifiez votre signal pour accéder à votre espace émetteur.'
+              : 'Enregistrez votre présence dans la mégastructure et réservez votre bloc.'}
           </div>
         </div>
 
-        {authMode === 'signup' && (
-          <div style={{ marginBottom:12 }}>
-            <div style={{ color:U.muted, fontSize:10, fontWeight:600, letterSpacing:'0.07em', marginBottom:6 }}>NOM AFFICHÉ</div>
-            <input value={authName} onChange={e => setAuthName(e.target.value)}
-              placeholder="Votre nom ou marque"
-              style={{ width:'100%', padding:'10px 13px', borderRadius:8, background:U.faint, border:`1px solid ${U.border}`, color:U.text, fontSize:13, outline:'none', boxSizing:'border-box' }} />
+        {/* ── Formulaire ── */}
+        <div style={{ position:'relative', zIndex:1, padding:'0 32px 28px' }}>
+
+          {/* Champ NOM (signup only) */}
+          {authMode === 'signup' && (
+            <div style={{ marginBottom:14 }}>
+              <div style={{
+                fontFamily:F.mono, fontSize:8, fontWeight:700, letterSpacing:'.18em',
+                color:`${U.accent}70`, marginBottom:7,
+                display:'flex', alignItems:'center', gap:6,
+              }}>
+                <span style={{ color:`${U.accent}40` }}>◈</span> IDENTIFIANT·ÉMETTEUR
+              </div>
+              <div style={{ position:'relative' }}>
+                <input
+                  value={authName}
+                  onChange={e => setAuthName(e.target.value)}
+                  placeholder="Votre nom ou marque"
+                  style={{
+                    width:'100%', padding:'11px 14px',
+                    background:'rgba(0,200,240,0.03)',
+                    border:`0.5px solid ${U.border}`,
+                    color:U.text, fontSize:13, fontFamily:F.b,
+                    outline:'none', boxSizing:'border-box',
+                    clipPath:'polygon(0 0,calc(100% - 6px) 0,100% 6px,100% 100%,0 100%)',
+                    transition:'border-color .15s, box-shadow .15s',
+                  }}
+                  onFocus={e => { e.target.style.borderColor = `${U.accent}50`; e.target.style.boxShadow = `0 0 0 1px ${U.accent}20`; }}
+                  onBlur={e => { e.target.style.borderColor = U.border; e.target.style.boxShadow = 'none'; }}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Champ EMAIL */}
+          <div style={{ marginBottom:14 }}>
+            <div style={{
+              fontFamily:F.mono, fontSize:8, fontWeight:700, letterSpacing:'.18em',
+              color:`${U.cyan}70`, marginBottom:7,
+              display:'flex', alignItems:'center', gap:6,
+            }}>
+              <span style={{ color:`${U.cyan}40` }}>◉</span> SIGNAL·EMAIL
+            </div>
+            <input
+              type="email"
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+              placeholder="votre@email.com"
+              style={{
+                width:'100%', padding:'11px 14px',
+                background:'rgba(0,200,240,0.03)',
+                border:`0.5px solid ${U.border}`,
+                color:U.text, fontSize:13, fontFamily:F.b,
+                outline:'none', boxSizing:'border-box',
+                clipPath:'polygon(0 0,calc(100% - 6px) 0,100% 6px,100% 100%,0 100%)',
+                transition:'border-color .15s, box-shadow .15s',
+              }}
+              onFocus={e => { e.target.style.borderColor = `${U.cyan}50`; e.target.style.boxShadow = `0 0 0 1px ${U.cyan}20`; }}
+              onBlur={e => { e.target.style.borderColor = U.border; e.target.style.boxShadow = 'none'; }}
+            />
           </div>
-        )}
 
-        <div style={{ marginBottom:12 }}>
-          <div style={{ color:U.muted, fontSize:10, fontWeight:600, letterSpacing:'0.07em', marginBottom:6 }}>EMAIL</div>
-          <input type="email" value={email} onChange={e => setEmail(e.target.value)}
-            placeholder="votre@email.com"
-            style={{ width:'100%', padding:'10px 13px', borderRadius:8, background:U.faint, border:`1px solid ${U.border}`, color:U.text, fontSize:13, outline:'none', boxSizing:'border-box' }} />
+          {/* Champ MOT DE PASSE */}
+          <div style={{ marginBottom:20 }}>
+            <div style={{
+              fontFamily:F.mono, fontSize:8, fontWeight:700, letterSpacing:'.18em',
+              color:`${U.cyan}70`, marginBottom:7,
+              display:'flex', alignItems:'center', gap:6,
+            }}>
+              <span style={{ color:`${U.cyan}40` }}>◌</span> CLÉ·D'ACCÈS
+            </div>
+            <input
+              type="password"
+              value={authPass}
+              onChange={e => setAuthPass(e.target.value)}
+              placeholder={authMode === 'signup' ? 'Minimum 6 caractères' : '••••••••'}
+              onKeyDown={e => e.key === 'Enter' && handleAuth()}
+              style={{
+                width:'100%', padding:'11px 14px',
+                background:'rgba(0,200,240,0.03)',
+                border:`0.5px solid ${U.border}`,
+                color:U.text, fontSize:13, fontFamily:F.b,
+                outline:'none', boxSizing:'border-box',
+                clipPath:'polygon(0 0,calc(100% - 6px) 0,100% 6px,100% 100%,0 100%)',
+                transition:'border-color .15s, box-shadow .15s',
+              }}
+              onFocus={e => { e.target.style.borderColor = `${U.cyan}50`; e.target.style.boxShadow = `0 0 0 1px ${U.cyan}20`; }}
+              onBlur={e => { e.target.style.borderColor = U.border; e.target.style.boxShadow = 'none'; }}
+            />
+          </div>
+
+          {/* Erreur */}
+          {authError && (
+            <div style={{
+              padding:'9px 13px', marginBottom:16,
+              background:`${U.err}0c`,
+              border:`0.5px solid ${U.err}40`,
+              borderLeft:`2px solid ${U.err}`,
+              clipPath:'polygon(0 0,calc(100% - 4px) 0,100% 4px,100% 100%,0 100%)',
+              display:'flex', alignItems:'center', gap:8,
+            }}>
+              <span style={{ color:U.err, fontSize:10 }}>⚠</span>
+              <span style={{ fontFamily:F.mono, fontSize:9, color:`${U.err}cc`, letterSpacing:'.06em' }}>{authError}</span>
+            </div>
+          )}
+
+          {/* Bouton CTA */}
+          <button
+            onClick={handleAuth}
+            disabled={authLoading}
+            style={{
+              width:'100%', padding:'13px 0',
+              background: authLoading ? 'transparent'
+                : authMode === 'login'
+                  ? `linear-gradient(90deg, ${U.accent}ee, ${U.accent}cc)`
+                  : `linear-gradient(90deg, ${U.accent}cc, ${U.accent}aa)`,
+              border: authLoading ? `0.5px solid ${U.accent}40` : 'none',
+              color: authLoading ? `${U.accent}60` : U.accentFg,
+              fontFamily:F.mono, fontWeight:700, fontSize:11,
+              letterSpacing:'.18em',
+              cursor: authLoading ? 'wait' : 'pointer',
+              clipPath:'polygon(0 0,calc(100% - 8px) 0,100% 8px,100% 100%,8px 100%,0 calc(100% - 8px))',
+              boxShadow: authLoading ? 'none' : `0 0 24px ${U.accent}30`,
+              transition:'all .2s cubic-bezier(.16,1,.3,1)',
+              display:'flex', alignItems:'center', justifyContent:'center', gap:8,
+            }}
+            onMouseEnter={e => { if(!authLoading) e.currentTarget.style.boxShadow = `0 0 40px ${U.accent}55`; }}
+            onMouseLeave={e => { if(!authLoading) e.currentTarget.style.boxShadow = `0 0 24px ${U.accent}30`; }}
+          >
+            {authLoading
+              ? <><span style={{ width:10, height:10, borderRadius:'50%', border:`1.5px solid ${U.accent}40`, borderTop:`1.5px solid ${U.accent}`, display:'inline-block', animation:'spinAuth .8s linear infinite' }}/> VÉRIFICATION…</>
+              : authMode === 'login'
+                ? <><span>◉</span> ACCÉDER À LA SPHÈRE</>
+                : <><span>◈</span> ENREGISTRER MON SIGNAL</>
+            }
+          </button>
+
+          {/* Toggle mode */}
+          <div style={{
+            marginTop:18, textAlign:'center',
+            fontFamily:F.mono, fontSize:8, letterSpacing:'.10em', color:`${U.text}30`,
+          }}>
+            {authMode === 'login' ? (
+              <>
+                NOUVEAU VECTEUR ?{' '}
+                <span
+                  onClick={() => { setAuthMode('signup'); setAuthError(''); }}
+                  style={{ color:`${U.accent}90`, cursor:'pointer', letterSpacing:'.12em', fontWeight:700, transition:'color .15s' }}
+                  onMouseEnter={e => e.currentTarget.style.color = U.accent}
+                  onMouseLeave={e => e.currentTarget.style.color = `${U.accent}90`}
+                >
+                  CRÉER UN COMPTE →
+                </span>
+              </>
+            ) : (
+              <>
+                DÉJÀ ENREGISTRÉ ?{' '}
+                <span
+                  onClick={() => { setAuthMode('login'); setAuthError(''); }}
+                  style={{ color:`${U.cyan}90`, cursor:'pointer', letterSpacing:'.12em', fontWeight:700, transition:'color .15s' }}
+                  onMouseEnter={e => e.currentTarget.style.color = U.cyan}
+                  onMouseLeave={e => e.currentTarget.style.color = `${U.cyan}90`}
+                >
+                  SE CONNECTER →
+                </span>
+              </>
+            )}
+          </div>
+
         </div>
-
-        <div style={{ marginBottom:20 }}>
-          <div style={{ color:U.muted, fontSize:10, fontWeight:600, letterSpacing:'0.07em', marginBottom:6 }}>MOT DE PASSE</div>
-          <input type="password" value={authPass} onChange={e => setAuthPass(e.target.value)}
-            placeholder={authMode === 'signup' ? 'Minimum 6 caractères' : '••••••••'}
-            onKeyDown={e => e.key === 'Enter' && handleAuth()}
-            style={{ width:'100%', padding:'10px 13px', borderRadius:8, background:U.faint, border:`1px solid ${U.border}`, color:U.text, fontSize:13, outline:'none', boxSizing:'border-box' }} />
-        </div>
-
-        {authError && (
-          <div style={{ padding:'8px 12px', borderRadius:6, background:`${U.err}12`, border:`1px solid ${U.err}30`, color:U.err, fontSize:12, marginBottom:14, textAlign:'center' }}>{authError}</div>
-        )}
-
-        <button onClick={handleAuth} disabled={authLoading}
-          style={{ width:'100%', padding:13, borderRadius:10, cursor:authLoading?'wait':'pointer', background:U.accent, border:'none', color:U.accentFg, fontWeight:700, fontSize:14, opacity:authLoading?0.6:1 }}>
-          {authLoading ? '…' : authMode === 'login' ? 'Se connecter →' : 'Créer mon compte →'}
-        </button>
-
-        <div style={{ marginTop:16, textAlign:'center', fontSize:12, color:U.muted }}>
-          {authMode === 'login'
-            ? <span>Pas encore de compte ? <span onClick={() => { setAuthMode('signup'); setAuthError(''); }} style={{ color:U.accent, cursor:'pointer', fontWeight:600 }}>S'inscrire</span></span>
-            : <span>Déjà un compte ? <span onClick={() => { setAuthMode('login'); setAuthError(''); }} style={{ color:U.accent, cursor:'pointer', fontWeight:600 }}>Se connecter</span></span>
-          }
-        </div>
+        <style>{`@keyframes spinAuth{to{transform:rotate(360deg)}}`}</style>
       </div>
     </Modal>
   );
