@@ -112,39 +112,58 @@ const TIER_NEON = {
 
 const FILTER_PALETTES = {
   realist:  {
-    epicenter:'#C8922A', prestige:'#8A5A3A', elite:'#4A6888', business:'#3A6A55', standard:'#505878', viral:'#3D5C3A',
-    emissiveScale:1.0, bloomThreshold:0.85, bloomStrength:0.55, exposure:1.6,
-    fogColor:0x03040B, fogDensity:0.00028, ambientCol:0x04060E, ambientInt:0.8,
-    sunCol:0xFFF0D0, sunInt:1200, rimCol:0xFF6600, rimInt:45,
+    // PLASMA — rendu stellaire natif, lisibilité maximale
+    epicenter:'#D4A030', prestige:'#9A6A44', elite:'#5A7898', business:'#3A7A65', standard:'#5A6888', viral:'#3D6C4A',
+    emissiveScale:1.0, bloomThreshold:0.80, bloomStrength:0.50, exposure:1.55,
+    fogColor:0x03040B, fogDensity:0.00022, ambientCol:0x050810, ambientInt:0.9,
+    sunCol:0xFFF0D0, sunInt:1100, rimCol:0xFF7010, rimInt:50,
     bgTop:'#01020A', bgBot:'#020408',
+    lensColor:'rgba(0,0,0,0)', lensBlend:'normal', lensOpacity:0,
   },
   thermal:  {
-    epicenter:'#FF2200', prestige:'#FF5500', elite:'#FF9900', business:'#FFCC00', standard:'#CCEE00', viral:'#44CC00',
-    emissiveScale:2.8, bloomThreshold:0.40, bloomStrength:1.80, exposure:1.8,
-    fogColor:0x1A0400, fogDensity:0.00045, ambientCol:0x200400, ambientInt:1.4,
-    sunCol:0xFF4400, sunInt:2400, rimCol:0xFF8800, rimInt:120,
-    bgTop:'#0D0200', bgBot:'#1A0400',
+    // FLUX-IR — chaleur lisible, gradient distinctif par tier
+    epicenter:'#FF1800', prestige:'#FF4400', elite:'#FF8800', business:'#FFBB00', standard:'#CCDD00', viral:'#55DD00',
+    emissiveScale:2.4, bloomThreshold:0.48, bloomStrength:1.40, exposure:1.65,
+    fogColor:0x180300, fogDensity:0.00040, ambientCol:0x1C0300, ambientInt:1.2,
+    sunCol:0xFF5500, sunInt:2000, rimCol:0xFF9900, rimInt:100,
+    bgTop:'#0A0100', bgBot:'#160300',
+    lensColor:'rgba(80,8,0,0.18)', lensBlend:'multiply', lensOpacity:1,
   },
   xray:     {
-    epicenter:'#FFFFFF', prestige:'#C0E8FF', elite:'#88CCFF', business:'#60AADD', standard:'#4488BB', viral:'#306688',
-    emissiveScale:2.2, bloomThreshold:0.55, bloomStrength:1.20, exposure:2.2,
-    fogColor:0x010810, fogDensity:0.00018, ambientCol:0x040818, ambientInt:2.0,
-    sunCol:0xCCEEFF, sunInt:3200, rimCol:0x88CCFF, rimInt:200,
-    bgTop:'#010608', bgBot:'#020C14',
+    // RAYONS-Ω — squelette lisible, bloom réduit pour lecture
+    epicenter:'#EEFAFF', prestige:'#B0DDFF', elite:'#78BBFF', business:'#559ACC', standard:'#3A78AA', viral:'#265A80',
+    emissiveScale:1.8, bloomThreshold:0.65, bloomStrength:0.90, exposure:1.95,
+    fogColor:0x010810, fogDensity:0.00016, ambientCol:0x03091A, ambientInt:1.8,
+    sunCol:0xCCEEFF, sunInt:2800, rimCol:0x88CCFF, rimInt:160,
+    bgTop:'#010608', bgBot:'#010A12',
+    lensColor:'rgba(0,15,40,0.14)', lensBlend:'color-burn', lensOpacity:1,
   },
   blueprint:{
-    epicenter:'#AACCFF', prestige:'#8899DD', elite:'#6677BB', business:'#445599', standard:'#334477', viral:'#223366',
-    emissiveScale:1.4, bloomThreshold:0.70, bloomStrength:0.70, exposure:0.9,
-    fogColor:0x010418, fogDensity:0.00055, ambientCol:0x010418, ambientInt:1.2,
-    sunCol:0x4466CC, sunInt:600, rimCol:0x2244AA, rimInt:30,
-    bgTop:'#010212', bgBot:'#02051A',
+    // SCHÉMA — filaire tech, contraste élevé
+    epicenter:'#BBDDFF', prestige:'#8899EE', elite:'#6677CC', business:'#4455AA', standard:'#334488', viral:'#223370',
+    emissiveScale:1.2, bloomThreshold:0.75, bloomStrength:0.55, exposure:1.05,
+    fogColor:0x010418, fogDensity:0.00050, ambientCol:0x010418, ambientInt:1.3,
+    sunCol:0x4466CC, sunInt:700, rimCol:0x2244AA, rimInt:35,
+    bgTop:'#010214', bgBot:'#01041C',
+    lensColor:'rgba(0,8,50,0.16)', lensBlend:'multiply', lensOpacity:1,
   },
   identity: {
-    epicenter:'#FFB700', prestige:'#FF3399', elite:'#AA00FF', business:'#00DDFF', standard:'#00FF88', viral:'#FF6600',
-    emissiveScale:3.2, bloomThreshold:0.28, bloomStrength:2.60, exposure:2.0,
-    fogColor:0x080010, fogDensity:0.00022, ambientCol:0x080010, ambientInt:1.0,
-    sunCol:0xFFBB00, sunInt:1800, rimCol:0xFF00AA, rimInt:180,
-    bgTop:'#050008', bgBot:'#080012',
+    // SPECTRE — palette vive, exposition maîtrisée
+    epicenter:'#FFB700', prestige:'#FF2288', elite:'#9900EE', business:'#00CCFF', standard:'#00EE88', viral:'#FF5500',
+    emissiveScale:2.8, bloomThreshold:0.32, bloomStrength:2.20, exposure:1.75,
+    fogColor:0x060010, fogDensity:0.00020, ambientCol:0x060010, ambientInt:1.0,
+    sunCol:0xFFBB00, sunInt:1600, rimCol:0xFF00AA, rimInt:150,
+    bgTop:'#040008', bgBot:'#060010',
+    lensColor:'rgba(20,0,40,0.12)', lensBlend:'color-burn', lensOpacity:1,
+  },
+  solar:    {
+    // SOLAIRE — filtre polarisé ambré, anti-éblouissement, lunettes de soleil
+    epicenter:'#C4881A', prestige:'#8C6C30', elite:'#607055', business:'#456050', standard:'#4C5848', viral:'#3A4832',
+    emissiveScale:0.55, bloomThreshold:0.95, bloomStrength:0.14, exposure:0.82,
+    fogColor:0x0A0804, fogDensity:0.00038, ambientCol:0x0E0A04, ambientInt:0.75,
+    sunCol:0xC89040, sunInt:700, rimCol:0xA07030, rimInt:20,
+    bgTop:'#060402', bgBot:'#0A0703',
+    lensColor:'rgba(110,55,0,0.28)', lensBlend:'multiply', lensOpacity:1,
   },
 };
 
@@ -2124,6 +2143,12 @@ const VUE_CONFIG = {
     lore:'Chaque marque révèle sa couleur propre. La Sphère devient atlas de l\'identité.',
     reveal:'Couleurs de marque · Présence visuelle · Atlas annonceurs',
   },
+  solar:    {
+    label:'SOLAIRE',  short:'SOL', icon:'◐', col:'#C4881A',
+    desc:'Filtre polarisé ambré',
+    lore:'Les lentilles s\'assombrissent. L\'éblouissement de l\'étoile s\'efface — la structure se révèle.',
+    reveal:'Vision anti-éblouissement · Confort orbital · Structure nette',
+  },
 };
 
 // ── Radial Arc SVG pour occupation ───────────────────────────────────────────
@@ -2509,6 +2534,26 @@ function VueDial({ activeFilter, onFilterSelect }) {
           <span style={{color:`${displayCfg.col}60`, fontFamily:F.mono, fontSize:7, flexShrink:0, marginTop:.5}}>◈</span>
           <span style={{color:`${displayCfg.col}70`, fontFamily:F.mono, fontSize:7, letterSpacing:'.05em', lineHeight:1.6}}>{displayCfg.reveal}</span>
         </div>
+        {/* Lens tint swatch pour SOLAIRE */}
+        {(hovered === 'solar' || activeFilter === 'solar') && (
+          <div style={{
+            marginTop:6, display:'flex', alignItems:'center', gap:6,
+            padding:'4px 7px',
+            background:'rgba(110,55,0,0.14)',
+            border:'0.5px solid rgba(180,100,20,0.30)',
+          }}>
+            <div style={{
+              width:28, height:14,
+              background:'linear-gradient(90deg, rgba(110,55,0,0.60), rgba(180,100,20,0.35))',
+              border:'0.5px solid rgba(180,130,30,0.50)',
+              borderRadius:2,
+              boxShadow:'inset 0 1px 3px rgba(255,180,50,0.15)',
+            }}/>
+            <span style={{fontFamily:F.mono, fontSize:7, color:'rgba(180,120,30,0.70)', letterSpacing:'.08em'}}>
+              LENTILLE·AMBR{'éE'}
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Boutons 5 modes */}
@@ -2552,6 +2597,11 @@ function VueDial({ activeFilter, onFilterSelect }) {
                 background:cfg.col, boxShadow:`0 0 6px ${cfg.col}`,
                 animation:'pulse .8s ease-in-out infinite alternate',
               }}/>}
+              {/* Badge SOLAIRE */}
+              {id === 'solar' && !on && <span style={{
+                fontFamily:F.mono, fontSize:6, color:`${cfg.col}60`,
+                letterSpacing:'.10em', marginLeft:2,
+              }}>NEW</span>}
             </button>
           );
         })}
@@ -2560,6 +2610,7 @@ function VueDial({ activeFilter, onFilterSelect }) {
       <style>{`
         @keyframes panelFadeIn { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:translateY(0)} }
         @keyframes pulse       { from{opacity:.4;transform:scale(.8)} to{opacity:1;transform:scale(1.15)} }
+        @keyframes lensShimmer { 0%{opacity:.5} 50%{opacity:1} 100%{opacity:.5} }
       `}</style>
     </div>
   );
@@ -3592,6 +3643,20 @@ export default function View3D({slots=[],isLive=false,onCheckout,onBuyout,onView
         transition:'background 0.6s ease',
       }}>
         <canvas ref={canvasRef} style={{width:'100%',height:'100%',display:'block',outline:'none',opacity:loading?0:1,transition:'opacity .8s ease'}}/>
+        {/* ── Lens overlay — teinté selon la vue active ── */}
+        {!loading && (() => {
+          const pal = FILTER_PALETTES[activeFilter] || FILTER_PALETTES.realist;
+          if (!pal.lensOpacity) return null;
+          return (
+            <div style={{
+              position:'absolute', inset:0, pointerEvents:'none', zIndex:2,
+              background: pal.lensColor || 'transparent',
+              mixBlendMode: pal.lensBlend || 'normal',
+              opacity: pal.lensOpacity || 0,
+              transition:'background .6s ease, opacity .6s ease',
+            }}/>
+          );
+        })()}
         {loading&&!error&&<HUDLoader/>}
         {error&&(
           <div style={{position:'absolute',inset:0,display:'flex',alignItems:'center',justifyContent:'center',background:DS.void}}>
