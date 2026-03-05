@@ -4082,6 +4082,16 @@ export default function App() {
           <nav style={{ display: 'flex', gap: 3, alignItems: 'center' }}>
             {navBtn('cosmos',    t('nav.explore'), '◈')}
 
+            {/* Capteur ⚡ */}
+            <a href="/capteur" style={{textDecoration:'none'}}>
+              <div
+                style={{padding:isMobile?'5px 9px':'5px 14px',background:'transparent',border:`0.5px solid ${U.border}`,clipPath:'polygon(0 0,calc(100% - 6px) 0,100% 6px,100% 100%,0 100%)',color:U.muted,fontFamily:F.mono,fontSize:isMobile?10:10.5,fontWeight:700,letterSpacing:'.12em',cursor:'pointer',transition:'all 0.12s',whiteSpace:'nowrap',display:'flex',alignItems:'center',gap:isMobile?0:5}}
+                onMouseEnter={e=>{e.currentTarget.style.color=U.accent;e.currentTarget.style.borderColor=U.accent+'60';e.currentTarget.style.background=U.accent+'0e';}}
+                onMouseLeave={e=>{e.currentTarget.style.color=U.muted;e.currentTarget.style.borderColor=U.border;e.currentTarget.style.background='transparent';}}>
+                <span>⚡</span>{!isMobile&&<span>CAPTEUR</span>}
+              </div>
+            </a>
+
             {/* Waitlist CTA */}
             <button onClick={handleWaitlist} style={{
               padding: isMobile ? '5px 10px' : '6px 16px',
