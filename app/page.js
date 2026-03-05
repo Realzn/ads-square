@@ -4375,6 +4375,389 @@ function ManifestModal({ onAccept }) {
   );
 }
 
+// ─── MobileFeed — vue TikTok fullscreen scrollable ──────────────────────────
+const TIER_NEON = {
+  epicenter:'#f0b429', prestige:'#ff4d8f', elite:'#a855f7',
+  business:'#00d9f5', standard:'#38bdf8', viral:'#00e8a2',
+};
+const TIER_ORDER_M = ['epicenter','prestige','elite','business','standard','viral'];
+const TIER_ICON = { epicenter:'◈', prestige:'◯', elite:'◎', business:'▣', standard:'▪', viral:'⚡' };
+const TIER_ROLE_M = {
+  epicenter:'Épicentre Absolu', prestige:'Lune Orbitale', elite:'Anneau Dyson',
+  business:'Panneau Structurel', standard:'Émetteur de Surface', viral:'Drone Orbital',
+};
+
+function MobileFeedCard({ slot, index, total, onViewSlot, isActive }) {
+  const [entered, setEntered] = useState(false);
+  const [scanY, setScanY]     = useState(0);
+
+  useEffect(() => {
+    if (!isActive) return;
+    const t = setTimeout(() => setEntered(true), 60);
+    return () => clearTimeout(t);
+  }, [isActive]);
+
+  useEffect(() => {
+    if (!isActive) { setEntered(false); return; }
+    const t = setTimeout(() => setEntered(true), 60);
+    return () => clearTimeout(t);
+  }, [isActive]);
+
+  // scan line animation
+  useEffect(() => {
+    let raf;
+    const tick = () => { setScanY(p => (p + 0.4) % 100); raf = requestAnimationFrame(tick); };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+
+  const isOcc  = slot?.occ && slot?.tenant;
+  const tier   = slot?.tier || 'standard';
+  const col    = TIER_NEON[tier] || '#00C8E4';
+  const tn     = slot?.tenant;
+  const name   = tn?.name || tn?.title || 'SLOT DISPONIBLE';
+  const slogan = tn?.slogan || '';
+  const url    = tn?.url || tn?.cta || '';
+  const bg     = tn?.b || '#010410';
+  const fg     = tn?.c || col;
+
+  return (
+    <div style={{
+      position: 'relative',
+      width: '100%', height: '100vh',
+      flexShrink: 0,
+      background: isOcc ? bg : '#010308',
+      overflow: 'hidden',
+      display: 'flex', flexDirection: 'column',
+      justifyContent: 'flex-end',
+    }}>
+
+      {/* ── Fond radial couleur tier ── */}
+      <div style={{
+        position: 'absolute', inset: 0, pointerEvents: 'none',
+        background: isOcc
+          ? `radial-gradient(ellipse 80% 70% at 50% 30%, ${col}18 0%, transparent 65%)`
+          : `radial-gradient(ellipse 60% 50% at 50% 50%, ${col}0c 0%, transparent 70%)`,
+        transition: 'background 0.6s ease',
+      }}/>
+
+      {/* ── Grille de fond ── */}
+      <div style={{
+        position: 'absolute', inset: 0, pointerEvents: 'none',
+        backgroundImage: `linear-gradient(${col}10 1px,transparent 1px),linear-gradient(90deg,${col}10 1px,transparent 1px)`,
+        backgroundSize: '40px 40px',
+        opacity: 0.5,
+      }}/>
+
+      {/* ── Scanlines horizontales ── */}
+      <div style={{
+        position: 'absolute', inset: 0, pointerEvents: 'none',
+        backgroundImage: 'repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(0,0,0,0.18) 3px,rgba(0,0,0,0.18) 4px)',
+      }}/>
+
+      {/* ── Scan line animée ── */}
+      <div style={{
+        position: 'absolute', left: 0, right: 0, height: 1.5, pointerEvents: 'none',
+        top: `${scanY}%`,
+        background: `linear-gradient(90deg,transparent,${col}30,transparent)`,
+        boxShadow: `0 0 8px ${col}30`,
+      }}/>
+
+      {/* ── Barre latérale gauche (tier indicator) ── */}
+      <div style={{
+        position: 'absolute', left: 0, top: 0, bottom: 0, width: 3,
+        background: `linear-gradient(180deg, transparent, ${col}, transparent)`,
+        boxShadow: `0 0 12px ${col}`,
+        opacity: isActive ? 1 : 0.3,
+        transition: 'opacity 0.4s',
+      }}/>
+
+      {/* ── Zone LOGO / MEDIA centré ── */}
+      {isOcc && (
+        <div style={{
+          position: 'absolute', top: 0, left: 0, right: 0, bottom: '45%',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          padding: '60px 32px 20px',
+        }}>
+          <div style={{
+            opacity: entered ? 1 : 0,
+            transform: entered ? 'scale(1)' : 'scale(0.88)',
+            transition: 'opacity 0.45s ease, transform 0.45s cubic-bezier(.16,1,.3,1)',
+            textAlign: 'center',
+          }}>
+            {/* Glow orb */}
+            <div style={{
+              width: 90, height: 90, borderRadius: '50%', margin: '0 auto 18px',
+              background: `radial-gradient(circle at 35% 35%, ${fg}cc, ${fg}22)`,
+              boxShadow: `0 0 40px ${fg}60, 0 0 80px ${fg}20`,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              border: `1px solid ${fg}40`,
+            }}>
+              <span style={{ fontFamily: F.mono, fontSize: 28, color: '#fff', opacity: 0.9 }}>
+                {TIER_ICON[tier]}
+              </span>
+            </div>
+            <div style={{
+              fontFamily: F.h, fontSize: 28, fontWeight: 800,
+              color: '#fff', letterSpacing: '0.04em', lineHeight: 1.1,
+              textShadow: `0 0 30px ${fg}80`,
+            }}>{name}</div>
+            {slogan && (
+              <div style={{
+                fontFamily: F.b, fontSize: 13, color: `${col}aa`,
+                marginTop: 8, letterSpacing: '0.04em',
+              }}>{slogan}</div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Slot vide — illustration ── */}
+      {!isOcc && (
+        <div style={{
+          position: 'absolute', top: 0, left: 0, right: 0, bottom: '45%',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          <div style={{
+            textAlign: 'center',
+            opacity: entered ? 0.55 : 0,
+            transition: 'opacity 0.5s ease',
+          }}>
+            <div style={{
+              fontFamily: F.mono, fontSize: 52, color: col,
+              opacity: 0.22, lineHeight: 1, marginBottom: 12,
+              animation: 'mfPulse 2.5s ease-in-out infinite',
+            }}>{TIER_ICON[tier]}</div>
+            <div style={{ fontFamily: F.mono, fontSize: 8, letterSpacing: '.24em', color: `${col}40` }}>
+              SLOT·DISPONIBLE
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Card info bas ── */}
+      <div style={{
+        position: 'relative', zIndex: 5,
+        padding: '0 16px 28px',
+        background: 'linear-gradient(0deg, rgba(0,0,8,0.96) 0%, rgba(0,0,8,0.70) 60%, transparent 100%)',
+        paddingTop: 48,
+      }}>
+
+        {/* Tier badge */}
+        <div style={{
+          display: 'inline-flex', alignItems: 'center', gap: 5,
+          padding: '3px 10px 3px 7px',
+          background: `${col}14`,
+          border: `0.5px solid ${col}44`,
+          clipPath: 'polygon(0 0,calc(100% - 5px) 0,100% 5px,100% 100%,0 100%)',
+          marginBottom: 10,
+          opacity: entered ? 1 : 0,
+          transform: entered ? 'translateY(0)' : 'translateY(10px)',
+          transition: 'opacity 0.3s 0.1s, transform 0.3s 0.1s cubic-bezier(.16,1,.3,1)',
+        }}>
+          <span style={{ color: col, fontSize: 9 }}>{TIER_ICON[tier]}</span>
+          <span style={{ fontFamily: F.mono, fontSize: 7.5, fontWeight: 700, letterSpacing: '.16em', color: col }}>
+            {TIER_LABEL[tier]} · {TIER_ROLE_M[tier]}
+          </span>
+        </div>
+
+        {/* Nom si slot libre */}
+        {!isOcc && (
+          <div style={{
+            fontFamily: F.h, fontSize: 22, fontWeight: 800,
+            color: `${col}55`, letterSpacing: '0.04em', marginBottom: 6,
+            opacity: entered ? 1 : 0,
+            transition: 'opacity 0.3s 0.15s',
+          }}>ESPACE LIBRE</div>
+        )}
+
+        {/* URL */}
+        {isOcc && url && (
+          <div style={{
+            fontFamily: F.mono, fontSize: 9, color: `${col}70`,
+            letterSpacing: '.06em', marginBottom: 10,
+            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+            opacity: entered ? 1 : 0,
+            transition: 'opacity 0.3s 0.18s',
+          }}>
+            {url.replace(/^https?:\/\/(www\.)?/, '')}
+          </div>
+        )}
+
+        {/* CTA Voir */}
+        {isOcc && (
+          <button
+            onClick={() => onViewSlot && onViewSlot(slot)}
+            style={{
+              width: '100%', padding: '13px 0',
+              background: `${col}18`,
+              border: `0.5px solid ${col}55`,
+              color: col,
+              fontFamily: F.mono, fontWeight: 700, fontSize: 10,
+              letterSpacing: '.18em',
+              clipPath: 'polygon(0 0,calc(100% - 8px) 0,100% 8px,100% 100%,8px 100%,0 calc(100% - 8px))',
+              cursor: 'pointer',
+              opacity: entered ? 1 : 0,
+              transform: entered ? 'translateY(0)' : 'translateY(8px)',
+              transition: 'opacity 0.3s 0.22s, transform 0.3s 0.22s cubic-bezier(.16,1,.3,1)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+            }}
+          >
+            <span style={{ fontSize: 12 }}>◉</span> VOIR L'ANNONCE
+          </button>
+        )}
+
+        {/* CTA Réserver (desktop reminder) */}
+        {!isOcc && (
+          <div style={{
+            padding: '10px 12px',
+            background: 'rgba(0,200,240,0.04)',
+            border: '0.5px solid rgba(0,200,240,0.18)',
+            clipPath: 'polygon(0 0,calc(100% - 6px) 0,100% 6px,100% 100%,0 100%)',
+            opacity: entered ? 1 : 0,
+            transition: 'opacity 0.3s 0.2s',
+          }}>
+            <div style={{ fontFamily: F.mono, fontSize: 7.5, letterSpacing: '.12em', color: 'rgba(0,200,240,0.60)', marginBottom: 2 }}>
+              🖥 RÉSERVATION · DESKTOP UNIQUEMENT
+            </div>
+            <div style={{ fontFamily: F.mono, fontSize: 6.5, letterSpacing: '.08em', color: 'rgba(0,200,240,0.30)' }}>
+              adsmostfair.com sur PC ou tablette
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ── Compteur index ── */}
+      <div style={{
+        position: 'absolute', top: 16, right: 14, zIndex: 6,
+        fontFamily: F.mono, fontSize: 7, letterSpacing: '.14em',
+        color: `${col}50`,
+      }}>
+        {String(index + 1).padStart(2,'0')}/{String(total).padStart(2,'0')}
+      </div>
+
+    </div>
+  );
+}
+
+function MobileFeed({ slots, onViewSlot }) {
+  const containerRef = useRef(null);
+  const [activeIdx, setActiveIdx] = useState(0);
+
+  // Slots triés : occupés en premier, puis par tier
+  const feedSlots = useMemo(() => {
+    const all = (slots || []).filter(Boolean);
+    const occ = all.filter(s => s.occ && s.tenant)
+      .sort((a,b) => TIER_ORDER_M.indexOf(a.tier) - TIER_ORDER_M.indexOf(b.tier));
+    // Si moins de 8 slots occupés, compléter avec un slot libre par tier
+    const shown = [...occ];
+    if (shown.length < 5) {
+      TIER_ORDER_M.forEach(tier => {
+        if (!shown.find(s => s.tier === tier)) {
+          const free = all.find(s => s.tier === tier && !s.occ);
+          if (free) shown.push(free);
+        }
+      });
+    }
+    return shown.slice(0, 20); // max 20 cards
+  }, [slots]);
+
+  // Scroll snap — track active via IntersectionObserver
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    const children = Array.from(container.children);
+    const obs = new IntersectionObserver(
+      entries => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting && entry.intersectionRatio > 0.6) {
+            setActiveIdx(children.indexOf(entry.target));
+          }
+        });
+      },
+      { root: container, threshold: 0.6 }
+    );
+    children.forEach(child => obs.observe(child));
+    return () => obs.disconnect();
+  }, [feedSlots]);
+
+  return (
+    <div style={{ position: 'relative', width: '100%', height: '100%', background: '#010308' }}>
+      <style>{`
+        @keyframes mfPulse { from{opacity:.18} to{opacity:.35} }
+        .mf-container { scrollbar-width: none; }
+        .mf-container::-webkit-scrollbar { display: none; }
+      `}</style>
+
+      {/* ── Scroll container ── */}
+      <div
+        ref={containerRef}
+        className="mf-container"
+        style={{
+          width: '100%', height: '100%',
+          overflowY: 'scroll',
+          scrollSnapType: 'y mandatory',
+          WebkitOverflowScrolling: 'touch',
+          scrollBehavior: 'smooth',
+        }}
+      >
+        {feedSlots.map((slot, i) => (
+          <div key={slot?.id || i} style={{ scrollSnapAlign: 'start', scrollSnapStop: 'always' }}>
+            <MobileFeedCard
+              slot={slot}
+              index={i}
+              total={feedSlots.length}
+              onViewSlot={onViewSlot}
+              isActive={activeIdx === i}
+            />
+          </div>
+        ))}
+      </div>
+
+      {/* ── Dots navigation droite ── */}
+      <div style={{
+        position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)',
+        display: 'flex', flexDirection: 'column', gap: 6, zIndex: 20,
+        pointerEvents: 'none',
+      }}>
+        {feedSlots.map((slot, i) => {
+          const col = TIER_NEON[slot?.tier] || '#00C8E4';
+          const on  = i === activeIdx;
+          return (
+            <div key={i} style={{
+              width: on ? 3 : 2,
+              height: on ? 16 : 5,
+              borderRadius: 2,
+              background: on ? col : `${col}35`,
+              boxShadow: on ? `0 0 6px ${col}` : 'none',
+              transition: 'all 0.25s cubic-bezier(.16,1,.3,1)',
+            }}/>
+          );
+        })}
+      </div>
+
+      {/* ── HUD top — label vue ── */}
+      <div style={{
+        position: 'absolute', top: 60, left: 16, zIndex: 10,
+        pointerEvents: 'none',
+      }}>
+        <div style={{
+          display: 'inline-flex', alignItems: 'center', gap: 5,
+          padding: '3px 9px',
+          background: 'rgba(0,3,14,0.80)',
+          border: '0.5px solid rgba(0,200,240,0.20)',
+          clipPath: 'polygon(0 0,calc(100% - 5px) 0,100% 5px,100% 100%,0 100%)',
+        }}>
+          <div style={{ width: 4, height: 4, borderRadius: '50%', background: '#00D880', animation: 'mfPulse 1.4s ease-in-out infinite alternate' }}/>
+          <span style={{ fontFamily: F.mono, fontSize: 6.5, letterSpacing: '.14em', color: 'rgba(0,200,240,0.60)' }}>
+            DYSON·FEED · LIVE
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Main App ──────────────────────────────────────────────────
 const CommunityChat = dynamic(() => import('./CommunityChat'), { ssr: false, loading: () => null });
 
@@ -4393,6 +4776,11 @@ export default function App() {
   const { slots, isLive, loading }  = useGridData();
   const { isMobile } = useScreenSize();
   const handleWaitlist = useCallback(() => setShowWaitlist(true), []);
+
+  // Sur mobile on attérit directement sur le feed, pas la landing
+  useEffect(() => {
+    if (isMobile && view === 'landing') setView('cosmos');
+  }, [isMobile]);
 
   // ── Check if manifest was already accepted ──
   useEffect(() => {
@@ -4583,13 +4971,20 @@ export default function App() {
           />
         )}
 
-        {/* ── Vue Cosmos 3D — toujours montée pour garder la scène en mémoire ── */}
+        {/* ── Vue Cosmos — 3D sur desktop, Feed TikTok sur mobile ── */}
         <div style={{ flex: 1, display: view === 'cosmos' ? 'flex' : 'none', overflow: 'hidden' }}>
-          <View3D
-            slots={slots} isLive={isLive} user={authUser}
-            onCheckout={handleCheckout} onBuyout={setBuyoutSlot}
-            onViewSlot={(slot) => setAdViewSlot(slot)}
-          />
+          {isMobile ? (
+            <MobileFeed
+              slots={slots}
+              onViewSlot={(slot) => setAdViewSlot(slot)}
+            />
+          ) : (
+            <View3D
+              slots={slots} isLive={isLive} user={authUser}
+              onCheckout={handleCheckout} onBuyout={setBuyoutSlot}
+              onViewSlot={(slot) => setAdViewSlot(slot)}
+            />
+          )}
         </div>
 
         {/* ── HUD Chat flottant — toujours visible sur la sphère ── */}
