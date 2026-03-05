@@ -894,7 +894,8 @@ class Scene3D{
       starfieldPoints:null,cosmicObjects:[],cometMeshes:[],
       raycaster:null,triToFace:null,faceSlots:[],_faces:null,
       rot:{x:.08,y:0},vel:{x:0,y:0},isDragging:false,pinchDist:null,
-      zoomTarget:185,zoomCurrent:185,hovFace:-1,selFace:-1,
+      cameraTarget:{x:0,y:0,z:185},_zoomedIn:false,_lerpSpeed:0.068,
+      hovFace:-1,selFace:-1,
       animId:null,onHover:null,onClick:null,_h:{},
       _t0:Date.now(),_pU:null,_epU:null,_grU:null,_vU:null,
       _insideBlend:0,tierFocus:-1,_tierColors:null,
@@ -1727,10 +1728,24 @@ class Scene3D{
   togglePause(){this._paused=!this._paused;if(!this._paused)this._t0=Date.now()-this._lastT*1000;}
   get isPaused(){return this._paused;}
 
-  zoomTo(target){if(!this.G)return;const T=this.T;this.G.to(this.camera.position,{x:target.x,y:target.y,z:target.z,duration:1.1,ease:'power3.inOut',onUpdate:()=>this.camera.lookAt(new T.Vector3(0,0,0))});this.G.to(this,{zoomTarget:target.z||68,duration:1.1,ease:'power3.inOut'});}
-  resetCamera(){if(!this.G)return;const T=this.T;this.G.to(this.camera.position,{x:0,y:0,z:185,duration:.95,ease:'power3.inOut',onUpdate:()=>this.camera.lookAt(new T.Vector3(0,0,0))});this.G.to(this,{zoomTarget:185,duration:.95,ease:'power3.inOut'});}
-  zoomToCenter(){if(!this.G)return;const T=this.T;this.G.to(this.camera.position,{x:0,y:0,z:0,duration:1.4,ease:'power3.inOut',onUpdate:()=>this.camera.lookAt(new T.Vector3(0,0,1))});this.G.to(this,{zoomTarget:0,duration:1.4,ease:'power3.inOut'});}
-  zoom(dy){this.zoomTarget=Math.max(4,Math.min(450,this.zoomTarget+dy*.06));}
+  zoomTo(target){
+    this.cameraTarget={x:target.x,y:target.y,z:target.z};
+    this._zoomedIn=true;
+  }
+  resetCamera(){
+    this.cameraTarget={x:0,y:0,z:185};
+    this._zoomedIn=false;
+  }
+  zoomToCenter(){
+    this.cameraTarget={x:0,y:0,z:2};
+  }
+  zoom(dy){
+    const cx=this.cameraTarget.x,cy=this.cameraTarget.y,cz=this.cameraTarget.z;
+    const dist=Math.sqrt(cx*cx+cy*cy+cz*cz)||185;
+    const newDist=Math.max(4,Math.min(450,dist+dy*.06));
+    const s=newDist/dist;
+    this.cameraTarget={x:cx*s,y:cy*s,z:cz*s};
+  }
 
   // ★ Visibilité — stopper le rendu si onglet caché
   _bindVisibilityChange(){
@@ -1799,11 +1814,15 @@ class Scene3D{
         }
         else if(fi<=-100){
           const mi=-fi-100;const moon=this.prestigeMoons[mi];this.onClick?.(moon.slot||{tier:'prestige'},'moon',mi);
-          if(moon){const T=this.T;const wp=new T.Vector3();moon.moonMesh.getWorldPosition(wp);const dir=wp.clone().normalize();this.zoomTo({x:dir.x*SPHERE_R*1.6,y:dir.y*SPHERE_R*1.6,z:dir.z*SPHERE_R*1.6+8});}
+          if(moon){const T=this.T;const wp=new T.Vector3();moon.moonMesh.getWorldPosition(wp);const dir=wp.clone().normalize();this.zoomTo({x:dir.x*SPHERE_R*2.1,y:dir.y*SPHERE_R*2.1,z:dir.z*SPHERE_R*2.1});}
         }else if(fi>=0){
           this._setSel(fi);if(this._epU)this._epU.uSelected.value=0;
           const face=this._faces?.[fi];this.onClick?.(this.faceSlots[fi],'face',fi);
-          if(face?.centroid){const T=this.T,dir=new T.Vector3(...face.centroid).normalize();this.zoomTo({x:dir.x*SPHERE_R*1.2,y:dir.y*SPHERE_R*1.2,z:dir.z*SPHERE_R*1.2+8});}
+          if(face?.centroid){const T=this.T,dir=new T.Vector3(...face.centroid).normalize();this.zoomTo({x:dir.x*SPHERE_R*1.72,y:dir.y*SPHERE_R*1.72,z:dir.z*SPHERE_R*1.72});}
+        }else{
+          // Clic dans le vide — dézoom propre
+          this._setSel(-1);if(this._epU)this._epU.uSelected.value=0;
+          this.resetCamera();this.onClick?.(null,'empty',-1);
         }
       }
       pendingDrag=false;
@@ -1812,7 +1831,7 @@ class Scene3D{
     c.addEventListener('mousedown',h.md);window.addEventListener('mousemove',h.mm);window.addEventListener('mouseup',h.mu);
     h.ts=e=>{if(e.touches.length===1){this.isDragging=true;mv=false;lx=e.touches[0].clientX;ly=e.touches[0].clientY;this.pinchDist=null;this._setDPRScale(1.0);}else if(e.touches.length===2){this.isDragging=false;const dx=e.touches[0].clientX-e.touches[1].clientX,dy=e.touches[0].clientY-e.touches[1].clientY;this.pinchDist=Math.sqrt(dx*dx+dy*dy);}};
     h.tm=e=>{e.preventDefault();if(e.touches.length===1&&this.isDragging){const dx=e.touches[0].clientX-lx,dy=e.touches[0].clientY-ly;if(Math.abs(dx)>2||Math.abs(dy)>2)mv=true;this.rot.y+=dx*.004;this.rot.x+=dy*.004;this.rot.x=Math.max(-1.5,Math.min(1.5,this.rot.x));this.vel={x:dx*.004,y:dy*.004};lx=e.touches[0].clientX;ly=e.touches[0].clientY;}else if(e.touches.length===2&&this.pinchDist!=null){const dx=e.touches[0].clientX-e.touches[1].clientX,dy=e.touches[0].clientY-e.touches[1].clientY;const d=Math.sqrt(dx*dx+dy*dy);this.zoom((this.pinchDist-d)*3);this.pinchDist=d;}};
-    h.te=e=>{this._setDPRScale(1.0);if(e.changedTouches.length===1){const fi=this._cast(e.changedTouches[0].clientX,e.changedTouches[0].clientY);if(fi>=0){this._setSel(fi);const face=this._faces?.[fi];this.onClick?.(this.faceSlots[fi],'face',fi);if(face?.centroid){const T=this.T,dir=new T.Vector3(...face.centroid).normalize();this.zoomTo({x:dir.x*SPHERE_R*1.2,y:dir.y*SPHERE_R*1.2,z:dir.z*SPHERE_R*1.2+8});}}}this.isDragging=false;};
+    h.te=e=>{this._setDPRScale(1.0);if(e.changedTouches.length===1){const fi=this._cast(e.changedTouches[0].clientX,e.changedTouches[0].clientY);if(fi>=0){this._setSel(fi);const face=this._faces?.[fi];this.onClick?.(this.faceSlots[fi],'face',fi);if(face?.centroid){const T=this.T,dir=new T.Vector3(...face.centroid).normalize();this.zoomTo({x:dir.x*SPHERE_R*1.72,y:dir.y*SPHERE_R*1.72,z:dir.z*SPHERE_R*1.72});}}else if(fi===-1){this._setSel(-1);if(this._epU)this._epU.uSelected.value=0;this.resetCamera();}}this.isDragging=false;};
     c.addEventListener('touchstart',h.ts,{passive:false});c.addEventListener('touchmove',h.tm,{passive:false});c.addEventListener('touchend',h.te);
   }
 
@@ -1952,8 +1971,11 @@ class Scene3D{
       geo.attributes.position.needsUpdate=true;
     });
 
-    this.zoomCurrent+=(this.zoomTarget-this.zoomCurrent)*.055;
-    this.camera.position.z=this.zoomCurrent;
+    const ls=this._lerpSpeed;
+    this.camera.position.x+=(this.cameraTarget.x-this.camera.position.x)*ls;
+    this.camera.position.y+=(this.cameraTarget.y-this.camera.position.y)*ls;
+    this.camera.position.z+=(this.cameraTarget.z-this.camera.position.z)*ls;
+    this.camera.lookAt(0,0,0);
 
     if(this.composer)this.composer.render();
     else this.renderer.render(this.scene,this.camera);
@@ -3670,6 +3692,7 @@ export default function View3D({slots=[],isLive=false,onCheckout,onBuyout,onView
           }
         };
         sc.onClick=(slot,type,idx)=>{
+          if(type==='empty'){setSelSlot(null);return;}
           if(type==='epic')setSelSlot(epicSlot||{tier:'epicenter'});
           else if(type==='ring'&&idx!=null)setSelSlot({...slot,tier:'elite',_ring:sc.eliteRings[idx]});
           else if(type==='moon')setSelSlot(slot||{tier:'prestige'});
