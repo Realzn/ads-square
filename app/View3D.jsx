@@ -894,8 +894,7 @@ class Scene3D{
       starfieldPoints:null,cosmicObjects:[],cometMeshes:[],
       raycaster:null,triToFace:null,faceSlots:[],_faces:null,
       rot:{x:.08,y:0},vel:{x:0,y:0},isDragging:false,pinchDist:null,
-      cameraTarget:{x:0,y:0,z:185},_zoomedIn:false,_lerpSpeed:0.068,
-      hovFace:-1,selFace:-1,
+      zoomTarget:185,zoomCurrent:185,hovFace:-1,selFace:-1,
       animId:null,onHover:null,onClick:null,_h:{},
       _t0:Date.now(),_pU:null,_epU:null,_grU:null,_vU:null,
       _insideBlend:0,tierFocus:-1,_tierColors:null,
@@ -1729,23 +1728,24 @@ class Scene3D{
   get isPaused(){return this._paused;}
 
   zoomTo(target){
-    this.cameraTarget={x:target.x,y:target.y,z:target.z};
-    this._zoomedIn=true;
+    if(!this.G)return;
+    const T=this.T;
+    this.G.to(this.camera.position,{x:target.x,y:target.y,z:target.z,duration:1.1,ease:'power3.inOut',onUpdate:()=>this.camera.lookAt(new T.Vector3(0,0,0))});
+    this.G.to(this,{zoomTarget:target.z||77,duration:1.1,ease:'power3.inOut'});
   }
   resetCamera(){
-    this.cameraTarget={x:0,y:0,z:185};
-    this._zoomedIn=false;
+    if(!this.G)return;
+    const T=this.T;
+    this.G.to(this.camera.position,{x:0,y:0,z:185,duration:.95,ease:'power3.inOut',onUpdate:()=>this.camera.lookAt(new T.Vector3(0,0,0))});
+    this.G.to(this,{zoomTarget:185,duration:.95,ease:'power3.inOut'});
   }
   zoomToCenter(){
-    this.cameraTarget={x:0,y:0,z:2};
+    if(!this.G)return;
+    const T=this.T;
+    this.G.to(this.camera.position,{x:0,y:0,z:0,duration:1.4,ease:'power3.inOut',onUpdate:()=>this.camera.lookAt(new T.Vector3(0,0,1))});
+    this.G.to(this,{zoomTarget:0,duration:1.4,ease:'power3.inOut'});
   }
-  zoom(dy){
-    const cx=this.cameraTarget.x,cy=this.cameraTarget.y,cz=this.cameraTarget.z;
-    const dist=Math.sqrt(cx*cx+cy*cy+cz*cz)||185;
-    const newDist=Math.max(4,Math.min(450,dist+dy*.06));
-    const s=newDist/dist;
-    this.cameraTarget={x:cx*s,y:cy*s,z:cz*s};
-  }
+  zoom(dy){this.zoomTarget=Math.max(4,Math.min(450,this.zoomTarget+dy*.06));}
 
   // ★ Visibilité — stopper le rendu si onglet caché
   _bindVisibilityChange(){
@@ -1971,11 +1971,8 @@ class Scene3D{
       geo.attributes.position.needsUpdate=true;
     });
 
-    const _ls=this._lerpSpeed;
-    this.camera.position.x+=(this.cameraTarget.x-this.camera.position.x)*_ls;
-    this.camera.position.y+=(this.cameraTarget.y-this.camera.position.y)*_ls;
-    this.camera.position.z+=(this.cameraTarget.z-this.camera.position.z)*_ls;
-    this.camera.lookAt(0,0,0);
+    this.zoomCurrent+=(this.zoomTarget-this.zoomCurrent)*.055;
+    this.camera.position.z=this.zoomCurrent;
 
     if(this.composer)this.composer.render();
     else this.renderer.render(this.scene,this.camera);
