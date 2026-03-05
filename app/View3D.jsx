@@ -1971,10 +1971,10 @@ class Scene3D{
       geo.attributes.position.needsUpdate=true;
     });
 
-    const ls=this._lerpSpeed;
-    this.camera.position.x+=(this.cameraTarget.x-this.camera.position.x)*ls;
-    this.camera.position.y+=(this.cameraTarget.y-this.camera.position.y)*ls;
-    this.camera.position.z+=(this.cameraTarget.z-this.camera.position.z)*ls;
+    const _ls=this._lerpSpeed;
+    this.camera.position.x+=(this.cameraTarget.x-this.camera.position.x)*_ls;
+    this.camera.position.y+=(this.cameraTarget.y-this.camera.position.y)*_ls;
+    this.camera.position.z+=(this.cameraTarget.z-this.camera.position.z)*_ls;
     this.camera.lookAt(0,0,0);
 
     if(this.composer)this.composer.render();
