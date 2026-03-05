@@ -3238,115 +3238,119 @@ const Sidebar=memo(function Sidebar({slots,isLive,activeTier,onTierSelect,onView
 
       {/* Content */}
       <div style={{flex:1,overflowY:'auto',position:'relative',zIndex:2}}>
-        {tab==='cosmos'?(
-          <div>
-            {[
-              {tier:'epicenter',label:'ÉPICENTRE',    sub:'1 slot · noyau',      extra:'Icosaèdre cristallin'},
-              {tier:'prestige', label:'LUNES',         sub:'8 corps orbitaux',    extra:'Planétoïdes PBR'},
-              {tier:'elite',    label:'ANNEAUX DYSON', sub:'6 anneaux · 50 slots',extra:'Mégastructures orbitales'},
-              {tier:'business', label:'PANNEAUX',      sub:'176 slots · sphère',  extra:'Faces ico sub-3'},
-              {tier:'standard', label:'ÉMETTEURS',     sub:'400 slots · sphère',  extra:'Maillage complet'},
-              {tier:'viral',    label:'DRONES',        sub:'671 nano-vecteurs',   extra:'Essaim orbital'},
-            ].map(({tier,label,sub,extra})=>{
-              const col=TIER_NEON[tier];
-              const occ=stats[tier]||0;
-              const tot=TIER_TOTALS[tier];
-              const pct=Math.round(occ/tot*100);
-              const role=TIER_ROLE[tier];
-              const isFocus=activeTier===TIER_ORDER.indexOf(tier);
-              const segs=Math.min(tot,12);
-              return(
-                <div key={tier}
-                  onClick={()=>onTierSelect(isFocus?-1:TIER_ORDER.indexOf(tier))}
-                  style={{
-                    padding:'8px 14px 8px 10px',
-                    borderLeft:`2px solid ${isFocus?col:'transparent'}`,
-                    borderBottom:`0.5px solid rgba(0,200,240,0.05)`,
-                    marginLeft:0,
-                    cursor:'pointer',
-                    background:isFocus?`${col}08`:'transparent',
-                    transition:'all .10s',
-                    position:'relative',
-                  }}
-                  onMouseEnter={e=>e.currentTarget.style.background=`${col}06`}
-                  onMouseLeave={e=>e.currentTarget.style.background=isFocus?`${col}08`:'transparent'}
-                >
-                  {/* Row top */}
-                  <div style={{display:'flex',alignItems:'center',gap:7,marginBottom:5}}>
-                    <div style={{
-                      width:22,height:22,flexShrink:0,
-                      border:`1px solid ${col}${isFocus?'66':'2a'}`,
-                      background:`${col}${isFocus?'12':'06'}`,
-                      display:'flex',alignItems:'center',justifyContent:'center',
-                      fontSize:11,color:`${col}${isFocus?'ee':'55'}`,
-                      clipPath:tier==='epicenter'?undefined:'polygon(15% 0,85% 0,100% 15%,100% 85%,85% 100%,15% 100%,0 85%,0 15%)',
-                      borderRadius:tier==='epicenter'?'50%':0,
-                    }}>{role?.icon}</div>
-                    <div style={{flex:1,minWidth:0}}>
-                      <div style={{color:isFocus?col:DS.textMid,fontFamily:F.mono,fontSize:8.5,fontWeight:700,letterSpacing:'.08em'}}>{label}</div>
-                      <div style={{color:DS.textLo,fontFamily:F.mono,fontSize:6,letterSpacing:'.06em'}}>{sub}</div>
-                    </div>
-                    <div style={{fontFamily:F.mono,fontSize:8,fontWeight:700,color:isFocus?col:DS.textLo,letterSpacing:'.02em'}}>
-                      €{fmt(tier)}
-                    </div>
-                  </div>
-                  {/* Segmented progress */}
-                  <div style={{paddingLeft:29}}>
-                    <div style={{display:'flex',alignItems:'center',gap:4,marginBottom:2}}>
-                      <div style={{flex:1,display:'flex',gap:1}}>
-                        {Array.from({length:segs},(_,si)=>{
-                          const filled=si<Math.round(occ/tot*segs);
-                          return <div key={si} style={{flex:1,height:2,background:filled?col:`${col}18`,transition:'background .4s'}}/>;
-                        })}
+        {(()=>{
+          /* ── COSMOS ── */
+          if(tab==='cosmos') return (
+            <div>
+              {[
+                {tier:'epicenter',label:'ÉPICENTRE',    sub:'1 slot · noyau',      extra:'Icosaèdre cristallin'},
+                {tier:'prestige', label:'LUNES',         sub:'8 corps orbitaux',    extra:'Planétoïdes PBR'},
+                {tier:'elite',    label:'ANNEAUX DYSON', sub:'6 anneaux · 50 slots',extra:'Mégastructures orbitales'},
+                {tier:'business', label:'PANNEAUX',      sub:'176 slots · sphère',  extra:'Faces ico sub-3'},
+                {tier:'standard', label:'ÉMETTEURS',     sub:'400 slots · sphère',  extra:'Maillage complet'},
+                {tier:'viral',    label:'DRONES',        sub:'671 nano-vecteurs',   extra:'Essaim orbital'},
+              ].map(({tier,label,sub,extra})=>{
+                const col=TIER_NEON[tier];
+                const occ=stats[tier]||0;
+                const tot=TIER_TOTALS[tier];
+                const role=TIER_ROLE[tier];
+                const isFocus=activeTier===TIER_ORDER.indexOf(tier);
+                const segs=Math.min(tot,12);
+                return(
+                  <div key={tier}
+                    onClick={()=>onTierSelect(isFocus?-1:TIER_ORDER.indexOf(tier))}
+                    style={{
+                      padding:'8px 14px 8px 10px',
+                      borderLeft:`2px solid ${isFocus?col:'transparent'}`,
+                      borderBottom:`0.5px solid rgba(0,200,240,0.05)`,
+                      cursor:'pointer',
+                      background:isFocus?`${col}08`:'transparent',
+                      transition:'all .10s',
+                      position:'relative',
+                    }}
+                    onMouseEnter={e=>e.currentTarget.style.background=`${col}06`}
+                    onMouseLeave={e=>e.currentTarget.style.background=isFocus?`${col}08`:'transparent'}
+                  >
+                    <div style={{display:'flex',alignItems:'center',gap:7,marginBottom:5}}>
+                      <div style={{
+                        width:22,height:22,flexShrink:0,
+                        border:`1px solid ${col}${isFocus?'66':'2a'}`,
+                        background:`${col}${isFocus?'12':'06'}`,
+                        display:'flex',alignItems:'center',justifyContent:'center',
+                        fontSize:11,color:`${col}${isFocus?'ee':'55'}`,
+                        clipPath:tier==='epicenter'?undefined:'polygon(15% 0,85% 0,100% 15%,100% 85%,85% 100%,15% 100%,0 85%,0 15%)',
+                        borderRadius:tier==='epicenter'?'50%':0,
+                      }}>{role?.icon}</div>
+                      <div style={{flex:1,minWidth:0}}>
+                        <div style={{color:isFocus?col:DS.textMid,fontFamily:F.mono,fontSize:8.5,fontWeight:700,letterSpacing:'.08em'}}>{label}</div>
+                        <div style={{color:DS.textLo,fontFamily:F.mono,fontSize:6,letterSpacing:'.06em'}}>{sub}</div>
                       </div>
-                      <span style={{color:DS.textLo,fontFamily:F.mono,fontSize:6,letterSpacing:'.05em'}}>{occ}/{tot}</span>
+                      <div style={{fontFamily:F.mono,fontSize:8,fontWeight:700,color:isFocus?col:DS.textLo,letterSpacing:'.02em'}}>
+                        €{fmt(tier)}
+                      </div>
                     </div>
-                    <div style={{color:DS.textLo,fontFamily:F.mono,fontSize:6,letterSpacing:'.06em',opacity:.7}}>{extra}</div>
+                    <div style={{paddingLeft:29}}>
+                      <div style={{display:'flex',alignItems:'center',gap:4,marginBottom:2}}>
+                        <div style={{flex:1,display:'flex',gap:1}}>
+                          {Array.from({length:segs},(_,si)=>{
+                            const filled=si<Math.round(occ/tot*segs);
+                            return <div key={si} style={{flex:1,height:2,background:filled?col:`${col}18`,transition:'background .4s'}}/>;
+                          })}
+                        </div>
+                        <span style={{color:DS.textLo,fontFamily:F.mono,fontSize:6,letterSpacing:'.05em'}}>{occ}/{tot}</span>
+                      </div>
+                      <div style={{color:DS.textLo,fontFamily:F.mono,fontSize:6,letterSpacing:'.06em',opacity:.7}}>{extra}</div>
+                    </div>
                   </div>
-                </div>
-              );
-            })}
-          </div>
-        ):tab==='tiers'?(
-          TIER_ORDER.map(tier=>{
-            const col=TIER_NEON[tier];
-            const occ=stats[tier]||0;
-            const tot=TIER_TOTALS[tier];
-            const role=TIER_ROLE[tier];
-            return(
-              <div key={tier} style={{
-                padding:'9px 14px',
-                borderBottom:`0.5px solid rgba(0,200,240,0.05)`,
-                transition:'background .10s',
-              }}
-              onMouseEnter={e=>e.currentTarget.style.background=`${col}05`}
-              onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
-                <div style={{display:'flex',alignItems:'center',gap:7,marginBottom:3}}>
-                  <div style={{
-                    width:24,height:24,flexShrink:0,
-                    border:`1px solid ${col}44`,
-                    background:`${col}0a`,
-                    display:'flex',alignItems:'center',justifyContent:'center',
-                    fontSize:12,color:`${col}88`,
-                    clipPath:tier==='epicenter'?undefined:'polygon(15% 0,85% 0,100% 15%,100% 85%,85% 100%,15% 100%,0 85%,0 15%)',
-                    borderRadius:tier==='epicenter'?'50%':0,
-                  }}>{role?.icon}</div>
-                  <div>
-                    <div style={{color:`${col}cc`,fontFamily:F.mono,fontSize:8,fontWeight:700,letterSpacing:'.10em'}}>{role?.role}</div>
-                    <div style={{color:DS.textLo,fontFamily:F.mono,fontSize:6.5}}>€{fmt(tier)}/j · {tot} slots</div>
+                );
+              })}
+            </div>
+          );
+
+          /* ── TIERS ── */
+          if(tab==='tiers') return (
+            <div>
+              {TIER_ORDER.map(tier=>{
+                const col=TIER_NEON[tier];
+                const occ=stats[tier]||0;
+                const tot=TIER_TOTALS[tier];
+                const role=TIER_ROLE[tier];
+                return(
+                  <div key={tier} style={{
+                    padding:'9px 14px',
+                    borderBottom:`0.5px solid rgba(0,200,240,0.05)`,
+                    transition:'background .10s',
+                  }}
+                  onMouseEnter={e=>e.currentTarget.style.background=`${col}05`}
+                  onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+                    <div style={{display:'flex',alignItems:'center',gap:7,marginBottom:3}}>
+                      <div style={{
+                        width:24,height:24,flexShrink:0,
+                        border:`1px solid ${col}44`,
+                        background:`${col}0a`,
+                        display:'flex',alignItems:'center',justifyContent:'center',
+                        fontSize:12,color:`${col}88`,
+                        clipPath:tier==='epicenter'?undefined:'polygon(15% 0,85% 0,100% 15%,100% 85%,85% 100%,15% 100%,0 85%,0 15%)',
+                        borderRadius:tier==='epicenter'?'50%':0,
+                      }}>{role?.icon}</div>
+                      <div>
+                        <div style={{color:`${col}cc`,fontFamily:F.mono,fontSize:8,fontWeight:700,letterSpacing:'.10em'}}>{role?.role}</div>
+                        <div style={{color:DS.textLo,fontFamily:F.mono,fontSize:6.5}}>€{fmt(tier)}/j · {tot} slots</div>
+                      </div>
+                    </div>
+                    <div style={{color:DS.textMid,fontFamily:F.ui,fontSize:7.5,lineHeight:1.6,paddingLeft:31,marginBottom:3}}>{role?.desc}</div>
+                    <div style={{display:'flex',justifyContent:'space-between',paddingLeft:31}}>
+                      <span style={{color:DS.textLo,fontFamily:F.mono,fontSize:6}}>{occ}/{tot} OCCUPÉS</span>
+                      <span style={{color:occ>0?`${col}88`:DS.textLo,fontFamily:F.mono,fontSize:6}}>{Math.round(occ/tot*100)}%</span>
+                    </div>
                   </div>
-                </div>
-                <div style={{color:DS.textMid,fontFamily:F.ui,fontSize:7.5,lineHeight:1.6,paddingLeft:31,marginBottom:3}}>{role?.desc}</div>
-                <div style={{display:'flex',justifyContent:'space-between',paddingLeft:31}}>
-                  <span style={{color:DS.textLo,fontFamily:F.mono,fontSize:6}}>{occ}/{tot} OCCUPÉS</span>
-                  <span style={{color:occ>0?`${col}88`:DS.textLo,fontFamily:F.mono,fontSize:6}}>{Math.round(occ/tot*100)}%</span>
-                </div>
-              </div>
-            );
-          })
-        ):tab==='actifs'?(
-          /* ── TAB ACTIFS ── */
-          (()=>{
+                );
+              })}
+            </div>
+          );
+
+          /* ── ACTIFS ── */
+          if(tab==='actifs'){
             const occupied=(slots||[]).filter(s=>s?.occ&&s?.tenant);
             if(occupied.length===0) return(
               <div style={{padding:'32px 14px',textAlign:'center'}}>
@@ -3356,7 +3360,6 @@ const Sidebar=memo(function Sidebar({slots,isLive,activeTier,onTierSelect,onView
             );
             return(
               <div>
-                {/* Résumé compteur */}
                 <div style={{padding:'7px 14px',borderBottom:`0.5px solid rgba(0,200,240,0.06)`,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
                   <span style={{color:DS.textLo,fontFamily:F.mono,fontSize:6.5,letterSpacing:'.12em'}}>{occupied.length} SLOTS ACTIFS</span>
                   <div style={{display:'flex',alignItems:'center',gap:4}}>
@@ -3371,25 +3374,21 @@ const Sidebar=memo(function Sidebar({slots,isLive,activeTier,onTierSelect,onView
                   const url=tn?.url||'';
                   const type=tn?.t||'';
                   const tierLabel=TIER_LABEL[slot.tier]||slot.tier;
-                  const typeIcon={
-                    video:'▶',image:'◻',link:'⌖',social:'⊕',
-                    music:'♪',app:'⬡',brand:'⬟',text:'≡',
-                  }[type]||'◈';
+                  const typeIcon={video:'▶',image:'◻',link:'⌖',social:'⊕',music:'♪',app:'⬡',brand:'⬟',text:'≡'}[type]||'◈';
                   return(
                     <div key={slot.id||i}
-                    onClick={()=>onViewSlot&&onViewSlot(slot)}
-                    style={{
-                      padding:'7px 14px 7px 10px',
-                      borderLeft:`2px solid ${col}${onViewSlot?'70':'40'}`,
-                      borderBottom:`0.5px solid rgba(0,200,240,0.04)`,
-                      transition:'background .10s',
-                      cursor:onViewSlot?'pointer':'default',
-                    }}
-                    onMouseEnter={e=>{e.currentTarget.style.background=`${col}0e`;if(onViewSlot)e.currentTarget.style.borderLeftColor=`${col}cc`;}}
-                    onMouseLeave={e=>{e.currentTarget.style.background='transparent';e.currentTarget.style.borderLeftColor=`${col}${onViewSlot?'70':'40'}`;}}
+                      onClick={()=>onViewSlot&&onViewSlot(slot)}
+                      style={{
+                        padding:'7px 14px 7px 10px',
+                        borderLeft:`2px solid ${col}${onViewSlot?'70':'40'}`,
+                        borderBottom:`0.5px solid rgba(0,200,240,0.04)`,
+                        transition:'background .10s',
+                        cursor:onViewSlot?'pointer':'default',
+                      }}
+                      onMouseEnter={e=>{e.currentTarget.style.background=`${col}0e`;if(onViewSlot)e.currentTarget.style.borderLeftColor=`${col}cc`;}}
+                      onMouseLeave={e=>{e.currentTarget.style.background='transparent';e.currentTarget.style.borderLeftColor=`${col}${onViewSlot?'70':'40'}`;}}
                     >
                       <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:2}}>
-                        {/* Icône type */}
                         <div style={{
                           width:18,height:18,flexShrink:0,
                           background:`${col}12`,
@@ -3398,28 +3397,11 @@ const Sidebar=memo(function Sidebar({slots,isLive,activeTier,onTierSelect,onView
                           fontSize:9,color:`${col}cc`,
                           clipPath:'polygon(15% 0,85% 0,100% 15%,100% 85%,85% 100%,15% 100%,0 85%,0 15%)',
                         }}>{typeIcon}</div>
-                        {/* Nom */}
                         <div style={{flex:1,minWidth:0}}>
-                          <div style={{
-                            color:DS.textHi,fontFamily:F.mono,fontSize:8,fontWeight:700,
-                            letterSpacing:'.04em',
-                            overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',
-                          }}>{name}</div>
-                          {url&&<div style={{
-                            color:DS.textLo,fontFamily:F.mono,fontSize:6,letterSpacing:'.04em',
-                            overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',
-                          }}>{url.replace(/^https?:\/\/(www\.)?/,'')}</div>}
+                          <div style={{color:DS.textHi,fontFamily:F.mono,fontSize:8,fontWeight:700,letterSpacing:'.04em',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{name}</div>
+                          {url&&<div style={{color:DS.textLo,fontFamily:F.mono,fontSize:6,letterSpacing:'.04em',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{url.replace(/^https?:\/\/(www\.)?/,'')}</div>}
                         </div>
-                        {/* Badge tier */}
-                        <div style={{
-                          padding:'1px 5px',
-                          background:`${col}14`,
-                          border:`0.5px solid ${col}33`,
-                          color:col,
-                          fontFamily:F.mono,fontSize:5.5,fontWeight:700,letterSpacing:'.10em',
-                          flexShrink:0,
-                          clipPath:'polygon(0 0,calc(100% - 4px) 0,100% 4px,100% 100%,0 100%)',
-                        }}>{tierLabel.toUpperCase()}</div>
+                        <div style={{padding:'1px 5px',background:`${col}14`,border:`0.5px solid ${col}33`,color:col,fontFamily:F.mono,fontSize:5.5,fontWeight:700,letterSpacing:'.10em',flexShrink:0,clipPath:'polygon(0 0,calc(100% - 4px) 0,100% 4px,100% 100%,0 100%)'}}>{tierLabel.toUpperCase()}</div>
                         {onViewSlot&&<span style={{color:`${col}55`,fontSize:8,flexShrink:0,marginLeft:2}}>›</span>}
                       </div>
                     </div>
@@ -3427,15 +3409,15 @@ const Sidebar=memo(function Sidebar({slots,isLive,activeTier,onTierSelect,onView
                 })}
               </div>
             );
-          })()
-        ):tab==='dispo'?(
-          /* ── TAB DISPONIBLES ── */
-          (()=>{
-            const freeByTier = TIER_ORDER.map(tier=>({
+          }
+
+          /* ── DISPONIBLES ── */
+          if(tab==='dispo'){
+            const freeByTier=TIER_ORDER.map(tier=>({
               tier,
-              free: TIER_TOTALS[tier] - (stats[tier]||0),
-              tot:  TIER_TOTALS[tier],
-              occ:  stats[tier]||0,
+              free:TIER_TOTALS[tier]-(stats[tier]||0),
+              tot:TIER_TOTALS[tier],
+              occ:stats[tier]||0,
             })).filter(t=>t.free>0);
             return(
               <div>
@@ -3451,26 +3433,12 @@ const Sidebar=memo(function Sidebar({slots,isLive,activeTier,onTierSelect,onView
                   return(
                     <div key={tier}
                       onClick={()=>onTierSelect(TIER_ORDER.indexOf(tier))}
-                      style={{
-                        padding:'9px 14px 9px 10px',
-                        borderLeft:`2px solid ${DS.gold}55`,
-                        borderBottom:`0.5px solid rgba(0,200,240,0.04)`,
-                        cursor:'pointer',
-                        transition:'background .10s',
-                      }}
+                      style={{padding:'9px 14px 9px 10px',borderLeft:`2px solid ${DS.gold}55`,borderBottom:`0.5px solid rgba(0,200,240,0.04)`,cursor:'pointer',transition:'background .10s'}}
                       onMouseEnter={e=>e.currentTarget.style.background=`${DS.gold}06`}
                       onMouseLeave={e=>e.currentTarget.style.background='transparent'}
                     >
                       <div style={{display:'flex',alignItems:'center',gap:7,marginBottom:5}}>
-                        <div style={{
-                          width:20,height:20,flexShrink:0,
-                          border:`1px solid ${DS.gold}40`,
-                          background:`${DS.gold}0a`,
-                          display:'flex',alignItems:'center',justifyContent:'center',
-                          fontSize:10,color:`${DS.gold}88`,
-                          clipPath:tier==='epicenter'?undefined:'polygon(15% 0,85% 0,100% 15%,100% 85%,85% 100%,15% 100%,0 85%,0 15%)',
-                          borderRadius:tier==='epicenter'?'50%':0,
-                        }}>{role?.icon}</div>
+                        <div style={{width:20,height:20,flexShrink:0,border:`1px solid ${DS.gold}40`,background:`${DS.gold}0a`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:10,color:`${DS.gold}88`,clipPath:tier==='epicenter'?undefined:'polygon(15% 0,85% 0,100% 15%,100% 85%,85% 100%,15% 100%,0 85%,0 15%)',borderRadius:tier==='epicenter'?'50%':0}}>{role?.icon}</div>
                         <div style={{flex:1,minWidth:0}}>
                           <div style={{color:DS.textMid,fontFamily:F.mono,fontSize:8,fontWeight:700,letterSpacing:'.08em'}}>{(cfg?.label||tier).toUpperCase()}</div>
                           <div style={{color:DS.textLo,fontFamily:F.mono,fontSize:6}}>€{fmt(tier)}/j</div>
@@ -3480,13 +3448,11 @@ const Sidebar=memo(function Sidebar({slots,isLive,activeTier,onTierSelect,onView
                           <div style={{color:`${DS.gold}55`,fontFamily:F.mono,fontSize:5.5,letterSpacing:'.06em'}}>LIBRES</div>
                         </div>
                       </div>
-                      {/* Barre dispo */}
                       <div style={{paddingLeft:27}}>
                         <div style={{display:'flex',gap:1,marginBottom:3}}>
                           {Array.from({length:Math.min(tot,16)},(_,si)=>{
                             const usedCount=Math.round(occ/tot*Math.min(tot,16));
-                            const isFree=si>=usedCount;
-                            return <div key={si} style={{flex:1,height:2,background:isFree?`${DS.gold}60`:`${col}25`,transition:'background .3s'}}/>;
+                            return <div key={si} style={{flex:1,height:2,background:si>=usedCount?`${DS.gold}60`:`${col}25`,transition:'background .3s'}}/>;
                           })}
                         </div>
                         <div style={{display:'flex',justifyContent:'space-between'}}>
@@ -3499,8 +3465,10 @@ const Sidebar=memo(function Sidebar({slots,isLive,activeTier,onTierSelect,onView
                 })}
               </div>
             );
-          })()
-        )}
+          }
+
+          return null;
+        })()}
       </div>
 
       {/* Footer — revenue */}
