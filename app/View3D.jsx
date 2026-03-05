@@ -2094,11 +2094,36 @@ const TIER_CONFIG = {
 const TIER_LIST = ['all','epicenter','prestige','elite','business','standard','viral'];
 
 const VUE_CONFIG = {
-  realist:  { label:'RÉEL',     short:'PBR', icon:'◉', col:'#E8A020', desc:'Rendu physique · Métal & or' },
-  thermal:  { label:'THERM',    short:'IR',  icon:'⬡', col:'#FF4400', desc:'Infrarouge · Chaleur active' },
-  xray:     { label:'X-RAY',    short:'RX',  icon:'◌', col:'#44CCFF', desc:'Rayons X · Structure interne' },
-  blueprint:{ label:'PLAN',     short:'BLU', icon:'▦', col:'#4466FF', desc:'Blueprint · Filaire tech' },
-  identity: { label:'IDENTITÉ', short:'ID',  icon:'◆', col:'#CC00FF', desc:'Palette vive · Marques' },
+  realist:  {
+    label:'PLASMA',   short:'PLM', icon:'◉', col:'#E8A020',
+    desc:'Rendu stellaire natif',
+    lore:'La Sphère telle qu\'elle est — matières vivantes, éclat des métaux, lumière solaire brute.',
+    reveal:'Aspect naturel · Tiers dorés · Matériaux PBR',
+  },
+  thermal:  {
+    label:'FLUX-IR',  short:'IR',  icon:'⬡', col:'#FF4400',
+    desc:'Rayonnement thermique des Éclats',
+    lore:'Chaque Éclat actif rayonne. Les zones chaudes pulsent — les silences refroidissent.',
+    reveal:'Activité publicitaire · Zones saturées · Éclats live',
+  },
+  xray:     {
+    label:'RAYONS-Ω', short:'RX',  icon:'◌', col:'#44CCFF',
+    desc:'Transparence structurelle',
+    lore:'Les parois de la mégastructure deviennent fantômes. Seul le squelette demeure.',
+    reveal:'Architecture interne · Géométrie des tiers · Densité',
+  },
+  blueprint:{
+    label:'SCHÉMA',   short:'BLU', icon:'▦', col:'#4466FF',
+    desc:'Plan orbital de construction',
+    lore:'Le regard de l\'ingénieur — filaire technique, coordonnées absolues, topologie exacte.',
+    reveal:'Topologie filaire · Coordonnées · Limites de tiers',
+  },
+  identity: {
+    label:'SPECTRE',  short:'ID',  icon:'◆', col:'#CC00FF',
+    desc:'Signature chromatique des marques',
+    lore:'Chaque marque révèle sa couleur propre. La Sphère devient atlas de l\'identité.',
+    reveal:'Couleurs de marque · Présence visuelle · Atlas annonceurs',
+  },
 };
 
 // ── Radial Arc SVG pour occupation ───────────────────────────────────────────
@@ -2369,110 +2394,173 @@ function TierPanel({ activeTier, slots, onClose, onCheckout }) {
   );
 }
 
-// ── VUE MODES — swatches circulaires minimalistes ────────────────────────────
+// ── VUE MODES — Scanner de lecture de la Sphère ──────────────────────────────
 function VueDial({ activeFilter, onFilterSelect }) {
   const [hovered, setHovered] = useState(null);
   const isMobile = useIsMobile();
-  const entries = Object.entries(VUE_CONFIG);
-  const hov = hovered ? VUE_CONFIG[hovered] : null;
+  const entries  = Object.entries(VUE_CONFIG);
+  const active   = VUE_CONFIG[activeFilter] || VUE_CONFIG.realist;
+  const hovCfg   = hovered ? VUE_CONFIG[hovered] : null;
+  const displayCfg = hovCfg || active;
 
-  // On mobile: horizontal pill row at top-right, compact
+  // ── MOBILE ──────────────────────────────────────────────────────────────────
   if (isMobile) {
     return (
       <div style={{
-        position:'absolute', top:12, right:12, zIndex:35,
-        display:'flex', flexDirection:'row', gap:5, alignItems:'center',
-        background:'rgba(0,2,10,0.85)',
-        border:'0.5px solid rgba(0,200,240,0.12)',
-        borderRadius:24,
-        padding:'4px 8px',
-        backdropFilter:'blur(16px)',
+        position:'absolute', top:10, right:10, zIndex:40,
+        display:'flex', flexDirection:'column', alignItems:'flex-end', gap:5,
       }}>
-        {entries.map(([id,{col,icon}])=>{
-          const on = activeFilter === id;
-          return (
-            <button key={id} onClick={()=>onFilterSelect(id)}
-              style={{
-                width: on ? 28 : 22, height: on ? 28 : 22,
-                borderRadius:'50%',
-                background: on ? `radial-gradient(circle at 35% 35%, ${col}, ${col}88)` : `${col}18`,
-                border: `1.5px solid ${on ? col : col+'33'}`,
-                boxShadow: on ? `0 0 12px ${col}80` : 'none',
-                cursor:'pointer', outline:'none',
-                transition:'all .22s cubic-bezier(.16,1,.3,1)',
-                display:'flex', alignItems:'center', justifyContent:'center',
-                fontSize: on ? 12 : 10,
-                color: on ? '#000' : col,
-                flexShrink:0,
-              }}
-            >{icon}</button>
-          );
-        })}
+        <div style={{
+          display:'flex', flexDirection:'row', gap:4, alignItems:'center',
+          background:'rgba(0,2,12,0.92)',
+          border:`0.5px solid ${active.col}28`,
+          borderRadius:20,
+          padding:'4px 8px',
+          backdropFilter:'blur(20px)',
+        }}>
+          <span style={{
+            color:`${active.col}55`, fontFamily:F.mono, fontSize:7,
+            letterSpacing:'.18em', marginRight:2,
+          }}>CAPTEUR·SCAN</span>
+          {entries.map(([id,cfg])=>{
+            const on = activeFilter === id;
+            return (
+              <button key={id} onClick={()=>onFilterSelect(id)}
+                style={{
+                  width: on ? 26 : 20, height: on ? 26 : 20,
+                  borderRadius:'50%',
+                  background: on
+                    ? `radial-gradient(circle at 35% 35%, ${cfg.col}ee, ${cfg.col}66)`
+                    : `${cfg.col}14`,
+                  border:`1.5px solid ${on ? cfg.col : cfg.col+'25'}`,
+                  boxShadow: on ? `0 0 10px ${cfg.col}70` : 'none',
+                  cursor:'pointer', outline:'none',
+                  transition:'all .2s cubic-bezier(.16,1,.3,1)',
+                  display:'flex', alignItems:'center', justifyContent:'center',
+                  fontSize: on ? 11 : 9,
+                  color: on ? '#000' : cfg.col,
+                  flexShrink:0,
+                }}
+              >{cfg.icon}</button>
+            );
+          })}
+        </div>
+        <div style={{
+          background:'rgba(0,2,12,0.88)',
+          border:`0.5px solid ${active.col}30`,
+          borderRadius:8,
+          padding:'3px 8px',
+          display:'flex', alignItems:'center', gap:5,
+        }}>
+          <span style={{color:active.col, fontFamily:F.mono, fontSize:8, fontWeight:700, letterSpacing:'.14em'}}>{active.label}</span>
+          <span style={{color:`${active.col}50`, fontFamily:F.mono, fontSize:7}}>·</span>
+          <span style={{color:`${active.col}60`, fontFamily:F.mono, fontSize:7}}>{active.desc}</span>
+        </div>
       </div>
     );
   }
 
+  // ── DESKTOP ──────────────────────────────────────────────────────────────────
   return (
     <div style={{
-      position:'absolute', right:14, bottom:100, zIndex:35,
-      display:'flex', flexDirection:'column', alignItems:'flex-end', gap:6,
+      position:'absolute', right:14, bottom:110, zIndex:40,
+      display:'flex', flexDirection:'column', alignItems:'flex-end', gap:8,
+      userSelect:'none',
     }}>
-      {/* Tooltip flottant */}
-      {hov && (
+      {/* Panneau info mode actif / survolé */}
+      <div style={{
+        width:200,
+        background:'rgba(0,2,14,0.96)',
+        border:`0.5px solid ${displayCfg.col}30`,
+        borderLeft:`2px solid ${displayCfg.col}`,
+        padding:'10px 12px',
+        transition:'border-color .25s, box-shadow .25s',
+        boxShadow:`0 0 28px ${displayCfg.col}10, inset 0 0 16px ${displayCfg.col}04`,
+        backdropFilter:'blur(20px)',
+        clipPath:'polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%)',
+        animation:'panelFadeIn .2s ease',
+      }}>
         <div style={{
-          position:'absolute', right:50, bottom:0,
-          background:'rgba(0,3,14,0.97)', border:`0.5px solid ${hov.col}44`,
-          padding:'6px 12px', whiteSpace:'nowrap', pointerEvents:'none',
-          clipPath:'polygon(0 0,calc(100% - 6px) 0,100% 6px,100% 100%,0 100%)',
-          boxShadow:`0 0 20px ${hov.col}18`,
-          animation:'fadeInRight .12s ease',
+          display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:6,
         }}>
-          <div style={{color:hov.col,fontFamily:F.mono,fontSize:10,fontWeight:700,letterSpacing:'.12em'}}>{hov.label}</div>
-          <div style={{color:`${hov.col}60`,fontFamily:F.mono,fontSize:8,marginTop:2,letterSpacing:'.06em'}}>{hov.desc}</div>
+          <span style={{color:`${displayCfg.col}50`, fontFamily:F.mono, fontSize:7, letterSpacing:'.22em', fontWeight:700}}>CAPTEUR·SCAN</span>
+          <span style={{
+            color:displayCfg.col, fontFamily:F.mono, fontSize:7, letterSpacing:'.14em',
+            background:`${displayCfg.col}14`, border:`0.5px solid ${displayCfg.col}40`, padding:'1px 5px',
+          }}>{displayCfg.short}</span>
         </div>
-      )}
+        <div style={{
+          color:displayCfg.col, fontFamily:F.mono, fontSize:14, fontWeight:700,
+          letterSpacing:'.10em', lineHeight:1.1, textShadow:`0 0 18px ${displayCfg.col}60`, marginBottom:4,
+        }}>{displayCfg.label}</div>
+        <div style={{
+          color:`${displayCfg.col}80`, fontFamily:F.mono, fontSize:8,
+          letterSpacing:'.06em', lineHeight:1.5, marginBottom:7,
+        }}>{displayCfg.desc}</div>
+        <div style={{height:'0.5px', background:`linear-gradient(90deg, ${displayCfg.col}40, transparent)`, marginBottom:7}}/>
+        <div style={{
+          color:`${displayCfg.col}45`, fontFamily:F.mono, fontSize:7.5,
+          letterSpacing:'.04em', lineHeight:1.7, fontStyle:'italic', marginBottom:7,
+        }}>{displayCfg.lore}</div>
+        <div style={{
+          display:'flex', alignItems:'flex-start', gap:5,
+          background:`${displayCfg.col}08`, border:`0.5px solid ${displayCfg.col}20`, padding:'5px 7px',
+        }}>
+          <span style={{color:`${displayCfg.col}60`, fontFamily:F.mono, fontSize:7, flexShrink:0, marginTop:.5}}>◈</span>
+          <span style={{color:`${displayCfg.col}70`, fontFamily:F.mono, fontSize:7, letterSpacing:'.05em', lineHeight:1.6}}>{displayCfg.reveal}</span>
+        </div>
+      </div>
 
-      {/* Swatches */}
-      <div style={{display:'flex',flexDirection:'column',gap:5}}>
-        {entries.map(([id,{col,label,icon}])=>{
-          const on = activeFilter === id;
+      {/* Boutons 5 modes */}
+      <div style={{display:'flex', flexDirection:'column', gap:4, alignItems:'flex-end'}}>
+        {entries.map(([id, cfg], idx) => {
+          const on  = activeFilter === id;
+          const hov = hovered === id;
           return (
-            <button key={id} onClick={()=>onFilterSelect(id)}
+            <button key={id}
+              onClick={()=>onFilterSelect(id)}
               onMouseEnter={()=>setHovered(id)}
               onMouseLeave={()=>setHovered(null)}
               style={{
-                width: on ? 36 : 28, height: on ? 36 : 28,
-                borderRadius:'50%',
+                display:'flex', alignItems:'center', gap:7,
+                padding: on ? '5px 10px 5px 12px' : '4px 8px 4px 10px',
                 background: on
-                  ? `radial-gradient(circle at 35% 35%, ${col}, ${col}88)`
-                  : `radial-gradient(circle at 35% 35%, ${col}22, ${col}0a)`,
-                border: `1.5px solid ${on ? col : col+'33'}`,
-                boxShadow: on
-                  ? `0 0 16px ${col}80, 0 0 32px ${col}30, inset 0 0 12px ${col}40`
-                  : `0 0 6px ${col}18`,
+                  ? `linear-gradient(90deg, ${cfg.col}22, ${cfg.col}0a)`
+                  : hov ? `${cfg.col}0d` : 'transparent',
+                border:`0.5px solid ${on ? cfg.col+'60' : hov ? cfg.col+'30' : cfg.col+'16'}`,
+                borderRight: on ? `2px solid ${cfg.col}` : hov ? `1px solid ${cfg.col}50` : `0.5px solid ${cfg.col}16`,
                 cursor:'pointer', outline:'none',
-                transition:'all .22s cubic-bezier(.16,1,.3,1)',
-                display:'flex', alignItems:'center', justifyContent:'center',
-                fontSize: on ? 14 : 11,
-                filter: on ? `drop-shadow(0 0 6px ${col})` : 'none',
-                color: on ? '#000' : col,
-                flexShrink:0,
+                transition:'all .18s cubic-bezier(.16,1,.3,1)',
+                backdropFilter: on ? 'blur(12px)' : 'none',
+                boxShadow: on ? `0 0 18px ${cfg.col}18, inset 0 0 8px ${cfg.col}08` : 'none',
+                minWidth: on ? 110 : 90,
               }}
-            >{icon}</button>
+            >
+              <span style={{
+                fontSize: on ? 13 : 10, color: on ? cfg.col : `${cfg.col}50`,
+                filter: on ? `drop-shadow(0 0 5px ${cfg.col})` : 'none',
+                transition:'all .18s', flexShrink:0,
+              }}>{cfg.icon}</span>
+              <span style={{
+                fontFamily:F.mono, fontSize: on ? 9 : 8, fontWeight:700, letterSpacing:'.14em',
+                color: on ? cfg.col : `${cfg.col}50`,
+                textShadow: on ? `0 0 10px ${cfg.col}60` : 'none',
+                transition:'all .18s', flexGrow:1,
+              }}>{cfg.label}</span>
+              {on && <span style={{
+                width:4, height:4, borderRadius:'50%',
+                background:cfg.col, boxShadow:`0 0 6px ${cfg.col}`,
+                animation:'pulse .8s ease-in-out infinite alternate',
+              }}/>}
+            </button>
           );
         })}
       </div>
 
-      {/* Label mode actif */}
-      <div style={{
-        color:`${(VUE_CONFIG[activeFilter]?.col)||DS.cyan}80`,
-        fontFamily:F.mono, fontSize:7, letterSpacing:'.18em',
-        textAlign:'right', marginTop:2,
-      }}>
-        {VUE_CONFIG[activeFilter]?.label}
-      </div>
-
-      <style>{`@keyframes fadeInRight{from{opacity:0;transform:translateX(8px)}to{opacity:1;transform:translateX(0)}}`}</style>
+      <style>{`
+        @keyframes panelFadeIn { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:translateY(0)} }
+        @keyframes pulse       { from{opacity:.4;transform:scale(.8)} to{opacity:1;transform:scale(1.15)} }
+      `}</style>
     </div>
   );
 }
