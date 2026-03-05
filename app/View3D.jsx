@@ -385,23 +385,24 @@ void main(){
     vec3 busbarCol  = vec3(0.38, 0.40, 0.44) * (busbar + finger * 0.5);
 
     // ── FRESNEL RIM ────────────────────────────────────────────────────────
-    float rimStr = 0.06 + vOcc * 0.05;
+    float rimStr = 0.025 + vOcc * 0.030;
     vec3  rim    = vTC * pow(vFresnel, 2.4) * rimStr * pulse;
 
     // ── EDGE GLOW (contours des faces) ────────────────────────────────────
-    float edgeStr = sel ? 1.4 : (hov ? 0.9 : 0.32);
+    float edgeStr = sel ? 1.2 : (hov ? 0.75 : 0.14);
     edgeStr *= pulse;
     vec3 edgeCol  = vTC * wire * edgeStr * 1.6 + vTC * glow * edgeStr * 0.14;
 
     // ── TEINTE TIER sur panneau occupé ────────────────────────────────────
     vec3 tierFill = vec3(0.0);
     if(vOcc > 0.5){
-      float fs   = vTI < 0.5 ? 0.055 : (vTI < 1.5 ? 0.038 : 0.020);
-      // Colore les cellules avec la couleur du tier — subtil
-      tierFill   = vTC * fs * pulse * (0.7 + cellVar * 0.6);
-      // Les busbars captent aussi la couleur du tier
-      tierFill  += vTC * busbar * 0.022 * pulse;
-      // Grid mondiale supprimée — remplacée par la micro-grille PV
+      // Occupé : teinte tier visible mais contenue
+      float fs   = vTI < 0.5 ? 0.032 : (vTI < 1.5 ? 0.022 : 0.012);
+      tierFill   = vTC * fs * pulse * (0.65 + cellVar * 0.5);
+      tierFill  += vTC * busbar * 0.012 * pulse;
+    } else {
+      // Disponible : silicium quasi éteint, seule la micro-grille reste
+      tierFill   = vTC * 0.004 * (0.5 + cellVar * 0.3);
     }
 
     // ── ASSEMBLAGE ────────────────────────────────────────────────────────
@@ -426,9 +427,9 @@ void main(){
     vec3 inner  = vec3(0.004, 0.008, 0.018);
     inner += vTC * hex * 0.22 * energy * pulse2 + vTC * scan * 0.14 * energy;
     inner += mix(vec3(0.005, 0.010, 0.025), vTC * 0.08, ir * 0.7) * pulse2 + vTC * edgeF(2.5) * 0.25 * energy * pulse2;
-    if(vOcc > 0.5) inner += vTC * 0.20 * ir * pulse2;
+    if(vOcc > 0.5) inner += vTC * 0.06 * ir * pulse2;
     inner += vTC * pow(vFresnel, 2.0) * 0.08 * pulse2;
-    if(vOcc > 0.5) inner *= 1.6 + 0.4 * sin(t * 1.8 + vFI * 0.22);
+    if(vOcc > 0.5) inner *= 1.15 + 0.10 * sin(t * 1.8 + vFI * 0.22);
     if(dim) inner = mix(inner, vec3(0.002, 0.004, 0.008), 0.92);
     gl_FragColor = vec4(inner, 1.0);
   }
@@ -3198,18 +3199,40 @@ const Sidebar=memo(function Sidebar({slots,isLive,activeTier,onTierSelect,onView
 
         {/* Tab switcher */}
         <div style={{display:'flex',gap:2}}>
-          {[['cosmos','COSMOS'],['tiers','TIERS'],['occupied','OCCUPÉS']].map(([id,lbl])=>(
-            <button key={id} onClick={()=>setTab(id)} style={{
-              flex:1,padding:'5px 0',
-              background:tab===id?`${DS.cyan}14`:'transparent',
-              border:`0.5px solid ${tab===id?DS.cyan:DS.glassBrd}`,
-              clipPath:'polygon(0 0,calc(100% - 5px) 0,100% 5px,100% 100%,0 100%)',
-              color:tab===id?DS.cyan:DS.textLo,
-              fontFamily:F.mono,fontSize:7.5,fontWeight:600,
-              letterSpacing:'.12em',cursor:'pointer',outline:'none',
-              transition:'all .10s',
-            }}>{lbl}</button>
-          ))}
+          {/* Row 1 : COSMOS + TIERS */}
+          <div style={{display:'flex',gap:2,marginBottom:2}}>
+            {[['cosmos','COSMOS'],['tiers','TIERS']].map(([id,lbl])=>(
+              <button key={id} onClick={()=>setTab(id)} style={{
+                flex:1,padding:'5px 0',
+                background:tab===id?`${DS.cyan}14`:'transparent',
+                border:`0.5px solid ${tab===id?DS.cyan:DS.glassBrd}`,
+                clipPath:'polygon(0 0,calc(100% - 5px) 0,100% 5px,100% 100%,0 100%)',
+                color:tab===id?DS.cyan:DS.textLo,
+                fontFamily:F.mono,fontSize:7.5,fontWeight:600,
+                letterSpacing:'.12em',cursor:'pointer',outline:'none',
+                transition:'all .10s',
+              }}>{lbl}</button>
+            ))}
+          </div>
+          {/* Row 2 : ACTIFS + DISPONIBLES */}
+          <div style={{display:'flex',gap:2}}>
+            {[['actifs','ACTIFS',DS.green],['dispo','DISPONIBLES',DS.gold]].map(([id,lbl,col])=>(
+              <button key={id} onClick={()=>setTab(id)} style={{
+                flex:1,padding:'5px 0',
+                background:tab===id?`${col}14`:'transparent',
+                border:`0.5px solid ${tab===id?col:DS.glassBrd}`,
+                clipPath:'polygon(0 0,calc(100% - 5px) 0,100% 5px,100% 100%,0 100%)',
+                color:tab===id?col:DS.textLo,
+                fontFamily:F.mono,fontSize:7.5,fontWeight:600,
+                letterSpacing:'.10em',cursor:'pointer',outline:'none',
+                transition:'all .10s',
+                display:'flex',alignItems:'center',justifyContent:'center',gap:4,
+              }}>
+                {tab===id&&<div style={{width:3,height:3,borderRadius:'50%',background:col,animation:'hpulse 1.4s ease-in-out infinite',flexShrink:0}}/>}
+                {lbl}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -3321,8 +3344,8 @@ const Sidebar=memo(function Sidebar({slots,isLive,activeTier,onTierSelect,onView
               </div>
             );
           })
-        ):(
-          /* ── TAB OCCUPÉS ── */
+        ):tab==='actifs'?(
+          /* ── TAB ACTIFS ── */
           (()=>{
             const occupied=(slots||[]).filter(s=>s?.occ&&s?.tenant);
             if(occupied.length===0) return(
@@ -3398,6 +3421,78 @@ const Sidebar=memo(function Sidebar({slots,isLive,activeTier,onTierSelect,onView
                           clipPath:'polygon(0 0,calc(100% - 4px) 0,100% 4px,100% 100%,0 100%)',
                         }}>{tierLabel.toUpperCase()}</div>
                         {onViewSlot&&<span style={{color:`${col}55`,fontSize:8,flexShrink:0,marginLeft:2}}>›</span>}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })()
+        ):tab==='dispo'?(
+          /* ── TAB DISPONIBLES ── */
+          (()=>{
+            const freeByTier = TIER_ORDER.map(tier=>({
+              tier,
+              free: TIER_TOTALS[tier] - (stats[tier]||0),
+              tot:  TIER_TOTALS[tier],
+              occ:  stats[tier]||0,
+            })).filter(t=>t.free>0);
+            return(
+              <div>
+                <div style={{padding:'7px 14px',borderBottom:`0.5px solid rgba(0,200,240,0.06)`,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                  <span style={{color:DS.textLo,fontFamily:F.mono,fontSize:6.5,letterSpacing:'.12em'}}>{freeByTier.reduce((s,t)=>s+t.free,0)} SLOTS LIBRES</span>
+                  <span style={{color:DS.gold,fontFamily:F.mono,fontSize:6,letterSpacing:'.10em'}}>RÉSERVABLES</span>
+                </div>
+                {freeByTier.map(({tier,free,tot,occ})=>{
+                  const col=TIER_NEON[tier]||DS.cyan;
+                  const role=TIER_ROLE[tier];
+                  const pct=Math.round(free/tot*100);
+                  const cfg=TIER_CONFIG[tier];
+                  return(
+                    <div key={tier}
+                      onClick={()=>onTierSelect(TIER_ORDER.indexOf(tier))}
+                      style={{
+                        padding:'9px 14px 9px 10px',
+                        borderLeft:`2px solid ${DS.gold}55`,
+                        borderBottom:`0.5px solid rgba(0,200,240,0.04)`,
+                        cursor:'pointer',
+                        transition:'background .10s',
+                      }}
+                      onMouseEnter={e=>e.currentTarget.style.background=`${DS.gold}06`}
+                      onMouseLeave={e=>e.currentTarget.style.background='transparent'}
+                    >
+                      <div style={{display:'flex',alignItems:'center',gap:7,marginBottom:5}}>
+                        <div style={{
+                          width:20,height:20,flexShrink:0,
+                          border:`1px solid ${DS.gold}40`,
+                          background:`${DS.gold}0a`,
+                          display:'flex',alignItems:'center',justifyContent:'center',
+                          fontSize:10,color:`${DS.gold}88`,
+                          clipPath:tier==='epicenter'?undefined:'polygon(15% 0,85% 0,100% 15%,100% 85%,85% 100%,15% 100%,0 85%,0 15%)',
+                          borderRadius:tier==='epicenter'?'50%':0,
+                        }}>{role?.icon}</div>
+                        <div style={{flex:1,minWidth:0}}>
+                          <div style={{color:DS.textMid,fontFamily:F.mono,fontSize:8,fontWeight:700,letterSpacing:'.08em'}}>{(cfg?.label||tier).toUpperCase()}</div>
+                          <div style={{color:DS.textLo,fontFamily:F.mono,fontSize:6}}>€{fmt(tier)}/j</div>
+                        </div>
+                        <div style={{textAlign:'right'}}>
+                          <div style={{color:DS.gold,fontFamily:F.mono,fontSize:11,fontWeight:700,letterSpacing:'.02em',lineHeight:1}}>{free}</div>
+                          <div style={{color:`${DS.gold}55`,fontFamily:F.mono,fontSize:5.5,letterSpacing:'.06em'}}>LIBRES</div>
+                        </div>
+                      </div>
+                      {/* Barre dispo */}
+                      <div style={{paddingLeft:27}}>
+                        <div style={{display:'flex',gap:1,marginBottom:3}}>
+                          {Array.from({length:Math.min(tot,16)},(_,si)=>{
+                            const usedCount=Math.round(occ/tot*Math.min(tot,16));
+                            const isFree=si>=usedCount;
+                            return <div key={si} style={{flex:1,height:2,background:isFree?`${DS.gold}60`:`${col}25`,transition:'background .3s'}}/>;
+                          })}
+                        </div>
+                        <div style={{display:'flex',justifyContent:'space-between'}}>
+                          <span style={{color:`${DS.gold}70`,fontFamily:F.mono,fontSize:6,letterSpacing:'.06em'}}>{pct}% DISPONIBLE</span>
+                          <span style={{color:DS.textLo,fontFamily:F.mono,fontSize:6,letterSpacing:'.04em'}}>{occ}/{tot} OCC</span>
+                        </div>
                       </div>
                     </div>
                   );
