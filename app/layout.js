@@ -8,25 +8,25 @@ const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://adsmostfair.com';
 export const metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
-    default: 'ADSMostFair — La grille publicitaire ouverte à tous',
-    template: '%s | ADSMostFair',
+    default: 'Dyson Cosmos — La grille publicitaire ouverte à tous',
+    template: '%s | Dyson Cosmos',
   },
   description:
-    'Réservez un bloc publicitaire sur la grille ADSMostFair dès 1€/jour. ' +
-    'Plateforme en bêta publique — réservations bientôt disponibles.',
-  keywords: ['publicité', 'grille publicitaire', 'blocs', 'advertising', 'ADSMostFair'],
+    'Réservez un bloc publicitaire sur la Sphère Dyson dès 1€/jour. ' +
+    'Grille orbitale interactive — visibilité maximale, à votre échelle.',
+  keywords: ['publicité', 'grille publicitaire', 'blocs', 'advertising', 'ADS-SQUARE', 'Dyson Cosmos'],
   openGraph: {
     type:     'website',
     locale:   'fr_FR',
     url:      SITE_URL,
-    siteName: 'ADSMostFair',
+    siteName: 'Dyson Cosmos',
     images: [{ url: `${SITE_URL}/og.png`, width: 1200, height: 630 }],
   },
   twitter: { card: 'summary_large_image' },
   icons: {
-    icon: '/icon.svg',
-    shortcut: '/icon.svg',
-    apple: '/icon.svg',
+    icon:    '/icon.svg',
+    shortcut:'/icon.svg',
+    apple:   '/icon.svg',
   },
   robots: { index: true, follow: true },
   alternates: { canonical: SITE_URL },
@@ -43,11 +43,8 @@ export default function RootLayout({ children }) {
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link rel="preconnect" href="https://api.fontshare.com" />
-        <link rel="preconnect" href="https://cdn.fontshare.com" crossOrigin="anonymous" />
         <noscript>
-          <link rel="stylesheet" href="https://api.fontshare.com/v2/css?f[]=clash-display@700,800,900&display=swap" />
-          <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,700;0,9..40,800;1,9..40,400&display=swap" />
+          <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600;700&display=swap" />
         </noscript>
       </head>
       <body>

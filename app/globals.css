@@ -1,6 +1,6 @@
-/* ─── ADS-SQUARE Global Styles — STAR CITIZEN GRADE ──────────────────────── */
+/* ─── DYSON COSMOS × VERCEL 2026 — Global Styles ─────────────────────────── */
 
-/* ── Fallback fonts ─────────────────────────────────────────────────────── */
+/* ── Fallback fonts ──────────────────────────────────────────────────────── */
 @font-face {
   font-family: 'Rajdhani Fallback';
   src: local('Arial Bold'), local('Helvetica Bold');
@@ -11,8 +11,26 @@
   size-adjust: 96%;
 }
 
-/* ── Reset & Base ────────────────────────────────────────────────────────── */
+/* ── CSS Variables — Design System ──────────────────────────────────────── */
+:root {
+  --bg:        #020609;
+  --surface:   #080e14;
+  --card:      #0c1520;
+  --border:    rgba(0, 180, 220, 0.10);
+  --border-hi: rgba(0, 180, 220, 0.22);
+  --text:      #e8f0f8;
+  --muted:     rgba(160, 195, 225, 0.55);
+  --dim:       rgba(100, 145, 185, 0.35);
+  --cyan:      #00C8E4;
+  --gold:      #E8A020;
+  --green:     #00D880;
+  --rose:      #E03558;
+  --violet:    #9D7DFF;
+  --font-h:    'Rajdhani', 'Rajdhani Fallback', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+}
 
+/* ── Reset ───────────────────────────────────────────────────────────────── */
 *, *::before, *::after {
   box-sizing: border-box;
   margin: 0;
@@ -20,55 +38,69 @@
 }
 
 html {
-  scrollbar-color: rgba(0,200,240,0.15) transparent;
+  scrollbar-color: rgba(0, 180, 220, 0.15) transparent;
   scrollbar-width: thin;
 }
 
 body {
-  background: #01020A;
-  color: #DDE6F2;
-  font-family:
-    'Rajdhani',
-    'Rajdhani Fallback',
-    'Sora',
-    system-ui,
-    -apple-system,
-    BlinkMacSystemFont,
-    sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-h);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
 }
 
-/* ── Animations réutilisables ────────────────────────────────────────────── */
+/* ── Scrollbar ───────────────────────────────────────────────────────────── */
+::-webkit-scrollbar        { width: 3px; height: 3px; }
+::-webkit-scrollbar-track  { background: transparent; }
+::-webkit-scrollbar-thumb  { background: rgba(0, 180, 220, 0.18); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(0, 180, 220, 0.32); }
+
+/* ── Focus ───────────────────────────────────────────────────────────────── */
+:focus-visible {
+  outline: 1.5px solid rgba(0, 200, 240, 0.60);
+  outline-offset: 2px;
+}
+
+/* ── Animations — global ────────────────────────────────────────────────── */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes slideInToast {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.2; }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%       { opacity: 0.5; transform: scale(0.85); }
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
 
 @keyframes tickerScroll {
   from { transform: translateX(0); }
   to   { transform: translateX(-50%); }
 }
 
-@keyframes fadeUp {
-  from { opacity: 0; transform: translateY(16px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-
-@keyframes blink {
-  0%, 100% { opacity: 1; }
-  50%       { opacity: 0.25; }
-}
-
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(8px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-
-@keyframes pulse {
-  0%, 100% { opacity: 0.4; }
-  50%       { opacity: 1; }
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
+@keyframes scanDown {
+  from { transform: translateY(-100%); }
+  to   { transform: translateY(100vh); }
 }
 
 @keyframes blockGlow {
@@ -81,58 +113,51 @@ body {
   50%       { box-shadow: 0 0 0 3px #E8A02020, 0 0 32px #E8A02050; }
 }
 
-/* Holographic scan line animation */
-@keyframes scanDown {
-  from { transform: translateY(-100%); }
-  to   { transform: translateY(100vh); }
+@keyframes bounce {
+  0%, 100% { transform: translateY(0); }
+  50%       { transform: translateY(-5px); }
 }
 
-/* HUD spinner */
-@keyframes hudSpin {
-  to { transform: rotate(360deg); }
+@keyframes slideUpChat {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
-/* Holographic pulse */
-@keyframes holoPulse {
-  0%, 100% { opacity: 0.5; box-shadow: 0 0 8px rgba(0,200,240,0.2); }
-  50%       { opacity: 1; box-shadow: 0 0 20px rgba(0,200,240,0.5); }
+@keyframes orbitSpin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
 }
 
+@keyframes checkPop {
+  0%   { transform: scale(0); opacity: 0; }
+  70%  { transform: scale(1.15); }
+  100% { transform: scale(1); opacity: 1; }
+}
 
-/* ── Buttons — Star Citizen transitions ──────────────────────────────────── */
-nav button,
-header button {
-  transition:
-    opacity     0.12s ease,
-    transform   0.12s ease,
-    background  0.12s ease,
-    box-shadow  0.12s ease !important;
+/* ── Buttons — micro-interactions ───────────────────────────────────────── */
+button {
+  transition: opacity 0.12s ease, transform 0.12s ease, background 0.12s ease, box-shadow 0.12s ease;
   will-change: transform, opacity;
   transform-origin: center;
 }
 
-nav button:hover,
-header button:hover {
-  opacity: 0.88;
-  transform: scale(1.03);
+/* ── Input base ─────────────────────────────────────────────────────────── */
+input, textarea, select {
+  color-scheme: dark;
+  font-family: var(--font-h);
 }
 
-nav button:active,
-header button:active {
-  transform: scale(0.96);
-  opacity: 0.7;
+input::placeholder,
+textarea::placeholder {
+  color: var(--dim);
 }
 
-
-/* ── Accessibilité — Focus visible ──────────────────────────────────────── */
-:focus-visible {
-  outline: 1px solid rgba(0,200,240,0.7);
-  outline-offset: 2px;
+/* ── Links ───────────────────────────────────────────────────────────────── */
+a {
+  color: var(--cyan);
+  text-decoration: none;
 }
 
-
-/* ── Scrollbar — holographic cyan ──────────────────────────────────────── */
-::-webkit-scrollbar        { width: 2px; height: 2px; }
-::-webkit-scrollbar-track  { background: transparent; }
-::-webkit-scrollbar-thumb  { background: rgba(0,200,240,0.15); border-radius: 0; }
-::-webkit-scrollbar-thumb:hover { background: rgba(0,200,240,0.30); }
+a:hover {
+  opacity: 0.8;
+}

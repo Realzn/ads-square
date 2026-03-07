@@ -1,28 +1,25 @@
 'use client';
 import { useState } from 'react';
-import { PageShell, Section, P, Highlight, Tag } from '../legal-shared';
-
-const U = {
-  bg: '#080808', s1: '#0f0f0f', s2: '#151515',
-  border: 'rgba(255,255,255,0.07)', border2: 'rgba(255,255,255,0.13)',
-  text: '#f0f0f0', muted: 'rgba(255,255,255,0.36)', faint: 'rgba(255,255,255,0.04)',
-  accent: '#d4a84b',
-};
-const F = { h: "'Clash Display','Syne',sans-serif", b: "'DM Sans','Inter',sans-serif" };
+import { PageShell, Section, P, Highlight, C, T } from '../legal-shared';
 
 function FAQItem({ q, children }) {
   const [open, setOpen] = useState(false);
   return (
-    <div style={{ borderBottom: `1px solid ${U.border}`, overflow: 'hidden' }}>
-      <button
-        onClick={() => setOpen(o => !o)}
-        style={{ width: '100%', background: 'none', border: 'none', cursor: 'pointer', padding: '18px 0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, textAlign: 'left' }}
-      >
-        <span style={{ color: U.text, fontSize: 14, fontWeight: 600, fontFamily: F.b, lineHeight: 1.5 }}>{q}</span>
-        <span style={{ color: U.accent, fontSize: 18, fontWeight: 300, flexShrink: 0, transform: open ? 'rotate(45deg)' : 'none', transition: 'transform 0.2s ease', lineHeight: 1 }}>+</span>
+    <div style={{ borderBottom: `1px solid ${C.border}`, overflow: 'hidden' }}>
+      <button onClick={() => setOpen(o => !o)} style={{
+        width: '100%', background: 'none', border: 'none', cursor: 'pointer',
+        padding: '18px 0', display: 'flex', alignItems: 'center',
+        justifyContent: 'space-between', gap: 16, textAlign: 'left',
+      }}>
+        <span style={{ color: open ? C.text : C.text, fontSize: 14, fontWeight: 600, lineHeight: 1.5 }}>{q}</span>
+        <span style={{
+          color: C.gold, fontSize: 20, fontWeight: 300, flexShrink: 0, lineHeight: 1,
+          transform: open ? 'rotate(45deg)' : 'none', transition: 'transform .2s ease',
+          fontFamily: T.mono,
+        }}>+</span>
       </button>
-      <div style={{ maxHeight: open ? 400 : 0, overflow: 'hidden', transition: 'max-height 0.3s ease' }}>
-        <div style={{ padding: '0 0 20px', color: 'rgba(255,255,255,0.55)', fontSize: 14, lineHeight: 1.8, paddingRight: 32 }}>
+      <div style={{ maxHeight: open ? 600 : 0, overflow: 'hidden', transition: 'max-height .3s ease' }}>
+        <div style={{ padding: '2px 0 20px', color: C.muted, fontSize: 14, lineHeight: 1.8, paddingRight: 36 }}>
           {children}
         </div>
       </div>
@@ -30,12 +27,19 @@ function FAQItem({ q, children }) {
   );
 }
 
-function FAQSection({ title, children }) {
+function FAQGroup({ badge, title, children }) {
   return (
-    <div style={{ marginBottom: 48 }}>
-      <h2 style={{ fontFamily: F.h, fontSize: 11, fontWeight: 700, color: U.accent, letterSpacing: '0.06em', margin: '0 0 4px', textTransform: 'uppercase' }}>{title}</h2>
-      <h3 style={{ fontFamily: F.h, fontSize: 22, fontWeight: 700, letterSpacing: '-0.02em', color: U.text, margin: '0 0 24px' }}></h3>
-      <div style={{ border: `1px solid ${U.border}`, borderRadius: 12, padding: '0 20px', background: U.s1 }}>
+    <div style={{ marginBottom: 40 }}>
+      <div style={{ marginBottom: 16 }}>
+        <div style={{
+          display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 9px',
+          borderRadius: 20, background: C.gold + '12', border: `1px solid ${C.gold}25`,
+          color: C.gold, fontSize: 9, fontFamily: T.mono, fontWeight: 700,
+          letterSpacing: '.12em', marginBottom: 8,
+        }}>◈ {badge}</div>
+        <h2 style={{ fontSize: 20, fontWeight: 700, color: C.text, margin: 0, letterSpacing: '.02em', fontFamily: T.h }}>{title}</h2>
+      </div>
+      <div style={{ background: C.card, borderRadius: 12, border: `1px solid ${C.border}`, padding: '0 20px' }}>
         {children}
       </div>
     </div>
@@ -46,91 +50,82 @@ export default function FAQPage() {
   return (
     <PageShell
       title="Questions fréquentes"
-      subtitle="Tout ce que vous voulez savoir sur ADS-SQUARE. Et si votre question n'est pas là, écrivez-nous."
+      subtitle="Tout ce que vous voulez savoir sur Dyson Cosmos. Si votre question n'est pas là, écrivez-nous."
+      badge="FAQ"
     >
-      <FAQSection title="Les bases">
+      <FAQGroup badge="LES BASES" title="C'est quoi Dyson Cosmos ?">
         <FAQItem q="C'est quoi exactement ADS-SQUARE ?">
-          Une grille interactive de 1 369 blocs publicitaires, organisés du centre vers la périphérie. Plus vous êtes proche du centre, plus vous êtes visible — et plus c'est cher. C'est pensé pour que tout le monde puisse trouver un espace qui correspond à son budget, du créateur solo à la grande marque.
+          Une grille interactive de 1 369 blocs publicitaires organisés du centre vers la périphérie. Plus vous êtes proche du centre, plus vous êtes visible — et plus c'est cher. Pensé pour que tout le monde trouve un espace selon son budget, du créateur solo à la grande marque.
         </FAQItem>
         <FAQItem q="Qui peut acheter un bloc ?">
-          Tout le monde. Littéralement. Créateur TikTok, freelance en développement, restaurant local, e-commerce, startup, grande marque — aucun critère de taille ou de budget minimum. Si vous avez €1/jour, vous pouvez être sur ADS-SQUARE.
+          Tout le monde. Créateur TikTok, freelance, restaurant local, e-commerce, startup, grande marque — aucun critère de taille ou de budget minimum. Avec <Highlight>1€/jour</Highlight>, vous pouvez être sur ADS-SQUARE.
         </FAQItem>
         <FAQItem q="Comment ça marche concrètement ?">
-          Vous choisissez un bloc disponible sur la grille → vous sélectionnez une durée (7, 30 ou 90 jours) → vous payez par carte via Stripe → votre contenu est en ligne sous 15 minutes. C'est tout. Pas d'appel commercial, pas de brief créatif, pas de validation manuelle (sauf contenu problématique).
+          Vous choisissez un bloc disponible → sélectionnez une durée (7, 30 ou 90 jours) → payez par carte via Stripe → votre contenu est en ligne sous 15 minutes. Pas d'appel commercial, pas de brief créatif, pas de validation manuelle.
         </FAQItem>
         <FAQItem q="La plateforme est en bêta, ça veut dire quoi ?">
-          Ça veut dire qu'on est en phase de lancement et que certaines fonctionnalités arrivent progressivement (paiement direct, dashboard analytics, etc.). En bêta, les prix sont ceux de lancement — ils peuvent augmenter à l'ouverture officielle. Vos réservations bêta sont honorées aux conditions initiales.
+          Nous sommes en phase de lancement. Les prix sont ceux du lancement — ils peuvent évoluer à l'ouverture officielle. Vos réservations bêta sont honorées aux conditions initiales.
         </FAQItem>
-      </FAQSection>
+      </FAQGroup>
 
-      <FAQSection title="Les blocs et les tiers">
-        <FAQItem q="Quelle est la différence entre les 5 tiers ?">
-          <strong style={{ color: U.text }}>ÉPICENTRE</strong> (€1 000/j) — 1 seul bloc, au centre exact. Visibilité maximale, c'est ce que tout le monde voit en arrivant sur la grille.<br/><br/>
-          <strong style={{ color: U.text }}>PRESTIGE + CORNER</strong> (€100/j) — Autour du centre. Les 4 coins de la grille (CORNER) ont un cachet particulier : ils sont visibles en un coup d'œil sans scroller.<br/><br/>
-          <strong style={{ color: U.text }}>BUSINESS</strong> (€10/j) — Zone intermédiaire, bon équilibre visibilité/prix. 576 blocs disponibles.<br/><br/>
-          <strong style={{ color: U.text }}>VIRAL</strong> (€1/j) — Périphérie de la grille. Pour les budgets serrés ou les tests. 740 blocs.
+      <FAQGroup badge="BLOCS ET TIERS" title="Comprendre les niveaux">
+        <FAQItem q="Quelle est la différence entre les 6 tiers ?">
+          <strong style={{ color: C.text }}>ÉPICENTRE</strong> (1 000€/j) — 1 seul bloc, au centre exact. Visibilité maximale.<br /><br />
+          <strong style={{ color: C.text }}>PRESTIGE</strong> (100€/j) — Autour du centre. Très haute visibilité.<br /><br />
+          <strong style={{ color: C.text }}>ELITE</strong> (50€/j) — Zone premium, excellent rapport visibilité/prix.<br /><br />
+          <strong style={{ color: C.text }}>BUSINESS</strong> (10€/j) — Zone intermédiaire, bon équilibre. 576 blocs.<br /><br />
+          <strong style={{ color: C.text }}>STANDARD</strong> (3€/j) — Large audience, budget accessible.<br /><br />
+          <strong style={{ color: C.text }}>VIRAL</strong> (1€/j) — Périphérie. Pour les budgets serrés ou les tests.
         </FAQItem>
-        <FAQItem q="Est-ce qu'un bloc peut être loué par plusieurs annonceurs ?">
-          Non. Un bloc = un annonceur à la fois. Si un bloc est occupé, vous pouvez soit attendre son expiration, soit soumettre une offre de rachat (voir ci-dessous).
+        <FAQItem q="Un bloc peut être loué par plusieurs annonceurs en même temps ?">
+          Non. Un bloc = un annonceur à la fois. Si un bloc est occupé, vous pouvez attendre son expiration ou soumettre une offre de rachat.
         </FAQItem>
         <FAQItem q="Ma réservation se renouvelle automatiquement ?">
-          Non. Il n'y a pas de renouvellement automatique. Vous recevez un email 48h avant l'expiration pour vous laisser le choix de renouveler. Si vous ne faites rien, le bloc se libère et devient disponible pour tous.
+          Non. Pas de renouvellement automatique. Vous recevez un email 48h avant l'expiration. Si vous ne faites rien, le bloc se libère.
         </FAQItem>
         <FAQItem q="Quel type de contenu je peux afficher ?">
-          Image statique, logo, texte court, lien vers votre site. Pas de video auto-play, pas d'animation agressive, pas de son. Le contenu doit être en rapport avec votre activité réelle — pas de pages d'escroquerie, pas de contenu pour adultes, pas de fausses promotions.
+          Image, logo, texte court, lien vers votre site. Pas de vidéo auto-play, pas d'animation agressive, pas de son. Le contenu doit correspondre à votre activité réelle.
         </FAQItem>
-      </FAQSection>
+      </FAQGroup>
 
-      <FAQSection title="Offres de rachat">
-        <FAQItem q="C'est quoi le système d'offre de rachat ?">
-          Si un bloc qui vous intéresse est occupé, vous pouvez faire une offre financière à l'occupant actuel. Si il accepte, le bloc vous est transféré et il récupère une compensation sur sa période restante + une prime sur votre offre. Si il refuse (ou ne répond pas dans 72h), rien ne se passe côté paiement.
+      <FAQGroup badge="OFFRES DE RACHAT" title="Le système de buyout">
+        <FAQItem q="C'est quoi une offre de rachat ?">
+          Si un bloc qui vous intéresse est occupé, vous pouvez faire une offre financière à son occupant. S'il accepte, le bloc vous est transféré avec une compensation pour lui. S'il refuse ou ne répond pas dans 72h, rien ne se passe.
         </FAQItem>
-        <FAQItem q="Comment est calculée la compensation de l'occupant ?">
-          L'occupant reçoit <Highlight>70% du montant résiduel de sa réservation</Highlight> (jours restants × prix/jour) + <Highlight>30% de votre offre de rachat</Highlight>. ADS-SQUARE perçoit 20% de l'offre comme commission. Exemple : occupant avec 10j restants à €10/j → valeur résiduelle €100. Vous offrez €200. Il reçoit €70 (résiduel) + €60 (prime) = €130. Vous payez €200. ADS-SQUARE perçoit €40.
+        <FAQItem q="Comment est calculée la compensation ?">
+          L'occupant reçoit <Highlight>70% du montant résiduel</Highlight> (jours restants × prix/jour) + <Highlight>30% de votre offre</Highlight>. ADS-SQUARE perçoit 20% de l'offre comme commission.
         </FAQItem>
         <FAQItem q="L'occupant est obligé d'accepter ?">
-          Non. C'est totalement facultatif pour lui. Il peut refuser sans aucune justification. C'est son bloc tant que sa réservation est active.
+          Non. Il peut refuser sans justification. C'est son bloc tant que sa réservation est active.
         </FAQItem>
-        <FAQItem q="Que se passe-t-il si l'occupant ne répond pas ?">
-          L'offre expire automatiquement après 72 heures. Aucun paiement n'est effectué. Vous recevez un email de notification.
+        <FAQItem q="L'offre expire si pas de réponse ?">
+          Oui, automatiquement après 72 heures. Aucun paiement n'est effectué. Vous recevez un email de notification.
         </FAQItem>
-      </FAQSection>
+      </FAQGroup>
 
-      <FAQSection title="Stats et analytics">
-        <FAQItem q="Est-ce que je peux voir combien de personnes voient mon bloc ?">
-          Oui. Votre dashboard annonceur affiche les impressions (vues de la grille avec votre bloc visible) et les clics sur votre bloc. Ces stats sont disponibles en temps réel dans votre espace.
+      <FAQGroup badge="ANALYTICS" title="Stats et performances">
+        <FAQItem q="Je peux voir combien de personnes voient mon bloc ?">
+          Oui. Votre dashboard annonceur affiche les impressions et les clics en temps réel.
         </FAQItem>
         <FAQItem q="Comment les clics sont-ils comptés ?">
-          Un clic = un visiteur qui clique sur votre bloc et est redirigé vers votre URL. On ne compte pas les clics multiples d'un même utilisateur dans la même session (anti-click-fraud basique).
+          Un clic = un visiteur redirigé vers votre URL. Les clics multiples d'un même utilisateur dans la même session ne sont pas comptés.
         </FAQItem>
-        <FAQItem q="Les stats sont-elles partagées avec d'autres annonceurs ?">
-          Non. Vos stats sont privées et accessibles uniquement via votre compte. Personne d'autre ne peut voir le détail de vos performances.
+        <FAQItem q="Les stats sont partagées avec d'autres annonceurs ?">
+          Non. Vos stats sont privées, accessibles uniquement via votre compte.
         </FAQItem>
-      </FAQSection>
+      </FAQGroup>
 
-      <FAQSection title="Paiement et remboursements">
+      <FAQGroup badge="PAIEMENT" title="Facturation et remboursements">
         <FAQItem q="Quels modes de paiement sont acceptés ?">
-          Carte bancaire (Visa, Mastercard, American Express) via Stripe. Apple Pay et Google Pay disponibles selon votre navigateur. Virement bancaire disponible pour les réservations supérieures à €500 — contactez-nous.
+          Carte bancaire (Visa, Mastercard, Amex) via Stripe. Apple Pay et Google Pay disponibles selon votre navigateur. Virement disponible pour les réservations supérieures à 500€.
         </FAQItem>
         <FAQItem q="Est-ce que je peux me faire rembourser ?">
-          Pas de remboursement pour les blocs déjà activés (votre contenu est en ligne). Si un bug technique empêche l'affichage pendant plus de 24h consécutives, un crédit pro-rata est appliqué. Pour les commandes non encore activées, remboursement complet sous 5 jours ouvrés.
+          Pas de remboursement pour les blocs déjà activés. En cas de bug technique bloquant l'affichage plus de 24h, un crédit pro-rata est appliqué. Réservations non activées : remboursement complet sous 5 jours ouvrés.
         </FAQItem>
-        <FAQItem q="J'ai une facture à demander pour ma comptabilité ?">
-          Une facture est générée automatiquement après chaque paiement confirmé. Elle vous est envoyée par email et disponible dans votre espace annonceur. Pour les demandes spécifiques (TVA intracommunautaire, etc.), contactez contact@ads-square.com.
+        <FAQItem q="J'ai une facture à demander ?">
+          Une facture est générée automatiquement après chaque paiement. Disponible dans votre espace annonceur et envoyée par email.
         </FAQItem>
-      </FAQSection>
-
-      <FAQSection title="Technique et support">
-        <FAQItem q="La plateforme tourne sur quoi ?">
-          Frontend Next.js 15 + React 19, déployé sur Cloudflare Pages (Edge Network mondial). Base de données PostgreSQL via Supabase avec synchronisation temps réel. Paiements via Stripe. Performance optimisée pour les très grandes grilles (1 369 blocs rendus en mémoire).
-        </FAQItem>
-        <FAQItem q="Comment contacter le support ?">
-          Email : <Highlight>contact@ads-square.com</Highlight> — réponse habituelle sous 24-48h. Pour les urgences (contenu illicite, bug critique) : mentionnez [URGENT] dans l'objet. En bêta, on répond généralement plus vite car le volume de demandes est gérable.
-        </FAQItem>
-        <FAQItem q="La grille ne charge pas chez moi, que faire ?">
-          Assurez-vous d'avoir un navigateur récent (Chrome, Firefox, Safari, Edge — version 2023+). La grille utilise des APIs web modernes. Internet Explorer n'est pas supporté (et franchement, c'est l'heure de mettre à jour). Si le problème persiste, contactez-nous avec votre navigateur et OS.
-        </FAQItem>
-      </FAQSection>
+      </FAQGroup>
     </PageShell>
   );
 }
