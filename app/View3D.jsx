@@ -129,7 +129,6 @@ const FILTER_PALETTES = {
     bgTop:'#0A0100', bgBot:'#160300',
     lensColor:'rgba(80,8,0,0.18)', lensBlend:'multiply', lensOpacity:1,
   },
-  },
   solar:    {
     // SOLAIRE — filtre polarisé ambré, anti-éblouissement, lunettes de soleil
     epicenter:'#C4881A', prestige:'#8C6C30', elite:'#607055', business:'#456050', standard:'#4C5848', viral:'#3A4832',
