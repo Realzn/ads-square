@@ -88,21 +88,21 @@ function useIsMobile(breakpoint=768){
 // ── Palette réaliste AAA ──────────────────────────────────────────────────────
 const DS = {
   void:'#01020A',
-  glass:'rgba(1,4,14,0.94)',
-  glassBrd:'rgba(0,210,240,0.09)',
-  glassBrdHi:'rgba(0,210,240,0.20)',
+  glass:'rgba(10,10,16,0.97)',
+  glassBrd:'rgba(255,255,255,0.08)',
+  glassBrdHi:'rgba(255,255,255,0.14)',
   gold:'#E8A020',
   cyan:'#00C8E4',
   violet:'#8060C8',
   green:'#00D880',
   rose:'#D02848',
   amber:'#F07820',
-  textHi:'#DDE6F2',
-  textMid:'rgba(140,180,220,0.70)',
-  textLo:'rgba(60,100,150,0.42)',
-  panelBg:'rgba(0,8,24,0.97)',
-  scanCol:'rgba(0,200,240,0.04)',
-  bracket:'#00C8E4',
+  textHi:'#E8EEF8',
+  textMid:'rgba(160,180,210,0.70)',
+  textLo:'rgba(120,140,170,0.38)',
+  panelBg:'rgba(8,8,14,0.98)',
+  scanCol:'rgba(0,0,0,0)',
+  bracket:'rgba(255,255,255,0.06)',
 };
 
 const TIER_NEON = {
@@ -1986,27 +1986,22 @@ function Brackets({col=DS.bracket,size=8,thickness=1,style={}}){
 }
 
 // Scan-line overlay — holographic raster effect
-function ScanLines({col=DS.scanCol}){
-  return <div style={{position:'absolute',inset:0,backgroundImage:`repeating-linear-gradient(0deg,transparent,transparent 2px,${col} 2px,${col} 3px)`,pointerEvents:'none',zIndex:1}}/>;
-}
+function ScanLines({col=DS.scanCol}){ return null; }
 
-// Glass panel — holographic with scanlines + brackets
+// Glass panel — clean card style
 function Glass({children,style={},glow,brackets=false,scan=false,...p}){
   const c=glow||DS.cyan;
   return(
     <div style={{
       position:'relative',
       background:DS.glass,
-      backdropFilter:'blur(20px) saturate(180%)',
-      WebkitBackdropFilter:'blur(20px) saturate(180%)',
-      border:`0.5px solid ${glow?c+'30':DS.glassBrd}`,
-      boxShadow:glow
-        ?`0 0 0 1px ${c}0c,0 0 30px ${c}18,inset 0 1px 0 rgba(255,255,255,0.06),inset 0 0 40px rgba(0,200,240,0.02)`
-        :`inset 0 1px 0 rgba(255,255,255,0.04),0 12px 40px rgba(0,0,0,0.85),inset 0 0 40px rgba(0,200,240,0.015)`,
+      backdropFilter:'blur(16px)',
+      WebkitBackdropFilter:'blur(16px)',
+      border:`1px solid ${glow?c+'22':DS.glassBrd}`,
+      boxShadow:'0 4px 24px rgba(0,0,0,0.6)',
+      borderRadius:6,
       ...style
     }} {...p}>
-      {brackets&&<Brackets col={glow?c:DS.bracket}/>}
-      {scan&&<ScanLines/>}
       {children}
     </div>
   );
@@ -2018,22 +2013,20 @@ function LumBtn({children,onClick,col=DS.cyan,style={},sm,active,icon}){
   const on=active||hov;
   const pad=sm?'5px 12px':'10px 22px';
   const fs=sm?9:11;
-  // Chamfer via clip-path — bottom-right cut
-  const clip='polygon(0 0,calc(100% - 6px) 0,100% 6px,100% 100%,6px 100%,0 calc(100% - 6px))';
   return(
     <button onClick={onClick}
       onMouseEnter={()=>setHov(true)}
       onMouseLeave={()=>setHov(false)}
       style={{
-        background:on?`linear-gradient(135deg,${col}1a 0%,${col}0a 100%)`:'transparent',
-        border:`0.5px solid ${col}${on?'70':'28'}`,
-        clipPath:clip,
-        color:on?col:`${col}55`,
-        fontFamily:F.ui,fontSize:fs,fontWeight:700,
-        padding:pad,letterSpacing:'0.12em',
+        background:on?`${col}18`:'transparent',
+        border:`1px solid ${col}${on?'55':'22'}`,
+        borderRadius:5,
+        color:on?col:`${col}66`,
+        fontFamily:F.ui,fontSize:fs,fontWeight:600,
+        padding:pad,letterSpacing:'0.08em',
         cursor:'pointer',outline:'none',
-        boxShadow:on?`0 0 20px ${col}22,inset 0 0 20px ${col}08`:'none',
-        transition:'all 0.12s ease',
+        boxShadow:'none',
+        transition:'all 0.15s ease',
         display:'flex',alignItems:'center',justifyContent:'center',gap:5,
         textTransform:'uppercase',
         ...style
@@ -2043,9 +2036,9 @@ function LumBtn({children,onClick,col=DS.cyan,style={},sm,active,icon}){
   );
 }
 
-// Separator — energy line
+// Separator
 function Sep({col=DS.gold,style={}}){
-  return <div style={{height:.5,background:`linear-gradient(90deg,transparent,${col}55,${col}88,${col}55,transparent)`,boxShadow:`0 0 6px ${col}33`,...style}}/>;
+  return <div style={{height:'1px',background:'rgba(255,255,255,0.06)',...style}}/>;
 }
 
 // Label badge — data-chip
@@ -2202,16 +2195,16 @@ function TierPanel({ activeTier, slots, onClose, onCheckout, dockLeftActive=fals
       {/* Fond */}
       <div style={{
         position:'absolute',inset:0,
-        background:`linear-gradient(160deg, rgba(0,2,10,0.99) 0%, rgba(${hexToRgb(col)},0.06) 100%)`,
-        borderRight:`1px solid ${col}25`,
-        backdropFilter:'blur(32px)',
+        background:`rgba(8,8,14,0.98)`,
+        borderRight:`1px solid rgba(255,255,255,0.07)`,
+        backdropFilter:'blur(20px)',
       }}/>
 
       {/* Bande couleur latérale gauche */}
       <div style={{
-        position:'absolute',left:0,top:0,bottom:0,width:3,
-        background:`linear-gradient(180deg, transparent, ${col}, ${col}88, transparent)`,
-        boxShadow:`0 0 20px ${col}60, 0 0 60px ${col}20`,
+        position:'absolute',left:0,top:0,bottom:0,width:2,
+        background:col,
+        opacity:0.5,
       }}/>
 
       {/* Watermark géant du tier */}
@@ -2244,7 +2237,7 @@ function TierPanel({ activeTier, slots, onClose, onCheckout, dockLeftActive=fals
         {/* Header */}
         <div style={{marginBottom:20,paddingBottom:16,borderBottom:`0.5px solid ${col}18`}}>
           <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:10}}>
-            <div style={{width:5,height:5,borderRadius:'50%',background:col,boxShadow:`0 0 8px ${col}`,animation:'hpulse 1.4s infinite'}}/>
+            <div style={{width:6,height:6,borderRadius:'50%',background:col,opacity:0.8}}/>
             <span style={{color:`${col}70`,fontFamily:F.mono,fontSize:8,letterSpacing:'.20em'}}>TIER·ACTIF</span>
           </div>
           <div style={{
@@ -2267,12 +2260,12 @@ function TierPanel({ activeTier, slots, onClose, onCheckout, dockLeftActive=fals
               background:`radial-gradient(circle at 35% 35%, ${col}20, transparent 60%)`,
               display:'flex',alignItems:'center',justifyContent:'center',
               fontSize:40,color:col,
-              boxShadow:`0 0 40px ${col}30, inset 0 0 30px ${col}10`,
+              boxShadow:"none",
               animation:'hspin 12s linear infinite',
             }}>{cfg.icon}</div>
             <div style={{textAlign:'center'}}>
               <div style={{color:`${col}44`,fontFamily:F.mono,fontSize:9,letterSpacing:'.16em',marginBottom:6}}>TARIF EXCLUSIF</div>
-              <div style={{color:col,fontFamily:F.mono,fontSize:48,fontWeight:700,lineHeight:1,textShadow:`0 0 40px ${col}80`}}>€{cfg.price}</div>
+              <div style={{color:col,fontFamily:F.mono,fontSize:48,fontWeight:700,lineHeight:1,textShadow:"none"}}>€{cfg.price}</div>
               <div style={{color:`${col}55`,fontFamily:F.mono,fontSize:10,letterSpacing:'.12em'}}>PAR JOUR</div>
             </div>
             {free > 0
@@ -2351,10 +2344,10 @@ function TierPanel({ activeTier, slots, onClose, onCheckout, dockLeftActive=fals
               color:col,fontFamily:F.mono,fontSize:10,fontWeight:700,
               letterSpacing:'.12em',cursor:'pointer',outline:'none',
               transition:'all .18s',
-              clipPath:'polygon(0 0,calc(100% - 10px) 0,100% 10px,100% 100%,10px 100%,0 calc(100% - 10px))',
+              borderRadius:5,
               boxShadow:`0 0 24px ${col}18`,
             }}
-            onMouseEnter={e=>{e.currentTarget.style.background=`linear-gradient(135deg,${col}45,${col}28)`;e.currentTarget.style.boxShadow=`0 0 40px ${col}35`;}}
+            onMouseEnter={e=>{e.currentTarget.style.background=`linear-gradient(135deg,${col}45,${col}28)`;e.currentTarget.style.boxShadow='none';}}
             onMouseLeave={e=>{e.currentTarget.style.background=`linear-gradient(135deg,${col}28,${col}14)`;e.currentTarget.style.boxShadow=`0 0 24px ${col}18`;}}
             >
               ◈ RÉSERVER · {booking.days}J · {(booking.total/100).toLocaleString('fr-FR',{minimumFractionDigits:2})} €
@@ -2447,69 +2440,47 @@ function VueDial({ activeFilter, onFilterSelect }) {
       {/* Panneau info mode actif / survolé */}
       <div style={{
         width:200,
-        background:'rgba(0,2,14,0.96)',
-        border:`0.5px solid ${displayCfg.col}30`,
-        borderLeft:`2px solid ${displayCfg.col}`,
+        background:'rgba(10,10,16,0.97)',
+        border:`1px solid rgba(255,255,255,0.08)`,
+        borderLeft:`2px solid ${displayCfg.col}66`,
         padding:'10px 12px',
-        transition:'border-color .25s, box-shadow .25s',
-        boxShadow:`0 0 28px ${displayCfg.col}10, inset 0 0 16px ${displayCfg.col}04`,
-        backdropFilter:'blur(20px)',
-        clipPath:'polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%)',
-        animation:'panelFadeIn .2s ease',
+        transition:'border-color .25s',
+        backdropFilter:'blur(16px)',
+        borderRadius:6,
       }}>
         <div style={{
           display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:6,
         }}>
-          <span style={{color:`${displayCfg.col}50`, fontFamily:F.mono, fontSize:7, letterSpacing:'.22em', fontWeight:700}}>CAPTEUR·SCAN</span>
+          <span style={{color:`${displayCfg.col}55`, fontFamily:F.mono, fontSize:8, letterSpacing:'.12em', fontWeight:600}}>CAPTEUR · SCAN</span>
           <span style={{
-            color:displayCfg.col, fontFamily:F.mono, fontSize:7, letterSpacing:'.14em',
-            background:`${displayCfg.col}14`, border:`0.5px solid ${displayCfg.col}40`, padding:'1px 5px',
+            color:displayCfg.col, fontFamily:F.mono, fontSize:8, letterSpacing:'.08em',
+            background:`${displayCfg.col}12`, border:`1px solid ${displayCfg.col}33`, padding:'1px 6px', borderRadius:3,
           }}>{displayCfg.short}</span>
         </div>
         <div style={{
-          color:displayCfg.col, fontFamily:F.mono, fontSize:14, fontWeight:700,
-          letterSpacing:'.10em', lineHeight:1.1, textShadow:`0 0 18px ${displayCfg.col}60`, marginBottom:4,
+          color:displayCfg.col, fontFamily:F.ui, fontSize:15, fontWeight:700,
+          letterSpacing:'.04em', lineHeight:1.1, marginBottom:4,
         }}>{displayCfg.label}</div>
         <div style={{
-          color:`${displayCfg.col}80`, fontFamily:F.mono, fontSize:8,
-          letterSpacing:'.06em', lineHeight:1.5, marginBottom:7,
+          color:`${displayCfg.col}70`, fontFamily:F.mono, fontSize:8,
+          letterSpacing:'.04em', lineHeight:1.5, marginBottom:7,
         }}>{displayCfg.desc}</div>
-        <div style={{height:'0.5px', background:`linear-gradient(90deg, ${displayCfg.col}40, transparent)`, marginBottom:7}}/>
+        <div style={{height:'1px', background:'rgba(255,255,255,0.06)', marginBottom:7}}/>
         <div style={{
-          color:`${displayCfg.col}45`, fontFamily:F.mono, fontSize:7.5,
+          color:`${displayCfg.col}44`, fontFamily:F.mono, fontSize:7.5,
           letterSpacing:'.04em', lineHeight:1.7, fontStyle:'italic', marginBottom:7,
         }}>{displayCfg.lore}</div>
         <div style={{
           display:'flex', alignItems:'flex-start', gap:5,
-          background:`${displayCfg.col}08`, border:`0.5px solid ${displayCfg.col}20`, padding:'5px 7px',
+          background:`${displayCfg.col}08`, border:`1px solid ${displayCfg.col}18`, padding:'5px 7px', borderRadius:4,
         }}>
-          <span style={{color:`${displayCfg.col}60`, fontFamily:F.mono, fontSize:7, flexShrink:0, marginTop:.5}}>◈</span>
-          <span style={{color:`${displayCfg.col}70`, fontFamily:F.mono, fontSize:7, letterSpacing:'.05em', lineHeight:1.6}}>{displayCfg.reveal}</span>
+          <span style={{color:`${displayCfg.col}55`, fontFamily:F.mono, fontSize:7, flexShrink:0, marginTop:.5}}>◈</span>
+          <span style={{color:`${displayCfg.col}66`, fontFamily:F.mono, fontSize:7, letterSpacing:'.04em', lineHeight:1.6}}>{displayCfg.reveal}</span>
         </div>
-        {/* Lens tint swatch pour SOLAIRE */}
-        {(hovered === 'solar' || activeFilter === 'solar') && (
-          <div style={{
-            marginTop:6, display:'flex', alignItems:'center', gap:6,
-            padding:'4px 7px',
-            background:'rgba(110,55,0,0.14)',
-            border:'0.5px solid rgba(180,100,20,0.30)',
-          }}>
-            <div style={{
-              width:28, height:14,
-              background:'linear-gradient(90deg, rgba(110,55,0,0.60), rgba(180,100,20,0.35))',
-              border:'0.5px solid rgba(180,130,30,0.50)',
-              borderRadius:2,
-              boxShadow:'inset 0 1px 3px rgba(255,180,50,0.15)',
-            }}/>
-            <span style={{fontFamily:F.mono, fontSize:7, color:'rgba(180,120,30,0.70)', letterSpacing:'.08em'}}>
-              LENTILLE·AMBR{'éE'}
-            </span>
-          </div>
-        )}
       </div>
 
       {/* Boutons 5 modes */}
-      <div style={{display:'flex', flexDirection:'column', gap:4, alignItems:'flex-end'}}>
+      <div style={{display:'flex', flexDirection:'column', gap:3, alignItems:'flex-end'}}>
         {entries.map(([id, cfg], idx) => {
           const on  = activeFilter === id;
           const hov = hovered === id;
@@ -2521,39 +2492,28 @@ function VueDial({ activeFilter, onFilterSelect }) {
               style={{
                 display:'flex', alignItems:'center', gap:7,
                 padding: on ? '5px 10px 5px 12px' : '4px 8px 4px 10px',
-                background: on
-                  ? `linear-gradient(90deg, ${cfg.col}22, ${cfg.col}0a)`
-                  : hov ? `${cfg.col}0d` : 'transparent',
-                border:`0.5px solid ${on ? cfg.col+'60' : hov ? cfg.col+'30' : cfg.col+'16'}`,
-                borderRight: on ? `2px solid ${cfg.col}` : hov ? `1px solid ${cfg.col}50` : `0.5px solid ${cfg.col}16`,
+                background: on ? `${cfg.col}16` : hov ? `${cfg.col}0a` : 'transparent',
+                border:`1px solid ${on ? cfg.col+'44' : hov ? cfg.col+'22' : 'rgba(255,255,255,0.06)'}`,
+                borderRight: on ? `2px solid ${cfg.col}88` : undefined,
+                borderRadius:5,
                 cursor:'pointer', outline:'none',
-                transition:'all .18s cubic-bezier(.16,1,.3,1)',
-                backdropFilter: on ? 'blur(12px)' : 'none',
-                boxShadow: on ? `0 0 18px ${cfg.col}18, inset 0 0 8px ${cfg.col}08` : 'none',
+                transition:'all .15s ease',
                 minWidth: on ? 110 : 90,
               }}
             >
               <span style={{
-                fontSize: on ? 13 : 10, color: on ? cfg.col : `${cfg.col}50`,
-                filter: on ? `drop-shadow(0 0 5px ${cfg.col})` : 'none',
-                transition:'all .18s', flexShrink:0,
+                fontSize: on ? 13 : 10, color: on ? cfg.col : `${cfg.col}55`,
+                transition:'all .15s', flexShrink:0,
               }}>{cfg.icon}</span>
               <span style={{
-                fontFamily:F.mono, fontSize: on ? 9 : 8, fontWeight:700, letterSpacing:'.14em',
-                color: on ? cfg.col : `${cfg.col}50`,
-                textShadow: on ? `0 0 10px ${cfg.col}60` : 'none',
-                transition:'all .18s', flexGrow:1,
+                fontFamily:F.mono, fontSize: on ? 9 : 8, fontWeight:on?700:500, letterSpacing:'.08em',
+                color: on ? cfg.col : `${cfg.col}55`,
+                transition:'all .15s', flexGrow:1,
               }}>{cfg.label}</span>
               {on && <span style={{
                 width:4, height:4, borderRadius:'50%',
-                background:cfg.col, boxShadow:`0 0 6px ${cfg.col}`,
-                animation:'pulse .8s ease-in-out infinite alternate',
+                background:cfg.col, opacity:0.7,
               }}/>}
-              {/* Badge SOLAIRE */}
-              {id === 'solar' && !on && <span style={{
-                fontFamily:F.mono, fontSize:6, color:`${cfg.col}60`,
-                letterSpacing:'.10em', marginLeft:2,
-              }}>NEW</span>}
             </button>
           );
         })}
@@ -2561,8 +2521,6 @@ function VueDial({ activeFilter, onFilterSelect }) {
 
       <style>{`
         @keyframes panelFadeIn { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:translateY(0)} }
-        @keyframes pulse       { from{opacity:.4;transform:scale(.8)} to{opacity:1;transform:scale(1.15)} }
-        @keyframes lensShimmer { 0%{opacity:.5} 50%{opacity:1} 100%{opacity:.5} }
       `}</style>
     </div>
   );
@@ -2579,18 +2537,18 @@ function TierCommandBar({ activeTier, onTierSelect, slots }) {
 
   return (
     <div style={{
-      display:'flex',alignItems:'stretch',gap:2,
-      background:'rgba(0,2,10,0.97)',
-      backdropFilter:'blur(32px)',
-      border:'0.5px solid rgba(0,200,240,0.10)',
-      boxShadow:'0 -8px 60px rgba(0,0,0,0.8), 0 0 0 0.5px rgba(0,200,240,0.05)',
-      padding:'5px 5px',
+      display:'flex',alignItems:'stretch',gap:1,
+      background:'rgba(8,8,14,0.97)',
+      backdropFilter:'blur(20px)',
+      border:'1px solid rgba(255,255,255,0.08)',
+      boxShadow:'0 4px 24px rgba(0,0,0,0.7)',
+      padding:'4px',
+      borderRadius:8,
       ...(isMobile ? {
         overflowX:'auto',
         WebkitOverflowScrolling:'touch',
         scrollbarWidth:'none',
         maxWidth:'calc(100vw - 24px)',
-        borderRadius:8,
       } : {}),
     }}>
       {TIER_LIST.map((key,i) => {
@@ -2609,55 +2567,49 @@ function TierCommandBar({ activeTier, onTierSelect, slots }) {
               padding: isMobile ? (on ? '8px 12px' : '6px 9px') : (on ? '10px 18px' : '7px 12px'),
               minWidth: isMobile ? (on ? 60 : (isAll ? 36 : 42)) : (on ? 80 : (isAll ? 48 : 52)),
               flexShrink: 0,
-              background: on
-                ? `linear-gradient(160deg, ${col}20 0%, ${col}08 100%)`
-                : 'transparent',
-              border: `0.5px solid ${on ? col+'70' : col+'16'}`,
-              color: on ? col : `${col}40`,
+              background: on ? `${col}18` : 'transparent',
+              border: `1px solid ${on ? col+'44' : 'transparent'}`,
+              borderRadius: 6,
+              color: on ? col : `${col}55`,
               cursor:'pointer',outline:'none',
-              transition:'all .22s cubic-bezier(.16,1,.3,1)',
+              transition:'all .18s ease',
               display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:isMobile?2:4,
               overflow:'hidden',
-              clipPath: on
-                ? 'polygon(0 0,calc(100% - 6px) 0,100% 6px,100% 100%,6px 100%,0 calc(100% - 6px))'
-                : 'none',
-              boxShadow: on ? `0 0 28px ${col}22, inset 0 0 20px ${col}06` : 'none',
             }}
-            onMouseEnter={e=>{if(!on){e.currentTarget.style.background=`${col}0e`;e.currentTarget.style.borderColor=`${col}40`;e.currentTarget.style.color=`${col}70`;}}}
-            onMouseLeave={e=>{if(!on){e.currentTarget.style.background='transparent';e.currentTarget.style.borderColor=`${col}16`;e.currentTarget.style.color=`${col}40`;}}}
+            onMouseEnter={e=>{if(!on){e.currentTarget.style.background=`${col}10`;e.currentTarget.style.color=`${col}88`;}}}
+            onMouseLeave={e=>{if(!on){e.currentTarget.style.background='transparent';e.currentTarget.style.color=`${col}55`;}}}
           >
-            {/* Top glow quand actif */}
-            {on && <div style={{position:'absolute',top:0,left:0,right:0,height:1.5,background:`linear-gradient(90deg,transparent,${col},transparent)`,boxShadow:`0 0 8px ${col}`}}/>}
+            {/* Active indicator line */}
+            {on && <div style={{position:'absolute',top:0,left:'20%',right:'20%',height:1.5,background:col,borderRadius:1,opacity:0.8}}/>}
 
             {/* Icône */}
             <span style={{
               fontSize: isMobile ? (on ? 14 : 11) : (on ? 18 : 13),
               lineHeight:1,
-              filter: on ? `drop-shadow(0 0 8px ${col})` : 'none',
-              transition:'all .22s',
+              transition:'all .18s',
             }}>{cfg.icon}</span>
 
             {/* Label */}
-            <span style={{fontFamily:F.mono,fontSize: isMobile ? (on ? 7 : 6) : (on ? 8 : 7),fontWeight:700,letterSpacing:'.08em',lineHeight:1,whiteSpace:'nowrap'}}>
+            <span style={{fontFamily:F.mono,fontSize: isMobile ? (on ? 7 : 6) : (on ? 8 : 7),fontWeight:on?700:500,letterSpacing:'.06em',lineHeight:1,whiteSpace:'nowrap'}}>
               {cfg.short}
             </span>
 
             {/* Prix quand actif */}
             {on && cfg.price && !isMobile && (
-              <span style={{fontFamily:F.mono,fontSize:9,color:`${col}90`,letterSpacing:'.06em',fontWeight:400}}>
+              <span style={{fontFamily:F.mono,fontSize:9,color:`${col}80`,letterSpacing:'.04em',fontWeight:400}}>
                 €{cfg.price}/j
               </span>
             )}
 
             {/* Barre occupation sous le bouton */}
             {!isAll && tot > 0 && (
-              <div style={{width:'100%',height:2,borderRadius:1,background:`${col}14`,overflow:'hidden',position:'relative'}}>
+              <div style={{width:'100%',height:1.5,borderRadius:1,background:'rgba(255,255,255,0.06)',overflow:'hidden',position:'relative'}}>
                 <div style={{
                   position:'absolute',left:0,top:0,bottom:0,
                   width:`${pct*100}%`,
                   background:col,
-                  boxShadow:`0 0 6px ${col}`,
-                  transition:'width .6s cubic-bezier(.16,1,.3,1)',
+                  opacity:0.7,
+                  transition:'width .6s ease',
                 }}/>
               </div>
             )}
@@ -2708,7 +2660,7 @@ function DurationPicker({pricePerDay, col, onChange}){
           padding:'2px 8px',
           background:`${billing.color}14`,
           border:`0.5px solid ${billing.color}44`,
-          clipPath:'polygon(0 0,calc(100% - 5px) 0,100% 5px,100% 100%,0 100%)',
+          borderRadius:4,
         }}>
           <span style={{fontSize:8,color:billing.color}}>{billing.icon}</span>
           <span style={{color:billing.color,fontFamily:F.mono,fontSize:7,fontWeight:700,letterSpacing:'.10em'}}>{billing.short}</span>
@@ -2764,7 +2716,7 @@ function DurationPicker({pricePerDay, col, onChange}){
         padding:'7px 10px',
         background:`rgba(0,0,0,0.4)`,
         border:`0.5px solid ${col}18`,
-        clipPath:'polygon(0 0,calc(100% - 6px) 0,100% 6px,100% 100%,0 100%)',
+        borderRadius:4,
       }}>
         <div>
           <div style={{color:DS.textLo,fontFamily:F.mono,fontSize:6,letterSpacing:'.12em',marginBottom:1}}>TOTAL HT</div>
@@ -2823,7 +2775,7 @@ function HoverChip({info}){
         position:'relative',
         background:'rgba(0,6,18,0.96)',
         border:`0.5px solid ${col}44`,
-        clipPath:'polygon(0 0,calc(100% - 10px) 0,100% 10px,100% 100%,10px 100%,0 calc(100% - 10px))',
+        borderRadius:5,
         padding:'8px 16px',
         display:'flex',alignItems:'center',gap:12,
         boxShadow:`0 0 30px ${col}18,inset 0 0 30px rgba(0,200,240,0.02)`,
@@ -2837,7 +2789,7 @@ function HoverChip({info}){
           background:`${col}0a`,
           display:'flex',alignItems:'center',justifyContent:'center',
           fontSize:14,color:col,flexShrink:0,
-          clipPath:'polygon(15% 0,85% 0,100% 15%,100% 85%,85% 100%,15% 100%,0 85%,0 15%)',
+          borderRadius:4,
         }}>{role?.icon}</div>
         {/* Data */}
         <div style={{display:'flex',flexDirection:'column',gap:2,zIndex:2}}>
@@ -2891,13 +2843,14 @@ function SlotReveal({slot,onClose,onRent,onBuyout,onViewSlot,user}){
         width:'100%', pointerEvents:'auto',
         opacity:ph?1:0,
         transform:ph?'none':'translateY(20px)',
-        transition:'opacity .20s ease,transform .28s cubic-bezier(.22,1,.36,1)',
+        transition:'opacity .20s ease,transform .28s ease',
         position:'relative',
-        background:'rgba(0,5,18,0.98)',
-        border:`0.5px solid ${col}44`,
+        background:'rgba(8,8,14,0.99)',
+        border:`1px solid rgba(255,255,255,0.08)`,
+        borderTop:`1px solid ${col}33`,
         borderBottom:'none',
         borderRadius:'16px 16px 0 0',
-        boxShadow:`0 -20px 60px ${col}18,0 0 120px ${col}08`,
+        boxShadow:`0 -8px 32px rgba(0,0,0,0.8)`,
         overflow:'hidden',
         maxHeight:'75vh',
         overflowY:'auto',
@@ -2905,89 +2858,79 @@ function SlotReveal({slot,onClose,onRent,onBuyout,onViewSlot,user}){
         width:320,pointerEvents:'auto',
         opacity:ph?1:0,
         transform:ph?'none':'translateX(20px)',
-        transition:'opacity .20s ease,transform .28s cubic-bezier(.22,1,.36,1)',
+        transition:'opacity .20s ease,transform .28s ease',
         position:'relative',
-        background:'rgba(0,5,18,0.97)',
-        border:`0.5px solid ${col}44`,
-        clipPath:'polygon(0 0,calc(100% - 14px) 0,100% 14px,100% 100%,14px 100%,0 calc(100% - 14px))',
-        boxShadow:`0 0 60px ${col}18,0 0 120px ${col}08`,
+        background:'rgba(8,8,14,0.99)',
+        border:`1px solid rgba(255,255,255,0.08)`,
+        borderLeft:`2px solid ${col}55`,
+        borderRadius:8,
+        boxShadow:`0 8px 32px rgba(0,0,0,0.8)`,
         overflow:'hidden',
       }}>
-        <ScanLines col={`rgba(0,200,240,0.03)`}/>
-        <Brackets col={col} size={10} thickness={1}/>
-
-        {/* Top energy bar */}
-        <div style={{height:1.5,background:`linear-gradient(90deg,transparent,${col},${col}88,transparent)`,boxShadow:`0 0 8px ${col}`}}/>
+        {/* Top accent bar */}
+        <div style={{height:2,background:col,opacity:0.5}}/>
 
         {/* Header */}
-        <div style={{padding:'10px 14px 8px',position:'relative',zIndex:2,borderBottom:`0.5px solid ${col}18`}}>
+        <div style={{padding:'12px 16px 10px',position:'relative',zIndex:2,borderBottom:`1px solid rgba(255,255,255,0.06)`}}>
           <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:6}}>
-            <div style={{display:'flex',alignItems:'center',gap:8}}>
+            <div style={{display:'flex',alignItems:'center',gap:10}}>
               <div style={{
-                width:30,height:30,
-                border:`1px solid ${col}55`,
-                background:`${col}10`,
+                width:32,height:32,
+                border:`1px solid ${col}33`,
+                background:`${col}0c`,
                 display:'flex',alignItems:'center',justifyContent:'center',
                 fontSize:16,color:col,
-                clipPath:'polygon(15% 0,85% 0,100% 15%,100% 85%,85% 100%,15% 100%,0 85%,0 15%)',
+                borderRadius:6,
               }}>{role?.icon}</div>
               <div>
-                <div style={{color:col,fontFamily:F.mono,fontSize:9,fontWeight:700,letterSpacing:'.14em'}}>{label}</div>
-                <div style={{color:DS.textLo,fontFamily:F.mono,fontSize:6.5,letterSpacing:'.08em'}}>{role?.role}</div>
+                <div style={{color:col,fontFamily:F.ui,fontSize:12,fontWeight:700,letterSpacing:'.04em'}}>{label}</div>
+                <div style={{color:DS.textLo,fontFamily:F.mono,fontSize:9,letterSpacing:'.06em',marginTop:2}}>{role?.role}</div>
               </div>
             </div>
             <div style={{display:'flex',alignItems:'center',gap:6}}>
               <div style={{
-                padding:'2px 7px',
-                border:`0.5px solid ${occ?DS.green:DS.textLo}33`,
+                padding:'3px 8px',
+                border:`1px solid ${occ?DS.green:DS.textLo}22`,
                 background:`${occ?DS.green:DS.textLo}08`,
                 color:occ?DS.green:DS.textLo,
-                fontFamily:F.mono,fontSize:6.5,letterSpacing:'.12em',
-                display:'flex',alignItems:'center',gap:4,
+                fontFamily:F.mono,fontSize:8,letterSpacing:'.08em',
+                display:'flex',alignItems:'center',gap:5,
+                borderRadius:4,
               }}>
-                <div style={{width:4,height:4,borderRadius:'50%',background:occ?DS.green:DS.textLo,animation:occ?'hpulse 1.4s ease-in-out infinite':'none'}}/>
-                {occ?'SYS·ACTIF':'SYS·LIBRE'}
+                <div style={{width:5,height:5,borderRadius:'50%',background:occ?DS.green:DS.textLo,opacity:occ?0.9:0.4}}/>
+                {occ?'Actif':'Libre'}
               </div>
               <button onClick={onClose} style={{
-                width:20,height:20,
+                width:24,height:24,
                 background:'transparent',
-                border:`0.5px solid ${DS.rose}33`,
-                color:`${DS.rose}88`,
-                fontFamily:F.mono,fontSize:9,
+                border:`1px solid rgba(255,255,255,0.10)`,
+                color:`rgba(255,255,255,0.4)`,
+                fontFamily:F.mono,fontSize:11,
                 cursor:'pointer',outline:'none',
                 display:'flex',alignItems:'center',justifyContent:'center',
-                clipPath:'polygon(0 0,calc(100% - 4px) 0,100% 4px,100% 100%,4px 100%,0 calc(100% - 4px))',
-                transition:'all .10s',
+                borderRadius:4,
+                transition:'all .12s',
               }}
-              onMouseEnter={e=>{e.currentTarget.style.color=DS.rose;e.currentTarget.style.borderColor=DS.rose+'66';}}
-              onMouseLeave={e=>{e.currentTarget.style.color=`${DS.rose}88`;e.currentTarget.style.borderColor=`${DS.rose}33`;}}>✕</button>
+              onMouseEnter={e=>{e.currentTarget.style.color='rgba(255,255,255,0.8)';e.currentTarget.style.borderColor='rgba(255,255,255,0.25)';}}
+              onMouseLeave={e=>{e.currentTarget.style.color='rgba(255,255,255,0.4)';e.currentTarget.style.borderColor='rgba(255,255,255,0.10)';}}>✕</button>
             </div>
           </div>
           {/* Image zone */}
           {occ&&tenant?.img&&(
-            <div style={{height:70,borderRadius:0,overflow:'hidden',position:'relative',border:`0.5px solid ${col}22`}}>
+            <div style={{height:70,borderRadius:4,overflow:'hidden',position:'relative',border:`1px solid rgba(255,255,255,0.08)`}}>
               <div style={{position:'absolute',inset:0,backgroundImage:`url(${tenant.img})`,backgroundSize:'cover',backgroundPosition:'center',opacity:.5}}/>
               <div style={{position:'absolute',inset:0,background:`linear-gradient(135deg,${col}08,transparent)`}}/>
-              {[{t:4,l:4},{t:4,r:4},{b:4,l:4},{b:4,r:4}].map(({t,r,b,l},i)=>(
-                <div key={i} style={{position:'absolute',width:8,height:8,
-                  top:t,right:r,bottom:b,left:l,
-                  borderTop:i<2?`1px solid ${col}88`:'none',
-                  borderBottom:i>=2?`1px solid ${col}88`:'none',
-                  borderLeft:(i===0||i===2)?`1px solid ${col}88`:'none',
-                  borderRight:(i===1||i===3)?`1px solid ${col}88`:'none',
-                }}/>
-              ))}
             </div>
           )}
         </div>
 
         {/* Data grid */}
-        <div style={{padding:'10px 14px',position:'relative',zIndex:2}}>
+        <div style={{padding:'12px 16px',position:'relative',zIndex:2}}>
           {/* Description du tier */}
           <div style={{
-            color:DS.textMid,fontFamily:F.ui,fontSize:8,lineHeight:1.65,
+            color:DS.textMid,fontFamily:F.ui,fontSize:10,lineHeight:1.6,
             marginBottom:10,paddingBottom:8,
-            borderBottom:`0.5px solid ${col}12`,
+            borderBottom:`1px solid rgba(255,255,255,0.05)`,
           }}>{role?.desc}</div>
 
           {occ && tenant ? (
@@ -3033,7 +2976,7 @@ function SlotReveal({slot,onClose,onRent,onBuyout,onViewSlot,user}){
                     background:`${col}18`,border:`0.5px solid ${col}55`,
                     color:col,fontFamily:F.mono,fontSize:10,fontWeight:700,
                     letterSpacing:'.08em',textDecoration:'none',cursor:'pointer',
-                    clipPath:'polygon(0 0,calc(100% - 10px) 0,100% 10px,100% 100%,10px 100%,0 calc(100% - 10px))',
+                    borderRadius:5,
                     boxShadow:`0 0 20px ${col}18`,
                   }}
                 >
@@ -3043,13 +2986,13 @@ function SlotReveal({slot,onClose,onRent,onBuyout,onViewSlot,user}){
 
               {/* Bouton Vue détaillée */}
               <LumBtn onClick={()=>onViewSlot?.(slot)} col={col}
-                style={{width:'100%',marginBottom:8,clipPath:'polygon(0 0,calc(100% - 10px) 0,100% 10px,100% 100%,10px 100%,0 calc(100% - 10px))'}}>
+                style={{width:'100%',marginBottom:8,borderRadius:5}}>
                 VOIR LA PROMOTION
               </LumBtn>
 
               {/* RACHAT — toujours disponible */}
               <LumBtn onClick={()=>onBuyout(slot)} col={DS.textLo}
-                style={{width:'100%',fontSize:9,clipPath:'polygon(0 0,calc(100% - 10px) 0,100% 10px,100% 100%,10px 100%,0 calc(100% - 10px))'}}>
+                style={{width:'100%',fontSize:9,borderRadius:5}}>
                 PROPOSER UN RACHAT
               </LumBtn>
             </>
@@ -3079,15 +3022,14 @@ function SlotReveal({slot,onClose,onRent,onBuyout,onViewSlot,user}){
                 onChange={b=>setBooking(b)}
               />
 
-              <LumBtn onClick={()=>onRent({...slot,days:booking.days,total:booking.total,billing:booking.billing})} col={col} style={{width:'100%',clipPath:'polygon(0 0,calc(100% - 10px) 0,100% 10px,100% 100%,10px 100%,0 calc(100% - 10px))'}}>
-                RÉSERVER · {booking.days}J · {(booking.total/100).toLocaleString('fr-FR',{minimumFractionDigits:2})} € <span style={{opacity:.5}}>→</span>
+              <LumBtn onClick={()=>onRent({...slot,days:booking.days,total:booking.total,billing:booking.billing})} col={col} style={{width:'100%',borderRadius:6}}>
+                Réserver · {booking.days}j · {(booking.total/100).toLocaleString('fr-FR',{minimumFractionDigits:2})} € →
               </LumBtn>
             </>
           )}
         </div>
 
-        {/* Bottom energy bar */}
-        <div style={{height:1,background:`linear-gradient(90deg,transparent,${col}44,transparent)`}}/>
+        <div style={{height:1,background:'rgba(255,255,255,0.04)'}}/>
       </div>
     </div>
   );
@@ -3105,81 +3047,80 @@ const Sidebar=memo(function Sidebar({slots,isLive,activeTier,onTierSelect,onView
   return(
     <div style={{
       width:240,flexShrink:0,
-      background:'rgba(0,4,16,0.98)',
-      backdropFilter:'blur(24px) saturate(200%)',
-      WebkitBackdropFilter:'blur(24px) saturate(200%)',
-      borderLeft:`0.5px solid rgba(0,200,240,0.12)`,
+      background:'rgba(8,8,14,0.98)',
+      backdropFilter:'blur(20px)',
+      WebkitBackdropFilter:'blur(20px)',
+      borderLeft:`1px solid rgba(255,255,255,0.07)`,
       display:'flex',flexDirection:'column',
       zIndex:20,
-      boxShadow:'-20px 0 60px rgba(0,0,0,0.9)',
+      boxShadow:'-8px 0 32px rgba(0,0,0,0.7)',
       position:'relative',
       overflow:'hidden',
     }}>
-      <ScanLines/>
 
       {/* Header */}
-      <div style={{padding:'12px 14px 10px',borderBottom:`0.5px solid rgba(0,200,240,0.10)`,position:'relative',zIndex:2}}>
-        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8}}>
-          <div style={{display:'flex',alignItems:'center',gap:8}}>
+      <div style={{padding:'14px 16px 12px',borderBottom:`1px solid rgba(255,255,255,0.06)`,position:'relative',zIndex:2}}>
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:10}}>
+          <div style={{display:'flex',alignItems:'center',gap:10}}>
             <div style={{
-              width:26,height:26,
-              border:`1px solid ${DS.gold}55`,
-              background:`${DS.gold}0c`,
+              width:28,height:28,
+              border:`1px solid ${DS.gold}33`,
+              background:`${DS.gold}0a`,
               display:'flex',alignItems:'center',justifyContent:'center',
               fontSize:14,color:DS.gold,
-              clipPath:'polygon(15% 0,85% 0,100% 15%,100% 85%,85% 100%,15% 100%,0 85%,0 15%)',
+              borderRadius:4,
             }}>◈</div>
             <div>
-              <div style={{color:DS.textHi,fontFamily:F.mono,fontSize:10,fontWeight:700,letterSpacing:'.18em'}}>DYSON</div>
-              <div style={{color:DS.textLo,fontFamily:F.mono,fontSize:6,letterSpacing:'.20em',marginTop:-1}}>COSMOS·MK·VII</div>
+              <div style={{color:DS.textHi,fontFamily:F.ui,fontSize:12,fontWeight:700,letterSpacing:'.06em'}}>DYSON</div>
+              <div style={{color:DS.textLo,fontFamily:F.mono,fontSize:9,letterSpacing:'.08em',marginTop:1}}>COSMOS · MK VII</div>
             </div>
           </div>
           {isLive&&(
             <div style={{
-              display:'flex',alignItems:'center',gap:4,
-              padding:'2px 7px',
-              border:`0.5px solid ${DS.green}44`,
+              display:'flex',alignItems:'center',gap:5,
+              padding:'3px 8px',
+              border:`1px solid ${DS.green}33`,
               background:`${DS.green}0a`,
-              clipPath:'polygon(0 0,calc(100% - 5px) 0,100% 5px,100% 100%,0 100%)',
+              borderRadius:4,
             }}>
-              <div style={{width:4,height:4,borderRadius:'50%',background:DS.green,animation:'hpulse 1.4s ease-in-out infinite'}}/>
-              <span style={{color:DS.green,fontFamily:F.mono,fontSize:6.5,fontWeight:700,letterSpacing:'.15em'}}>LIVE</span>
+              <div style={{width:5,height:5,borderRadius:'50%',background:DS.green,animation:'hpulse 1.4s ease-in-out infinite'}}/>
+              <span style={{color:DS.green,fontFamily:F.mono,fontSize:9,fontWeight:600,letterSpacing:'.08em'}}>LIVE</span>
             </div>
           )}
         </div>
 
         {/* Tab switcher */}
-        <div style={{display:'flex',gap:2}}>
+        <div style={{display:'flex',flexDirection:'column',gap:2}}>
           {/* Row 1 : COSMOS + TIERS */}
-          <div style={{display:'flex',gap:2,marginBottom:2}}>
-            {[['cosmos','COSMOS'],['tiers','TIERS']].map(([id,lbl])=>(
+          <div style={{display:'flex',gap:2}}>
+            {[['cosmos','Cosmos'],['tiers','Tiers']].map(([id,lbl])=>(
               <button key={id} onClick={()=>setTab(id)} style={{
-                flex:1,padding:'5px 0',
+                flex:1,padding:'6px 0',
                 background:tab===id?`${DS.cyan}14`:'transparent',
-                border:`0.5px solid ${tab===id?DS.cyan:DS.glassBrd}`,
-                clipPath:'polygon(0 0,calc(100% - 5px) 0,100% 5px,100% 100%,0 100%)',
+                border:`1px solid ${tab===id?DS.cyan+'44':'rgba(255,255,255,0.06)'}`,
+                borderRadius:5,
                 color:tab===id?DS.cyan:DS.textLo,
-                fontFamily:F.mono,fontSize:7.5,fontWeight:600,
-                letterSpacing:'.12em',cursor:'pointer',outline:'none',
-                transition:'all .10s',
+                fontFamily:F.ui,fontSize:11,fontWeight:tab===id?700:500,
+                letterSpacing:'.04em',cursor:'pointer',outline:'none',
+                transition:'all .12s',
               }}>{lbl}</button>
             ))}
           </div>
           {/* Row 2 : ACTIFS + DISPONIBLES */}
           <div style={{display:'flex',gap:2}}>
-            {[['actifs','ACTIFS',DS.green],['dispo','DISPONIBLES',DS.gold]].map(([id,lbl,col])=>(
+            {[['actifs','Actifs',DS.green],['dispo','Disponibles',DS.gold]].map(([id,lbl,col])=>(
               <button key={id} onClick={()=>setTab(id)} style={{
-                flex:1,padding:'5px 0',
-                background:tab===id?`${col}14`:'transparent',
-                border:`0.5px solid ${tab===id?col:DS.glassBrd}`,
-                clipPath:'polygon(0 0,calc(100% - 5px) 0,100% 5px,100% 100%,0 100%)',
+                flex:1,padding:'6px 0',
+                background:tab===id?`${col}12`:'transparent',
+                border:`1px solid ${tab===id?col+'44':'rgba(255,255,255,0.06)'}`,
+                borderRadius:5,
                 color:tab===id?col:DS.textLo,
-                fontFamily:F.mono,fontSize:7.5,fontWeight:600,
-                letterSpacing:'.10em',cursor:'pointer',outline:'none',
-                transition:'all .10s',
-                display:'flex',alignItems:'center',justifyContent:'center',gap:4,
+                fontFamily:F.ui,fontSize:11,fontWeight:tab===id?700:500,
+                letterSpacing:'.04em',cursor:'pointer',outline:'none',
+                transition:'all .12s',
+                display:'flex',alignItems:'center',justifyContent:'center',gap:5,
               }}>
-                {tab===id&&<div style={{width:3,height:3,borderRadius:'50%',background:col,animation:'hpulse 1.4s ease-in-out infinite',flexShrink:0}}/>}
+                {tab===id&&<div style={{width:5,height:5,borderRadius:'50%',background:col,flexShrink:0,opacity:0.9}}/>}
                 {lbl}
               </button>
             ))}
@@ -3213,23 +3154,23 @@ const Sidebar=memo(function Sidebar({slots,isLive,activeTier,onTierSelect,onView
                     style={{
                       padding:'8px 14px 8px 10px',
                       borderLeft:`2px solid ${isFocus?col:'transparent'}`,
-                      borderBottom:`0.5px solid rgba(0,200,240,0.05)`,
+                      borderBottom:`1px solid rgba(255,255,255,0.04)`,
                       cursor:'pointer',
                       background:isFocus?`${col}08`:'transparent',
-                      transition:'all .10s',
+                      transition:'all .12s',
                       position:'relative',
                     }}
                     onMouseEnter={e=>e.currentTarget.style.background=`${col}06`}
                     onMouseLeave={e=>e.currentTarget.style.background=isFocus?`${col}08`:'transparent'}
                   >
-                    <div style={{display:'flex',alignItems:'center',gap:7,marginBottom:5}}>
+                    <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:5}}>
                       <div style={{
-                        width:22,height:22,flexShrink:0,
-                        border:`1px solid ${col}${isFocus?'66':'2a'}`,
-                        background:`${col}${isFocus?'12':'06'}`,
+                        width:24,height:24,flexShrink:0,
+                        border:`1px solid ${col}${isFocus?'44':'1a'}`,
+                        background:`${col}${isFocus?'10':'06'}`,
                         display:'flex',alignItems:'center',justifyContent:'center',
                         fontSize:11,color:`${col}${isFocus?'ee':'55'}`,
-                        clipPath:tier==='epicenter'?undefined:'polygon(15% 0,85% 0,100% 15%,100% 85%,85% 100%,15% 100%,0 85%,0 15%)',
+                        borderRadius:4,
                         borderRadius:tier==='epicenter'?'50%':0,
                       }}>{role?.icon}</div>
                       <div style={{flex:1,minWidth:0}}>
@@ -3281,7 +3222,7 @@ const Sidebar=memo(function Sidebar({slots,isLive,activeTier,onTierSelect,onView
                         background:`${col}0a`,
                         display:'flex',alignItems:'center',justifyContent:'center',
                         fontSize:12,color:`${col}88`,
-                        clipPath:tier==='epicenter'?undefined:'polygon(15% 0,85% 0,100% 15%,100% 85%,85% 100%,15% 100%,0 85%,0 15%)',
+                        borderRadius:4,
                         borderRadius:tier==='epicenter'?'50%':0,
                       }}>{role?.icon}</div>
                       <div>
@@ -3346,13 +3287,13 @@ const Sidebar=memo(function Sidebar({slots,isLive,activeTier,onTierSelect,onView
                           border:`0.5px solid ${col}33`,
                           display:'flex',alignItems:'center',justifyContent:'center',
                           fontSize:9,color:`${col}cc`,
-                          clipPath:'polygon(15% 0,85% 0,100% 15%,100% 85%,85% 100%,15% 100%,0 85%,0 15%)',
+                          borderRadius:4,
                         }}>{typeIcon}</div>
                         <div style={{flex:1,minWidth:0}}>
                           <div style={{color:DS.textHi,fontFamily:F.mono,fontSize:8,fontWeight:700,letterSpacing:'.04em',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{name}</div>
                           {url&&<div style={{color:DS.textLo,fontFamily:F.mono,fontSize:6,letterSpacing:'.04em',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{url.replace(/^https?:\/\/(www\.)?/,'')}</div>}
                         </div>
-                        <div style={{padding:'1px 5px',background:`${col}14`,border:`0.5px solid ${col}33`,color:col,fontFamily:F.mono,fontSize:5.5,fontWeight:700,letterSpacing:'.10em',flexShrink:0,clipPath:'polygon(0 0,calc(100% - 4px) 0,100% 4px,100% 100%,0 100%)'}}>{tierLabel.toUpperCase()}</div>
+                        <div style={{padding:'1px 5px',background:`${col}14`,border:`0.5px solid ${col}33`,color:col,fontFamily:F.mono,fontSize:5.5,fontWeight:700,letterSpacing:'.10em',flexShrink:0,borderRadius:3}}>{tierLabel.toUpperCase()}</div>
                         {onViewSlot&&<span style={{color:`${col}55`,fontSize:8,flexShrink:0,marginLeft:2}}>›</span>}
                       </div>
                     </div>
@@ -3389,7 +3330,7 @@ const Sidebar=memo(function Sidebar({slots,isLive,activeTier,onTierSelect,onView
                       onMouseLeave={e=>e.currentTarget.style.background='transparent'}
                     >
                       <div style={{display:'flex',alignItems:'center',gap:7,marginBottom:5}}>
-                        <div style={{width:20,height:20,flexShrink:0,border:`1px solid ${DS.gold}40`,background:`${DS.gold}0a`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:10,color:`${DS.gold}88`,clipPath:tier==='epicenter'?undefined:'polygon(15% 0,85% 0,100% 15%,100% 85%,85% 100%,15% 100%,0 85%,0 15%)',borderRadius:tier==='epicenter'?'50%':0}}>{role?.icon}</div>
+                        <div style={{width:20,height:20,flexShrink:0,border:`1px solid ${DS.gold}40`,background:`${DS.gold}0a`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:10,color:`${DS.gold}88`,borderRadius:4,borderRadius:tier==='epicenter'?'50%':0}}>{role?.icon}</div>
                         <div style={{flex:1,minWidth:0}}>
                           <div style={{color:DS.textMid,fontFamily:F.mono,fontSize:8,fontWeight:700,letterSpacing:'.08em'}}>{(cfg?.label||tier).toUpperCase()}</div>
                           <div style={{color:DS.textLo,fontFamily:F.mono,fontSize:6}}>€{fmt(tier)}/j</div>
@@ -3459,7 +3400,7 @@ function InsideChip(){
         padding:'4px 14px',
         background:'rgba(0,4,18,0.95)',
         border:`0.5px solid ${DS.violet}55`,
-        clipPath:'polygon(0 0,calc(100% - 8px) 0,100% 8px,100% 100%,8px 100%,0 calc(100% - 8px))',
+        borderRadius:5,
         boxShadow:`0 0 20px ${DS.violet}22`,
       }}>
         <ScanLines/>
@@ -3503,7 +3444,7 @@ function HUDLoader(){
           <div key={i} style={{
             position:'absolute',inset:i*11,
             border:`0.5px solid rgba(${['232,160,32','0,200,230','128,96,200','0,216,128'][i]},.${['55','40','25','15'][i]})`,
-            clipPath:'polygon(25% 0,75% 0,100% 25%,100% 75%,75% 100%,25% 100%,0 75%,0 25%)',
+            borderRadius:'50%',
             animation:`hspin ${[1.2,1.8,2.6,3.4][i]}s linear infinite ${i%2?'reverse':''}`,
           }}/>
         ))}
@@ -3511,7 +3452,7 @@ function HUDLoader(){
           <div style={{
             width:14,height:14,
             border:`1.5px solid ${DS.gold}`,
-            clipPath:'polygon(25% 0,75% 0,100% 25%,100% 75%,75% 100%,25% 100%,0 75%,0 25%)',
+            borderRadius:'50%',
             background:`${DS.gold}18`,
             animation:'hpulse 1.5s ease-in-out infinite',
           }}/>
@@ -3698,11 +3639,11 @@ function DockShell({ id, title, icon, col='#00C8E4', dock, children, containerRe
 
       {/* ── Title bar ── */}
       <div style={{
-        height:30, display:'flex', alignItems:'center',
-        background:'rgba(2,6,20,0.99)',
-        borderTop:`1.5px solid ${col}55`,
-        borderLeft:`0.5px solid ${col}18`,
-        borderRight:`0.5px solid ${col}18`,
+        height:32, display:'flex', alignItems:'center',
+        background:'rgba(10,10,16,0.99)',
+        borderTop:`1px solid ${col}33`,
+        borderLeft:`1px solid rgba(255,255,255,0.06)`,
+        borderRight:`1px solid rgba(255,255,255,0.06)`,
       }}>
 
         {/* Drag grip */}
@@ -3722,7 +3663,7 @@ function DockShell({ id, title, icon, col='#00C8E4', dock, children, containerRe
         {/* Icon + name */}
         <span style={{ color:col, fontSize:10, marginLeft:7, flexShrink:0 }}>{icon}</span>
         <span style={{
-          color:`${col}AA`, fontSize:7.5, fontWeight:700, letterSpacing:'.18em',
+          color:`${col}99`, fontSize:9, fontWeight:600, letterSpacing:'.08em',
           marginLeft:5, flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap',
         }}>{title}</span>
 
@@ -4392,11 +4333,10 @@ export default function View3D({slots=[],isLive=false,onCheckout,onBuyout,onView
           <div style={{position:'absolute',top:12,left:12,zIndex:30,pointerEvents:'none'}}>
             <div style={{
               display:'flex',alignItems:'center',gap:8,
-              padding: isMobile ? '4px 8px' : '5px 12px',
-              background:'rgba(0,4,18,0.92)',
-              border:`0.5px solid rgba(0,200,240,0.14)`,
-              clipPath:'polygon(0 0,calc(100% - 8px) 0,100% 8px,100% 100%,0 100%)',
-              boxShadow:`0 0 20px rgba(0,200,240,0.08)`,
+              padding: isMobile ? '4px 10px' : '6px 12px',
+              background:'rgba(8,8,14,0.95)',
+              border:`1px solid rgba(255,255,255,0.08)`,
+              borderRadius:6,
             }}>
               <span style={{color:DS.gold,fontSize: isMobile ? 11 : 13}}>◈</span>
               {!isMobile && <div>
@@ -4413,12 +4353,12 @@ export default function View3D({slots=[],isLive=false,onCheckout,onBuyout,onView
           <div style={{position:'absolute',top:12,right: isMobile ? 12 : 12,zIndex:30,display:'flex',gap:3}}>
             {!isMobile && <>
               <LumBtn sm col={isPaused?DS.rose:DS.cyan} onClick={handleTogglePause}
-                style={{fontSize:7.5,padding:'5px 11px',clipPath:'polygon(0 0,calc(100% - 6px) 0,100% 6px,100% 100%,0 100%)'}}>
-                {isPaused?'▶ PLAY':'⏸ PAUSE'}
+                style={{fontSize:9,padding:'5px 12px',borderRadius:5}}>
+                {isPaused?'▶ Play':'⏸ Pause'}
               </LumBtn>
               <LumBtn sm col={DS.cyan} onClick={()=>{sceneRef.current?.resetCamera();setActiveTier(-1);sceneRef.current?.setTierFocus(-1);}}
-                style={{fontSize:7.5,padding:'5px 11px',clipPath:'polygon(0 0,calc(100% - 6px) 0,100% 6px,100% 100%,0 100%)'}}>
-                ↺ RESET
+                style={{fontSize:9,padding:'5px 12px',borderRadius:5}}>
+                ↺ Reset
               </LumBtn>
             </>}
             {isMobile && (
