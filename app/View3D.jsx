@@ -3621,159 +3621,536 @@ const TIER_GRID_2D  = {
   viral:    { cols:36, rows:19 },
 };
 
-function FlatView2D({ slots=[], onSlotSelect, activeFilter }) {
-  const canvasRef = useRef(null);
-  const [hov, setHov] = useState(null);
-  const hovRef = useRef(null);
-  const layoutRef = useRef([]);
 
+// ════════════════════════════════════════════════════════════════════════════════
+// DOCK SYSTEM — FL Studio / DaVinci Resolve inspired modular panel architecture
+// Panels: SCANNER (VueDial) · TIERS (TierCommandBar) · SLOTS (Sidebar)
+// Positions: 'left' | 'right' | 'bottom' | 'float'
+// ════════════════════════════════════════════════════════════════════════════════
+
+const DOCK_DEFAULTS = {
+  scanner: { pos:'right',  floatX:null, floatY:null, collapsed:false, visible:true },
+  tiers:   { pos:'bottom', floatX:null, floatY:null, collapsed:false, visible:true },
+  slots:   { pos:'left',   floatX:null, floatY:null, collapsed:false, visible:true },
+};
+
+function useDockSystem() {
+  const [panels, setPanels] = useState(() => {
+    try {
+      const s = sessionStorage.getItem('dyson_dock_v3');
+      if (s) { const p = JSON.parse(s); return { ...DOCK_DEFAULTS, ...p }; }
+    } catch {}
+    return { ...DOCK_DEFAULTS };
+  });
+
+  const save = (next) => {
+    setPanels(next);
+    try { sessionStorage.setItem('dyson_dock_v3', JSON.stringify(next)); } catch {}
+  };
+
+  const setPos    = (id, pos, fx, fy) => save({ ...panels, [id]: { ...panels[id], pos, floatX: fx ?? panels[id].floatX, floatY: fy ?? panels[id].floatY } });
+  const toggle    = (id)              => save({ ...panels, [id]: { ...panels[id], collapsed: !panels[id].collapsed } });
+  const setFloat  = (id, x, y)        => save({ ...panels, [id]: { ...panels[id], floatX: x, floatY: y, pos: 'float' } });
+  const resetAll  = ()                => save({ ...DOCK_DEFAULTS });
+
+  return { panels, setPos, toggle, setFloat, resetAll };
+}
+
+// ── Drop Zone detection ───────────────────────────────────────────────────────
+function getDropZone(clientX, clientY, containerRect) {
+  const { left, top, width, height } = containerRect;
+  const x = clientX - left, y = clientY - top;
+  const RAIL = 72;
+  if (x < RAIL)           return 'left';
+  if (x > width - RAIL)   return 'right';
+  if (y > height - RAIL)  return 'bottom';
+  return 'float';
+}
+
+// ── DockShell — wraps any panel with title bar + drag + dock controls ─────────
+function DockShell({ id, title, icon, col='#00C8E4', dock, children, containerRef, minW=200 }) {
+  const panel    = dock.panels[id];
+  const isFloat  = panel.pos === 'float';
+  const shellRef = useRef(null);
+  const dragRef  = useRef(null);
+  const [dragOver, setDragOver] = useState(null);
+
+  // ── Drag to float / dock ──────────────────────────────────────────────────
+  function onGripMouseDown(e) {
+    e.preventDefault();
+    const startX = e.clientX, startY = e.clientY;
+    const origFX = panel.floatX ?? 100, origFY = panel.floatY ?? 100;
+    let moved = false;
+
+    const onMove = (ev) => {
+      moved = true;
+      const dx = ev.clientX - startX, dy = ev.clientY - startY;
+      if (!containerRef?.current) return;
+      const cr = containerRef.current.getBoundingClientRect();
+      const zone = getDropZone(ev.clientX, ev.clientY, cr);
+      setDragOver(zone);
+      if (zone === 'float') {
+        dock.setFloat(id, origFX + dx, origFY + dy);
+      }
+    };
+
+    const onUp = (ev) => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      setDragOver(null);
+      if (!moved) return;
+      if (!containerRef?.current) return;
+      const cr = containerRef.current.getBoundingClientRect();
+      const zone = getDropZone(ev.clientX, ev.clientY, cr);
+      if (zone !== 'float') {
+        dock.setPos(id, zone);
+      } else {
+        const dx = ev.clientX - startX, dy = ev.clientY - startY;
+        dock.setFloat(id, origFX + dx, origFY + dy);
+      }
+    };
+
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  }
+
+  const titleBarH = 28;
+  const isLeft    = panel.pos === 'left';
+  const isRight   = panel.pos === 'right';
+  const isBottom  = panel.pos === 'bottom';
+
+  const wrapStyle = isFloat ? {
+    position:'absolute',
+    left: panel.floatX ?? 120,
+    top:  panel.floatY ?? 80,
+    zIndex:60,
+    minWidth: minW,
+    maxWidth: 280,
+    boxShadow:`0 8px 32px rgba(0,0,0,0.70), 0 0 0 0.5px ${col}30`,
+  } : { width:'100%', position:'relative' };
+
+  return (
+    <div ref={shellRef} style={{ ...wrapStyle, userSelect:'none', fontFamily:'"JetBrains Mono",monospace' }}>
+      {/* ── Title bar ─────────────────────────────────────────────────── */}
+      <div style={{
+        height: titleBarH,
+        background:`rgba(0,3,14,0.98)`,
+        borderTop:`1px solid ${col}45`,
+        borderBottom:`0.5px solid ${col}18`,
+        display:'flex', alignItems:'center', gap:0,
+        cursor:'default',
+      }}>
+        {/* Grip */}
+        <div
+          onMouseDown={onGripMouseDown}
+          title="Déplacer / Ancrer"
+          style={{
+            padding:'0 9px', height:'100%', display:'flex', alignItems:'center',
+            cursor:'grab', color:`${col}40`, fontSize:10, letterSpacing:2,
+            flexShrink:0,
+          }}
+        >⠿</div>
+
+        {/* Icon + title */}
+        <span style={{ color:col, fontSize:9, marginRight:4, flexShrink:0 }}>{icon}</span>
+        <span style={{ color:`${col}CC`, fontSize:7.5, fontWeight:700, letterSpacing:'.18em', flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{title}</span>
+
+        {/* Dock buttons */}
+        <div style={{ display:'flex', alignItems:'center', gap:1, paddingRight:4 }}>
+          {['left','right','bottom','float'].map(pos => {
+            const icons = { left:'⊣', right:'⊢', bottom:'⊥', float:'⊡' };
+            const active = panel.pos === pos;
+            return (
+              <button key={pos} title={`Ancrer ${pos}`}
+                onClick={() => dock.setPos(id, pos)}
+                style={{
+                  width:16, height:16, border:'none', cursor:'pointer', outline:'none',
+                  background: active ? `${col}28` : 'transparent',
+                  color: active ? col : `${col}35`,
+                  fontSize:9, display:'flex', alignItems:'center', justifyContent:'center',
+                  transition:'all .15s',
+                }}
+              >{icons[pos]}</button>
+            );
+          })}
+
+          {/* Collapse */}
+          <button title="Réduire"
+            onClick={() => dock.toggle(id)}
+            style={{
+              width:18, height:18, border:'none', cursor:'pointer', outline:'none',
+              background:'transparent',
+              color:`${col}55`, fontSize:11,
+              display:'flex', alignItems:'center', justifyContent:'center',
+              transition:'all .15s', marginLeft:2,
+            }}
+          >{panel.collapsed ? '▸' : '▾'}</button>
+        </div>
+
+        {/* Drop zone indicator */}
+        {dragOver && dragOver !== 'float' && (
+          <div style={{
+            position:'absolute', inset:0, pointerEvents:'none', zIndex:99,
+            border:`1.5px dashed ${col}80`,
+            background:`${col}08`,
+          }}/>
+        )}
+      </div>
+
+      {/* ── Content ───────────────────────────────────────────────────── */}
+      {!panel.collapsed && (
+        <div style={{
+          background:'rgba(0,3,14,0.97)',
+          borderLeft:`0.5px solid ${col}20`,
+          borderRight:`0.5px solid ${col}20`,
+          borderBottom:`0.5px solid ${col}20`,
+          overflow:'hidden',
+        }}>
+          {children}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── DockRail — renders all panels docked to a given side ─────────────────────
+function DockRail({ side, dock, containerRef, children }) {
+  const isV   = side === 'left' || side === 'right';
+  const railW = isV ? 'auto' : '100%';
+  const railH = isV ? '100%' : 'auto';
+
+  // Drop highlight
+  const [dropActive, setDropActive] = useState(false);
+  useEffect(() => {
+    const onMove = (e) => {
+      if (!containerRef?.current) return;
+      const cr = containerRef.current.getBoundingClientRect();
+      setDropActive(getDropZone(e.clientX, e.clientY, cr) === side);
+    };
+    document.addEventListener('mousemove', onMove);
+    return () => document.removeEventListener('mousemove', onMove);
+  }, [side, containerRef]);
+
+  return (
+    <div style={{
+      position:'absolute',
+      ...(side === 'left'   && { left:0,   top:0,    bottom:0,   width:'auto',  maxWidth:280, minWidth: children ? 220 : 0 }),
+      ...(side === 'right'  && { right:0,  top:0,    bottom:0,   width:'auto',  maxWidth:280, minWidth: children ? 220 : 0 }),
+      ...(side === 'bottom' && { bottom:0, left:0,   right:0,    height:'auto', maxHeight:320 }),
+      zIndex:35,
+      display:'flex',
+      flexDirection: isV ? 'column' : 'row',
+      gap:0,
+      pointerEvents: children ? 'all' : 'none',
+      transition:'min-width .2s, min-height .2s',
+    }}>
+      {dropActive && !children && (
+        <div style={{
+          position:'absolute', inset:0,
+          border:'1px dashed rgba(0,200,240,0.30)',
+          background:'rgba(0,200,240,0.04)',
+          pointerEvents:'none',
+        }}/>
+      )}
+      {children}
+    </div>
+  );
+}
+
+// ── ViewToggle — inline with dock reset ──────────────────────────────────────
+function ViewToggle({ viewMode, onToggle, dock }) {
+  return (
+    <div style={{
+      position:'absolute', top:12, left:'50%', transform:'translateX(-50%)',
+      zIndex:40, display:'flex', alignItems:'center', gap:4,
+    }}>
+      {[
+        { id:'3d', icon:'◎', label:'3D' },
+        { id:'2d', icon:'⊞', label:'2D' },
+      ].map(({ id, icon, label }) => {
+        const active = viewMode === id;
+        return (
+          <button key={id} onClick={() => onToggle(id)} style={{
+            padding:'4px 12px',
+            background: active ? 'rgba(0,200,240,0.12)' : 'rgba(0,4,18,0.88)',
+            border: active ? '0.5px solid rgba(0,200,240,0.50)' : '0.5px solid rgba(0,200,240,0.14)',
+            color: active ? '#00C8E4' : 'rgba(0,200,240,0.35)',
+            fontFamily:'"JetBrains Mono",monospace',
+            fontSize:8, fontWeight:700, letterSpacing:'.14em',
+            cursor:'pointer', outline:'none',
+            transition:'all .18s ease',
+            display:'flex', alignItems:'center', gap:5,
+          }}>
+            <span style={{ fontSize:11 }}>{icon}</span>
+            <span>{label}</span>
+          </button>
+        );
+      })}
+      {/* Reset layout */}
+      {dock && (
+        <button onClick={dock.resetAll} title="Réinitialiser l'interface" style={{
+          padding:'4px 8px',
+          background:'rgba(0,4,18,0.88)',
+          border:'0.5px solid rgba(0,200,240,0.10)',
+          color:'rgba(0,200,240,0.25)',
+          fontFamily:'"JetBrains Mono",monospace',
+          fontSize:7, letterSpacing:'.12em',
+          cursor:'pointer', outline:'none',
+          transition:'all .18s',
+        }}>⟳</button>
+      )}
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════════════════════
+// FLATVIEW 2D v2 — Vue orbitale concentrique · Dyson Sphere cross-section
+// Epicenter au centre → viral en couronne externe — lisibilité max, zéro bruit
+// ════════════════════════════════════════════════════════════════════════════════
+
+const TIER_RING_CONFIG = {
+  // tier, radius ratio (0-1), dot size, max shown (performance)
+  epicenter: { ringR:0.00, dotR:18, total:1    },
+  prestige:  { ringR:0.09, dotR:12, total:8    },
+  elite:     { ringR:0.17, dotR: 8, total:50   },
+  business:  { ringR:0.30, dotR: 5, total:176  },
+  standard:  { ringR:0.46, dotR: 3, total:400  },
+  viral:     { ringR:0.63, dotR: 2, total:671  },
+};
+
+function FlatView2D({ slots=[], onSlotSelect, activeFilter }) {
+  const canvasRef  = useRef(null);
+  const hovRef     = useRef(null);
+  const layoutRef  = useRef([]);
+  const [hov, setHov]     = useState(null);
+  const [entry, setEntry] = useState(false);
   const pal = FILTER_PALETTES[activeFilter] || FILTER_PALETTES.realist;
+
+  // Build slot lookup by tier
+  const slotsByTier = useMemo(() => {
+    const m = {};
+    TIER_ORDER.forEach(t => { m[t] = []; });
+    slots.forEach(s => { if (m[s.tier]) m[s.tier].push(s); });
+    return m;
+  }, [slots]);
+
+  useEffect(() => { const t = setTimeout(() => setEntry(true), 80); return () => clearTimeout(t); }, []);
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
-    let raf;
-    let t = 0;
+    let raf, t0 = performance.now();
 
     function resize() {
-      canvas.width  = canvas.offsetWidth  * window.devicePixelRatio;
-      canvas.height = canvas.offsetHeight * window.devicePixelRatio;
-      ctx.setTransform(window.devicePixelRatio, 0, 0, window.devicePixelRatio, 0, 0);
+      const dpr = window.devicePixelRatio || 1;
+      canvas.width  = canvas.offsetWidth  * dpr;
+      canvas.height = canvas.offsetHeight * dpr;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     }
     resize();
     const ro = new ResizeObserver(resize);
     ro.observe(canvas);
 
-    // Build slot → position map
     function buildLayout() {
-      const W = canvas.offsetWidth;
-      const H = canvas.offsetHeight;
+      const W = canvas.offsetWidth, H = canvas.offsetHeight;
+      const cx = W * 0.5, cy = H * 0.5;
+      // Radius scales to the smaller dimension, with margin
+      const maxR = Math.min(W, H) * 0.44;
       const layout = [];
-      const tierData = {};
-      TIER_ORDER.forEach(tier => { tierData[tier] = []; });
-      slots.forEach(s => { if (tierData[s.tier]) tierData[s.tier].push(s); });
 
-      // Zones par tier (vertical bands)
-      const tiers = TIER_ORDER;
-      const zoneH = H / tiers.length;
+      TIER_ORDER.forEach(tier => {
+        const cfg   = TIER_RING_CONFIG[tier];
+        const tSlots = slotsByTier[tier] || [];
+        const total = cfg.total;
+        const ringR = cfg.ringR * maxR * 2.5; // actual px radius
 
-      tiers.forEach((tier, ti) => {
-        const slotsInTier = tierData[tier] || [];
-        const total = TIER_TOTALS[tier] || 1;
-        const r = TIER_SIZE_2D[tier] || 8;
-        const gap = r * 2.8;
-        const cols = Math.floor(W / gap);
-        const rows = Math.ceil(total / cols);
-        const zoneY = ti * zoneH;
-        const startX = (W - cols * gap) / 2 + r;
-        const startY = zoneY + (zoneH - rows * gap) / 2 + r;
+        if (tier === 'epicenter') {
+          // Single center point
+          const slot = tSlots[0] || null;
+          layout.push({ tier, x:cx, y:cy, r:cfg.dotR, slot, occ: !!(slot?.occ ?? slot?.status==='active') });
+          return;
+        }
 
-        for (let i = 0; i < total; i++) {
-          const col = i % cols;
-          const row = Math.floor(i / cols);
-          const x = startX + col * gap;
-          const y = startY + row * gap;
-          const slot = slotsInTier[i] || null;
-          layout.push({ tier, x, y, r, slot, idx: i });
+        // Place dots on concentric ring(s)
+        // Dots per ring = circumference / (2 * dotR * gapFactor)
+        const gapFactor = tier === 'viral' ? 2.2 : tier === 'standard' ? 2.4 : 2.8;
+        const dotsPerRing = Math.max(1, Math.floor((2 * Math.PI * ringR) / (cfg.dotR * 2 * gapFactor)));
+        const rings = Math.ceil(total / dotsPerRing);
+
+        let idx = 0;
+        for (let ring = 0; ring < rings && idx < total; ring++) {
+          const r = ringR + ring * cfg.dotR * 2.5;
+          const count = Math.min(dotsPerRing, total - idx);
+          const offsetAngle = (ring % 2) * (Math.PI / count); // stagger alternate rings
+          for (let i = 0; i < count; i++, idx++) {
+            const angle = (i / count) * Math.PI * 2 + offsetAngle - Math.PI / 2;
+            const x = cx + Math.cos(angle) * r;
+            const y = cy + Math.sin(angle) * r;
+            const slot = tSlots[idx] || null;
+            layout.push({
+              tier, x, y, r:cfg.dotR, slot,
+              occ: !!(slot?.occ ?? (slot?.status === 'active')),
+              angle, ring,
+            });
+          }
         }
       });
+
       return layout;
     }
 
+    function hexColor(hex, alpha) {
+      const r=parseInt(hex.slice(1,3),16), g=parseInt(hex.slice(3,5),16), b=parseInt(hex.slice(5,7),16);
+      return `rgba(${r},${g},${b},${alpha})`;
+    }
+
     function draw() {
-      t += 0.016;
-      const W = canvas.offsetWidth;
-      const H = canvas.offsetHeight;
+      const t = (performance.now() - t0) / 1000;
+      const W = canvas.offsetWidth, H = canvas.offsetHeight;
       ctx.clearRect(0, 0, W, H);
 
-      // Background
-      const grad = ctx.createLinearGradient(0, 0, 0, H);
-      grad.addColorStop(0, pal.bgTop || '#01020A');
-      grad.addColorStop(1, pal.bgBot || '#010914');
-      ctx.fillStyle = grad;
-      ctx.fillRect(0, 0, W, H);
+      // Background gradient
+      const bg = ctx.createRadialGradient(W*.5, H*.5, 0, W*.5, H*.5, Math.max(W,H)*.6);
+      bg.addColorStop(0,  pal.bgTop === '#01030C' ? '#01040F' : '#01020A');
+      bg.addColorStop(1, '#000508');
+      ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
 
       const layout = buildLayout();
       layoutRef.current = layout;
-      const hovSlot = hovRef.current;
+      const hovItem = hovRef.current;
 
-      layout.forEach(({ tier, x, y, r, slot }) => {
-        const occ = slot?.occ ?? (slot?.status === 'active');
-        const tierCol = pal[tier] || TIER_NEON[tier] || '#334488';
-        const isHov = hovSlot && hovSlot.tier === tier &&
-          Math.abs(hovSlot.x - x) < 1 && Math.abs(hovSlot.y - y) < 1;
+      // ── Draw ring guide lines (very faint) ──────────────────────────────
+      const cx = W*.5, cy = H*.5, maxR = Math.min(W,H)*.44;
+      TIER_ORDER.forEach(tier => {
+        if (tier === 'epicenter') return;
+        const cfg = TIER_RING_CONFIG[tier];
+        const ringR = cfg.ringR * maxR * 2.5;
+        const col = pal[tier] || TIER_NEON[tier];
+        ctx.beginPath();
+        ctx.arc(cx, cy, ringR, 0, Math.PI*2);
+        ctx.strokeStyle = hexColor(col, 0.04);
+        ctx.lineWidth = 0.5;
+        ctx.stroke();
+      });
+
+      // ── Draw dots ────────────────────────────────────────────────────────
+      layout.forEach(({ tier, x, y, r, slot, occ, angle }) => {
+        const col = pal[tier] || TIER_NEON[tier];
+        const isHov = hovItem && hovItem._id && slot && hovItem._id === (slot.id || slot._id) ||
+                      hovItem && !slot && hovItem.x === x && hovItem.y === y;
+        const entryFade = entry ? 1 : 0;
 
         if (occ) {
-          // Occupied — filled circle with subtle pulse
-          const pulse = 1 + Math.sin(t * 1.8 + x * 0.01) * 0.04;
-          const rr = r * pulse;
+          const pulse = 0.94 + 0.06 * Math.sin(t * 1.4 + x * 0.015 + y * 0.012);
+          const rr = r * pulse * (isHov ? 1.35 : 1.0);
 
-          // Glow
-          const grd = ctx.createRadialGradient(x, y, 0, x, y, rr * 2.2);
-          grd.addColorStop(0, tierCol + '55');
-          grd.addColorStop(1, 'transparent');
-          ctx.beginPath(); ctx.arc(x, y, rr * 2.2, 0, Math.PI * 2);
-          ctx.fillStyle = grd; ctx.fill();
+          // Outer glow (occupied only)
+          if (r >= 5) {
+            const grd = ctx.createRadialGradient(x, y, 0, x, y, rr * 3.5);
+            grd.addColorStop(0, hexColor(col, 0.18));
+            grd.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.beginPath(); ctx.arc(x, y, rr * 3.5, 0, Math.PI*2);
+            ctx.fillStyle = grd; ctx.fill();
+          }
 
-          // Fill
-          ctx.beginPath(); ctx.arc(x, y, rr, 0, Math.PI * 2);
-          ctx.fillStyle = tierCol + 'CC'; ctx.fill();
+          // Fill circle
+          ctx.beginPath(); ctx.arc(x, y, rr, 0, Math.PI*2);
+          ctx.fillStyle = hexColor(col, isHov ? 0.92 : 0.72);
+          ctx.fill();
 
-          // Ring
-          ctx.beginPath(); ctx.arc(x, y, rr + 1.5, 0, Math.PI * 2);
-          ctx.strokeStyle = tierCol; ctx.lineWidth = isHov ? 2 : 0.8;
+          // Crisp ring
+          ctx.beginPath(); ctx.arc(x, y, rr, 0, Math.PI*2);
+          ctx.strokeStyle = hexColor(col, isHov ? 1.0 : 0.85);
+          ctx.lineWidth = isHov ? 1.5 : 0.7;
           ctx.stroke();
 
-          // Hover: name label
-          if (isHov && slot?.display_name) {
-            ctx.font = `700 8px "JetBrains Mono", monospace`;
-            ctx.fillStyle = '#DDE6F2';
-            ctx.textAlign = 'center';
-            ctx.fillText(slot.display_name.toUpperCase().slice(0,12), x, y - rr - 8);
+          // Epicenter: inner cross
+          if (tier === 'epicenter') {
+            ctx.strokeStyle = hexColor(col, 0.60);
+            ctx.lineWidth = 1;
+            ctx.beginPath(); ctx.moveTo(x-rr*.55, y); ctx.lineTo(x+rr*.55, y); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(x, y-rr*.55); ctx.lineTo(x, y+rr*.55); ctx.stroke();
           }
+
+          // Label: name inside big dots
+          if (r >= 10 && slot?.display_name) {
+            ctx.font = `700 ${Math.max(6, r*0.55)}px "JetBrains Mono",monospace`;
+            ctx.fillStyle = 'rgba(255,255,255,0.90)';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            const txt = slot.display_name.toUpperCase().slice(0,6);
+            ctx.fillText(txt, x, y);
+          }
+
+          // Hover tooltip line
+          if (isHov && slot?.display_name && r < 10) {
+            const lx = x + (x > W*.5 ? rr+8 : -(rr+8));
+            ctx.font = `700 7.5px "JetBrains Mono",monospace`;
+            ctx.fillStyle = hexColor(col, 0.90);
+            ctx.textAlign = x > W*.5 ? 'left' : 'right';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(slot.display_name.toUpperCase().slice(0,14), lx, y);
+            // connector line
+            ctx.beginPath(); ctx.moveTo(x + (x > W*.5 ? rr : -rr), y);
+            ctx.lineTo(lx + (x > W*.5 ? -3 : 3), y);
+            ctx.strokeStyle = hexColor(col, 0.35); ctx.lineWidth = 0.5; ctx.stroke();
+          }
+
         } else {
-          // Free — hollow dot
-          ctx.beginPath(); ctx.arc(x, y, r * 0.45, 0, Math.PI * 2);
-          ctx.fillStyle = isHov ? (tierCol + '44') : (tierCol + '18');
+          // Free slot — tiny dim dot
+          const dotR = Math.max(r * 0.38, 1.2);
+          ctx.beginPath(); ctx.arc(x, y, dotR, 0, Math.PI*2);
+          ctx.fillStyle = hexColor(col, isHov ? 0.30 : 0.10);
           ctx.fill();
-          ctx.beginPath(); ctx.arc(x, y, r * 0.45, 0, Math.PI * 2);
-          ctx.strokeStyle = isHov ? (tierCol + '88') : (tierCol + '30');
-          ctx.lineWidth = 0.5; ctx.stroke();
         }
       });
 
-      // Tier labels (left margin)
-      TIER_ORDER.forEach((tier, ti) => {
-        const zoneH = H / TIER_ORDER.length;
-        const y = ti * zoneH + zoneH / 2;
-        const col = pal[tier] || TIER_NEON[tier];
-        const cfg = VUE_CONFIG.realist; // always use LORE names
-        ctx.font = `700 7.5px "JetBrains Mono", monospace`;
-        ctx.fillStyle = col + 'AA';
+      // ── Tier ring labels (right side of each ring) ───────────────────────
+      TIER_ORDER.forEach(tier => {
+        if (tier === 'epicenter') return;
+        const cfg  = TIER_RING_CONFIG[tier];
+        const ringR = cfg.ringR * maxR * 2.5;
+        const col  = pal[tier] || TIER_NEON[tier];
+        const occ  = (slotsByTier[tier] || []).filter(s => s.occ || s.status==='active').length;
+        const total = cfg.total;
+        const lx   = cx + ringR + 10;
+        const ly   = cy;
+        ctx.font   = `700 6.5px "JetBrains Mono",monospace`;
+        ctx.fillStyle = hexColor(col, 0.45);
         ctx.textAlign = 'left';
-        const occ = slots.filter(s => s.tier === tier && s.occ).length;
-        const total = TIER_TOTALS[tier] || 1;
-        ctx.fillText(`${TIER_ORDER[ti].toUpperCase()} · ${occ}/${total}`, 10, y);
+        ctx.textBaseline = 'middle';
+        ctx.fillText(`${tier.toUpperCase()} ${occ}/${total}`, lx, ly);
       });
+
+      // Epicenter label
+      {
+        const col = pal.epicenter || TIER_NEON.epicenter;
+        const occ = (slotsByTier.epicenter || []).filter(s => s.occ || s.status==='active').length;
+        ctx.font = `700 6.5px "JetBrains Mono",monospace`;
+        ctx.fillStyle = hexColor(col, 0.45);
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'top';
+        ctx.fillText(`ÉPICENTRE ${occ}/1`, cx, cy + TIER_RING_CONFIG.epicenter.dotR + 8);
+      }
 
       raf = requestAnimationFrame(draw);
     }
 
     draw();
     return () => { cancelAnimationFrame(raf); ro.disconnect(); };
-  }, [slots, activeFilter]);
+  }, [slots, activeFilter, slotsByTier, entry, pal]);
 
   function handleMouseMove(e) {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const rect = canvas.getBoundingClientRect();
-    const mx = e.clientX - rect.left;
-    const my = e.clientY - rect.top;
+    const mx = e.clientX - rect.left, my = e.clientY - rect.top;
     let found = null;
     for (const item of layoutRef.current) {
-      const d = Math.hypot(mx - item.x, my - item.y);
-      if (d <= item.r * 1.5) { found = { ...item }; break; }
+      if (Math.hypot(mx - item.x, my - item.y) <= Math.max(item.r * 1.8, 5)) {
+        found = item; break;
+      }
     }
     hovRef.current = found;
     setHov(found);
@@ -3783,87 +4160,63 @@ function FlatView2D({ slots=[], onSlotSelect, activeFilter }) {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const rect = canvas.getBoundingClientRect();
-    const mx = e.clientX - rect.left;
-    const my = e.clientY - rect.top;
+    const mx = e.clientX - rect.left, my = e.clientY - rect.top;
     for (const item of layoutRef.current) {
-      const d = Math.hypot(mx - item.x, my - item.y);
-      if (d <= item.r * 1.5) {
-        if (onSlotSelect) onSlotSelect(item.slot || { tier: item.tier });
+      if (Math.hypot(mx - item.x, my - item.y) <= Math.max(item.r * 1.8, 5)) {
+        onSlotSelect && onSlotSelect(item.slot || { tier: item.tier });
         return;
       }
     }
   }
 
   return (
-    <div style={{ position:'absolute', inset:0, overflow:'hidden' }}>
+    <div style={{ position:'absolute', inset:0 }}>
       <canvas
         ref={canvasRef}
-        style={{ width:'100%', height:'100%', display:'block', cursor: hov ? 'pointer' : 'default' }}
+        style={{ width:'100%', height:'100%', display:'block', cursor: hov?.occ ? 'pointer' : 'default', opacity: entry ? 1 : 0, transition:'opacity .5s ease' }}
         onMouseMove={handleMouseMove}
         onClick={handleClick}
         onMouseLeave={() => { hovRef.current = null; setHov(null); }}
       />
-      {/* Tier separator lines */}
-      {TIER_ORDER.map((tier, i) => (
-        <div key={tier} style={{
-          position:'absolute', left:0, right:0,
-          top: `${(i / TIER_ORDER.length) * 100}%`,
-          height:'1px',
-          background: i === 0 ? 'transparent' : `linear-gradient(90deg, transparent, ${(pal[tier]||TIER_NEON[tier])}22, transparent)`,
-          pointerEvents:'none',
-        }}/>
-      ))}
-      {/* LORE label top */}
+
+      {/* Hovered slot mini-card (HTML overlay for rich info) */}
+      {hov?.occ && hov.slot?.display_name && hov.r >= 5 && (
+        <div style={{
+          position:'absolute',
+          left: hov.x > (canvasRef.current?.offsetWidth||0)/2 ? 'auto' : hov.x + hov.r + 14,
+          right: hov.x > (canvasRef.current?.offsetWidth||0)/2 ? (canvasRef.current?.offsetWidth||0) - hov.x + hov.r + 14 : 'auto',
+          top: hov.y - 24,
+          background:'rgba(0,3,14,0.97)',
+          border:`0.5px solid ${(pal[hov.tier]||'#00C8E4')}50`,
+          borderLeft:`2px solid ${pal[hov.tier]||'#00C8E4'}`,
+          padding:'7px 10px', pointerEvents:'none', zIndex:50,
+          minWidth:120, maxWidth:200,
+        }}>
+          <div style={{ fontFamily:'"JetBrains Mono",monospace', fontSize:8, letterSpacing:'.12em', color: pal[hov.tier]||'#00C8E4', fontWeight:700, marginBottom:3 }}>
+            {hov.tier.toUpperCase()}
+          </div>
+          <div style={{ fontFamily:'"JetBrains Mono",monospace', fontSize:10, fontWeight:700, color:'#DDE6F2', marginBottom:2, letterSpacing:'.06em' }}>
+            {(hov.slot.display_name||'').toUpperCase()}
+          </div>
+          {hov.slot.cta_url && (
+            <div style={{ fontFamily:'"JetBrains Mono",monospace', fontSize:7, color:'rgba(0,200,240,0.50)', letterSpacing:'.06em', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+              {hov.slot.cta_url}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* LORE watermark */}
       <div style={{
-        position:'absolute', top:14, left:'50%', transform:'translateX(-50%)',
-        fontFamily:'"JetBrains Mono",monospace', fontSize:7, letterSpacing:'.22em',
-        color:'rgba(0,200,240,0.30)', pointerEvents:'none',
-      }}>
-        GALACTIC·ADV·GRID · VUE·PLATE · 2D
-      </div>
+        position:'absolute', bottom:10, left:'50%', transform:'translateX(-50%)',
+        fontFamily:'"JetBrains Mono",monospace', fontSize:6.5, letterSpacing:'.20em',
+        color:'rgba(0,200,240,0.18)', pointerEvents:'none', whiteSpace:'nowrap',
+      }}>DYSON·COSMOS · ORBITAL·GRID · 2D</div>
     </div>
   );
 }
 
-// ── Toggle ViewMode Button ─────────────────────────────────────────────────────
-function ViewToggle({ viewMode, onToggle }) {
-  return (
-    <div style={{
-      position:'absolute', top:14, right:14, zIndex:40,
-      display:'flex', gap:2,
-      background:'rgba(0,4,18,0.92)',
-      border:'0.5px solid rgba(0,200,240,0.16)',
-      padding:2,
-    }}>
-      {[
-        { id:'3d', icon:'◎', label:'SPHÈRE 3D' },
-        { id:'2d', icon:'⊞', label:'GRILLE 2D' },
-      ].map(({ id, icon, label }) => {
-        const active = viewMode === id;
-        return (
-          <button
-            key={id}
-            title={label}
-            onClick={() => onToggle(id)}
-            style={{
-              padding:'5px 10px',
-              background: active ? 'rgba(0,200,240,0.12)' : 'transparent',
-              border: active ? '0.5px solid rgba(0,200,240,0.35)' : '0.5px solid transparent',
-              color: active ? '#00C8E4' : 'rgba(0,200,240,0.35)',
-              fontFamily:'"JetBrains Mono",monospace',
-              fontSize:10, fontWeight:700, letterSpacing:'.08em',
-              cursor:'pointer', outline:'none',
-              transition:'all .2s ease',
-            }}
-          >
-            {icon}
-            <span style={{ fontSize:6, letterSpacing:'.14em', marginLeft:5, opacity:.7 }}>{label}</span>
-          </button>
-        );
-      })}
-    </div>
-  );
-}
+
 
 // ── Main View3D ───────────────────────────────────────────────────────────────
 export default function View3D({slots=[],isLive=false,onCheckout,onBuyout,onViewSlot,user=null}){
@@ -3876,6 +4229,8 @@ export default function View3D({slots=[],isLive=false,onCheckout,onBuyout,onView
   const[activeTier,setActiveTier]=useState(-1);
   const[activeFilter,setActiveFilter]=useState('realist');
   const[viewMode,setViewMode]=useState('3d');
+  const dock = useDockSystem();
+  const containerRef = useRef(null);
   const activePal = FILTER_PALETTES[activeFilter] || FILTER_PALETTES.realist;
   const hovTimer=useRef(null);
   const insideTimer=useRef(null);
@@ -3952,7 +4307,7 @@ export default function View3D({slots=[],isLive=false,onCheckout,onBuyout,onView
   const handleClose=useCallback(()=>{setSelSlot(null);sceneRef.current?._setSel(-1);if(sceneRef.current?._epU)sceneRef.current._epU.uSelected.value=0;sceneRef.current?.eliteRings?.forEach(r=>{r.u.uHov.value=0;});sceneRef.current?.resetCamera();},[]);
 
   return(
-    <div style={{flex:1,position:'relative',overflow:'hidden',background:DS.void,display:'flex'}}>
+    <div ref={containerRef} style={{flex:1,position:'relative',overflow:'hidden',background:DS.void,display:'flex'}}>
       <div style={{
         flex:1,position:'relative',overflow:'hidden',
         background:`linear-gradient(160deg, ${activePal.bgTop||'#01020A'} 0%, ${activePal.bgBot||'#020408'} 100%)`,
@@ -4036,8 +4391,8 @@ export default function View3D({slots=[],isLive=false,onCheckout,onBuyout,onView
           </div>
         )}
 
-        {/* ── Bottom — TierCommandBar ── */}
-        {!loading&&(
+        {/* ── TierCommandBar — dockable ── */}
+        {!loading&&(isMobile||dock.panels.tiers.pos!=='float')&&(
           <div style={{
             position:'absolute',
             bottom: isMobile ? 12 : 20,
@@ -4059,9 +4414,11 @@ export default function View3D({slots=[],isLive=false,onCheckout,onBuyout,onView
         )}
 
         {/* ── VUE Dial — droite (desktop) / top-right compact (mobile) ── */}
-        <ViewToggle viewMode={viewMode} onToggle={setViewMode}/>
-        {!loading&&(
-          <VueDial activeFilter={activeFilter} onFilterSelect={handleFilterSelect}/>
+        {!isMobile&&<ViewToggle viewMode={viewMode} onToggle={setViewMode} dock={dock}/>}
+        {!loading&&!isMobile&&dock.panels.scanner.pos==='float'&&(
+          <DockShell id="scanner" title="SCANNER VUE" icon="◉" col="#00C8E4" dock={dock} containerRef={containerRef} minW={220}>
+            <VueDial activeFilter={activeFilter} onFilterSelect={handleFilterSelect} embedded/>
+          </DockShell>
         )}
 
         {/* ── Mobile reset button (bottom-left) ── */}
@@ -4131,8 +4488,42 @@ export default function View3D({slots=[],isLive=false,onCheckout,onBuyout,onView
         )}
       </div>
 
-      {/* Desktop sidebar */}
-      {!isMobile&&<Sidebar slots={slots} isLive={isLive} activeTier={activeTier} onTierSelect={handleTierSelect} onViewSlot={onViewSlot}/>}
+      {/* ── DOCK RAILS ── */}
+      {!isMobile&&(<>
+        <DockRail side="left" dock={dock} containerRef={containerRef}>
+          {dock.panels.slots.pos==='left'&&<DockShell id="slots" title="SLOTS GRID" icon="▦" col="#4466FF" dock={dock} containerRef={containerRef}>
+            <Sidebar slots={slots} isLive={isLive} activeTier={activeTier} onTierSelect={handleTierSelect} onViewSlot={onViewSlot}/>
+          </DockShell>}
+          {dock.panels.scanner.pos==='left'&&!loading&&<DockShell id="scanner" title="SCANNER VUE" icon="◉" col="#00C8E4" dock={dock} containerRef={containerRef}>
+            <VueDial activeFilter={activeFilter} onFilterSelect={handleFilterSelect} embedded/>
+          </DockShell>}
+          {dock.panels.tiers.pos==='left'&&!loading&&<DockShell id="tiers" title="TIERS" icon="▣" col="#E8A020" dock={dock} containerRef={containerRef}>
+            <div style={{padding:'6px 0'}}><TierCommandBar activeTier={activeTier} onTierSelect={handleTierSelect} slots={slots}/></div>
+          </DockShell>}
+        </DockRail>
+        <DockRail side="right" dock={dock} containerRef={containerRef}>
+          {dock.panels.scanner.pos==='right'&&!loading&&<DockShell id="scanner" title="SCANNER VUE" icon="◉" col="#00C8E4" dock={dock} containerRef={containerRef}>
+            <VueDial activeFilter={activeFilter} onFilterSelect={handleFilterSelect} embedded/>
+          </DockShell>}
+          {dock.panels.slots.pos==='right'&&<DockShell id="slots" title="SLOTS GRID" icon="▦" col="#4466FF" dock={dock} containerRef={containerRef}>
+            <Sidebar slots={slots} isLive={isLive} activeTier={activeTier} onTierSelect={handleTierSelect} onViewSlot={onViewSlot}/>
+          </DockShell>}
+          {dock.panels.tiers.pos==='right'&&!loading&&<DockShell id="tiers" title="TIERS" icon="▣" col="#E8A020" dock={dock} containerRef={containerRef}>
+            <div style={{padding:'6px 0'}}><TierCommandBar activeTier={activeTier} onTierSelect={handleTierSelect} slots={slots}/></div>
+          </DockShell>}
+        </DockRail>
+        <DockRail side="bottom" dock={dock} containerRef={containerRef}>
+          {dock.panels.tiers.pos==='bottom'&&!loading&&<DockShell id="tiers" title="TIERS" icon="▣" col="#E8A020" dock={dock} containerRef={containerRef}>
+            <div style={{padding:'4px 8px'}}><TierCommandBar activeTier={activeTier} onTierSelect={handleTierSelect} slots={slots}/></div>
+          </DockShell>}
+          {dock.panels.scanner.pos==='bottom'&&!loading&&<DockShell id="scanner" title="SCANNER VUE" icon="◉" col="#00C8E4" dock={dock} containerRef={containerRef}>
+            <VueDial activeFilter={activeFilter} onFilterSelect={handleFilterSelect} embedded/>
+          </DockShell>}
+          {dock.panels.slots.pos==='bottom'&&<DockShell id="slots" title="SLOTS GRID" icon="▦" col="#4466FF" dock={dock} containerRef={containerRef}>
+            <Sidebar slots={slots} isLive={isLive} activeTier={activeTier} onTierSelect={handleTierSelect} onViewSlot={onViewSlot}/>
+          </DockShell>}
+        </DockRail>
+      </>)}
 
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600;700&display=swap');
