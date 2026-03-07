@@ -2109,25 +2109,6 @@ const VUE_CONFIG = {
   },
 };
 
-const TIER_ROLE = {
-  epicenter:{ icon:'◈', role:'Épicentre Absolu',    desc:"Le cœur cristallin. Votre marque rayonne depuis le noyau de la Sphère." },
-  prestige: { icon:'◯', role:'Lune Orbitale',        desc:'Corps orbital premium. Présence sculpturale, visible depuis toute la sphère.' },
-  elite:    { icon:'◎', role:'Anneau Dyson',         desc:'Anneau équatorial structurel. Architecture iconique de la mégastructure.' },
-  business: { icon:'▣', role:'Panneau Structurel',   desc:'Segment de surface. Trafic qualifié haute densité, flux direct.' },
-  standard: { icon:'▪', role:'Émetteur de Surface',  desc:'Présence confirmée sur la mégastructure. Visibilité orbitale complète.' },
-  viral:    { icon:'⚡', role:'Drone Orbital',        desc:'Essaim de nano-drones. Présence diffuse maximale à 671 vecteurs.' },
-};
-const F = { ui:"'Rajdhani','Sora',system-ui,sans-serif", mono:"'JetBrains Mono','Fira Code',monospace", head:"'Rajdhani','Sora',system-ui,sans-serif" };
-const TIER_ORDER   = ['epicenter','prestige','elite','business','standard','viral'];
-const TIER_TOTALS  = { epicenter:1, prestige:8, elite:50, business:176, standard:400, viral:671 };
-
-const SPHERE_R   = 45;
-const PANEL_GAP  = 0.90;
-const EPIC_R     = 2.2;
-
-const fmt  = t => ((TIER_PRICE[t]||100)/100).toLocaleString('fr-FR');
-const hex3 = h => { const s=(h||'#888').replace('#',''); return [parseInt(s.slice(0,2),16)/255,parseInt(s.slice(2,4),16)/255,parseInt(s.slice(4,6),16)/255]; };
-const TIER_PANEL_SCALE = { epicenter:1.30, prestige:1.14, elite:0.98, business:0.80, standard:0.62, viral:0.30 };
 
 // ── Anneaux Elite — BILLBOARD GÉANTS, distribution sphérique uniforme ────────
 // 6 plans répartis comme les faces d'un gyroscope :
