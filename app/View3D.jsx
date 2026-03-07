@@ -165,6 +165,15 @@ const FILTER_PALETTES = {
     bgTop:'#060402', bgBot:'#0A0703',
     lensColor:'rgba(110,55,0,0.28)', lensBlend:'multiply', lensOpacity:1,
   },
+  chromatic: {
+    // CHROMATIQUE — monochrome bleu dot-matrix, lisibilité maximale façon Vercel
+    epicenter:'#1E90FF', prestige:'#1675D6', elite:'#1060BC', business:'#0D4E9C', standard:'#0A3C7A', viral:'#082C58',
+    emissiveScale:0.60, bloomThreshold:0.98, bloomStrength:0.06, exposure:1.10,
+    fogColor:0x01050F, fogDensity:0.00008, ambientCol:0x010510, ambientInt:2.2,
+    sunCol:0x4499FF, sunInt:800, rimCol:0x2277EE, rimInt:30,
+    bgTop:'#010610', bgBot:'#010914',
+    lensColor:'rgba(0,20,60,0.08)', lensBlend:'multiply', lensOpacity:1,
+  },
 };
 
 const TIER_ROLE = {
@@ -1727,24 +1736,9 @@ class Scene3D{
   togglePause(){this._paused=!this._paused;if(!this._paused)this._t0=Date.now()-this._lastT*1000;}
   get isPaused(){return this._paused;}
 
-  zoomTo(target){
-    if(!this.G)return;
-    const T=this.T;
-    this.G.to(this.camera.position,{x:target.x,y:target.y,z:target.z,duration:1.1,ease:'power3.inOut',onUpdate:()=>this.camera.lookAt(new T.Vector3(0,0,0))});
-    this.G.to(this,{zoomTarget:target.z||77,duration:1.1,ease:'power3.inOut'});
-  }
-  resetCamera(){
-    if(!this.G)return;
-    const T=this.T;
-    this.G.to(this.camera.position,{x:0,y:0,z:185,duration:.95,ease:'power3.inOut',onUpdate:()=>this.camera.lookAt(new T.Vector3(0,0,0))});
-    this.G.to(this,{zoomTarget:185,duration:.95,ease:'power3.inOut'});
-  }
-  zoomToCenter(){
-    if(!this.G)return;
-    const T=this.T;
-    this.G.to(this.camera.position,{x:0,y:0,z:0,duration:1.4,ease:'power3.inOut',onUpdate:()=>this.camera.lookAt(new T.Vector3(0,0,1))});
-    this.G.to(this,{zoomTarget:0,duration:1.4,ease:'power3.inOut'});
-  }
+  zoomTo(target){if(!this.G)return;const T=this.T;this.G.to(this.camera.position,{x:target.x,y:target.y,z:target.z,duration:1.1,ease:'power3.inOut',onUpdate:()=>this.camera.lookAt(new T.Vector3(0,0,0))});this.G.to(this,{zoomTarget:target.z||68,duration:1.1,ease:'power3.inOut'});}
+  resetCamera(){if(!this.G)return;const T=this.T;this.G.to(this.camera.position,{x:0,y:0,z:185,duration:.95,ease:'power3.inOut',onUpdate:()=>this.camera.lookAt(new T.Vector3(0,0,0))});this.G.to(this,{zoomTarget:185,duration:.95,ease:'power3.inOut'});}
+  zoomToCenter(){if(!this.G)return;const T=this.T;this.G.to(this.camera.position,{x:0,y:0,z:0,duration:1.4,ease:'power3.inOut',onUpdate:()=>this.camera.lookAt(new T.Vector3(0,0,1))});this.G.to(this,{zoomTarget:0,duration:1.4,ease:'power3.inOut'});}
   zoom(dy){this.zoomTarget=Math.max(4,Math.min(450,this.zoomTarget+dy*.06));}
 
   // ★ Visibilité — stopper le rendu si onglet caché
@@ -1814,15 +1808,11 @@ class Scene3D{
         }
         else if(fi<=-100){
           const mi=-fi-100;const moon=this.prestigeMoons[mi];this.onClick?.(moon.slot||{tier:'prestige'},'moon',mi);
-          if(moon){const T=this.T;const wp=new T.Vector3();moon.moonMesh.getWorldPosition(wp);const dir=wp.clone().normalize();this.zoomTo({x:dir.x*SPHERE_R*2.1,y:dir.y*SPHERE_R*2.1,z:dir.z*SPHERE_R*2.1});}
+          if(moon){const T=this.T;const wp=new T.Vector3();moon.moonMesh.getWorldPosition(wp);const dir=wp.clone().normalize();this.zoomTo({x:dir.x*SPHERE_R*1.6,y:dir.y*SPHERE_R*1.6,z:dir.z*SPHERE_R*1.6+8});}
         }else if(fi>=0){
           this._setSel(fi);if(this._epU)this._epU.uSelected.value=0;
           const face=this._faces?.[fi];this.onClick?.(this.faceSlots[fi],'face',fi);
-          if(face?.centroid){const T=this.T,dir=new T.Vector3(...face.centroid).normalize();this.zoomTo({x:dir.x*SPHERE_R*1.72,y:dir.y*SPHERE_R*1.72,z:dir.z*SPHERE_R*1.72});}
-        }else{
-          // Clic dans le vide — dézoom propre
-          this._setSel(-1);if(this._epU)this._epU.uSelected.value=0;
-          this.resetCamera();this.onClick?.(null,'empty',-1);
+          if(face?.centroid){const T=this.T,dir=new T.Vector3(...face.centroid).normalize();this.zoomTo({x:dir.x*SPHERE_R*1.2,y:dir.y*SPHERE_R*1.2,z:dir.z*SPHERE_R*1.2+8});}
         }
       }
       pendingDrag=false;
@@ -1831,7 +1821,7 @@ class Scene3D{
     c.addEventListener('mousedown',h.md);window.addEventListener('mousemove',h.mm);window.addEventListener('mouseup',h.mu);
     h.ts=e=>{if(e.touches.length===1){this.isDragging=true;mv=false;lx=e.touches[0].clientX;ly=e.touches[0].clientY;this.pinchDist=null;this._setDPRScale(1.0);}else if(e.touches.length===2){this.isDragging=false;const dx=e.touches[0].clientX-e.touches[1].clientX,dy=e.touches[0].clientY-e.touches[1].clientY;this.pinchDist=Math.sqrt(dx*dx+dy*dy);}};
     h.tm=e=>{e.preventDefault();if(e.touches.length===1&&this.isDragging){const dx=e.touches[0].clientX-lx,dy=e.touches[0].clientY-ly;if(Math.abs(dx)>2||Math.abs(dy)>2)mv=true;this.rot.y+=dx*.004;this.rot.x+=dy*.004;this.rot.x=Math.max(-1.5,Math.min(1.5,this.rot.x));this.vel={x:dx*.004,y:dy*.004};lx=e.touches[0].clientX;ly=e.touches[0].clientY;}else if(e.touches.length===2&&this.pinchDist!=null){const dx=e.touches[0].clientX-e.touches[1].clientX,dy=e.touches[0].clientY-e.touches[1].clientY;const d=Math.sqrt(dx*dx+dy*dy);this.zoom((this.pinchDist-d)*3);this.pinchDist=d;}};
-    h.te=e=>{this._setDPRScale(1.0);if(e.changedTouches.length===1){const fi=this._cast(e.changedTouches[0].clientX,e.changedTouches[0].clientY);if(fi>=0){this._setSel(fi);const face=this._faces?.[fi];this.onClick?.(this.faceSlots[fi],'face',fi);if(face?.centroid){const T=this.T,dir=new T.Vector3(...face.centroid).normalize();this.zoomTo({x:dir.x*SPHERE_R*1.72,y:dir.y*SPHERE_R*1.72,z:dir.z*SPHERE_R*1.72});}}else if(fi===-1){this._setSel(-1);if(this._epU)this._epU.uSelected.value=0;this.resetCamera();}}this.isDragging=false;};
+    h.te=e=>{this._setDPRScale(1.0);if(e.changedTouches.length===1){const fi=this._cast(e.changedTouches[0].clientX,e.changedTouches[0].clientY);if(fi>=0){this._setSel(fi);const face=this._faces?.[fi];this.onClick?.(this.faceSlots[fi],'face',fi);if(face?.centroid){const T=this.T,dir=new T.Vector3(...face.centroid).normalize();this.zoomTo({x:dir.x*SPHERE_R*1.2,y:dir.y*SPHERE_R*1.2,z:dir.z*SPHERE_R*1.2+8});}}}this.isDragging=false;};
     c.addEventListener('touchstart',h.ts,{passive:false});c.addEventListener('touchmove',h.tm,{passive:false});c.addEventListener('touchend',h.te);
   }
 
@@ -2168,6 +2158,12 @@ const VUE_CONFIG = {
     desc:'Filtre polarisé ambré',
     lore:'Les lentilles s\'assombrissent. L\'éblouissement de l\'étoile s\'efface — la structure se révèle.',
     reveal:'Vision anti-éblouissement · Confort orbital · Structure nette',
+  },
+  chromatic:{
+    label:'CHROMATIQUE', short:'CHR', icon:'⬤', col:'#1E90FF',
+    desc:'Vue dot-matrix lisibilité max',
+    lore:'Le regard analytique. Chaque slot, un point. Chaque tier, une intensité. Zéro bruit — signal pur.',
+    reveal:'Monochrome bleu · Dot-matrix · Contraste maximal',
   },
 };
 
@@ -3632,6 +3628,262 @@ function HUDLoader(){
   );
 }
 
+
+// ── FlatView2D — vue plates 2D façon dot-matrix ───────────────────────────────
+const TIER_SIZE_2D  = { epicenter:52, prestige:30, elite:20, business:14, standard:10, viral:7 };
+const TIER_GRID_2D  = {
+  epicenter:{ cols:1,  rows:1  },
+  prestige: { cols:4,  rows:2  },
+  elite:    { cols:10, rows:5  },
+  business: { cols:22, rows:8  },
+  standard: { cols:32, rows:13 },
+  viral:    { cols:36, rows:19 },
+};
+
+function FlatView2D({ slots=[], onSlotSelect, activeFilter }) {
+  const canvasRef = useRef(null);
+  const [hov, setHov] = useState(null);
+  const hovRef = useRef(null);
+  const layoutRef = useRef([]);
+
+  const pal = FILTER_PALETTES[activeFilter] || FILTER_PALETTES.realist;
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    let raf;
+    let t = 0;
+
+    function resize() {
+      canvas.width  = canvas.offsetWidth  * window.devicePixelRatio;
+      canvas.height = canvas.offsetHeight * window.devicePixelRatio;
+      ctx.setTransform(window.devicePixelRatio, 0, 0, window.devicePixelRatio, 0, 0);
+    }
+    resize();
+    const ro = new ResizeObserver(resize);
+    ro.observe(canvas);
+
+    // Build slot → position map
+    function buildLayout() {
+      const W = canvas.offsetWidth;
+      const H = canvas.offsetHeight;
+      const layout = [];
+      const tierData = {};
+      TIER_ORDER.forEach(tier => { tierData[tier] = []; });
+      slots.forEach(s => { if (tierData[s.tier]) tierData[s.tier].push(s); });
+
+      // Zones par tier (vertical bands)
+      const tiers = TIER_ORDER;
+      const zoneH = H / tiers.length;
+
+      tiers.forEach((tier, ti) => {
+        const slotsInTier = tierData[tier] || [];
+        const total = TIER_TOTALS[tier] || 1;
+        const r = TIER_SIZE_2D[tier] || 8;
+        const gap = r * 2.8;
+        const cols = Math.floor(W / gap);
+        const rows = Math.ceil(total / cols);
+        const zoneY = ti * zoneH;
+        const startX = (W - cols * gap) / 2 + r;
+        const startY = zoneY + (zoneH - rows * gap) / 2 + r;
+
+        for (let i = 0; i < total; i++) {
+          const col = i % cols;
+          const row = Math.floor(i / cols);
+          const x = startX + col * gap;
+          const y = startY + row * gap;
+          const slot = slotsInTier[i] || null;
+          layout.push({ tier, x, y, r, slot, idx: i });
+        }
+      });
+      return layout;
+    }
+
+    function draw() {
+      t += 0.016;
+      const W = canvas.offsetWidth;
+      const H = canvas.offsetHeight;
+      ctx.clearRect(0, 0, W, H);
+
+      // Background
+      const grad = ctx.createLinearGradient(0, 0, 0, H);
+      grad.addColorStop(0, pal.bgTop || '#01020A');
+      grad.addColorStop(1, pal.bgBot || '#010914');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, W, H);
+
+      const layout = buildLayout();
+      layoutRef.current = layout;
+      const hovSlot = hovRef.current;
+
+      layout.forEach(({ tier, x, y, r, slot }) => {
+        const occ = slot?.occ ?? (slot?.status === 'active');
+        const tierCol = pal[tier] || TIER_NEON[tier] || '#334488';
+        const isHov = hovSlot && hovSlot.tier === tier &&
+          Math.abs(hovSlot.x - x) < 1 && Math.abs(hovSlot.y - y) < 1;
+
+        if (occ) {
+          // Occupied — filled circle with subtle pulse
+          const pulse = 1 + Math.sin(t * 1.8 + x * 0.01) * 0.04;
+          const rr = r * pulse;
+
+          // Glow
+          const grd = ctx.createRadialGradient(x, y, 0, x, y, rr * 2.2);
+          grd.addColorStop(0, tierCol + '55');
+          grd.addColorStop(1, 'transparent');
+          ctx.beginPath(); ctx.arc(x, y, rr * 2.2, 0, Math.PI * 2);
+          ctx.fillStyle = grd; ctx.fill();
+
+          // Fill
+          ctx.beginPath(); ctx.arc(x, y, rr, 0, Math.PI * 2);
+          ctx.fillStyle = tierCol + 'CC'; ctx.fill();
+
+          // Ring
+          ctx.beginPath(); ctx.arc(x, y, rr + 1.5, 0, Math.PI * 2);
+          ctx.strokeStyle = tierCol; ctx.lineWidth = isHov ? 2 : 0.8;
+          ctx.stroke();
+
+          // Hover: name label
+          if (isHov && slot?.display_name) {
+            ctx.font = `700 8px "JetBrains Mono", monospace`;
+            ctx.fillStyle = '#DDE6F2';
+            ctx.textAlign = 'center';
+            ctx.fillText(slot.display_name.toUpperCase().slice(0,12), x, y - rr - 8);
+          }
+        } else {
+          // Free — hollow dot
+          ctx.beginPath(); ctx.arc(x, y, r * 0.45, 0, Math.PI * 2);
+          ctx.fillStyle = isHov ? (tierCol + '44') : (tierCol + '18');
+          ctx.fill();
+          ctx.beginPath(); ctx.arc(x, y, r * 0.45, 0, Math.PI * 2);
+          ctx.strokeStyle = isHov ? (tierCol + '88') : (tierCol + '30');
+          ctx.lineWidth = 0.5; ctx.stroke();
+        }
+      });
+
+      // Tier labels (left margin)
+      TIER_ORDER.forEach((tier, ti) => {
+        const zoneH = H / TIER_ORDER.length;
+        const y = ti * zoneH + zoneH / 2;
+        const col = pal[tier] || TIER_NEON[tier];
+        const cfg = VUE_CONFIG.realist; // always use LORE names
+        ctx.font = `700 7.5px "JetBrains Mono", monospace`;
+        ctx.fillStyle = col + 'AA';
+        ctx.textAlign = 'left';
+        const occ = slots.filter(s => s.tier === tier && s.occ).length;
+        const total = TIER_TOTALS[tier] || 1;
+        ctx.fillText(`${TIER_ORDER[ti].toUpperCase()} · ${occ}/${total}`, 10, y);
+      });
+
+      raf = requestAnimationFrame(draw);
+    }
+
+    draw();
+    return () => { cancelAnimationFrame(raf); ro.disconnect(); };
+  }, [slots, activeFilter]);
+
+  function handleMouseMove(e) {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    const mx = e.clientX - rect.left;
+    const my = e.clientY - rect.top;
+    let found = null;
+    for (const item of layoutRef.current) {
+      const d = Math.hypot(mx - item.x, my - item.y);
+      if (d <= item.r * 1.5) { found = { ...item }; break; }
+    }
+    hovRef.current = found;
+    setHov(found);
+  }
+
+  function handleClick(e) {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    const mx = e.clientX - rect.left;
+    const my = e.clientY - rect.top;
+    for (const item of layoutRef.current) {
+      const d = Math.hypot(mx - item.x, my - item.y);
+      if (d <= item.r * 1.5) {
+        if (onSlotSelect) onSlotSelect(item.slot || { tier: item.tier });
+        return;
+      }
+    }
+  }
+
+  return (
+    <div style={{ position:'absolute', inset:0, overflow:'hidden' }}>
+      <canvas
+        ref={canvasRef}
+        style={{ width:'100%', height:'100%', display:'block', cursor: hov ? 'pointer' : 'default' }}
+        onMouseMove={handleMouseMove}
+        onClick={handleClick}
+        onMouseLeave={() => { hovRef.current = null; setHov(null); }}
+      />
+      {/* Tier separator lines */}
+      {TIER_ORDER.map((tier, i) => (
+        <div key={tier} style={{
+          position:'absolute', left:0, right:0,
+          top: `${(i / TIER_ORDER.length) * 100}%`,
+          height:'1px',
+          background: i === 0 ? 'transparent' : `linear-gradient(90deg, transparent, ${(pal[tier]||TIER_NEON[tier])}22, transparent)`,
+          pointerEvents:'none',
+        }}/>
+      ))}
+      {/* LORE label top */}
+      <div style={{
+        position:'absolute', top:14, left:'50%', transform:'translateX(-50%)',
+        fontFamily:'"JetBrains Mono",monospace', fontSize:7, letterSpacing:'.22em',
+        color:'rgba(0,200,240,0.30)', pointerEvents:'none',
+      }}>
+        GALACTIC·ADV·GRID · VUE·PLATE · 2D
+      </div>
+    </div>
+  );
+}
+
+// ── Toggle ViewMode Button ─────────────────────────────────────────────────────
+function ViewToggle({ viewMode, onToggle }) {
+  return (
+    <div style={{
+      position:'absolute', top:14, right:14, zIndex:40,
+      display:'flex', gap:2,
+      background:'rgba(0,4,18,0.92)',
+      border:'0.5px solid rgba(0,200,240,0.16)',
+      padding:2,
+    }}>
+      {[
+        { id:'3d', icon:'◎', label:'SPHÈRE 3D' },
+        { id:'2d', icon:'⊞', label:'GRILLE 2D' },
+      ].map(({ id, icon, label }) => {
+        const active = viewMode === id;
+        return (
+          <button
+            key={id}
+            title={label}
+            onClick={() => onToggle(id)}
+            style={{
+              padding:'5px 10px',
+              background: active ? 'rgba(0,200,240,0.12)' : 'transparent',
+              border: active ? '0.5px solid rgba(0,200,240,0.35)' : '0.5px solid transparent',
+              color: active ? '#00C8E4' : 'rgba(0,200,240,0.35)',
+              fontFamily:'"JetBrains Mono",monospace',
+              fontSize:10, fontWeight:700, letterSpacing:'.08em',
+              cursor:'pointer', outline:'none',
+              transition:'all .2s ease',
+            }}
+          >
+            {icon}
+            <span style={{ fontSize:6, letterSpacing:'.14em', marginLeft:5, opacity:.7 }}>{label}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 // ── Main View3D ───────────────────────────────────────────────────────────────
 export default function View3D({slots=[],isLive=false,onCheckout,onBuyout,onViewSlot,user=null}){
   const canvasRef=useRef(null),sceneRef=useRef(null);
@@ -3642,6 +3894,7 @@ export default function View3D({slots=[],isLive=false,onCheckout,onBuyout,onView
   const[isInside,setIsInside]=useState(false);
   const[activeTier,setActiveTier]=useState(-1);
   const[activeFilter,setActiveFilter]=useState('realist');
+  const[viewMode,setViewMode]=useState('3d');
   const activePal = FILTER_PALETTES[activeFilter] || FILTER_PALETTES.realist;
   const hovTimer=useRef(null);
   const insideTimer=useRef(null);
@@ -3689,7 +3942,6 @@ export default function View3D({slots=[],isLive=false,onCheckout,onBuyout,onView
           }
         };
         sc.onClick=(slot,type,idx)=>{
-          if(type==='empty'){setSelSlot(null);return;}
           if(type==='epic')setSelSlot(epicSlot||{tier:'epicenter'});
           else if(type==='ring'&&idx!=null)setSelSlot({...slot,tier:'elite',_ring:sc.eliteRings[idx]});
           else if(type==='moon')setSelSlot(slot||{tier:'prestige'});
@@ -3725,7 +3977,11 @@ export default function View3D({slots=[],isLive=false,onCheckout,onBuyout,onView
         background:`linear-gradient(160deg, ${activePal.bgTop||'#01020A'} 0%, ${activePal.bgBot||'#020408'} 100%)`,
         transition:'background 0.6s ease',
       }}>
-        <canvas ref={canvasRef} style={{width:'100%',height:'100%',display:'block',outline:'none',opacity:loading?0:1,transition:'opacity .8s ease'}}/>
+        {viewMode === '2d' ? (
+          <FlatView2D slots={slots} onSlotSelect={setSelSlot} activeFilter={activeFilter}/>
+        ) : (
+          <canvas ref={canvasRef} style={{width:'100%',height:'100%',display:'block',outline:'none',opacity:loading?0:1,transition:'opacity .8s ease'}}/>
+        )}
         {/* ── Lens overlay — teinté selon la vue active ── */}
         {!loading && (() => {
           const pal = FILTER_PALETTES[activeFilter] || FILTER_PALETTES.realist;
@@ -3822,6 +4078,7 @@ export default function View3D({slots=[],isLive=false,onCheckout,onBuyout,onView
         )}
 
         {/* ── VUE Dial — droite (desktop) / top-right compact (mobile) ── */}
+        <ViewToggle viewMode={viewMode} onToggle={setViewMode}/>
         {!loading&&(
           <VueDial activeFilter={activeFilter} onFilterSelect={handleFilterSelect}/>
         )}
