@@ -977,6 +977,11 @@ function BlockPreview({ tier, blockForm, category, CATS, SOCIALS, MUSIC_PLATS })
   );
 }
 
+// ─── Price helpers ───────────────────────────────────────────────────────────
+function priceEur(tier) {
+  return (TIER_PRICE[tier] || 0) / 100;
+}
+
 // ─── Duration billing helper (mirrors View3D DurationPicker logic) ──────────
 function getBilling(days) {
   if (days >= 90) return { type:'annuel',   label:'ANNUEL',       icon:'◈', discount:0.15, color:U.accent,  desc:'−15% · engagement 90j' };
