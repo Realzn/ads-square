@@ -3667,39 +3667,46 @@ function getDropZone(clientX, clientY, containerRect) {
   return 'float';
 }
 
-// ── DockShell — wraps any panel with title bar + drag + dock controls ─────────
-function DockShell({ id, title, icon, col='#00C8E4', dock, children, containerRef, minW=200 }) {
-  const panel    = dock.panels[id];
-  const isFloat  = panel.pos === 'float';
-  const shellRef = useRef(null);
-  const dragRef  = useRef(null);
-  const [dragOver, setDragOver] = useState(null);
+// ── DockShell — wraps any panel with title bar + drag/dock UX ────────────────
+// UX rules:
+//  · Grip (left edge) = drag handle, cursor grab
+//  · Dock buttons: tooltip on hover, highlight active
+//  · Collapse chevron on right
+//  · Float panels: shadow + border, draggable anywhere
+//  · Drop zones highlight with dashed border when dragging
 
-  // ── Drag to float / dock ──────────────────────────────────────────────────
+function DockShell({ id, title, icon, col='#00C8E4', dock, children, containerRef, minW=200 }) {
+  const panel   = dock.panels[id];
+  const isFloat = panel.pos === 'float';
+  const shellRef = useRef(null);
+  const [dragging, setDragging]   = useState(false);
+  const [dropZone, setDropZone]   = useState(null);
+  const [showTip, setShowTip]     = useState(null); // 'left'|'right'|'bottom'|'float'|null
+
   function onGripMouseDown(e) {
     e.preventDefault();
     const startX = e.clientX, startY = e.clientY;
-    const origFX = panel.floatX ?? 100, origFY = panel.floatY ?? 100;
+    const origFX = panel.floatX ?? 100, origFY = panel.floatY ?? 80;
     let moved = false;
+    setDragging(true);
 
     const onMove = (ev) => {
       moved = true;
-      const dx = ev.clientX - startX, dy = ev.clientY - startY;
       if (!containerRef?.current) return;
       const cr = containerRef.current.getBoundingClientRect();
       const zone = getDropZone(ev.clientX, ev.clientY, cr);
-      setDragOver(zone);
+      setDropZone(zone);
       if (zone === 'float') {
+        const dx = ev.clientX - startX, dy = ev.clientY - startY;
         dock.setFloat(id, origFX + dx, origFY + dy);
       }
     };
-
     const onUp = (ev) => {
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
-      setDragOver(null);
-      if (!moved) return;
-      if (!containerRef?.current) return;
+      setDragging(false);
+      setDropZone(null);
+      if (!moved || !containerRef?.current) return;
       const cr = containerRef.current.getBoundingClientRect();
       const zone = getDropZone(ev.clientX, ev.clientY, cr);
       if (zone !== 'float') {
@@ -3709,15 +3716,16 @@ function DockShell({ id, title, icon, col='#00C8E4', dock, children, containerRe
         dock.setFloat(id, origFX + dx, origFY + dy);
       }
     };
-
     document.addEventListener('mousemove', onMove);
     document.addEventListener('mouseup', onUp);
   }
 
-  const titleBarH = 28;
-  const isLeft    = panel.pos === 'left';
-  const isRight   = panel.pos === 'right';
-  const isBottom  = panel.pos === 'bottom';
+  const dockBtns = [
+    { pos:'left',   icon:'⊣', tip:'Ancrer à gauche'  },
+    { pos:'right',  icon:'⊢', tip:'Ancrer à droite'  },
+    { pos:'bottom', icon:'⊥', tip:'Ancrer en bas'    },
+    { pos:'float',  icon:'⊡', tip:'Flottant libre'   },
+  ];
 
   const wrapStyle = isFloat ? {
     position:'absolute',
@@ -3725,88 +3733,109 @@ function DockShell({ id, title, icon, col='#00C8E4', dock, children, containerRe
     top:  panel.floatY ?? 80,
     zIndex:60,
     minWidth: minW,
-    maxWidth: 280,
-    boxShadow:`0 8px 32px rgba(0,0,0,0.70), 0 0 0 0.5px ${col}30`,
+    maxWidth: 300,
+    boxShadow:`0 12px 40px rgba(0,0,0,0.80), 0 0 0 1px ${col}22`,
+    transition: dragging ? 'none' : 'box-shadow .2s',
   } : { width:'100%', position:'relative' };
 
   return (
-    <div ref={shellRef} style={{ ...wrapStyle, userSelect:'none', fontFamily:'"JetBrains Mono",monospace' }}>
-      {/* ── Title bar ─────────────────────────────────────────────────── */}
+    <div ref={shellRef} style={{ ...wrapStyle, fontFamily:'"JetBrains Mono",monospace', userSelect:'none' }}>
+
+      {/* ── Title bar ── */}
       <div style={{
-        height: titleBarH,
-        background:`rgba(0,3,14,0.98)`,
-        borderTop:`1px solid ${col}45`,
-        borderBottom:`0.5px solid ${col}18`,
-        display:'flex', alignItems:'center', gap:0,
-        cursor:'default',
+        height:30, display:'flex', alignItems:'center',
+        background:'rgba(2,6,20,0.99)',
+        borderTop:`1.5px solid ${col}55`,
+        borderLeft:`0.5px solid ${col}18`,
+        borderRight:`0.5px solid ${col}18`,
       }}>
-        {/* Grip */}
+
+        {/* Drag grip */}
         <div
           onMouseDown={onGripMouseDown}
-          title="Déplacer / Ancrer"
+          title="Glisser pour déplacer / ancrer"
           style={{
-            padding:'0 9px', height:'100%', display:'flex', alignItems:'center',
-            cursor:'grab', color:`${col}40`, fontSize:10, letterSpacing:2,
-            flexShrink:0,
+            width:28, height:'100%', display:'flex', alignItems:'center', justifyContent:'center',
+            cursor: dragging ? 'grabbing' : 'grab',
+            color:`${col}30`, fontSize:12, letterSpacing:1, flexShrink:0,
+            borderRight:`0.5px solid ${col}12`,
+            background: dragging ? `${col}08` : 'transparent',
+            transition:'background .15s',
           }}
         >⠿</div>
 
-        {/* Icon + title */}
-        <span style={{ color:col, fontSize:9, marginRight:4, flexShrink:0 }}>{icon}</span>
-        <span style={{ color:`${col}CC`, fontSize:7.5, fontWeight:700, letterSpacing:'.18em', flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{title}</span>
+        {/* Icon + name */}
+        <span style={{ color:col, fontSize:10, marginLeft:7, flexShrink:0 }}>{icon}</span>
+        <span style={{
+          color:`${col}AA`, fontSize:7.5, fontWeight:700, letterSpacing:'.18em',
+          marginLeft:5, flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap',
+        }}>{title}</span>
 
-        {/* Dock buttons */}
-        <div style={{ display:'flex', alignItems:'center', gap:1, paddingRight:4 }}>
-          {['left','right','bottom','float'].map(pos => {
-            const icons = { left:'⊣', right:'⊢', bottom:'⊥', float:'⊡' };
+        {/* Dock position buttons */}
+        <div style={{ display:'flex', gap:1, paddingRight:4, position:'relative' }}>
+          {dockBtns.map(({ pos, icon: bi, tip }) => {
             const active = panel.pos === pos;
             return (
-              <button key={pos} title={`Ancrer ${pos}`}
-                onClick={() => dock.setPos(id, pos)}
-                style={{
-                  width:16, height:16, border:'none', cursor:'pointer', outline:'none',
-                  background: active ? `${col}28` : 'transparent',
-                  color: active ? col : `${col}35`,
-                  fontSize:9, display:'flex', alignItems:'center', justifyContent:'center',
-                  transition:'all .15s',
-                }}
-              >{icons[pos]}</button>
+              <div key={pos} style={{ position:'relative' }}
+                onMouseEnter={() => setShowTip(pos)}
+                onMouseLeave={() => setShowTip(null)}
+              >
+                <button onClick={() => dock.setPos(id, pos)} style={{
+                  width:18, height:18, border:'none', cursor:'pointer', outline:'none',
+                  background: active ? `${col}22` : 'transparent',
+                  color: active ? col : `${col}38`,
+                  fontSize:9.5, display:'flex', alignItems:'center', justifyContent:'center',
+                  transition:'all .15s', borderRadius:2,
+                }}>{bi}</button>
+                {showTip === pos && (
+                  <div style={{
+                    position:'absolute', bottom:'calc(100% + 4px)', left:'50%',
+                    transform:'translateX(-50%)',
+                    background:'rgba(0,3,14,0.98)', border:`0.5px solid ${col}40`,
+                    color:`${col}CC`, fontSize:6.5, letterSpacing:'.08em',
+                    padding:'2px 6px', whiteSpace:'nowrap', zIndex:99, pointerEvents:'none',
+                  }}>{tip}</div>
+                )}
+              </div>
             );
           })}
 
           {/* Collapse */}
-          <button title="Réduire"
-            onClick={() => dock.toggle(id)}
-            style={{
-              width:18, height:18, border:'none', cursor:'pointer', outline:'none',
-              background:'transparent',
-              color:`${col}55`, fontSize:11,
-              display:'flex', alignItems:'center', justifyContent:'center',
-              transition:'all .15s', marginLeft:2,
-            }}
-          >{panel.collapsed ? '▸' : '▾'}</button>
+          <button onClick={() => dock.toggle(id)} title={panel.collapsed ? 'Déplier' : 'Réduire'} style={{
+            width:20, height:18, border:'none', cursor:'pointer', outline:'none',
+            background:'transparent', color:`${col}50`, fontSize:10,
+            display:'flex', alignItems:'center', justifyContent:'center',
+            transition:'all .15s', marginLeft:2,
+          }}>{panel.collapsed ? '▸' : '▾'}</button>
         </div>
-
-        {/* Drop zone indicator */}
-        {dragOver && dragOver !== 'float' && (
-          <div style={{
-            position:'absolute', inset:0, pointerEvents:'none', zIndex:99,
-            border:`1.5px dashed ${col}80`,
-            background:`${col}08`,
-          }}/>
-        )}
       </div>
 
-      {/* ── Content ───────────────────────────────────────────────────── */}
-      {!panel.collapsed && (
+      {/* ── Content ── */}
+      <div style={{
+        maxHeight: panel.collapsed ? 0 : 480,
+        overflow: panel.collapsed ? 'hidden' : 'auto',
+        transition:'max-height .22s cubic-bezier(.4,0,.2,1)',
+        background:'rgba(1,4,16,0.98)',
+        borderLeft:`0.5px solid ${col}14`,
+        borderRight:`0.5px solid ${col}14`,
+        borderBottom:`0.5px solid ${col}20`,
+      }}>
+        {children}
+      </div>
+
+      {/* Dragging overlay feedback */}
+      {dragging && dropZone && dropZone !== 'float' && (
         <div style={{
-          background:'rgba(0,3,14,0.97)',
-          borderLeft:`0.5px solid ${col}20`,
-          borderRight:`0.5px solid ${col}20`,
-          borderBottom:`0.5px solid ${col}20`,
-          overflow:'hidden',
+          position:'fixed', inset:0, pointerEvents:'none', zIndex:999,
         }}>
-          {children}
+          <div style={{
+            position:'absolute',
+            ...(dropZone==='left'   && { left:0,  top:0, bottom:0, width:64 }),
+            ...(dropZone==='right'  && { right:0, top:0, bottom:0, width:64 }),
+            ...(dropZone==='bottom' && { bottom:0, left:0, right:0, height:64 }),
+            background:`${col}12`,
+            border:`1.5px dashed ${col}60`,
+          }}/>
         </div>
       )}
     </div>
@@ -3857,47 +3886,95 @@ function DockRail({ side, dock, containerRef, children }) {
   );
 }
 
-// ── ViewToggle — inline with dock reset ──────────────────────────────────────
+// ── TopBar — combined view toggle + dock panel toggles + reset ───────────────
 function ViewToggle({ viewMode, onToggle, dock }) {
+  const [showPanelMenu, setShowPanelMenu] = useState(false);
+
+  const panelDefs = [
+    { id:'scanner', icon:'◉', label:'SCANNER', col:'#00C8E4' },
+    { id:'tiers',   icon:'▣', label:'TIERS',   col:'#E8A020' },
+    { id:'slots',   icon:'▦', label:'SLOTS',   col:'#4466FF' },
+  ];
+
   return (
     <div style={{
       position:'absolute', top:12, left:'50%', transform:'translateX(-50%)',
-      zIndex:40, display:'flex', alignItems:'center', gap:4,
+      zIndex:40, display:'flex', alignItems:'center', gap:2,
+      background:'rgba(1,4,18,0.94)',
+      border:'0.5px solid rgba(0,200,240,0.16)',
+      padding:'3px',
+      backdropFilter:'blur(20px)',
+      boxShadow:'0 4px 20px rgba(0,0,0,0.5)',
     }}>
+      {/* View mode toggle */}
       {[
-        { id:'3d', icon:'◎', label:'3D' },
-        { id:'2d', icon:'⊞', label:'2D' },
+        { id:'3d', icon:'◎', label:'SPHÈRE' },
+        { id:'2d', icon:'⊞', label:'GRILLE' },
       ].map(({ id, icon, label }) => {
         const active = viewMode === id;
         return (
           <button key={id} onClick={() => onToggle(id)} style={{
-            padding:'4px 12px',
-            background: active ? 'rgba(0,200,240,0.12)' : 'rgba(0,4,18,0.88)',
-            border: active ? '0.5px solid rgba(0,200,240,0.50)' : '0.5px solid rgba(0,200,240,0.14)',
-            color: active ? '#00C8E4' : 'rgba(0,200,240,0.35)',
+            padding:'4px 14px',
+            background: active ? 'rgba(0,200,240,0.15)' : 'transparent',
+            border: active ? '0.5px solid rgba(0,200,240,0.45)' : '0.5px solid transparent',
+            color: active ? '#00C8E4' : 'rgba(0,200,240,0.38)',
             fontFamily:'"JetBrains Mono",monospace',
             fontSize:8, fontWeight:700, letterSpacing:'.14em',
             cursor:'pointer', outline:'none',
             transition:'all .18s ease',
-            display:'flex', alignItems:'center', gap:5,
+            display:'flex', alignItems:'center', gap:6,
           }}>
-            <span style={{ fontSize:11 }}>{icon}</span>
+            <span style={{ fontSize:12, lineHeight:1 }}>{icon}</span>
             <span>{label}</span>
           </button>
         );
       })}
+
+      {/* Separator */}
+      <div style={{ width:1, height:16, background:'rgba(0,200,240,0.15)', margin:'0 2px' }}/>
+
+      {/* Panel visibility toggles */}
+      {panelDefs.map(({ id, icon, label, col }) => {
+        if (!dock) return null;
+        const collapsed = dock.panels[id]?.collapsed;
+        return (
+          <button key={id}
+            onClick={() => dock.toggle(id)}
+            title={`${collapsed ? 'Afficher' : 'Masquer'} ${label}`}
+            style={{
+              padding:'4px 8px',
+              background: !collapsed ? `${col}14` : 'transparent',
+              border: !collapsed ? `0.5px solid ${col}40` : '0.5px solid transparent',
+              color: !collapsed ? col : `${col}30`,
+              fontFamily:'"JetBrains Mono",monospace',
+              fontSize:9, cursor:'pointer', outline:'none',
+              transition:'all .18s ease',
+              display:'flex', alignItems:'center', gap:4,
+            }}
+          >
+            <span>{icon}</span>
+            <span style={{ fontSize:6.5, letterSpacing:'.12em' }}>{label}</span>
+          </button>
+        );
+      })}
+
+      {/* Separator */}
+      <div style={{ width:1, height:16, background:'rgba(0,200,240,0.10)', margin:'0 2px' }}/>
+
       {/* Reset layout */}
       {dock && (
-        <button onClick={dock.resetAll} title="Réinitialiser l'interface" style={{
+        <button onClick={dock.resetAll} title="Réinitialiser la disposition" style={{
           padding:'4px 8px',
-          background:'rgba(0,4,18,0.88)',
-          border:'0.5px solid rgba(0,200,240,0.10)',
-          color:'rgba(0,200,240,0.25)',
+          background:'transparent',
+          border:'0.5px solid transparent',
+          color:'rgba(0,200,240,0.22)',
           fontFamily:'"JetBrains Mono",monospace',
-          fontSize:7, letterSpacing:'.12em',
-          cursor:'pointer', outline:'none',
+          fontSize:8, cursor:'pointer', outline:'none',
           transition:'all .18s',
-        }}>⟳</button>
+          letterSpacing:'.08em',
+        }} onMouseEnter={e=>e.target.style.color='rgba(0,200,240,0.60)'}
+           onMouseLeave={e=>e.target.style.color='rgba(0,200,240,0.22)'}
+        >⟳ RESET</button>
       )}
     </div>
   );
@@ -4303,6 +4380,15 @@ export default function View3D({slots=[],isLive=false,onCheckout,onBuyout,onView
   useEffect(()=>{const fn=e=>{if(e.key==='Escape'){setSelSlot(null);sceneRef.current?._setSel(-1);if(sceneRef.current?._epU)sceneRef.current._epU.uSelected.value=0;sceneRef.current?.resetCamera();setActiveTier(-1);sceneRef.current?.setTierFocus(-1);}};window.addEventListener('keydown',fn);return()=>window.removeEventListener('keydown',fn);},[]);
   useEffect(()=>{const fn=e=>{e.preventDefault();sceneRef.current?.zoom(e.deltaY);};const c=canvasRef.current;if(c)c.addEventListener('wheel',fn,{passive:false});return()=>{if(c)c.removeEventListener('wheel',fn);};},[]);
   useEffect(()=>{if(!canvasRef.current)return;const ro=new ResizeObserver(()=>sceneRef.current?.resize());ro.observe(canvasRef.current);return()=>ro.disconnect();},[]);
+  // Resume + re-sync renderer when switching back from 2D
+  useEffect(()=>{
+    if(viewMode==='3d'&&sceneRef.current){
+      setTimeout(()=>{
+        sceneRef.current?.resize();
+        sceneRef.current?.setFilterPalette(activeFilter);
+      },50);
+    }
+  },[viewMode]);
 
   const handleClose=useCallback(()=>{setSelSlot(null);sceneRef.current?._setSel(-1);if(sceneRef.current?._epU)sceneRef.current._epU.uSelected.value=0;sceneRef.current?.eliteRings?.forEach(r=>{r.u.uHov.value=0;});sceneRef.current?.resetCamera();},[]);
 
@@ -4313,10 +4399,17 @@ export default function View3D({slots=[],isLive=false,onCheckout,onBuyout,onView
         background:`linear-gradient(160deg, ${activePal.bgTop||'#01020A'} 0%, ${activePal.bgBot||'#020408'} 100%)`,
         transition:'background 0.6s ease',
       }}>
-        {viewMode === '2d' ? (
+        {/* Canvas ALWAYS in DOM — never unmount or WebGL context is lost */}
+        <canvas ref={canvasRef} style={{
+          width:'100%', height:'100%', display:'block', outline:'none',
+          opacity: (loading||viewMode==='2d') ? 0 : 1,
+          pointerEvents: viewMode==='2d' ? 'none' : 'auto',
+          transition:'opacity .5s ease',
+          position: viewMode==='2d' ? 'absolute' : 'relative',
+        }}/>
+        {/* FlatView2D overlays the canvas when in 2D mode */}
+        {viewMode === '2d' && (
           <FlatView2D slots={slots} onSlotSelect={setSelSlot} activeFilter={activeFilter}/>
-        ) : (
-          <canvas ref={canvasRef} style={{width:'100%',height:'100%',display:'block',outline:'none',opacity:loading?0:1,transition:'opacity .8s ease'}}/>
         )}
         {/* ── Lens overlay — teinté selon la vue active ── */}
         {!loading && (() => {
