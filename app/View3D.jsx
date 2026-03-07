@@ -112,12 +112,12 @@ const TIER_NEON = {
 
 const FILTER_PALETTES = {
   realist:  {
-    // PLASMA — rendu stellaire natif, lisibilité maximale
-    epicenter:'#D4A030', prestige:'#9A6A44', elite:'#5A7898', business:'#3A7A65', standard:'#5A6888', viral:'#3D6C4A',
-    emissiveScale:1.0, bloomThreshold:0.80, bloomStrength:0.50, exposure:1.55,
-    fogColor:0x03040B, fogDensity:0.00022, ambientCol:0x050810, ambientInt:0.9,
-    sunCol:0xFFF0D0, sunInt:1100, rimCol:0xFF7010, rimInt:50,
-    bgTop:'#01020A', bgBot:'#020408',
+    // PLASMA — rendu stellaire lisible, contraste occ/dispo maximal
+    epicenter:'#E8A020', prestige:'#A86848', elite:'#4A88B8', business:'#2A8A70', standard:'#4A6898', viral:'#2A7050',
+    emissiveScale:0.80, bloomThreshold:0.92, bloomStrength:0.18, exposure:1.40,
+    fogColor:0x01030A, fogDensity:0.00014, ambientCol:0x040710, ambientInt:1.4,
+    sunCol:0xFFEEC8, sunInt:900, rimCol:0xE87010, rimInt:30,
+    bgTop:'#01030C', bgBot:'#010510',
     lensColor:'rgba(0,0,0,0)', lensBlend:'normal', lensOpacity:0,
   },
   thermal:  {
@@ -132,7 +132,7 @@ const FILTER_PALETTES = {
   xray:     {
     // RAYONS-Ω — squelette lisible, bloom réduit pour lecture
     epicenter:'#EEFAFF', prestige:'#B0DDFF', elite:'#78BBFF', business:'#559ACC', standard:'#3A78AA', viral:'#265A80',
-    emissiveScale:1.8, bloomThreshold:0.65, bloomStrength:0.90, exposure:1.95,
+    emissiveScale:1.2, bloomThreshold:0.80, bloomStrength:0.45, exposure:1.55,
     fogColor:0x010810, fogDensity:0.00016, ambientCol:0x03091A, ambientInt:1.8,
     sunCol:0xCCEEFF, sunInt:2800, rimCol:0x88CCFF, rimInt:160,
     bgTop:'#010608', bgBot:'#010A12',
@@ -300,11 +300,7 @@ varying float vOcc,vTI,vFI,vFresnel,vHov,vSel,vDim;
 float edgeF(float w){vec3 d=fwidth(vBary);vec3 a=smoothstep(vec3(0.),d*w,vBary);return 1.-min(min(a.x,a.y),a.z);}
 float hash(float n){return fract(sin(n)*43758.5453);}
 float hash2(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
-float GGX(float NdotH,float rough){float a=rough*rough;float a2=a*a;float d=NdotH*NdotH*(a2-1.)+1.;return a2/(3.14159*d*d);}
 
-// ── UV panneau : projection sur plan tangent local ─────────────────────────────
-// On construit deux vecteurs tangents orthogonaux à la normale
-// et on projette vWP pour obtenir un UV stable par panneau
 vec2 panelUV(vec3 wp, vec3 n, float scale){
   vec3 up = abs(n.y) < 0.95 ? vec3(0.,1.,0.) : vec3(1.,0.,0.);
   vec3 T  = normalize(cross(up, n));
@@ -312,38 +308,30 @@ vec2 panelUV(vec3 wp, vec3 n, float scale){
   return vec2(dot(wp, T), dot(wp, B)) * scale;
 }
 
-// ── Grille photovoltaïque ─────────────────────────────────────────────────────
-// Retourne : x = masque cellule (variation silicium), y = busbar, z = finger/grille
+// ── Grille PV lisible — cellules nettes, joints visibles ───────────────────
 vec3 pvGrid(vec2 uv){
-  // Cellules : 6 colonnes × 10 rangées par unité de 1.0 UV
-  float cellCols = 6.0, cellRows = 10.0;
+  float cellCols = 5.0, cellRows = 8.0;
   vec2  cellUV   = vec2(uv.x * cellCols, uv.y * cellRows);
   vec2  cellId   = floor(cellUV);
   vec2  cellFrac = fract(cellUV);
+  float cellSeed = hash2(cellId * 0.317 + 1.7);
+  float cellVar  = cellSeed * 0.18;  // variation réduite — lisibilité prime
 
-  // Variation de teinte silicium par cellule (cristaux monocristallins)
-  float cellSeed  = hash2(cellId * 0.317 + 1.7);
-  float cellVar   = cellSeed * 0.5;          // variation d'intensité 0..0.5
+  // Joints nets entre cellules (séparateur époxy dark)
+  float jw = 0.055;
+  float jx = smoothstep(0.0, jw, min(cellFrac.x, 1.0-cellFrac.x)*2.0);
+  float jy = smoothstep(0.0, jw, min(cellFrac.y, 1.0-cellFrac.y)*2.0);
+  float cellMask = jx * jy; // 1 = intérieur cellule, 0 = joint
 
-  // Largeur des joints entre cellules (frame époxy noir)
-  float jointW = 0.04;
-  float jointX = 1.0 - smoothstep(0.0, jointW, min(cellFrac.x, 1.0-cellFrac.x)*2.0);
-  float jointY = 1.0 - smoothstep(0.0, jointW, min(cellFrac.y, 1.0-cellFrac.y)*2.0);
-  float joint  = max(jointX, jointY);        // 1 = dans un joint
+  // Un seul busbar central horizontal (plus lisible que 3)
+  float busW = 0.030;
+  float busFrac = abs(fract(uv.y * 2.0) - 0.5);
+  float busbar  = smoothstep(busW, 0.0, busFrac) * cellMask;
 
-  // Busbars horizontaux (3 barres conductrices argentées, espacement 1/3)
-  float busbarW  = 0.025;
-  float busPos1  = fract(uv.y * 3.0 + 0.0);   // 3 busbars / unité
-  float busbar   = smoothstep(busbarW, 0.0, abs(busPos1 - 0.5) - 0.5 + busbarW);
-
-  // Micro-fingers : 4 fils fins par cellule
-  float fingerN  = 4.0;
-  float fingerW  = 0.007;
-  float fingersX = fract(cellFrac.x * fingerN);
-  float finger   = smoothstep(fingerW, 0.0, abs(fingersX - 0.5) - 0.5 + fingerW) * (1.0 - joint);
-
-  // Cadre aluminium (bord extérieur) — on ne peut pas connaître le contour exact
-  // mais on utilise le wire de barycentrique pour ça (géré séparément)
+  // 3 micro-fingers par cellule
+  float fw = 0.009;
+  float fp = fract(cellFrac.x * 3.0);
+  float finger = smoothstep(fw, 0.0, abs(fp - 0.5) - 0.5 + fw) * cellMask * (1.0 - busbar);
 
   return vec3(cellVar, busbar, finger);
 }
@@ -352,72 +340,65 @@ void main(){
   float t   = uTime;
   bool  hov = vHov > 0.5, sel = vSel > 0.5, dim = vDim > 0.5;
   float seed  = hash(vFI * 13.7 + 2.3);
-  float pulse = 0.88 + 0.12 * sin(t * (0.4 + seed * 0.2) + seed * 6.28);
-  float wire  = edgeF(0.9), glow = edgeF(3.5);
+  // Pulse doux — seulement sur occupés
+  float pulse = vOcc > 0.5 ? (0.92 + 0.08 * sin(t * (0.5 + seed * 0.15) + seed * 6.28)) : 1.0;
+  float wire  = edgeF(0.7);   // contour principal net
+  float wireW = edgeF(2.2);   // contour élargi pour glow doux
 
-  // UV panneau stable (échelle ~2.4 pour que les cellules aient une bonne densité)
   vec3  nN  = normalize(vN);
-  vec2  puv = panelUV(vWP, nN, 2.4);
+  vec2  puv = panelUV(vWP, nN, 2.2);
   vec3  pv  = pvGrid(puv);
   float cellVar = pv.x;
   float busbar  = pv.y;
   float finger  = pv.z;
 
   if(gl_FrontFacing){
-    // ── BASE SILICIUM — revêtement anti-reflet TiO2/SiNx ──────────────────
-    // Couleur bleu-indigo foncé typique des panneaux monocristallins
-    vec3 siBase  = vec3(0.025 + cellVar*0.018, 0.035 + cellVar*0.010, 0.068 + cellVar*0.022);
 
-    // ── IRIDESCENCE — reflet arc-en-ciel subtil selon l'angle ─────────────
-    float iriAngle  = dot(nN, normalize(cameraPosition - vWP));
-    float iri        = pow(clamp(1.0 - iriAngle, 0.0, 1.0), 2.5);
-    vec3  iriCol     = vec3(
-      0.5 + 0.5 * sin(iriAngle * 8.0 + 0.0),
-      0.5 + 0.5 * sin(iriAngle * 8.0 + 2.09),
-      0.5 + 0.5 * sin(iriAngle * 8.0 + 4.18)
-    ) * 0.03 * iri;
+    // ── BASE — silicium uniforme, peu de bruit ─────────────────────────────
+    // Bleu-nuit profond, cellVar minimal pour préserver la lisibilité
+    vec3 siBase = vec3(0.018 + cellVar*0.008, 0.026 + cellVar*0.005, 0.055 + cellVar*0.010);
 
-    // ── ÉCLAIRAGE PBR ─────────────────────────────────────────────────────
+    // ── ÉCLAIRAGE SIMPLIFIÉ — un seul highlight directionnel ───────────────
     vec3 toStar  = normalize(-vWP);
-    vec3 viewDir = normalize(cameraPosition - vWP);
-    vec3 H       = normalize(toStar + viewDir);
-    float NdotH  = max(0.0, dot(nN, H));
     float NdotL  = max(0.0, dot(nN, toStar));
-    float rough  = hov ? 0.12 : 0.22;
-    float spec   = GGX(NdotH, rough) * NdotL * 0.28;
-    // Reflet argenté sur les busbars/fingers — plus brillant
-    float specMetal = GGX(NdotH, 0.06) * NdotL * (busbar * 1.8 + finger * 0.9);
-    vec3  specCol   = mix(vec3(0.82, 0.80, 0.72), siBase + 0.1, 0.3) * spec;
-    vec3  metalCol  = vec3(0.72, 0.75, 0.82) * specMetal;
+    // Reflet nacré busbars/fingers argentés
+    vec3 metalCol = vec3(0.28, 0.30, 0.34) * (busbar * 0.9 + finger * 0.4) * NdotL;
 
-    // ── BUSBARS + FINGERS argentés ─────────────────────────────────────────
-    vec3 busbarCol  = vec3(0.38, 0.40, 0.44) * (busbar + finger * 0.5);
+    // ── CONTOUR DU PANNEAU — fine ligne tier-colorée ───────────────────────
+    // Disponible : contour très fin, très sombre → presque invisible
+    // Occupé    : contour net, lumineux, tier-coloré
+    float edgeLum = vOcc > 0.5
+      ? (sel ? 2.8 : (hov ? 1.8 : 0.55)) * pulse
+      : (hov ? 0.35 : 0.04);
+    vec3 edgeCol  = vTC * wire  * edgeLum;
+    vec3 edgeSoft = vTC * wireW * edgeLum * 0.06; // halo léger
 
-    // ── FRESNEL RIM ────────────────────────────────────────────────────────
-    float rimStr = 0.025 + vOcc * 0.030;
-    vec3  rim    = vTC * pow(vFresnel, 2.4) * rimStr * pulse;
-
-    // ── EDGE GLOW (contours des faces) ────────────────────────────────────
-    float edgeStr = sel ? 1.2 : (hov ? 0.75 : 0.14);
-    edgeStr *= pulse;
-    vec3 edgeCol  = vTC * wire * edgeStr * 1.6 + vTC * glow * edgeStr * 0.14;
-
-    // ── TEINTE TIER sur panneau occupé ────────────────────────────────────
-    vec3 tierFill = vec3(0.0);
+    // ── TEINTE PANNEAU (fill) ──────────────────────────────────────────────
+    vec3 fillCol = vec3(0.0);
     if(vOcc > 0.5){
-      // Occupé : teinte tier visible mais contenue
-      float fs   = vTI < 0.5 ? 0.032 : (vTI < 1.5 ? 0.022 : 0.012);
-      tierFill   = vTC * fs * pulse * (0.65 + cellVar * 0.5);
-      tierFill  += vTC * busbar * 0.012 * pulse;
+      // Occupé : fill tier clair et uniforme — pas de bruit excessif
+      // On lit le tier index : 0=epic, 1=prestige, 2=elite, 3=biz, 4=std, 5=viral
+      float tierAmp = mix(0.042, 0.014, clamp(vTI / 5.0, 0.0, 1.0));
+      fillCol  = vTC * tierAmp * (1.0 + cellVar * 0.25) * pulse;
+      // Busbars légèrement plus brillants sur panneaux occupés
+      fillCol += vTC * busbar * 0.010 * pulse;
     } else {
-      // Disponible : silicium quasi éteint, seule la micro-grille reste
-      tierFill   = vTC * 0.004 * (0.5 + cellVar * 0.3);
+      // Disponible : fill quasi nul — silicium éteint, quasi fantôme
+      fillCol = vTC * 0.0025;
     }
 
-    // ── ASSEMBLAGE ────────────────────────────────────────────────────────
-    vec3 col = siBase + iriCol + specCol + metalCol + busbarCol + rim + edgeCol + tierFill;
-    if(sel) col += vTC * wire * 0.5 * (0.7 + 0.3 * sin(t * 6.0));
-    if(dim){ col = mix(col, vec3(0.006, 0.008, 0.012), 0.90); col *= 0.14; }
+    // ── FRESNEL — très subtil, annonce la courbure ──────────────────────────
+    float rimStr = vOcc > 0.5 ? 0.016 * pulse : 0.003;
+    vec3  rim    = vTC * pow(vFresnel, 3.0) * rimStr;
+
+    // ── ASSEMBLAGE ─────────────────────────────────────────────────────────
+    vec3 col = siBase + metalCol + edgeCol + edgeSoft + fillCol + rim;
+
+    // Sélection : clignotement du contour tier-coloré
+    if(sel) col += vTC * wire * 0.8 * (0.65 + 0.35 * sin(t * 7.0));
+
+    // Focus tier : atténuation forte des autres tiers
+    if(dim){ col = mix(col, vec3(0.004, 0.006, 0.010), 0.94); col *= 0.10; }
 
     gl_FragColor = vec4(col, 1.0);
 
