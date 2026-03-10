@@ -4766,7 +4766,8 @@ const CommunityChat = dynamic(() => import('./CommunityChat'), { ssr: false, loa
 
 export default function App() {
   // La langue est gérée globalement par LangProvider (app/layout.js)
-  // On récupère setLang depuis le contexte global
+  // On récupère lang et setLang depuis le contexte global
+  const lang = useLang();
   const setLang = useLangSetter();
   const [view, setView]             = useState('landing');
   const [manifestAccepted, setManifestAccepted] = useState(false);
