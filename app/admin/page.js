@@ -236,6 +236,131 @@ const useAdminAPI = (token) => {
 };
 
 // ══════════════════════════════════════════════════════════════════════════
+// WAITLIST LAUNCH SECTION
+// ══════════════════════════════════════════════════════════════════════════
+function WaitlistLaunchSection({ api, waitlistStats }) {
+  const [status, setStatus] = useState('idle'); // idle | confirm | sending | done | error
+  const [result, setResult] = useState(null);
+  const ws = waitlistStats || {};
+
+  const handleLaunch = async () => {
+    setStatus('sending');
+    try {
+      const res = await api.post({ action: 'launch_waitlist' });
+      if (res.ok) {
+        setResult(res);
+        setStatus('done');
+      } else {
+        setStatus('error');
+      }
+    } catch {
+      setStatus('error');
+    }
+  };
+
+  return (
+    <div>
+      <SectionTitle>📧 Waitlist & Lancement</SectionTitle>
+      <Card>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap' }}>
+          {/* Stats */}
+          <div style={{ display: 'flex', gap: 16, flex: 1, flexWrap: 'wrap' }}>
+            <div style={{ textAlign: 'center', minWidth: 80 }}>
+              <div style={{ fontSize: 28, fontWeight: 800, color: A.accent, fontFamily: F.m }}>{ws.total || '—'}</div>
+              <div style={{ fontSize: 10, color: A.muted, letterSpacing: '.08em', marginTop: 4 }}>INSCRITS</div>
+            </div>
+            <div style={{ textAlign: 'center', minWidth: 80 }}>
+              <div style={{ fontSize: 22, fontWeight: 700, color: A.cyan, fontFamily: F.m }}>{ws.brands || '—'}</div>
+              <div style={{ fontSize: 10, color: A.muted, letterSpacing: '.08em', marginTop: 4 }}>MARQUES</div>
+            </div>
+            <div style={{ textAlign: 'center', minWidth: 80 }}>
+              <div style={{ fontSize: 22, fontWeight: 700, color: A.green, fontFamily: F.m }}>{ws.creators || '—'}</div>
+              <div style={{ fontSize: 10, color: A.muted, letterSpacing: '.08em', marginTop: 4 }}>CRÉATEURS</div>
+            </div>
+            <div style={{ textAlign: 'center', minWidth: 80 }}>
+              <div style={{ fontSize: 22, fontWeight: 700, color: A.purple, fontFamily: F.m }}>{ws.freelancers || '—'}</div>
+              <div style={{ fontSize: 10, color: A.muted, letterSpacing: '.08em', marginTop: 4 }}>FREELANCES</div>
+            </div>
+          </div>
+
+          {/* Launch button */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-end', minWidth: 220 }}>
+            {status === 'idle' && (
+              <button
+                onClick={() => setStatus('confirm')}
+                style={{
+                  padding: '12px 20px',
+                  background: `linear-gradient(135deg, ${A.accent}, #d4890a)`,
+                  border: 'none',
+                  color: '#000',
+                  fontSize: 12,
+                  fontFamily: F.m,
+                  fontWeight: 800,
+                  letterSpacing: '.1em',
+                  cursor: 'pointer',
+                  clipPath: 'polygon(0 0,calc(100% - 8px) 0,100% 8px,100% 100%,0 100%)',
+                  boxShadow: `0 0 24px ${A.accent}40`,
+                }}
+              >
+                🚀 ENVOYER L'EMAIL DE LANCEMENT
+              </button>
+            )}
+
+            {status === 'confirm' && (
+              <div style={{ background: 'rgba(232,160,32,0.08)', border: `1px solid ${A.accent}40`, padding: '14px 16px', borderRadius: 4 }}>
+                <div style={{ fontSize: 12, color: A.accent, fontWeight: 700, marginBottom: 10, letterSpacing: '.06em' }}>
+                  ⚠ CONFIRMER L'ENVOI
+                </div>
+                <div style={{ fontSize: 11, color: A.muted, marginBottom: 14 }}>
+                  Cela enverra un email à <strong style={{ color: A.text }}>{ws.total || '?'} personnes</strong> pour annoncer l'ouverture de la plateforme.
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button
+                    onClick={() => setStatus('idle')}
+                    style={{ flex: 1, padding: '8px', background: 'transparent', border: `1px solid ${A.border}`, color: A.muted, fontSize: 11, fontFamily: F.m, cursor: 'pointer' }}
+                  >Annuler</button>
+                  <button
+                    onClick={handleLaunch}
+                    style={{ flex: 2, padding: '8px', background: A.accent, border: 'none', color: '#000', fontSize: 11, fontFamily: F.m, fontWeight: 800, cursor: 'pointer', letterSpacing: '.06em' }}
+                  >✓ CONFIRMER</button>
+                </div>
+              </div>
+            )}
+
+            {status === 'sending' && (
+              <div style={{ fontSize: 12, color: A.accent, fontFamily: F.m, letterSpacing: '.08em' }}>
+                ⏳ Envoi en cours…
+              </div>
+            )}
+
+            {status === 'done' && result && (
+              <div style={{ background: 'rgba(0,216,128,0.08)', border: `1px solid rgba(0,216,128,0.30)`, padding: '14px 16px', borderRadius: 4, minWidth: 200 }}>
+                <div style={{ fontSize: 12, color: A.green, fontWeight: 700, marginBottom: 8, letterSpacing: '.06em' }}>✓ ENVOI TERMINÉ</div>
+                <div style={{ fontSize: 11, color: A.muted }}>
+                  <span style={{ color: A.green }}>✓ {result.sent} envoyés</span>
+                  {result.errors > 0 && <span style={{ color: A.red }}> · ✗ {result.errors} erreurs</span>}
+                </div>
+              </div>
+            )}
+
+            {status === 'error' && (
+              <div style={{ fontSize: 11, color: A.red, fontFamily: F.m }}>
+                ✗ Erreur lors de l'envoi
+                <button onClick={() => setStatus('idle')} style={{ display: 'block', marginTop: 6, background: 'none', border: 'none', color: A.muted, cursor: 'pointer', fontSize: 11 }}>Réessayer</button>
+              </div>
+            )}
+
+            <div style={{ fontSize: 10, color: A.muted, fontFamily: F.m, letterSpacing: '.06em', textAlign: 'right' }}>
+              Email bilngue FR/EN · via Resend
+            </div>
+          </div>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════
 // TAB : VUE D'ENSEMBLE
 // ══════════════════════════════════════════════════════════════════════════
 function TabOverview({ api }) {
@@ -295,6 +420,10 @@ function TabOverview({ api }) {
           <KPI label="Offres en att" value={fmtN(s.pending_offers)} color={A.orange} icon="🤝" />
         </div>
       </div>
+
+      {/* ─── Section Waitlist + Bouton de lancement ─── */}
+      <WaitlistLaunchSection api={api} waitlistStats={data?.waitlistStats} />
+
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
         <Card>
           <div style={{ fontSize: 12, fontWeight: 700, color: A.muted, letterSpacing: '0.07em', marginBottom: 14 }}>OCCUPATION PAR TIER</div>

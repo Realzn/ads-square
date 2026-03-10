@@ -20,13 +20,10 @@ import {
 } from '../lib/supabase';
 import { getSession, signIn, signUp, signOut } from '../lib/supabase-auth';
 import { getT } from '../lib/i18n';
+import { LangContext, LangSetterContext, useLang, useLangSetter, useT } from '../lib/lang-context';
 
-// ─── Language context ─────────────────────────────────────────
-const LangContext = createContext('fr');
-const LangSetterContext = createContext(() => {});
-function useLang() { return useContext(LangContext); }
-function useLangSetter() { return useContext(LangSetterContext); }
-function useT() { const lang = useLang(); return getT(lang); }
+// ─── Language context (global — depuis lib/lang-context.js, provider dans layout.js) ──
+// useLang, useLangSetter, useT sont importés depuis lib/lang-context
 
 // ── Inline lang toggle usable anywhere inside providers ──
 function LangToggleInline() {
@@ -464,6 +461,7 @@ function MobileBlockedModal({ onClose }) {
 function WaitlistModal({ onClose }) {
   const { isMobile } = useScreenSize();
   const t = useT();
+  const lang = useLang();
   const [email, setEmail]     = useState('');
   const [profile, setProfile] = useState('');
   const [loading, setLoading] = useState(false);
@@ -477,7 +475,7 @@ function WaitlistModal({ onClose }) {
       const res  = await fetch('/api/waitlist', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email.trim(), profile }),
+        body: JSON.stringify({ email: email.trim(), profile, lang }),
       });
       const data = await res.json();
       if (!res.ok) { setError(data.error || 'Erreur serveur'); return; }
@@ -4767,7 +4765,9 @@ function MobileFeed({ slots, onViewSlot }) {
 const CommunityChat = dynamic(() => import('./CommunityChat'), { ssr: false, loading: () => null });
 
 export default function App() {
-  const [lang, setLang]             = useState('fr');
+  // La langue est gérée globalement par LangProvider (app/layout.js)
+  // On récupère setLang depuis le contexte global
+  const setLang = useLangSetter();
   const [view, setView]             = useState('landing');
   const [manifestAccepted, setManifestAccepted] = useState(false);
   const [showWaitlist, setShowWaitlist] = useState(false);
@@ -4797,22 +4797,6 @@ export default function App() {
   const handleManifestAccept = useCallback(() => {
     try { localStorage.setItem('corp_contract_signed', '1'); } catch {}
     setManifestAccepted(true);
-  }, []);
-
-  // ── Restore language from localStorage ──
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem('ads_lang');
-      if (saved === 'en' || saved === 'fr') setLang(saved);
-    } catch {}
-  }, []);
-
-  const handleSetLang = useCallback((fn) => {
-    setLang(prev => {
-      const next = typeof fn === 'function' ? fn(prev) : fn;
-      try { localStorage.setItem('ads_lang', next); } catch {}
-      return next;
-    });
   }, []);
 
   // ── Auth session ──
@@ -4865,8 +4849,7 @@ export default function App() {
   );
 
   return (
-    <LangContext.Provider value={lang}>
-    <LangSetterContext.Provider value={handleSetLang}>
+    <>
       {!manifestAccepted && <ManifestModal onAccept={handleManifestAccept} />}
       <div style={{ display: 'flex', height: '100vh', background: '#01020A', fontFamily: F.b, color: U.text, flexDirection: 'column', overflow: view === 'landing' ? 'auto' : 'hidden' }}>
         <AnnouncementBar onWaitlist={handleWaitlist} />
@@ -4952,7 +4935,7 @@ export default function App() {
             )}
 
             {/* Lang */}
-            <button onClick={() => handleSetLang(l => l === 'fr' ? 'en' : 'fr')} style={{
+            <button onClick={() => setLang(l => l === 'fr' ? 'en' : 'fr')} style={{
               marginLeft: isMobile ? 1 : 3, padding: isMobile ? '4px 7px' : '4px 10px',
               clipPath: 'polygon(0 0,calc(100% - 4px) 0,100% 4px,100% 100%,0 100%)',
               background: 'transparent', border: `0.5px solid ${U.border}`,
@@ -5020,7 +5003,6 @@ export default function App() {
           />
         )}
       </div>
-    </LangSetterContext.Provider>
-    </LangContext.Provider>
+    </>
   );
 }

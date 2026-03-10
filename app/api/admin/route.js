@@ -39,7 +39,19 @@ export async function GET(request) {
           .gte('created_at', new Date(Date.now() - 30 * 86400000).toISOString())
           .order('created_at', { ascending: true });
         const { data: tierStats } = await supabase.from('grid_stats').select('*');
-        return NextResponse.json({ stats, recentBookings, tierStats });
+        const { data: waitlistStats } = await supabase.from('waitlist_stats').select('*').single();
+        return NextResponse.json({ stats, recentBookings, tierStats, waitlistStats });
+      }
+
+      case 'waitlist': {
+        const limit  = parseInt(searchParams.get('limit') || '200');
+        const { data, error } = await supabase
+          .from('waitlist')
+          .select('id, email, profile, created_at')
+          .order('created_at', { ascending: false })
+          .limit(limit);
+        if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+        return NextResponse.json({ waitlist: data || [] });
       }
 
       case 'bookings': {
@@ -266,6 +278,41 @@ export async function POST(request) {
         const { error } = await supabase.from('advertisers').update({ admin_note: note }).eq('id', userId);
         if (error) return NextResponse.json({ error: error.message }, { status: 500 });
         return NextResponse.json({ ok: true });
+      }
+
+      // ── Email blast — annonce lancement à toute la waitlist ──
+      case 'launch_waitlist': {
+        const { sendLaunchEmail } = await import('../../../lib/emails');
+
+        // Récupérer tous les emails de la waitlist
+        const { data: waitlistEntries, error: wErr } = await supabase
+          .from('waitlist')
+          .select('email')
+          .order('created_at', { ascending: true });
+
+        if (wErr) return NextResponse.json({ error: wErr.message }, { status: 500 });
+        if (!waitlistEntries || waitlistEntries.length === 0) {
+          return NextResponse.json({ ok: true, sent: 0, message: 'Aucun email dans la waitlist.' });
+        }
+
+        let sent = 0;
+        let errors = 0;
+
+        // Envoi séquentiel (Resend rate-limit safe) avec délai de 100ms entre chaque
+        for (const entry of waitlistEntries) {
+          try {
+            await sendLaunchEmail({ to: entry.email, lang: 'fr' }); // bilingual template
+            sent++;
+          } catch (e) {
+            console.error(`[Admin] Launch email failed for ${entry.email}:`, e.message);
+            errors++;
+          }
+          // Petite pause pour respecter les limites Resend
+          await new Promise(r => setTimeout(r, 120));
+        }
+
+        await log('launch', 'waitlist', { sent, errors, total: waitlistEntries.length });
+        return NextResponse.json({ ok: true, sent, errors, total: waitlistEntries.length });
       }
 
       default:

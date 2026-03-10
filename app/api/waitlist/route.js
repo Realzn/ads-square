@@ -1,15 +1,15 @@
 // app/api/waitlist/route.js
-// Inscrit un email en waitlist + envoie un email de confirmation
+// Inscrit un email en waitlist + envoie un email de confirmation + notifie l'admin
 
 import { NextResponse } from 'next/server';
 import { createServiceClient } from '../../../lib/supabase-server';
-import { sendWaitlistConfirmation } from '../../../lib/emails';
+import { sendWaitlistConfirmation, sendWaitlistAdminNotification } from '../../../lib/emails';
 
 export const dynamic = 'force-dynamic';
 
 export async function POST(request) {
   try {
-    const { email, profile } = await request.json();
+    const { email, profile, lang } = await request.json();
 
     if (!email || !email.includes('@') || !email.includes('.')) {
       return NextResponse.json({ error: 'Email invalide' }, { status: 400 });
@@ -33,9 +33,14 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
     }
 
-    // Email de confirmation (non bloquant)
-    await sendWaitlistConfirmation({ to: email }).catch(e =>
-      console.error('[Waitlist] Email error:', e.message)
+    // Email de confirmation à l'utilisateur (non bloquant)
+    await sendWaitlistConfirmation({ to: email, lang: lang || 'fr' }).catch(e =>
+      console.error('[Waitlist] Confirmation email error:', e.message)
+    );
+
+    // Notification à l'équipe (non bloquant)
+    await sendWaitlistAdminNotification({ userEmail: email, profile }).catch(e =>
+      console.error('[Waitlist] Admin notification error:', e.message)
     );
 
     return NextResponse.json({ ok: true });

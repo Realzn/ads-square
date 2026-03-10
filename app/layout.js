@@ -2,6 +2,8 @@
 import './globals.css';
 import SkipLink from './SkipLink';
 import FontLoader from './Fontloader';
+import LangProvider from './LangProvider';
+import BugReportButton from './BugReportButton';
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://adsmostfair.com';
 
@@ -50,9 +52,14 @@ export default function RootLayout({ children }) {
       <body>
         <FontLoader />
         <SkipLink />
-        <main id="main-content">
-          {children}
-        </main>
+        {/* LangProvider wraps EVERYTHING — toutes les pages héritent du contexte de langue */}
+        <LangProvider>
+          <main id="main-content">
+            {children}
+          </main>
+          {/* Bouton flottant "Signaler un bug" — visible sur toutes les pages */}
+          <BugReportButton />
+        </LangProvider>
       </body>
     </html>
   );
