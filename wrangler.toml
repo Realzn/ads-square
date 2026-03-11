@@ -8,10 +8,3 @@ compatibility_flags = ["nodejs_compat"]
 # ──────────────────────────────────────────────────────────────
 pages_build_output_dir = ".open-next/assets"
 
-# ── Cron Triggers ──────────────────────────────────────────────
-[triggers]
-crons = [
-  "0 7 * * *",   # daily tâches Sphère (07h UTC)
-  "0 8 * * *",   # rappels expiration (08h UTC)
-  "0 9 * * *",   # cron principal (09h UTC)
-]
