@@ -204,10 +204,47 @@ function suspensionWarning({ name, rank, daysLeft, slotX, slotY }) {
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { type, to, subject, ...data } = body;
+    // Le dashboard envoie { type:'magic_link', email } sans 'to'
+    const { type, to, email: emailField, subject, ...data } = body;
+    const recipient = to || emailField;
 
-    if (!to || !type) {
-      return NextResponse.json({ error: 'type et to requis' }, { status: 400 });
+    if (!type) {
+      return NextResponse.json({ error: 'type requis' }, { status: 400 });
+    }
+
+    // ── Magic link : OTP via Supabase (pas Resend) ─────────────────────────
+    if (type === 'magic_link') {
+      const SB_URL  = process.env.NEXT_PUBLIC_SUPABASE_URL;
+      const SB_ANON = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+      if (!SB_URL || !SB_ANON) {
+        return NextResponse.json({ error: 'Supabase non configuré' }, { status: 500 });
+      }
+      if (!recipient?.includes('@')) {
+        return NextResponse.json({ error: 'Email invalide' }, { status: 400 });
+      }
+
+      const res = await fetch(`${SB_URL}/auth/v1/otp`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': SB_ANON,
+        },
+        body: JSON.stringify({ email: recipient }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        console.error('[Email/magic_link] Supabase OTP error:', err);
+        return NextResponse.json({ error: err.message || 'Erreur envoi OTP' }, { status: 500 });
+      }
+
+      return NextResponse.json({ ok: true });
+    }
+
+    // ── Autres types transactionnels : via Resend ──────────────────────────
+    if (!recipient) {
+      return NextResponse.json({ error: 'Destinataire requis (to ou email)' }, { status: 400 });
     }
 
     // Générer le contenu selon le type
@@ -239,7 +276,7 @@ export async function POST(request) {
         emailSubject = subject || `⚠️ Votre slot sera suspendu dans ${data.daysLeft} jour(s)`;
         break;
       default:
-        return NextResponse.json({ error: `Type d'email inconnu: ${type}` }, { status: 400 });
+        return NextResponse.json({ error: `Type inconnu: ${type}` }, { status: 400 });
     }
 
     // Envoyer via Resend
@@ -254,12 +291,7 @@ export async function POST(request) {
         'Authorization': `Bearer ${RESEND_API_KEY}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        from: FROM,
-        to: [to],
-        subject: emailSubject,
-        html,
-      }),
+      body: JSON.stringify({ from: FROM, to: [recipient], subject: emailSubject, html }),
     });
 
     if (!res.ok) {
