@@ -1,8 +1,8 @@
 import { PageShell, Section, P, Highlight, Tag } from '../legal-shared';
 
 export const metadata = {
-  title: 'Politique de confidentialité — ADS-SQUARE',
-  description: 'Comment ADS-SQUARE collecte, utilise et protège vos données personnelles. Conforme RGPD.',
+  title: 'Politique de confidentialité — AdsMostFair',
+  description: 'Comment AdsMostFair collecte, utilise et protège vos données personnelles. Conforme RGPD.',
 };
 
 export default function PrivacyPage() {
@@ -23,7 +23,7 @@ export default function PrivacyPage() {
       <Section title="1. Responsable du traitement">
         <P>
           <Highlight>LE91-ARENA SAS</Highlight> — Les Ulis, 91940, France<br/>
-          Contact DPO : <Highlight>privacy@ads-square.com</Highlight>
+          Contact DPO : <Highlight>privacy@adsmostfair.com</Highlight>
         </P>
       </Section>
 
@@ -61,7 +61,7 @@ export default function PrivacyPage() {
 
       <Section title="4. Cookies">
         <P>
-          ADS-SQUARE utilise le minimum de cookies nécessaires au fonctionnement du site :
+          AdsMostFair utilise le minimum de cookies nécessaires au fonctionnement du site :
         </P>
         <P>
           <Highlight>Session :</Highlight> maintien de votre session (durée : session du navigateur).<br/>
@@ -86,7 +86,7 @@ export default function PrivacyPage() {
           <Highlight>Limitation</Highlight> — Limiter le traitement dans certains cas.
         </P>
         <P>
-          Pour exercer vos droits : envoyez un email à <Highlight>privacy@ads-square.com</Highlight> avec une pièce d'identité. Réponse sous 30 jours maximum.
+          Pour exercer vos droits : envoyez un email à <Highlight>privacy@adsmostfair.com</Highlight> avec une pièce d'identité. Réponse sous 30 jours maximum.
         </P>
         <P>
           Si vous estimez que vos droits ne sont pas respectés, vous pouvez saisir la <Highlight>CNIL</Highlight> : cnil.fr · 01 53 73 22 22.
@@ -104,7 +104,7 @@ export default function PrivacyPage() {
 
       <Section title="7. Contact">
         <P>
-          Pour toute question sur cette politique : <Highlight>privacy@ads-square.com</Highlight><br/>
+          Pour toute question sur cette politique : <Highlight>privacy@adsmostfair.com</Highlight><br/>
           Temps de réponse habituel : 48 heures.
         </P>
       </Section>

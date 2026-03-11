@@ -1,8 +1,10 @@
 // app/layout.js  —  Layout racine Next.js
-// Enveloppe TOUTE l'application avec le Provider i18n.
-// La langue est persistée dans localStorage (clé : ads_lang).
+// Double provider i18n — les deux lisent/écrivent localStorage('ads_lang')
+// · LangProvider    → page.js, sphere, BugReportButton (useT retourne une fn)
+// · I18nProvider    → admin, dashboard, legal, leaderboard (useT retourne {t,lang,…})
 
-import { I18nProvider } from '../lib/i18n';
+import LangProvider from './LangProvider';
+import { I18nProvider } from '../lib/i18n/index';
 
 export const metadata = {
   title: 'AdsMostFair — La grille publicitaire ouverte à tous',
@@ -20,19 +22,17 @@ export default function RootLayout({ children }) {
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
-        {/* Polices pré-connectées pour la perf */}
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
       </head>
       <body style={{ margin: 0, padding: 0, background: '#01020A' }}>
-        {/*
-          I18nProvider enveloppe tout : admin, dashboard, pages légales,
-          leaderboard, slot, chat, modals — TOUT est traduit.
-          La langue est lue/écrite dans localStorage sous la clé "ads_lang".
-        */}
-        <I18nProvider>
-          {children}
-        </I18nProvider>
+        {/* LangProvider pour page.js / sphere / composants hérités */}
+        <LangProvider>
+          {/* I18nProvider pour admin / dashboard / legal / leaderboard / slot */}
+          <I18nProvider>
+            {children}
+          </I18nProvider>
+        </LangProvider>
       </body>
     </html>
   );

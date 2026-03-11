@@ -3,7 +3,7 @@
 // Appelé chaque jour par cron-job.org (même token que /api/cron/expire)
 //
 // Configurer sur cron-job.org :
-//   URL      : https://ads-square.pages.dev/api/cron/remind
+//   URL      : https://adsmostfair.pages.dev/api/cron/remind
 //   Header   : x-cron-token: <CRON_SECRET>
 //   Schedule : 0 9 * * * (chaque matin à 09:00 UTC)
 

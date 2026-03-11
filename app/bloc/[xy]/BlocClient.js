@@ -94,7 +94,7 @@ export default function BlocClient({ x, y }) {
                 <rect x="17" y="17" width="11" height="11" rx="2" fill="#00d9f5" opacity=".5"/>
               </svg>
             </div>
-            <span style={{ color: U.text, fontWeight: 800, fontSize: 14, fontFamily: F.h, letterSpacing: '0.04em' }}>ADS-SQUARE</span>
+            <span style={{ color: U.text, fontWeight: 800, fontSize: 14, fontFamily: F.h, letterSpacing: '0.04em' }}>AdsMostFair</span>
           </Link>
           <Link href="/" style={{ color: U.muted, fontSize: 12, textDecoration: 'none' }}>
             ← Explorer la grille
@@ -123,13 +123,13 @@ function BlocCard({ slot, isLive }) {
 
   const shareUrl = typeof window !== 'undefined'
     ? window.location.href
-    : `https://ads-square.com/bloc/${slot.x}-${slot.y}`;
+    : `https://adsmostfair.com/bloc/${slot.x}-${slot.y}`;
 
   const handleShare = async () => {
     if (navigator.share) {
       try {
         await navigator.share({
-          title: occ ? `${tenant.name} sur ADS-SQUARE` : `Bloc ${label} disponible`,
+          title: occ ? `${tenant.name} sur AdsMostFair` : `Bloc ${label} disponible`,
           text:  occ ? (tenant.slogan || tenant.name) : `Ce bloc publicitaire est disponible dès 1€/jour.`,
           url:   shareUrl,
         });

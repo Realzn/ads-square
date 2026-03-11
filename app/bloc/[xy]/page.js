@@ -8,7 +8,7 @@ import BlocClient from './BlocClient';
 import { createServiceClient } from '../../../lib/supabase-server';
 import { getTier, TIER_LABEL, TIER_COLOR } from '../../../lib/grid';
 
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://ads-square.com';
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://adsmostfair.com';
 
 // ── SSR : fetch le slot pour les metadata ─────────────────────
 async function fetchBlocData(x, y) {
@@ -33,7 +33,7 @@ export async function generateMetadata({ params }) {
   const y = parseInt(yStr, 10);
 
   if (isNaN(x) || isNaN(y)) {
-    return { title: 'Bloc introuvable | ADS-SQUARE' };
+    return { title: 'Bloc introuvable | AdsMostFair' };
   }
 
   const tier  = getTier(x, y);
@@ -42,10 +42,10 @@ export async function generateMetadata({ params }) {
 
   if (!data?.is_occupied) {
     return {
-      title:       `Bloc ${label} (${x},${y}) — Disponible | ADS-SQUARE`,
-      description: `Ce bloc publicitaire ${label} en position (${x},${y}) est disponible. Réservez-le dès 1€/jour sur ADS-SQUARE.`,
+      title:       `Bloc ${label} (${x},${y}) — Disponible | AdsMostFair`,
+      description: `Ce bloc publicitaire ${label} en position (${x},${y}) est disponible. Réservez-le dès 1€/jour sur AdsMostFair.`,
       openGraph: {
-        title:       `Bloc ${label} disponible sur ADS-SQUARE`,
+        title:       `Bloc ${label} disponible sur AdsMostFair`,
         description: 'Réservez cet espace publicitaire dès 1€/jour.',
         images:      [{ url: `${SITE_URL}/og.png`, width: 1200, height: 630 }],
       },
@@ -53,20 +53,20 @@ export async function generateMetadata({ params }) {
   }
 
   const name    = data.display_name || 'Annonceur';
-  const slogan  = data.slogan || `Découvrez ${name} sur ADS-SQUARE`;
+  const slogan  = data.slogan || `Découvrez ${name} sur AdsMostFair`;
   const color   = data.primary_color || TIER_COLOR[tier];
   const imgUrl  = data.image_url
     ? data.image_url  // image du bloc si dispo
     : `${SITE_URL}/og.png`;
 
   return {
-    title:       `${name} — Bloc ${label} | ADS-SQUARE`,
+    title:       `${name} — Bloc ${label} | AdsMostFair`,
     description: slogan,
     openGraph: {
-      title:       `${name} sur ADS-SQUARE`,
+      title:       `${name} sur AdsMostFair`,
       description: slogan,
       url:         `${SITE_URL}/bloc/${x}-${y}`,
-      siteName:    'ADS-SQUARE',
+      siteName:    'AdsMostFair',
       type:        'website',
       images: [{
         url:    imgUrl,
@@ -77,7 +77,7 @@ export async function generateMetadata({ params }) {
     },
     twitter: {
       card:        'summary_large_image',
-      title:       `${name} sur ADS-SQUARE`,
+      title:       `${name} sur AdsMostFair`,
       description: slogan,
       images:      [imgUrl],
     },

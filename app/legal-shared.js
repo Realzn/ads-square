@@ -162,7 +162,7 @@ export function SiteFooter() {
         </div>
 
         <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 20, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
-          <span style={{ color: C.dim, fontSize: 12, fontFamily: T.mono }}>© 2026 ADS-SQUARE · LE91-ARENA SAS</span>
+          <span style={{ color: C.dim, fontSize: 12, fontFamily: T.mono }}>© 2026 AdsMostFair (société en cours de création)</span>
           <span style={{ color: C.dim, fontSize: 11, fontFamily: T.mono }}>GALACTIC·ADV·GRID · v2.0</span>
         </div>
       </div>

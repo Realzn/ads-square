@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
-import { useT, LanguageSwitcher } from '../../lib/i18n';
+import { useT, LanguageSwitcher } from '../../lib/i18n/index';
 
 /* ── Design tokens ─────────────────────────────────────────────────────── */
 const C = {

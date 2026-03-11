@@ -142,7 +142,7 @@ export async function POST(request) {
             unit_amount: totalCents,
             product_data: {
               name: blockLabel,
-              description: `Réservation ${days} jours${billingLabel} — ADS-SQUARE`,
+              description: `Réservation ${days} jours${billingLabel} — AdsMostFair`,
               metadata: {
                 slot_x: String(anchorX),
                 slot_y: String(anchorY),
@@ -164,8 +164,8 @@ export async function POST(request) {
         billing_type: billing_type || 'comptant',
         discount_pct: String(discount_pct || 0),
       },
-      success_url: `${process.env.NEXT_PUBLIC_SITE_URL || 'https://ads-square.com'}/merci?slot=${anchorX}-${anchorY}&email=${encodeURIComponent(email)}`,
-      cancel_url: `${process.env.NEXT_PUBLIC_SITE_URL || 'https://ads-square.com'}?payment=cancelled`,
+      success_url: `${process.env.NEXT_PUBLIC_SITE_URL || 'https://adsmostfair.com'}/merci?slot=${anchorX}-${anchorY}&email=${encodeURIComponent(email)}`,
+      cancel_url: `${process.env.NEXT_PUBLIC_SITE_URL || 'https://adsmostfair.com'}?payment=cancelled`,
     });
 
     // Create a pending booking in Supabase

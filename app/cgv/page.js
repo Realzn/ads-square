@@ -1,5 +1,5 @@
 'use client';
-import { useT, LanguageSwitcher } from '../../lib/i18n';
+import { useT, LanguageSwitcher } from '../../lib/i18n/index';
 
 const C = { bg:'#01020A', card:'rgba(1,6,18,0.96)', border:'rgba(0,200,240,0.10)', text:'#DDE6F2', muted:'rgba(140,180,220,0.55)', cyan:'#00C8E4' };
 

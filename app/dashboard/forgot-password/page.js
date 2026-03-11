@@ -42,7 +42,7 @@ function ForgotContent() {
     <div style={{ maxWidth: 420, width: '100%' }}>
       <div style={{ textAlign: 'center', marginBottom: 32 }}>
         <Link href="/" style={{ fontSize: 22, fontWeight: 800, color: U.accent, textDecoration: 'none', letterSpacing: '0.06em', fontFamily: "'Clash Display',sans-serif" }}>
-          ADS-SQUARE
+          AdsMostFair
         </Link>
       </div>
 

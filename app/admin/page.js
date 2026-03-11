@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useT, LanguageSwitcher } from '../../lib/i18n';
+import { useT, LanguageSwitcher } from '../../lib/i18n/index';
 
 // ─── Design System · DYSON COSMOS ─────────────────────────────────────────
 const A = {

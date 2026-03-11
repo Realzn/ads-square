@@ -2,7 +2,7 @@ export default function NotFound() {
   return (
     <html lang="fr">
       <head>
-        <title>404 — Ce bloc n'existe pas · ADS-SQUARE</title>
+        <title>404 — Ce bloc n'existe pas · AdsMostFair</title>
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />

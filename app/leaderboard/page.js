@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { useT, LanguageSwitcher } from '../../lib/i18n';
+import { useT, LanguageSwitcher } from '../../lib/i18n/index';
 
 const C = { bg:'#01020A', card:'rgba(1,6,18,0.96)', border:'rgba(0,200,240,0.10)', border2:'rgba(0,200,240,0.22)', text:'#DDE6F2', muted:'rgba(140,180,220,0.55)', cyan:'#00C8E4', green:'#00D880', amber:'#E8A020', red:'#D02848', purple:'#9060C8' };
 const TIER_COLOR = { epicenter:'#f0b429', prestige:'#ff4d8f', elite:'#a855f7', business:'#00d9f5', standard:'#38bdf8', viral:'#00e8a2' };
