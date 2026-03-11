@@ -1,51 +1,41 @@
 // app/api/waitlist/route.js
-// Inscrit un email en waitlist + envoie un email de confirmation + notifie l'admin
+// Inscription en waitlist + email de bienvenue
 
 import { NextResponse } from 'next/server';
 import { createServiceClient } from '../../../lib/supabase-server';
-import { sendWaitlistConfirmation, sendWaitlistAdminNotification } from '../../../lib/emails';
+import { sendEmail } from '../../../lib/email';
 
 export const dynamic = 'force-dynamic';
 
 export async function POST(request) {
   try {
-    const { email, profile, lang } = await request.json();
+    const { email, profile } = await request.json();
 
-    if (!email || !email.includes('@') || !email.includes('.')) {
+    if (!email?.includes('@')) {
       return NextResponse.json({ error: 'Email invalide' }, { status: 400 });
     }
 
     const supabase = createServiceClient();
 
-    // Insert — ON CONFLICT DO NOTHING pour éviter les erreurs sur doublon
+    // Insérer (ou ignorer si déjà inscrit)
     const { error } = await supabase
       .from('waitlist')
-      .insert({ email: email.toLowerCase().trim(), profile: profile || null })
-      .select()
-      .single();
+      .upsert({ email: email.toLowerCase().trim(), profile: profile || null }, { onConflict: 'email' });
 
-    if (error) {
-      // Doublon (UNIQUE constraint) → pas une erreur pour l'utilisateur
-      if (error.code === '23505') {
-        return NextResponse.json({ ok: true, already: true });
-      }
-      console.error('[Waitlist] Insert error:', error.message);
-      return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
+    if (error && !error.message.includes('duplicate')) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    // Email de confirmation à l'utilisateur (non bloquant)
-    await sendWaitlistConfirmation({ to: email, lang: lang || 'fr' }).catch(e =>
-      console.error('[Waitlist] Confirmation email error:', e.message)
-    );
-
-    // Notification à l'équipe (non bloquant)
-    await sendWaitlistAdminNotification({ userEmail: email, profile }).catch(e =>
-      console.error('[Waitlist] Admin notification error:', e.message)
-    );
+    // Email de bienvenue séquencé
+    await sendEmail({
+      to: email,
+      subject: '🟦 Bienvenue sur AdsMostFair — votre place est réservée',
+      type: 'waitlist_welcome',
+      data: { profile: profile || 'creator' },
+    }).catch(() => {});
 
     return NextResponse.json({ ok: true });
   } catch (err) {
-    console.error('[Waitlist] Unexpected:', err);
-    return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
+    return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }

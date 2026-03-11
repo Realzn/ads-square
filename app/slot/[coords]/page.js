@@ -10,7 +10,7 @@ export async function generateMetadata({ params }) {
   const [xStr, yStr] = coords.split('-');
   const x = parseInt(xStr), y = parseInt(yStr);
 
-  const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://ads-square.com';
+  const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://adsmostfair.com';
 
   // Fetch slot data server-side for metadata
   try {
@@ -21,10 +21,10 @@ export async function generateMetadata({ params }) {
 
     if (booking) {
       return {
-        title: `${booking.display_name} · Slot [${x},${y}] · ADS-SQUARE`,
-        description: booking.slogan || `${booking.display_name} occupe le slot ${tier.toUpperCase()} [${x},${y}] sur ADS-SQUARE. ${booking.cta_text || 'Découvrir'}`,
+        title: `${booking.display_name} · Slot [${x},${y}] · AdsMostFair`,
+        description: booking.slogan || `${booking.display_name} occupe le slot ${tier.toUpperCase()} [${x},${y}] sur AdsMostFair. ${booking.cta_text || 'Découvrir'}`,
         openGraph: {
-          title: `${booking.display_name} sur ADS-SQUARE`,
+          title: `${booking.display_name} sur AdsMostFair`,
           description: booking.slogan || `Slot ${tier.toUpperCase()} occupé par ${booking.display_name}`,
           type: 'website',
           url: `${APP_URL}/slot/${coords}`,
@@ -32,7 +32,7 @@ export async function generateMetadata({ params }) {
         },
         twitter: {
           card: 'summary_large_image',
-          title: `${booking.display_name} · ADS-SQUARE`,
+          title: `${booking.display_name} · AdsMostFair`,
           description: booking.slogan || '',
         },
       };
@@ -40,11 +40,11 @@ export async function generateMetadata({ params }) {
   } catch (e) {}
 
   return {
-    title: `Slot [${x},${y}] · ADS-SQUARE`,
-    description: `Slot disponible à la réservation sur ADS-SQUARE, la grille publicitaire ouverte à tous. Réservez dès 1€/jour.`,
+    title: `Slot [${x},${y}] · AdsMostFair`,
+    description: `Slot disponible à la réservation sur AdsMostFair, la grille publicitaire ouverte à tous. Réservez dès 1€/jour.`,
     openGraph: {
-      title: `Slot [${x},${y}] disponible · ADS-SQUARE`,
-      description: `Réservez ce slot sur ADS-SQUARE dès 1€/jour.`,
+      title: `Slot [${x},${y}] disponible · AdsMostFair`,
+      description: `Réservez ce slot sur AdsMostFair dès 1€/jour.`,
       type: 'website',
       url: `${APP_URL}/slot/${coords}`,
       images: [{ url: `${APP_URL}/og.png`, width: 1200, height: 630 }],

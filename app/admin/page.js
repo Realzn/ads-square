@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { useT, LanguageSwitcher } from '../../lib/i18n';
 
 // ─── Design System · DYSON COSMOS ─────────────────────────────────────────
 const A = {
@@ -68,13 +69,15 @@ const GRID_TOTAL = 1296; // 36×36
 // ─── Helpers UI ────────────────────────────────────────────────────────────
 const fmt  = (c) => `€${(c / 100).toLocaleString('fr-FR', { minimumFractionDigits: 0 })}`;
 const fmtN = (n) => (n || 0).toLocaleString('fr-FR');
-const ago  = (dt) => {
+// ago() est fourni par useT().ago dans les composants React
+// Fallback statique pour les usages hors composant
+const agoFallback = (dt) => {
   if (!dt) return '—';
   const s = Math.floor((Date.now() - new Date(dt)) / 1000);
-  if (s < 60) return `il y a ${s}s`;
-  if (s < 3600) return `il y a ${Math.floor(s/60)}min`;
-  if (s < 86400) return `il y a ${Math.floor(s/3600)}h`;
-  return `il y a ${Math.floor(s/86400)}j`;
+  if (s < 60) return s + 's';
+  if (s < 3600) return Math.floor(s/60) + 'min';
+  if (s < 86400) return Math.floor(s/3600) + 'h';
+  return Math.floor(s/86400) + 'j';
 };
 
 function Badge({ label, color = A.muted, bg }) {
@@ -88,20 +91,22 @@ function Badge({ label, color = A.muted, bg }) {
   );
 }
 function StatusBadge({ status }) {
+  const { t } = useT();
   const map = {
-    active:    { label: 'ACTIF',      color: A.green },
-    pending:   { label: 'EN ATTENTE', color: A.accent },
-    expired:   { label: 'EXPIRÉ',     color: A.muted },
-    cancelled: { label: 'ANNULÉ',     color: A.red },
-    rejected:  { label: 'REJETÉ',     color: A.red },
-    accepted:  { label: 'ACCEPTÉ',    color: A.green },
+    active:    { key: 'status_active',    color: A.green },
+    pending:   { key: 'status_pending',   color: A.accent },
+    expired:   { key: 'status_expired',   color: A.muted },
+    cancelled: { key: 'status_cancelled', color: A.red },
+    rejected:  { key: 'status_rejected',  color: A.red },
+    accepted:  { key: 'status_accepted',  color: A.green },
   };
-  const { label, color } = map[status] || { label: status?.toUpperCase(), color: A.muted };
-  return <Badge label={label} color={color} />;
+  const m = map[status] || { key: null, color: A.muted };
+  return <Badge label={m.key ? t(m.key) : status?.toUpperCase()} color={m.color} />;
 }
 function TierBadge({ tier }) {
+  const { t } = useT();
   const c = TIER_COLOR[tier] || A.muted;
-  return <Badge label={TIER_LABEL[tier] || tier?.toUpperCase()} color={c} />;
+  return <Badge label={t('tier_' + tier) || tier?.toUpperCase()} color={c} />;
 }
 function Btn({ children, onClick, variant = 'primary', size = 'md', disabled, style: extra }) {
   const base = {
@@ -218,7 +223,7 @@ const useAdminAPI = (token) => {
   const call = useCallback(async (action, params = {}) => {
     const qs = new URLSearchParams({ action, ...params }).toString();
     const res = await fetch(`/api/admin?${qs}`, { headers: { 'x-admin-token': token } });
-    if (!res.ok) throw new Error((await res.json()).error || 'Erreur API');
+    if (!res.ok) throw new Error((await res.json()).error || 'API Error');
     return res.json();
   }, [token]);
 
@@ -228,7 +233,7 @@ const useAdminAPI = (token) => {
       headers: { 'Content-Type': 'application/json', 'x-admin-token': token },
       body: JSON.stringify(body),
     });
-    if (!res.ok) throw new Error((await res.json()).error || 'Erreur API');
+    if (!res.ok) throw new Error((await res.json()).error || 'API Error');
     return res.json();
   }, [token]);
 
@@ -260,26 +265,26 @@ function WaitlistLaunchSection({ api, waitlistStats }) {
 
   return (
     <div>
-      <SectionTitle>📧 Waitlist & Lancement</SectionTitle>
+      <SectionTitle>{t('wl_section')}</SectionTitle>
       <Card>
         <div style={{ display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap' }}>
           {/* Stats */}
           <div style={{ display: 'flex', gap: 16, flex: 1, flexWrap: 'wrap' }}>
             <div style={{ textAlign: 'center', minWidth: 80 }}>
               <div style={{ fontSize: 28, fontWeight: 800, color: A.accent, fontFamily: F.m }}>{ws.total || '—'}</div>
-              <div style={{ fontSize: 10, color: A.muted, letterSpacing: '.08em', marginTop: 4 }}>INSCRITS</div>
+              <div style={{ fontSize: 10, color: A.muted, letterSpacing: '.08em', marginTop: 4 }}>{t('wl_registered')}</div>
             </div>
             <div style={{ textAlign: 'center', minWidth: 80 }}>
               <div style={{ fontSize: 22, fontWeight: 700, color: A.cyan, fontFamily: F.m }}>{ws.brands || '—'}</div>
-              <div style={{ fontSize: 10, color: A.muted, letterSpacing: '.08em', marginTop: 4 }}>MARQUES</div>
+              <div style={{ fontSize: 10, color: A.muted, letterSpacing: '.08em', marginTop: 4 }}>{t('wl_brands')}</div>
             </div>
             <div style={{ textAlign: 'center', minWidth: 80 }}>
               <div style={{ fontSize: 22, fontWeight: 700, color: A.green, fontFamily: F.m }}>{ws.creators || '—'}</div>
-              <div style={{ fontSize: 10, color: A.muted, letterSpacing: '.08em', marginTop: 4 }}>CRÉATEURS</div>
+              <div style={{ fontSize: 10, color: A.muted, letterSpacing: '.08em', marginTop: 4 }}>{t('wl_creators')}</div>
             </div>
             <div style={{ textAlign: 'center', minWidth: 80 }}>
               <div style={{ fontSize: 22, fontWeight: 700, color: A.purple, fontFamily: F.m }}>{ws.freelancers || '—'}</div>
-              <div style={{ fontSize: 10, color: A.muted, letterSpacing: '.08em', marginTop: 4 }}>FREELANCES</div>
+              <div style={{ fontSize: 10, color: A.muted, letterSpacing: '.08em', marginTop: 4 }}>{t('wl_freelancers')}</div>
             </div>
           </div>
 
@@ -312,46 +317,46 @@ function WaitlistLaunchSection({ api, waitlistStats }) {
                   ⚠ CONFIRMER L'ENVOI
                 </div>
                 <div style={{ fontSize: 11, color: A.muted, marginBottom: 14 }}>
-                  Cela enverra un email à <strong style={{ color: A.text }}>{ws.total || '?'} personnes</strong> pour annoncer l'ouverture de la plateforme.
+                  {t('wl_confirm_desc', ws.total || '?')}
                 </div>
                 <div style={{ display: 'flex', gap: 8 }}>
                   <button
                     onClick={() => setStatus('idle')}
                     style={{ flex: 1, padding: '8px', background: 'transparent', border: `1px solid ${A.border}`, color: A.muted, fontSize: 11, fontFamily: F.m, cursor: 'pointer' }}
-                  >Annuler</button>
+                  >{t('wl_cancel')}</button>
                   <button
                     onClick={handleLaunch}
                     style={{ flex: 2, padding: '8px', background: A.accent, border: 'none', color: '#000', fontSize: 11, fontFamily: F.m, fontWeight: 800, cursor: 'pointer', letterSpacing: '.06em' }}
-                  >✓ CONFIRMER</button>
+                  >{t('wl_confirm_btn')}</button>
                 </div>
               </div>
             )}
 
             {status === 'sending' && (
               <div style={{ fontSize: 12, color: A.accent, fontFamily: F.m, letterSpacing: '.08em' }}>
-                ⏳ Envoi en cours…
+                ⏳ {t('wl_sending')}
               </div>
             )}
 
             {status === 'done' && result && (
               <div style={{ background: 'rgba(0,216,128,0.08)', border: `1px solid rgba(0,216,128,0.30)`, padding: '14px 16px', borderRadius: 4, minWidth: 200 }}>
-                <div style={{ fontSize: 12, color: A.green, fontWeight: 700, marginBottom: 8, letterSpacing: '.06em' }}>✓ ENVOI TERMINÉ</div>
+                <div style={{ fontSize: 12, color: A.green, fontWeight: 700, marginBottom: 8, letterSpacing: '.06em' }}>{t('wl_done_title')}</div>
                 <div style={{ fontSize: 11, color: A.muted }}>
-                  <span style={{ color: A.green }}>✓ {result.sent} envoyés</span>
-                  {result.errors > 0 && <span style={{ color: A.red }}> · ✗ {result.errors} erreurs</span>}
+                  <span style={{ color: A.green }}>{t('wl_done_sent', result.sent)}</span>
+                  {result.errors > 0 && <span style={{ color: A.red }}> · {t('wl_done_errors', result.errors)}</span>}
                 </div>
               </div>
             )}
 
             {status === 'error' && (
               <div style={{ fontSize: 11, color: A.red, fontFamily: F.m }}>
-                ✗ Erreur lors de l'envoi
-                <button onClick={() => setStatus('idle')} style={{ display: 'block', marginTop: 6, background: 'none', border: 'none', color: A.muted, cursor: 'pointer', fontSize: 11 }}>Réessayer</button>
+                {t('wl_error')}
+                <button onClick={() => setStatus('idle')} style={{ display: 'block', marginTop: 6, background: 'none', border: 'none', color: A.muted, cursor: 'pointer', fontSize: 11 }}>{t('wl_retry')}</button>
               </div>
             )}
 
             <div style={{ fontSize: 10, color: A.muted, fontFamily: F.m, letterSpacing: '.06em', textAlign: 'right' }}>
-              Email bilngue FR/EN · via Resend
+              {t('wl_bilingual')}
             </div>
           </div>
         </div>
@@ -388,16 +393,16 @@ function TabOverview({ api }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       <div>
-        <SectionTitle>💰 Revenus</SectionTitle>
+        <SectionTitle>{t('ov_revenue')}</SectionTitle>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12 }}>
-          <KPI label="Revenu Total"   value={fmt(s.total_revenue_cents || 0)} icon="💶" />
-          <KPI label="Ce mois"        value={fmt(s.revenue_this_month_cents || 0)} color={A.green} icon="📈" />
-          <KPI label="MRR"            value={fmt(s.mrr_cents || 0)} color={A.cyan} icon="🔄" />
-          <KPI label="Panier moyen"   value={s.total_bookings > 0 ? fmt(Math.round((s.total_revenue_cents || 0) / s.total_bookings)) : '—'} color={A.purple} icon="🛒" />
+          <KPI label={t('ov_kpi_total')}   value={fmt(s.total_revenue_cents || 0)} icon="💶" />
+          <KPI label={t('ov_kpi_month')}        value={fmt(s.revenue_this_month_cents || 0)} color={A.green} icon="📈" />
+          <KPI label={t('ov_kpi_mrr')}            value={fmt(s.mrr_cents || 0)} color={A.cyan} icon="🔄" />
+          <KPI label={t('ov_kpi_avg')}   value={s.total_bookings > 0 ? fmt(Math.round((s.total_revenue_cents || 0) / s.total_bookings)) : '—'} color={A.purple} icon="🛒" />
         </div>
       </div>
       <Card>
-        <div style={{ fontSize: 12, fontWeight: 700, color: A.muted, letterSpacing: '0.07em', marginBottom: 14 }}>REVENUS — 30 DERNIERS JOURS</div>
+        <div style={{ fontSize: 12, fontWeight: 700, color: A.muted, letterSpacing: '0.07em', marginBottom: 14 }}>{t('ov_chart_30d')}</div>
         <div style={{ display: 'flex', alignItems: 'flex-end', gap: 3, height: 80 }}>
           {days30.map((d, i) => {
             const h = Math.max(2, Math.round((d.revenue / maxRev) * 72));
@@ -406,18 +411,18 @@ function TabOverview({ api }) {
           })}
         </div>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6, color: A.muted, fontSize: 10 }}>
-          <span>-30j</span><span>aujourd'hui</span>
+          <span>{t('ov_chart_30j')}</span><span>{t('ov_chart_today')}</span>
         </div>
       </Card>
       <div>
-        <SectionTitle>📊 Plateforme</SectionTitle>
+        <SectionTitle>{t('ov_platform')}</SectionTitle>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12 }}>
-          <KPI label="Blocs Actifs"  value={fmtN(s.active_bookings)} color={A.green} icon="🟢"
-               sub={`sur ${GRID_TOTAL} · ${occPct}% d'occupation`} />
-          <KPI label="En attente"    value={fmtN(s.pending_bookings)} color={A.accent} icon="⏳" />
-          <KPI label="Utilisateurs"  value={fmtN(s.total_advertisers)} color={A.blue} icon="👤"
-               sub={`${s.active_advertisers} actifs`} />
-          <KPI label="Offres en att" value={fmtN(s.pending_offers)} color={A.orange} icon="🤝" />
+          <KPI label={t('ov_kpi_active')}  value={fmtN(s.active_bookings)} color={A.green} icon="🟢"
+               sub={`sur ${GRID_TOTAL} · ${t('ov_occupation', occPct)}`} />
+          <KPI label={t('ov_kpi_pending')}    value={fmtN(s.pending_bookings)} color={A.accent} icon="⏳" />
+          <KPI label={t('ov_kpi_users')}  value={fmtN(s.total_advertisers)} color={A.blue} icon="👤"
+               sub={t('ov_active_users', s.active_advertisers)} />
+          <KPI label={t('ov_kpi_offers')} value={fmtN(s.pending_offers)} color={A.orange} icon="🤝" />
         </div>
       </div>
 
@@ -426,7 +431,7 @@ function TabOverview({ api }) {
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
         <Card>
-          <div style={{ fontSize: 12, fontWeight: 700, color: A.muted, letterSpacing: '0.07em', marginBottom: 14 }}>OCCUPATION PAR TIER</div>
+          <div style={{ fontSize: 12, fontWeight: 700, color: A.muted, letterSpacing: '0.07em', marginBottom: 14 }}>{t('ov_chart_occupation')}</div>
           {tierStats.map(t => {
             const pct = parseFloat(t.occupancy_pct || 0);
             const c = TIER_COLOR[t.tier] || A.muted;
@@ -447,13 +452,13 @@ function TabOverview({ api }) {
           })}
         </Card>
         <Card>
-          <div style={{ fontSize: 12, fontWeight: 700, color: A.muted, letterSpacing: '0.07em', marginBottom: 14 }}>ENGAGEMENT</div>
+          <div style={{ fontSize: 12, fontWeight: 700, color: A.muted, letterSpacing: '0.07em', marginBottom: 14 }}>{t('ov_chart_engagement')}</div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
             {[
-              ['Clics totaux',  fmtN(s.total_clicks),       '🖱'],
-              ['Impressions',   fmtN(s.total_impressions),   '👁'],
-              ['CTR moyen',     s.total_impressions > 0 ? `${((s.total_clicks / s.total_impressions) * 100).toFixed(2)}%` : '—', '📊'],
-              ['Bookings total',fmtN(s.total_bookings),      '📋'],
+              [t('ov_clicks_total'),  fmtN(s.total_clicks),       '🖱'],
+              [t('ov_impressions'),   fmtN(s.total_impressions),   '👁'],
+              [t('ov_ctr_avg'),     s.total_impressions > 0 ? `${((s.total_clicks / s.total_impressions) * 100).toFixed(2)}%` : '—', '📊'],
+              [t('ov_bookings_total'),fmtN(s.total_bookings),      '📋'],
             ].map(([label, val, icon]) => (
               <div key={label} style={{ padding: '12px', borderRadius: 8, background: A.s2, border: `1px solid ${A.border}` }}>
                 <div style={{ fontSize: 18, marginBottom: 4 }}>{icon}</div>
@@ -472,6 +477,7 @@ function TabOverview({ api }) {
 // TAB : RÉSERVATIONS
 // ══════════════════════════════════════════════════════════════════════════
 function TabBookings({ api, onToast }) {
+  const { t } = useT();
   const [bookings,       setBookings]       = useState([]);
   const [loading,        setLoading]        = useState(true);
   const [search,         setSearch]         = useState('');
@@ -497,7 +503,7 @@ function TabBookings({ api, onToast }) {
     setActionLoading(true);
     try {
       await api.post({ action, bookingId: selected.id, reason, extraDays: parseInt(extraDays), ...extra });
-      onToast({ msg: 'Action effectuée ✓', type: 'success' });
+      onToast({ msg: t('bk_action_done'), type: 'success' });
       setModal(null); setSelected(null); setReason('');
       load();
     } catch (e) { onToast({ msg: e.message, type: 'error' }); }
@@ -516,14 +522,14 @@ function TabBookings({ api, onToast }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
-        <Input value={search} onChange={setSearch} placeholder="🔍 Nom, email…" style={{ maxWidth: 260 }} />
+        <Input value={search} onChange={setSearch} placeholder={t("bk_search")} style={{ maxWidth: 260 }} />
         <div style={{ display: 'flex', gap: 6, background: A.s1, padding: '4px', borderRadius: 8 }}>
-          {[['all','Tous'],['active','Actifs'],['pending','En attente'],['expired','Expirés'],['cancelled','Annulés']].map(([v,l]) =>
+          {[[t('bk_all'),'all'],[t('bk_active'),'active'],[t('bk_pending'),'pending'],[t('bk_expired'),'expired'],[t('bk_cancelled'),'cancelled']].map(([v,l]) =>
             <StatusFilter key={v} val={v} label={l} />
           )}
         </div>
         <div style={{ display: 'flex', gap: 6, background: A.s1, padding: '4px', borderRadius: 8 }}>
-          {[['all','Tiers'],...TIER_ORDER.map(t => [t, TIER_LABEL[t]])].map(([v,l]) => (
+          {[[t('bk_tiers'),'all'],...TIER_ORDER.map(tr => [t('tier_' + tr), tr])].map(([v,l]) => (
             <button key={v} onClick={() => setTierFilter(v)} style={{
               padding: '5px 10px', borderRadius: 6, fontSize: 11, fontWeight: 600,
               cursor: 'pointer', fontFamily: F.b, border: 'none',
@@ -532,23 +538,23 @@ function TabBookings({ api, onToast }) {
             }}>{l}</button>
           ))}
         </div>
-        <div style={{ marginLeft: 'auto', color: A.muted, fontSize: 12 }}>{bookings.length} résultats</div>
+        <div style={{ marginLeft: 'auto', color: A.muted, fontSize: 12 }}>{t('bk_results', bookings.length)}</div>
       </div>
 
       <Card style={{ padding: 0, overflow: 'auto' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
           <thead>
             <tr style={{ borderBottom: `1px solid ${A.border2}` }}>
-              {['Slot','Annonceur','Tier','Statut','Période','Montant','Clics','Offres','Actions'].map(h => (
+              {[t('bk_col_slot'),t('bk_col_advertiser'),t('bk_col_tier'),t('bk_col_status'),t('bk_col_period'),t('bk_col_amount'),t('bk_col_clicks'),t('bk_col_offers'),t('bk_col_actions')].map(h => (
                 <th key={h} style={{ padding: '12px 14px', textAlign: 'left', color: A.muted, fontWeight: 600, fontSize: 10, letterSpacing: '0.07em', whiteSpace: 'nowrap' }}>{h.toUpperCase()}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={9} style={{ padding: 40, textAlign: 'center', color: A.muted }}>Chargement…</td></tr>
+              <tr><td colSpan={9} style={{ padding: 40, textAlign: 'center', color: A.muted }}>{t('bk_loading')}</td></tr>
             ) : bookings.length === 0 ? (
-              <tr><td colSpan={9} style={{ padding: 40, textAlign: 'center', color: A.muted }}>Aucun résultat</td></tr>
+              <tr><td colSpan={9} style={{ padding: 40, textAlign: 'center', color: A.muted }}>{t('bk_empty')}</td></tr>
             ) : bookings.map((b, i) => (
               <tr key={b.id} style={{
                 borderBottom: `1px solid ${A.border}`,
@@ -564,16 +570,16 @@ function TabBookings({ api, onToast }) {
                 <td style={{ padding: '10px 14px' }}><StatusBadge status={b.status} /></td>
                 <td style={{ padding: '10px 14px', color: A.muted, fontSize: 11, whiteSpace: 'nowrap' }}>
                   {b.start_date} → {b.end_date}
-                  {b.days_remaining > 0 && <div style={{ color: b.days_remaining <= 7 ? A.orange : A.green, fontSize: 10 }}>J-{b.days_remaining}</div>}
+                  {b.days_remaining > 0 && <div style={{ color: b.days_remaining <= 7 ? A.orange : A.green, fontSize: 10 }}>{t('bk_days_left', b.days_remaining)}</div>}
                 </td>
                 <td style={{ padding: '10px 14px', color: A.accent, fontWeight: 700, fontFamily: F.h }}>{fmt(b.amount_cents)}</td>
                 <td style={{ padding: '10px 14px', color: A.muted }}>
-                  <div>{fmtN(b.clicks_total)} clics</div>
+                  <div>{fmtN(b.clicks_total)} {t('bk_clicks')}</div>
                   <div style={{ fontSize: 10 }}>{b.ctr_pct}% CTR</div>
                 </td>
                 <td style={{ padding: '10px 14px' }}>
                   {b.pending_offers > 0
-                    ? <Badge label={`${b.pending_offers} offre${b.pending_offers > 1 ? 's' : ''}`} color={A.orange} />
+                    ? <Badge label={t('bk_offers_badge', b.pending_offers)} color={A.orange} />
                     : <span style={{ color: A.muted }}>—</span>}
                 </td>
                 <td style={{ padding: '10px 14px' }}>
@@ -596,40 +602,40 @@ function TabBookings({ api, onToast }) {
       </Card>
 
       {modal === 'cancel' && selected && (
-        <Modal title={`Annuler — ${selected.display_name}`} onClose={() => { setModal(null); setReason(''); }}>
-          <p style={{ color: A.muted, marginBottom: 16, fontSize: 13 }}>Le slot sera libéré immédiatement.</p>
-          <Input value={reason} onChange={setReason} placeholder="Raison (optionnel)" style={{ marginBottom: 16 }} />
+        <Modal title={t('bk_modal_cancel_title', selected.display_name)} onClose={() => { setModal(null); setReason(''); }}>
+          <p style={{ color: A.muted, marginBottom: 16, fontSize: 13 }}>{t('bk_modal_cancel_desc')}</p>
+          <Input value={reason} onChange={setReason} placeholder={t("bk_modal_cancel_reason")} style={{ marginBottom: 16 }} />
           <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-            <Btn variant="ghost" onClick={() => setModal(null)}>Annuler</Btn>
+            <Btn variant="ghost" onClick={() => setModal(null)}>{t('cancel')}</Btn>
             <Btn variant="danger" onClick={() => doAction('cancel_booking')} disabled={actionLoading}>
-              {actionLoading ? '…' : "Confirmer l'annulation"}
+              {actionLoading ? '…' : t('bk_modal_cancel_confirm')}
             </Btn>
           </div>
         </Modal>
       )}
       {modal === 'extend' && selected && (
-        <Modal title={`Prolonger — ${selected.display_name}`} onClose={() => setModal(null)}>
-          <p style={{ color: A.muted, marginBottom: 16, fontSize: 13 }}>Fin actuelle : <strong style={{ color: A.text }}>{selected.end_date}</strong></p>
+        <Modal title={t('bk_modal_extend_title', selected.display_name)} onClose={() => setModal(null)}>
+          <p style={{ color: A.muted, marginBottom: 16, fontSize: 13 }}>{t('bk_modal_extend_end', selected.end_date)}</p>
           <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
             {[7,14,30,60,90].map(n => (
               <Btn key={n} size="sm" variant={extraDays === String(n) ? 'primary' : 'ghost'} onClick={() => setExtraDays(String(n))}>+{n}j</Btn>
             ))}
           </div>
           <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-            <Btn variant="ghost" onClick={() => setModal(null)}>Annuler</Btn>
+            <Btn variant="ghost" onClick={() => setModal(null)}>{t('cancel')}</Btn>
             <Btn variant="success" onClick={() => doAction('extend_booking')} disabled={actionLoading}>
-              {actionLoading ? '…' : `Prolonger de ${extraDays} jours`}
+              {actionLoading ? '…' : t('bk_modal_extend_confirm', extraDays)}
             </Btn>
           </div>
         </Modal>
       )}
       {modal === 'activate' && selected && (
-        <Modal title={`Forcer activation — ${selected.display_name}`} onClose={() => setModal(null)}>
-          <p style={{ color: A.muted, marginBottom: 20, fontSize: 13 }}>Passer de <strong style={{ color: A.accent }}>En attente</strong> → <strong style={{ color: A.green }}>Actif</strong> sans paiement Stripe.</p>
+        <Modal title={t('bk_modal_activate_title', selected.display_name)} onClose={() => setModal(null)}>
+          <p style={{ color: A.muted, marginBottom: 20, fontSize: 13 }}>{t('bk_modal_activate_desc')}</p>
           <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-            <Btn variant="ghost" onClick={() => setModal(null)}>Annuler</Btn>
+            <Btn variant="ghost" onClick={() => setModal(null)}>{t('cancel')}</Btn>
             <Btn variant="success" onClick={() => doAction('activate_booking')} disabled={actionLoading}>
-              {actionLoading ? '…' : 'Forcer actif'}
+              {actionLoading ? '…' : t('bk_modal_activate_confirm')}
             </Btn>
           </div>
         </Modal>
@@ -642,6 +648,7 @@ function TabBookings({ api, onToast }) {
 // TAB : UTILISATEURS
 // ══════════════════════════════════════════════════════════════════════════
 function TabUsers({ api, onToast }) {
+  const { t, ago } = useT();
   const [users,         setUsers]         = useState([]);
   const [loading,       setLoading]       = useState(true);
   const [search,        setSearch]        = useState('');
@@ -660,7 +667,7 @@ function TabUsers({ api, onToast }) {
     setActionLoading(true);
     try {
       await api.post({ action, userId: selected.id, note: noteText, ...extra });
-      onToast({ msg: 'Utilisateur mis à jour ✓', type: 'success' });
+      onToast({ msg: t('usr_updated'), type: 'success' });
       load();
       setSelected(prev => prev ? { ...prev, is_suspended: action === 'suspend_user' } : null);
     } catch (e) { onToast({ msg: e.message, type: 'error' }); }
@@ -673,24 +680,24 @@ function TabUsers({ api, onToast }) {
     <div style={{ display: 'flex', gap: 16 }}>
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 12 }}>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-          <Input value={search} onChange={setSearch} placeholder="🔍 Email, nom…" style={{ maxWidth: 280 }} />
-          {[['all','Tous'],['active','Actifs'],['suspended','Suspendus']].map(([v,l]) => (
+          <Input value={search} onChange={setSearch} placeholder={t("usr_search")} style={{ maxWidth: 280 }} />
+          {[[t('usr_all'),'all'],[t('usr_active'),'active'],[t('usr_suspended'),'suspended']].map(([v,l]) => (
             <Btn key={v} size="sm" variant={filter === v ? 'primary' : 'ghost'} onClick={() => setFilter(v)}>{l}</Btn>
           ))}
-          <div style={{ marginLeft: 'auto', color: A.muted, fontSize: 12 }}>{users.length} utilisateurs</div>
+          <div style={{ marginLeft: 'auto', color: A.muted, fontSize: 12 }}>{t('usr_count', users.length)}</div>
         </div>
         <Card style={{ padding: 0, overflow: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
             <thead>
               <tr style={{ borderBottom: `1px solid ${A.border2}` }}>
-                {['Utilisateur','Type','Bookings','LTV','Dernière activité','Statut'].map(h => (
+                {[t('usr_col_user'),t('usr_col_type'),t('usr_col_bookings'),t('usr_col_ltv'),t('usr_col_activity'),t('usr_col_status')].map(h => (
                   <th key={h} style={{ padding: '12px 14px', textAlign: 'left', color: A.muted, fontWeight: 600, fontSize: 10, letterSpacing: '0.07em' }}>{h.toUpperCase()}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={6} style={{ padding: 40, textAlign: 'center', color: A.muted }}>Chargement…</td></tr>
+                <tr><td colSpan={6} style={{ padding: 40, textAlign: 'center', color: A.muted }}>{t('loading')}</td></tr>
               ) : users.map((u, i) => (
                 <tr key={u.id} style={{
                   borderBottom: `1px solid ${A.border}`,
@@ -703,15 +710,15 @@ function TabUsers({ api, onToast }) {
                   </td>
                   <td style={{ padding: '10px 14px' }}><Badge label={u.profile_type?.toUpperCase()} color={PROFILE_COLOR[u.profile_type] || A.muted} /></td>
                   <td style={{ padding: '10px 14px' }}>
-                    <div style={{ color: A.text }}>{u.active_bookings} actifs</div>
-                    <div style={{ color: A.muted, fontSize: 10 }}>{u.total_bookings} total</div>
+                    <div style={{ color: A.text }}>{t('usr_active_bk', u.active_bookings)}</div>
+                    <div style={{ color: A.muted, fontSize: 10 }}>{t('usr_total_bk', u.total_bookings)}</div>
                   </td>
                   <td style={{ padding: '10px 14px', color: A.accent, fontWeight: 700, fontFamily: F.h }}>{fmt(u.lifetime_value_cents)}</td>
                   <td style={{ padding: '10px 14px', color: A.muted, fontSize: 11 }}>{ago(u.last_booking_at)}</td>
                   <td style={{ padding: '10px 14px' }}>
-                    {u.is_suspended ? <Badge label="SUSPENDU" color={A.red} />
-                      : u.active_bookings > 0 ? <Badge label="ACTIF" color={A.green} />
-                      : <Badge label="INACTIF" color={A.muted} />}
+                    {u.is_suspended ? <Badge label={t('status_suspended')} color={A.red} />
+                      : u.active_bookings > 0 ? <Badge label={t('status_active')} color={A.green} />
+                      : <Badge label={t('status_inactive')} color={A.muted} />}
                   </td>
                 </tr>
               ))}
@@ -731,7 +738,7 @@ function TabUsers({ api, onToast }) {
               <button onClick={() => setSelected(null)} style={{ background: 'none', border: 'none', color: A.muted, cursor: 'pointer', fontSize: 16 }}>✕</button>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-              {[['LTV',fmt(selected.lifetime_value_cents)],['Bookings',`${selected.total_bookings}`],['Actifs',`${selected.active_bookings}`],['Expirés',`${selected.expired_bookings}`]].map(([l,v]) => (
+              {[['LTV',fmt(selected.lifetime_value_cents)],[t('usr_col_bookings'),`${selected.total_bookings}`],[t('status_active'),`${selected.active_bookings}`],[t('status_expired'),`${selected.expired_bookings||0}`]].map(([l,v]) => (
                 <div key={l} style={{ padding: '10px', background: A.s2, borderRadius: 8, border: `1px solid ${A.border}` }}>
                   <div style={{ fontSize: 10, color: A.muted, marginBottom: 3 }}>{l}</div>
                   <div style={{ fontWeight: 700, color: A.text, fontFamily: F.h }}>{v}</div>
@@ -740,24 +747,24 @@ function TabUsers({ api, onToast }) {
             </div>
             {selected.stripe_customer_id && (
               <div style={{ padding: '8px 10px', background: A.s2, borderRadius: 8, border: `1px solid ${A.border}` }}>
-                <div style={{ fontSize: 10, color: A.muted, marginBottom: 2 }}>Stripe Customer</div>
+                <div style={{ fontSize: 10, color: A.muted, marginBottom: 2 }}>{t('usr_stripe')}</div>
                 <a href={`https://dashboard.stripe.com/customers/${selected.stripe_customer_id}`} target="_blank" rel="noreferrer"
                   style={{ color: A.cyan, fontSize: 11, fontFamily: F.m }}>{selected.stripe_customer_id.slice(0, 24)}…</a>
               </div>
             )}
             <div>
-              <div style={{ fontSize: 10, color: A.muted, marginBottom: 6, fontWeight: 600, letterSpacing: '0.07em' }}>NOTE ADMIN</div>
-              <textarea value={noteText} onChange={e => setNoteText(e.target.value)} placeholder="Ajouter une note interne…"
+              <div style={{ fontSize: 10, color: A.muted, marginBottom: 6, fontWeight: 600, letterSpacing: '0.07em' }}>{t('usr_note_label')}</div>
+              <textarea value={noteText} onChange={e => setNoteText(e.target.value)} placeholder={t("usr_note_placeholder")}
                 style={{ width: '100%', background: A.s1, border: `1px solid ${A.border2}`, borderRadius: 7, color: A.text, fontFamily: F.b, fontSize: 12, padding: '8px 10px', outline: 'none', resize: 'vertical', minHeight: 80, boxSizing: 'border-box' }} />
               <Btn size="sm" variant="ghost" style={{ marginTop: 6, width: '100%', justifyContent: 'center' }}
-                onClick={() => doAction('update_user_note')} disabled={actionLoading}>Enregistrer la note</Btn>
+                onClick={() => doAction('update_user_note')} disabled={actionLoading}>{t('usr_save_note')}</Btn>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {selected.is_suspended
-                ? <Btn variant="success" onClick={() => doAction('unsuspend_user')} disabled={actionLoading}>✓ Réactiver le compte</Btn>
-                : <Btn variant="danger" onClick={() => doAction('suspend_user', { note: noteText })} disabled={actionLoading}>⊗ Suspendre le compte</Btn>}
+                ? <Btn variant="success" onClick={() => doAction('unsuspend_user')} disabled={actionLoading}>{t('usr_unsuspend')}</Btn>
+                : <Btn variant="danger" onClick={() => doAction('suspend_user', { note: noteText })} disabled={actionLoading}>{t('usr_suspend')}</Btn>}
               <div style={{ fontSize: 10, color: A.muted, textAlign: 'center' }}>
-                Membre depuis {selected.created_at ? new Date(selected.created_at).toLocaleDateString('fr-FR') : '—'}
+                {t('usr_since', selected.created_at ? new Date(selected.created_at).toLocaleDateString(lang==='en'?'en-GB':'fr-FR') : '—')}
               </div>
             </div>
           </Card>
@@ -771,6 +778,7 @@ function TabUsers({ api, onToast }) {
 // TAB : OFFRES DE RACHAT
 // ══════════════════════════════════════════════════════════════════════════
 function TabOffers({ api, onToast }) {
+  const { t, ago } = useT();
   const [offers, setOffers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
@@ -780,7 +788,7 @@ function TabOffers({ api, onToast }) {
     setActionLoading(true);
     try {
       await api.post({ action: 'resolve_offer', offerId, resolution });
-      onToast({ msg: `Offre ${resolution === 'accepted' ? 'acceptée' : 'rejetée'} ✓`, type: 'success' });
+      onToast({ msg: resolution==='accepted' ? t('of_toast_accepted') : t('of_toast_rejected'), type: 'success' });
       load();
     } catch (e) { onToast({ msg: e.message, type: 'error' }); }
     finally { setActionLoading(false); }
@@ -796,21 +804,21 @@ function TabOffers({ api, onToast }) {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
           <div>
             <div style={{ fontWeight: 700, fontSize: 14, color: A.text, fontFamily: F.h }}>{fmt(offer.offer_amount_cents)}</div>
-            <div style={{ color: A.muted, fontSize: 11, marginTop: 2 }}>par {offer.buyer_name || offer.buyer_email}</div>
+            <div style={{ color: A.muted, fontSize: 11, marginTop: 2 }}>{t('of_by')} {offer.buyer_name || offer.buyer_email}</div>
           </div>
           <StatusBadge status={offer.status} />
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 10, fontSize: 11 }}>
-          <div style={{ color: A.muted }}>Slot <span style={{ color: A.cyan, fontFamily: F.m }}>({b.slot_x},{b.slot_y})</span></div>
-          <div style={{ color: A.muted }}>Occupant : <span style={{ color: A.text }}>{b.display_name}</span></div>
-          <div style={{ color: A.muted }}>Email : <span style={{ color: A.text, fontSize: 10 }}>{offer.buyer_email}</span></div>
-          {expiresIn !== null && <div style={{ color: expiresIn < 6 ? A.red : A.muted }}>Expire dans : <span style={{ color: A.text }}>{expiresIn}h</span></div>}
+          <div style={{ color: A.muted }}>{t('of_slot')} <span style={{ color: A.cyan, fontFamily: F.m }}>({b.slot_x},{b.slot_y})</span></div>
+          <div style={{ color: A.muted }}>{t('of_occupant')} : <span style={{ color: A.text }}>{b.display_name}</span></div>
+          <div style={{ color: A.muted }}>{t('of_email')} : <span style={{ color: A.text, fontSize: 10 }}>{offer.buyer_email}</span></div>
+          {expiresIn !== null && <div style={{ color: expiresIn < 6 ? A.red : A.muted }}>{t('of_expires')} : <span style={{ color: A.text }}>{expiresIn}{t('of_hours')}</span></div>}
         </div>
         {offer.message && <div style={{ padding: '8px 10px', background: A.s2, borderRadius: 7, fontSize: 11, color: A.muted, marginBottom: 10, fontStyle: 'italic' }}>"{offer.message}"</div>}
         {isPending && (
           <div style={{ display: 'flex', gap: 8 }}>
-            <Btn size="sm" variant="success" onClick={() => resolve(offer.id, 'accepted')} disabled={actionLoading}>✓ Accepter</Btn>
-            <Btn size="sm" variant="danger"  onClick={() => resolve(offer.id, 'rejected')} disabled={actionLoading}>✕ Rejeter</Btn>
+            <Btn size="sm" variant="success" onClick={() => resolve(offer.id, 'accepted')} disabled={actionLoading}>{t('of_accept')}</Btn>
+            <Btn size="sm" variant="danger"  onClick={() => resolve(offer.id, 'rejected')} disabled={actionLoading}>{t('of_reject')}</Btn>
           </div>
         )}
         <div style={{ marginTop: 8, fontSize: 10, color: A.muted }}>{ago(offer.created_at)}</div>
@@ -820,13 +828,13 @@ function TabOffers({ api, onToast }) {
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
       <div>
-        <SectionTitle>⏳ En attente ({groups.pending.length})</SectionTitle>
+        <SectionTitle>{t('of_pending', groups.pending.length)}</SectionTitle>
         {loading ? <LoadingSpinner /> : groups.pending.length === 0
-          ? <div style={{ color: A.muted, fontSize: 13, padding: 20, textAlign: 'center' }}>Aucune offre en attente</div>
+          ? <div style={{ color: A.muted, fontSize: 13, padding: 20, textAlign: 'center' }}>{t('of_empty_pending')}</div>
           : groups.pending.map(o => <OfferCard key={o.id} offer={o} />)}
       </div>
       <div>
-        <SectionTitle>📋 Historique</SectionTitle>
+        <SectionTitle>{t('of_history')}</SectionTitle>
         {[...groups.accepted, ...groups.rejected, ...groups.expired].slice(0, 20).map(o => <OfferCard key={o.id} offer={o} />)}
       </div>
     </div>
@@ -837,6 +845,7 @@ function TabOffers({ api, onToast }) {
 // TAB : REVENUS
 // ══════════════════════════════════════════════════════════════════════════
 function TabRevenue({ api }) {
+  const { t } = useT();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   useEffect(() => { api.call('revenue').then(setData).finally(() => setLoading(false)); }, []);
@@ -856,7 +865,7 @@ function TabRevenue({ api }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       <Card>
-        <div style={{ fontSize: 12, fontWeight: 700, color: A.muted, letterSpacing: '0.07em', marginBottom: 16 }}>REVENU PAR MOIS</div>
+        <div style={{ fontSize: 12, fontWeight: 700, color: A.muted, letterSpacing: '0.07em', marginBottom: 16 }}>{t('rev_monthly')}</div>
         <div style={{ display: 'flex', gap: 6, alignItems: 'flex-end', height: 120 }}>
           {monthEntries.map(([month, { total }]) => {
             const h = Math.max(4, Math.round((total / maxMonthly) * 112));
@@ -872,7 +881,7 @@ function TabRevenue({ api }) {
       </Card>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
         <Card>
-          <div style={{ fontSize: 12, fontWeight: 700, color: A.muted, letterSpacing: '0.07em', marginBottom: 14 }}>REVENU PAR TIER</div>
+          <div style={{ fontSize: 12, fontWeight: 700, color: A.muted, letterSpacing: '0.07em', marginBottom: 14 }}>{t('rev_by_tier')}</div>
           {TIER_ORDER.filter(t => tierRevenue[t]).map(tier => {
             const c = TIER_COLOR[tier];
             return (
@@ -884,13 +893,13 @@ function TabRevenue({ api }) {
           })}
         </Card>
         <Card>
-          <div style={{ fontSize: 12, fontWeight: 700, color: A.muted, letterSpacing: '0.07em', marginBottom: 14 }}>TOP 10 CLIENTS</div>
+          <div style={{ fontSize: 12, fontWeight: 700, color: A.muted, letterSpacing: '0.07em', marginBottom: 14 }}>{t('rev_top_clients')}</div>
           {topSpenders.map((u, i) => (
             <div key={u.email} style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8, padding: '8px 10px', background: A.s2, borderRadius: 8 }}>
               <div style={{ width: 22, height: 22, borderRadius: '50%', background: `${A.accent}20`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: A.accent }}>{i + 1}</div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontWeight: 600, color: A.text, fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{u.display_name}</div>
-                <div style={{ color: A.muted, fontSize: 10 }}>{u.total_bookings} booking{u.total_bookings > 1 ? 's' : ''}</div>
+                <div style={{ color: A.muted, fontSize: 10 }}>{t('rev_bookings', u.total_bookings)}</div>
               </div>
               <div style={{ fontWeight: 700, color: A.accent, fontFamily: F.h, fontSize: 13 }}>{fmt(u.lifetime_value_cents)}</div>
             </div>
@@ -905,6 +914,7 @@ function TabRevenue({ api }) {
 // TAB : ANALYTICS
 // ══════════════════════════════════════════════════════════════════════════
 function TabAnalytics({ api }) {
+  const { t } = useT();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   useEffect(() => { api.call('analytics').then(setData).finally(() => setLoading(false)); }, []);
@@ -936,7 +946,7 @@ function TabAnalytics({ api }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       <Card>
-        <div style={{ fontSize: 12, fontWeight: 700, color: A.muted, letterSpacing: '0.07em', marginBottom: 16 }}>CLICS — 14 DERNIERS JOURS</div>
+        <div style={{ fontSize: 12, fontWeight: 700, color: A.muted, letterSpacing: '0.07em', marginBottom: 16 }}>{t('an_clicks_14d')}</div>
         <div style={{ display: 'flex', gap: 4, alignItems: 'flex-end', height: 80 }}>
           {days14.map((d, i) => {
             const h = Math.max(2, Math.round((d.clicks / maxClicks) * 72));
@@ -952,8 +962,8 @@ function TabAnalytics({ api }) {
       </Card>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
         <Card>
-          <div style={{ fontSize: 12, fontWeight: 700, color: A.muted, letterSpacing: '0.07em', marginBottom: 14 }}>TOP 20 SLOTS PAR CTR</div>
-          {topSlots.length === 0 ? <div style={{ color: A.muted, fontSize: 12 }}>Pas de données</div>
+          <div style={{ fontSize: 12, fontWeight: 700, color: A.muted, letterSpacing: '0.07em', marginBottom: 14 }}>{t('an_top_slots')}</div>
+          {topSlots.length === 0 ? <div style={{ color: A.muted, fontSize: 12 }}>{t('an_no_slots')}</div>
             : topSlots.map((s, i) => (
               <div key={`${s.slot_x}-${s.slot_y}`} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', borderRadius: 8, marginBottom: 6, background: A.s2, border: `1px solid ${A.border}` }}>
                 <div style={{ width: 20, textAlign: 'right', color: A.muted, fontSize: 11, fontWeight: 700 }}>{i + 1}</div>
@@ -965,13 +975,13 @@ function TabAnalytics({ api }) {
             ))}
         </Card>
         <Card>
-          <div style={{ fontSize: 12, fontWeight: 700, color: A.muted, letterSpacing: '0.07em', marginBottom: 14 }}>TOP SOURCES (30j)</div>
+          <div style={{ fontSize: 12, fontWeight: 700, color: A.muted, letterSpacing: '0.07em', marginBottom: 14 }}>{t('an_top_sources')}</div>
           {refEntries.length === 0 ? <div style={{ color: A.muted, fontSize: 12 }}>Pas encore de données referrer</div>
             : refEntries.map(([domain, count]) => (
               <div key={domain} style={{ marginBottom: 10 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
                   <div style={{ fontSize: 12, color: A.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '70%' }}>{domain}</div>
-                  <div style={{ fontSize: 11, color: A.muted }}>{count} clics</div>
+                  <div style={{ fontSize: 11, color: A.muted }}>{t('an_clicks_unit', count)}</div>
                 </div>
                 <div style={{ height: 4, background: A.border, borderRadius: 2 }}>
                   <div style={{ height: 4, borderRadius: 2, width: `${(count / maxRef) * 100}%`, background: A.purple }} />
@@ -988,6 +998,7 @@ function TabAnalytics({ api }) {
 // TAB : CONFIGURATION — tiers + blocs individuels
 // ══════════════════════════════════════════════════════════════════════════
 function TabConfig({ api, onToast }) {
+  const { t, ago } = useT();
   const [tiers,         setTiers]         = useState([]);
   const [overrides,     setOverrides]     = useState([]); // blocs désactivés individuellement
   const [audit,         setAudit]         = useState([]);
@@ -1010,8 +1021,7 @@ function TabConfig({ api, onToast }) {
         // Ensure all 6 tiers are shown even if not yet in DB
         const merged = TIER_ORDER.map(tier => dbTierMap[tier] || {
           tier,
-          available:   ['business','standard','viral'].includes(tier),
-          label:       TIER_LABEL[tier],
+          available: ['business','standard','viral'].includes(tier),
           price_cents: { epicenter:100000,prestige:10000,elite:5000,business:1000,standard:300,viral:100 }[tier],
         });
         setTiers(merged);
@@ -1026,8 +1036,8 @@ function TabConfig({ api, onToast }) {
     setToggling(tier);
     try {
       await api.post({ action: 'update_tier', tier, available: !currentAvailable });
-      setTiers(prev => prev.map(t => t.tier === tier ? { ...t, available: !currentAvailable } : t));
-      onToast({ msg: `Tier ${TIER_LABEL[tier]} ${!currentAvailable ? '🟢 ouvert' : '🔒 fermé'} ✓`, type: 'success' });
+      setTiers(prev => prev.map(ti => ti.tier === tier ? { ...ti, available: !currentAvailable } : ti));
+      onToast({ msg: !currentAvailable ? t('cfg_toast_opened', t('tier_' + tier)) : t('cfg_toast_closed', t('tier_' + tier)), type: 'success' });
     } catch (e) { onToast({ msg: e.message, type: 'error' }); }
     finally { setToggling(null); }
   };
@@ -1035,12 +1045,12 @@ function TabConfig({ api, onToast }) {
   const disableSlot = async () => {
     const x = parseInt(slotX), y = parseInt(slotY);
     if (!x || !y || x < 1 || x > 36 || y < 1 || y > 36) {
-      onToast({ msg: 'Coordonnées invalides (1–36)', type: 'error' }); return;
+      onToast({ msg: t('cfg_invalid_coords'), type: 'error' }); return;
     }
     setSlotLoading(true);
     try {
       await api.post({ action: 'disable_slot', slotX: x, slotY: y, reason: slotReason });
-      onToast({ msg: `Bloc (${x},${y}) désactivé ✓`, type: 'success' });
+      onToast({ msg: t('cfg_slot_disabled_toast', x, y), type: 'success' });
       setSlotX(''); setSlotY(''); setSlotReason('');
       loadAll();
     } catch (e) { onToast({ msg: e.message, type: 'error' }); }
@@ -1052,7 +1062,7 @@ function TabConfig({ api, onToast }) {
     setRemovingSlot(key);
     try {
       await api.post({ action: 'enable_slot', slotX: x, slotY: y });
-      onToast({ msg: `Bloc (${x},${y}) réactivé ✓`, type: 'success' });
+      onToast({ msg: t('cfg_slot_enabled_toast', x, y), type: 'success' });
       setOverrides(prev => prev.filter(o => !(o.slot_x === x && o.slot_y === y)));
     } catch (e) { onToast({ msg: e.message, type: 'error' }); }
     finally { setRemovingSlot(null); }
@@ -1067,23 +1077,23 @@ function TabConfig({ api, onToast }) {
       <Card>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
           <div>
-            <div style={{ fontSize: 14, fontWeight: 800, color: A.text, fontFamily: F.h, marginBottom: 2 }}>Ouverture progressive des tiers</div>
-            <div style={{ fontSize: 11, color: A.muted }}>Contrôle en temps réel — sans redéploiement</div>
+            <div style={{ fontSize: 14, fontWeight: 800, color: A.text, fontFamily: F.h, marginBottom: 2 }}>{t('cfg_tiers_title')}</div>
+            <div style={{ fontSize: 11, color: A.muted }}>{t('cfg_tiers_sub')}</div>
           </div>
           <div style={{ display: 'flex', gap: 6, fontSize: 11, color: A.muted }}>
-            <span style={{ color: A.green, fontWeight: 700 }}>{tiers.filter(t => t.available).length}</span> ouverts ·
-            <span style={{ color: A.muted }}>{tiers.filter(t => !t.available).length} fermés</span>
+            <span style={{ color: A.green, fontWeight: 700 }}>{tiers.filter(ti => ti.available).length}</span> {t('cfg_open', tiers.filter(ti => ti.available).length)} ·
+            <span style={{ color: A.muted }}>{tiers.filter(ti => !ti.available).length} {t('cfg_closed', tiers.filter(ti => !ti.available).length)}</span>
           </div>
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {tiers.map(t => {
-            const c         = TIER_COLOR[t.tier] || A.muted;
-            const isToggling = toggling === t.tier;
-            const count     = TIER_COUNT[t.tier] || 0;
-            const price     = TIER_PRICE_DISPLAY[t.tier] || '?';
+          {tiers.map(tier => {
+            const c         = TIER_COLOR[tier.tier] || A.muted;
+            const isToggling = toggling === tier.tier;
+            const count     = TIER_COUNT[tier.tier] || 0;
+            const price     = TIER_PRICE_DISPLAY[tier.tier] || '?';
             return (
-              <div key={t.tier} style={{
+              <div key={tier.tier} style={{
                 display: 'flex', alignItems: 'center', gap: 16, padding: '14px 18px', borderRadius: 10,
                 background: A.s1, border: `1px solid ${t.available ? c + '45' : A.border}`,
                 transition: 'border-color 0.3s',
@@ -1097,18 +1107,18 @@ function TabConfig({ api, onToast }) {
                     <TierBadge tier={t.tier} />
                     <span style={{ color: A.muted, fontSize: 11 }}>{price}</span>
                     <span style={{ color: A.border, fontSize: 11 }}>·</span>
-                    <span style={{ color: A.muted, fontSize: 11 }}>{count} bloc{count > 1 ? 's' : ''}</span>
+                    <span style={{ color: A.muted, fontSize: 11 }}>{t('cfg_blocks', count)}</span>
                   </div>
-                  {t.updated_by && (
+                  {tier.updated_by && (
                     <div style={{ fontSize: 10, color: A.muted }}>
-                      Modifié par <span style={{ color: A.text }}>{t.updated_by}</span> · {t.updated_at ? new Date(t.updated_at).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—'}
+                      {t('cfg_modified_by', tier.updated_by, tier.updated_at ? new Date(tier.updated_at).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' }) : '—')}
                     </div>
                   )}
                 </div>
 
                 {/* Status label */}
                 <div style={{ fontSize: 11, fontWeight: 700, color: t.available ? A.green : A.muted, minWidth: 120, textAlign: 'right' }}>
-                  {isToggling ? '⏳ Mise à jour…' : t.available ? '🟢 OUVERT' : '🔒 PROCHAINEMENT'}
+                  {isToggling ? t('cfg_tier_updating') : tier.available ? t('cfg_tier_open') : t('cfg_tier_closed')}
                 </div>
 
                 {/* Toggle */}
@@ -1119,7 +1129,7 @@ function TabConfig({ api, onToast }) {
         </div>
 
         <div style={{ marginTop: 14, padding: '10px 14px', background: `${A.accent}08`, borderRadius: 8, border: `1px solid ${A.accent}20`, fontSize: 11, color: A.muted }}>
-          ⚡ Ces changements prennent effet immédiatement. L'API checkout vérifie <code style={{ color: A.accent }}>tier_config</code> à chaque transaction.
+          {t('cfg_effect_note')} <code style={{ color: A.accent }}>tier_config</code>
         </div>
       </Card>
 
@@ -1127,37 +1137,37 @@ function TabConfig({ api, onToast }) {
       <Card>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
           <div>
-            <div style={{ fontSize: 14, fontWeight: 800, color: A.text, fontFamily: F.h, marginBottom: 2 }}>Blocs désactivés individuellement</div>
-            <div style={{ fontSize: 11, color: A.muted }}>Désactiver un slot précis sans fermer tout son tier</div>
+            <div style={{ fontSize: 14, fontWeight: 800, color: A.text, fontFamily: F.h, marginBottom: 2 }}>{t('cfg_slots_title')}</div>
+            <div style={{ fontSize: 11, color: A.muted }}>{t('cfg_slots_sub')}</div>
           </div>
           {overrides.length > 0 && (
-            <Badge label={`${overrides.length} bloc${overrides.length > 1 ? 's' : ''} désactivé${overrides.length > 1 ? 's' : ''}`} color={A.orange} />
+            <Badge label={t('cfg_disabled_badge', overrides.length)} color={A.orange} />
           )}
         </div>
 
         {/* Formulaire ajout */}
         <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end', marginBottom: 16, padding: '14px 16px', background: A.s2, borderRadius: 10, border: `1px solid ${A.border}` }}>
           <div style={{ flex: '0 0 90px' }}>
-            <div style={{ fontSize: 10, color: A.muted, marginBottom: 5, fontWeight: 600 }}>COLONNE X</div>
+            <div style={{ fontSize: 10, color: A.muted, marginBottom: 5, fontWeight: 600 }}>{t('cfg_col_x')}</div>
             <Input value={slotX} onChange={setSlotX} placeholder="1–36" type="number" style={{ textAlign: 'center' }} />
           </div>
           <div style={{ flex: '0 0 90px' }}>
-            <div style={{ fontSize: 10, color: A.muted, marginBottom: 5, fontWeight: 600 }}>LIGNE Y</div>
+            <div style={{ fontSize: 10, color: A.muted, marginBottom: 5, fontWeight: 600 }}>{t('cfg_col_y')}</div>
             <Input value={slotY} onChange={setSlotY} placeholder="1–36" type="number" style={{ textAlign: 'center' }} />
           </div>
           <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 10, color: A.muted, marginBottom: 5, fontWeight: 600 }}>RAISON (optionnel)</div>
-            <Input value={slotReason} onChange={setSlotReason} placeholder="Maintenance, réservé, etc." />
+            <div style={{ fontSize: 10, color: A.muted, marginBottom: 5, fontWeight: 600 }}>{t('cfg_reason')}</div>
+            <Input value={slotReason} onChange={setSlotReason} placeholder={t("cfg_reason_ph")} />
           </div>
           <Btn variant="danger" onClick={disableSlot} disabled={slotLoading || !slotX || !slotY}>
-            {slotLoading ? '…' : '⊗ Désactiver'}
+            {slotLoading ? '…' : t('cfg_disable_btn')}
           </Btn>
         </div>
 
         {/* Liste des blocs désactivés */}
         {overrides.length === 0 ? (
           <div style={{ padding: '24px', textAlign: 'center', color: A.muted, fontSize: 13, border: `1px dashed ${A.border}`, borderRadius: 8 }}>
-            Aucun bloc désactivé individuellement
+            {t('cfg_none_disabled')}
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -1171,12 +1181,12 @@ function TabConfig({ api, onToast }) {
                 </div>
                 <div style={{ flex: 1 }}>
                   {o.reason && <div style={{ fontSize: 12, color: A.text }}>{o.reason}</div>}
-                  <div style={{ fontSize: 10, color: A.muted }}>Désactivé {ago(o.updated_at)}{o.updated_by ? ` par ${o.updated_by}` : ''}</div>
+                  <div style={{ fontSize: 10, color: A.muted }}>{t('cfg_disabled_by', agoFallback(o.updated_at), o.updated_by)}</div>
                 </div>
                 <Btn size="xs" variant="success"
                   onClick={() => enableSlot(o.slot_x, o.slot_y)}
                   disabled={removingSlot === `${o.slot_x},${o.slot_y}`}>
-                  {removingSlot === `${o.slot_x},${o.slot_y}` ? '…' : '✓ Réactiver'}
+                  {removingSlot === `${o.slot_x},${o.slot_y}` ? '…' : t('cfg_reactivate')}
                 </Btn>
               </div>
             ))}
@@ -1187,10 +1197,10 @@ function TabConfig({ api, onToast }) {
       {/* ── Section 3 : Audit log ────────────────────────────────── */}
       <Card>
         <div style={{ fontSize: 12, fontWeight: 700, color: A.muted, letterSpacing: '0.07em', marginBottom: 14 }}>
-          JOURNAL D'AUDIT — 100 DERNIÈRES ACTIONS
+          {t('cfg_audit_title')}
         </div>
         {audit.length === 0 ? (
-          <div style={{ color: A.muted, fontSize: 12 }}>Aucune action enregistrée</div>
+          <div style={{ color: A.muted, fontSize: 12 }}>{t('cfg_audit_empty')}</div>
         ) : (
           <div style={{ maxHeight: 400, overflow: 'auto' }}>
             {audit.map(a => (
@@ -1218,6 +1228,7 @@ function TabConfig({ api, onToast }) {
 // LOGIN SCREEN
 // ══════════════════════════════════════════════════════════════════════════
 function LoginScreen({ onLogin }) {
+  const { t } = useT();
   const [pwd, setPwd] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -1229,10 +1240,10 @@ function LoginScreen({ onLogin }) {
       if (res.ok) { onLogin(pwd); }
       else if (res.status === 500) {
         const json = await res.json().catch(() => ({}));
-        setError(json.error || 'Erreur serveur — vérifiez que ADMIN_SECRET est défini dans Cloudflare Pages');
-      } else if (res.status === 401) { setError('Mot de passe incorrect.'); }
+        setError(json.error || t('admin_err_server'));
+      } else if (res.status === 401) { setError(t('admin_err_wrong_pwd')); }
       else { setError(`Erreur ${res.status} — réessayez.`); }
-    } catch { setError('Erreur de connexion au serveur.'); }
+    } catch { setError(t('admin_err_connect')); }
     finally { setLoading(false); }
   };
   return (
@@ -1249,19 +1260,21 @@ function LoginScreen({ onLogin }) {
       }}>
         {/* Top accent line */}
         <div style={{ position:'absolute', top:0, left:0, right:0, height:'1.5px', background:'linear-gradient(90deg,transparent,rgba(0,200,240,0.50),rgba(232,160,32,0.30),transparent)', boxShadow:'0 0 8px rgba(0,200,240,0.30)' }}/>
-        <div style={{ textAlign:'center', marginBottom:32 }}>
+        {/* Language switcher coin haut droit */}
+      <div style={{ position:'fixed', top:20, right:20 }}><LanguageSwitcher /></div>
+      <div style={{ textAlign:'center', marginBottom:32 }}>
           <div style={{ fontSize:24, fontWeight:700, fontFamily:F.m, letterSpacing:'.18em', color:A.accent, marginBottom:6 }}>
             ◈ DYSON·COSMOS
           </div>
           <div style={{ color:A.muted, fontSize:10, letterSpacing:'.18em' }}>ADMINISTRATION·MK·VII</div>
         </div>
         <input type="password" value={pwd} onChange={e => setPwd(e.target.value)} onKeyDown={e => e.key === 'Enter' && tryLogin()}
-          placeholder="MOT DE PASSE ADMIN" autoFocus
+          placeholder={t('admin_pwd_placeholder')} autoFocus
           style={{ width:'100%', background:'rgba(0,4,14,0.80)', border:`0.5px solid ${error ? A.red+'80' : 'rgba(0,200,240,0.22)'}`, color:A.text, fontFamily:F.m, fontSize:12, padding:'12px 14px', outline:'none', boxSizing:'border-box', marginBottom:8, letterSpacing:'.08em', clipPath:'polygon(0 0,calc(100% - 6px) 0,100% 6px,100% 100%,0 100%)' }} />
         {error && <div style={{ color:A.red, fontSize:11, marginBottom:10, fontFamily:F.m, letterSpacing:'.06em' }}>{error}</div>}
         <button onClick={tryLogin} disabled={loading || !pwd}
           style={{ width:'100%', padding:'12px', background: loading||!pwd ? `${A.accent}40` : A.accent, border:'none', color:A.accentFg, fontWeight:700, fontSize:12, cursor:loading||!pwd?'not-allowed':'pointer', opacity:1, fontFamily:F.m, letterSpacing:'.12em', marginTop:4, clipPath:'polygon(0 0,calc(100% - 8px) 0,100% 8px,100% 100%,8px 100%,0 calc(100% - 8px))' }}>
-          {loading ? 'VÉRIFICATION…' : 'ACCÉDER →'}
+          {loading ? t('admin_logging_in') : t('admin_login_btn')}
         </button>
         <div style={{ textAlign:'center', marginTop:20, fontSize:9, color:A.muted, fontFamily:F.m, letterSpacing:'.10em' }}>
           ENV : <code style={{ color:A.accent }}>ADMIN_SECRET</code>
@@ -1274,17 +1287,19 @@ function LoginScreen({ onLogin }) {
 // ══════════════════════════════════════════════════════════════════════════
 // MAIN LAYOUT
 // ══════════════════════════════════════════════════════════════════════════
-const TABS = [
-  { id: 'overview',   label: "Vue d'ensemble", icon: '⬡' },
-  { id: 'bookings',   label: 'Réservations',   icon: '🗂' },
-  { id: 'users',      label: 'Utilisateurs',   icon: '👤' },
-  { id: 'offers',     label: 'Offres',         icon: '🤝' },
-  { id: 'revenue',    label: 'Revenus',        icon: '💶' },
-  { id: 'analytics',  label: 'Analytics',      icon: '📊' },
-  { id: 'config',     label: 'Configuration',  icon: '⚙' },
+// TABS est construit dynamiquement dans AdminDashboard pour réactivité i18n
+const STATIC_TABS = [
+  { id: 'overview',   icon: '⬡', key: 'tab_overview'  },
+  { id: 'bookings',   icon: '🗂', key: 'tab_bookings'  },
+  { id: 'users',      icon: '👤', key: 'tab_users'     },
+  { id: 'offers',     icon: '🤝', key: 'tab_offers'    },
+  { id: 'revenue',    icon: '💶', key: 'tab_revenue'   },
+  { id: 'analytics',  icon: '📊', key: 'tab_analytics' },
+  { id: 'config',     icon: '⚙',  key: 'tab_config'   },
 ];
 
 export default function AdminDashboard() {
+  const { t, lang } = useT();
   const [token, setToken] = useState(() => {
     if (typeof window !== 'undefined') return sessionStorage.getItem('admin_token') || '';
     return '';
@@ -1334,10 +1349,10 @@ export default function AdminDashboard() {
           <div style={{ fontSize:9, color:A.muted, letterSpacing:'.16em', fontFamily:F.m }}>ADMINISTRATION·MK·VII</div>
         </div>
         <nav style={{ flex:1, padding:'10px 8px', display:'flex', flexDirection:'column', gap:2, position:'relative', zIndex:1 }}>
-          {TABS.map(t => {
-            const isActive = tab === t.id;
+          {STATIC_TABS.map(tb => {
+            const isActive = tab === tb.id;
             return (
-              <button key={t.id} onClick={() => setTab(t.id)} style={{
+              <button key={tb.id} onClick={() => setTab(tb.id)} style={{
                 display:'flex', alignItems:'center', gap:9, padding:'9px 11px', border:'none',
                 background: isActive ? `${A.accent}12` : 'transparent',
                 borderLeft: `2px solid ${isActive ? A.accent : 'transparent'}`,
@@ -1346,14 +1361,15 @@ export default function AdminDashboard() {
                 transition:'all .10s',
                 clipPath: isActive ? 'polygon(0 0,calc(100% - 5px) 0,100% 5px,100% 100%,0 100%)' : 'none',
               }}>
-                <span style={{ fontSize:13, flexShrink:0 }}>{t.icon}</span>{t.label.toUpperCase()}
+                <span style={{ fontSize:13, flexShrink:0 }}>{tb.icon}</span>{t(tb.key).toUpperCase()}
               </button>
             );
           })}
         </nav>
         <div style={{ padding:'12px 12px', borderTop:`0.5px solid rgba(0,200,240,0.08)`, position:'relative', zIndex:1 }}>
-          <a href="/" target="_blank" style={{ display:'block', marginBottom:8, color:A.muted, fontSize:10, textDecoration:'none', fontFamily:F.m, letterSpacing:'.08em' }}>↗ VOIR·LE·SITE</a>
-          <button onClick={handleLogout} style={{ width:'100%', padding:'7px', border:`0.5px solid rgba(0,200,240,0.14)`, background:'transparent', color:A.muted, cursor:'pointer', fontSize:10, fontFamily:F.m, letterSpacing:'.08em' }}>DÉCONNEXION</button>
+          <LanguageSwitcher style={{ marginBottom:8 }} />
+          <a href="/" target="_blank" style={{ display:'block', marginBottom:8, color:A.muted, fontSize:10, textDecoration:'none', fontFamily:F.m, letterSpacing:'.08em' }}>{t('admin_see_site')}</a>
+          <button onClick={handleLogout} style={{ width:'100%', padding:'7px', border:`0.5px solid rgba(0,200,240,0.14)`, background:'transparent', color:A.muted, cursor:'pointer', fontSize:10, fontFamily:F.m, letterSpacing:'.08em' }}>{t('admin_logout')}</button>
         </div>
       </div>
 
@@ -1366,10 +1382,10 @@ export default function AdminDashboard() {
           boxShadow:'0 4px 32px rgba(0,0,0,0.5)',
         }}>
           <div>
-            <div style={{ fontSize:16, fontWeight:700, fontFamily:F.m, letterSpacing:'.10em', color:A.text }}>{TABS.find(t => t.id === tab)?.label?.toUpperCase()}</div>
-            <div style={{ fontSize:9, color:A.muted, marginTop:2, fontFamily:F.m, letterSpacing:'.12em' }}>{new Date().toLocaleDateString('fr-FR', { weekday:'long', year:'numeric', month:'long', day:'numeric' }).toUpperCase()}</div>
+            <div style={{ fontSize:16, fontWeight:700, fontFamily:F.m, letterSpacing:'.10em', color:A.text }}>{t(STATIC_TABS.find(tb => tb.id === tab)?.key || 'tab_overview').toUpperCase()}</div>
+            <div style={{ fontSize:9, color:A.muted, marginTop:2, fontFamily:F.m, letterSpacing:'.12em' }}>{new Date().toLocaleDateString(lang === 'en' ? 'en-GB' : 'fr-FR', { weekday:'long', year:'numeric', month:'long', day:'numeric' }).toUpperCase()}</div>
           </div>
-          <Btn size="sm" variant="ghost" onClick={() => window.location.reload()}>↻ RAFRAÎCHIR</Btn>
+          <Btn size="sm" variant="ghost" onClick={() => window.location.reload()}>{t('admin_refresh')}</Btn>
         </div>
         <div style={{ flex:1, padding:'24px 28px', maxWidth:1400, overflowY:'auto', background:'rgba(0,1,8,0.50)' }}>
           {tab === 'overview'  && <TabOverview  api={api} />}

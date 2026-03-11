@@ -1,1415 +1,586 @@
 'use client';
-import { useState, useEffect, useCallback, useRef } from 'react';
-import { useRouter } from 'next/navigation';
-import Link from 'next/link';
-import {
-  getSession, signOut, getAdvertiserProfile, getDashboardBookings,
-  updateBookingContent, updateAdvertiserProfile, uploadBlockImage, toggleBookingBoost,
-} from '../../lib/supabase-auth';
-import { TIER_LABEL, TIER_PRICE, TIER_COLOR } from '../../lib/grid';
+import { useState, useEffect, useCallback } from 'react';
+import { useT, LanguageSwitcher } from '../../lib/i18n';
 
-// ─── Design System · DYSON COSMOS ─────────────────────────────
-const U = {
+/* ── Design tokens ─────────────────────────────────────────────────────── */
+const C = {
   bg:      '#01020A',
-  s1:      'rgba(0,4,16,0.98)',
-  s2:      'rgba(0,8,24,0.97)',
   card:    'rgba(1,6,18,0.96)',
-  card2:   'rgba(0,4,14,0.94)',
-  border:  'rgba(0,200,240,0.09)',
-  border2: 'rgba(0,200,240,0.18)',
+  border:  'rgba(0,200,240,0.10)',
+  border2: 'rgba(0,200,240,0.22)',
   text:    '#DDE6F2',
-  muted:   'rgba(140,180,220,0.60)',
-  faint:   'rgba(0,200,240,0.04)',
-  accent:  '#E8A020',
-  accentFg:'#01020A',
-  err:     '#D02848',
-  green:   '#00D880',
+  muted:   'rgba(140,180,220,0.55)',
   cyan:    '#00C8E4',
+  green:   '#00D880',
+  amber:   '#E8A020',
+  red:     '#D02848',
+  purple:  '#9060C8',
 };
-const F = {
-  h:    "'Rajdhani','Sora',system-ui,sans-serif",
-  b:    "'Rajdhani','Sora',system-ui,sans-serif",
-  mono: "'JetBrains Mono','Fira Code',monospace",
-};
+const TIER_COLOR = { epicenter:'#f0b429', prestige:'#ff4d8f', elite:'#a855f7', business:'#00d9f5', standard:'#38bdf8', viral:'#00e8a2' };
+const RANK_COLOR = { elu:'#f0b429', architecte:'#9060C8', gardien:'#00D880', batisseur:'#00C8E4', signal:'#38bdf8' };
+const TASK_ICONS = { share_grid:'📡', highlight_neighbor:'✨', create_content:'🎨', welcome_member:'👋', recommend_members:'🤝', offer_advantage:'🎁', slot_perfect:'💎' };
+const fmt = n => (n || 0).toLocaleString('fr-FR');
 
-const inputStyle = (focused) => ({
-  width: '100%', padding: '11px 14px',
-  background: 'rgba(0,4,16,0.80)',
-  border: `0.5px solid ${focused ? U.accent : 'rgba(0,200,240,0.18)'}`,
-  color: U.text, fontSize: 13, outline: 'none',
-  fontFamily: "'JetBrains Mono','Fira Code',monospace",
-  boxSizing: 'border-box', transition: 'border-color 0.2s',
-  clipPath: 'polygon(0 0,calc(100% - 6px) 0,100% 6px,100% 100%,0 100%)',
-});
-
-// ─── Composants UI ────────────────────────────────────────────
-function Label({ children }) {
+/* ── Micro-components ──────────────────────────────────────────────────── */
+function Card({ children, style: sx }) {
   return (
-    <div style={{ fontSize: 10, fontWeight: 700, color: U.muted, letterSpacing: '0.12em', marginBottom: 7 }}>
+    <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: 20, ...sx }}>
       {children}
     </div>
   );
 }
 
-function Field({ label, children }) {
+function StatCard({ label, value, sub, color = C.cyan, icon }) {
   return (
-    <div style={{ marginBottom: 18 }}>
-      <Label>{label}</Label>
-      {children}
+    <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, padding: '18px 16px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+        <div style={{ fontSize: 11, letterSpacing: '0.10em', color: C.muted, textTransform: 'uppercase' }}>{label}</div>
+        {icon && <span style={{ fontSize: 18, opacity: 0.7 }}>{icon}</span>}
+      </div>
+      <div style={{ fontSize: 28, fontWeight: 900, color, lineHeight: 1 }}>{value}</div>
+      {sub && <div style={{ fontSize: 12, color: C.muted, marginTop: 6 }}>{sub}</div>}
     </div>
   );
 }
 
-function Btn({ onClick, children, variant = 'primary', size = 'md', disabled, style: extra }) {
-  const base = {
-    border: 'none', fontWeight: 700,
-    cursor: disabled ? 'not-allowed' : 'pointer',
-    fontFamily: "'JetBrains Mono','Fira Code',monospace",
-    letterSpacing: '.08em',
-    transition: 'opacity 0.15s, box-shadow 0.15s',
-    opacity: disabled ? 0.5 : 1,
-    padding: size === 'sm' ? '6px 12px' : '11px 18px',
-    fontSize: size === 'sm' ? 10 : 12,
-    clipPath: 'polygon(0 0,calc(100% - 6px) 0,100% 6px,100% 100%,6px 100%,0 calc(100% - 6px))',
-  };
-  const variants = {
-    primary:   { background: U.accent, color: U.accentFg, boxShadow: `0 0 18px ${U.accent}40` },
-    secondary: { background: 'transparent', color: U.muted, border: `0.5px solid rgba(0,200,240,0.22)` },
-    danger:    { background: `${U.err}18`, color: U.err, border: `0.5px solid ${U.err}40` },
-  };
+function StreakRing({ streak, max = 30 }) {
+  const pct = Math.min((streak || 0) / max, 1);
+  const r = 42, circ = 2 * Math.PI * r, filled = circ * pct;
   return (
-    <button onClick={onClick} disabled={disabled} style={{ ...base, ...variants[variant], ...extra }}>
-      {children}
-    </button>
+    <div style={{ position: 'relative', width: 100, height: 100, flexShrink: 0 }}>
+      <svg width="100" height="100" style={{ transform: 'rotate(-90deg)' }}>
+        <circle cx="50" cy="50" r={r} fill="none" stroke="rgba(0,200,240,0.10)" strokeWidth="6" />
+        <circle cx="50" cy="50" r={r} fill="none" stroke={streak > 0 ? C.amber : C.muted} strokeWidth="6"
+          strokeDasharray={`${filled} ${circ - filled}`} strokeLinecap="round"
+          style={{ transition: 'stroke-dasharray .8s ease' }} />
+      </svg>
+      <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ fontSize: 24, fontWeight: 900, color: streak > 0 ? C.amber : C.muted, lineHeight: 1 }}>{streak || 0}</div>
+        <div style={{ fontSize: 9, letterSpacing: '0.10em', color: C.muted, marginTop: 2 }}>JOURS</div>
+      </div>
+    </div>
   );
 }
 
-function Toast({ msg, type }) {
-  if (!msg) return null;
+function MiniChart({ values = [], color = C.cyan, label = '' }) {
+  const max = Math.max(...values, 1);
+  const h = 48;
+  return (
+    <div style={{ display: 'flex', alignItems: 'flex-end', gap: 3, height: h }}>
+      {values.map((v, i) => (
+        <div key={i} title={`${label}: ${v}`} style={{
+          flex: 1, borderRadius: '2px 2px 0 0',
+          height: `${Math.max(3, Math.round((v / max) * h))}px`,
+          background: i === values.length - 1 ? color : `${color}50`,
+          transition: 'height .4s ease',
+        }} />
+      ))}
+    </div>
+  );
+}
+
+function TaskItem({ task, onComplete }) {
+  const { t } = useT();
+  const [open, setOpen] = useState(false);
+  const [proof, setProof] = useState({ text: '', url: '', platform: '' });
+  const [loading, setLoading] = useState(false);
+
+  const TASK_MAP = {
+    share_grid:         { lk: 'task_share_grid_label',  dk: 'task_share_grid_desc',   ik: '📡' },
+    highlight_neighbor: { lk: 'task_highlight_label',   dk: 'task_highlight_desc',    ik: '✨' },
+    create_content:     { lk: 'task_content_label',     dk: 'task_content_desc',      ik: '🎨' },
+    welcome_member:     { lk: 'task_welcome_label',     dk: 'task_welcome_desc',      ik: '👋' },
+    recommend_members:  { lk: 'task_recommend_label',   dk: 'task_recommend_desc',    ik: '🤝' },
+    offer_advantage:    { lk: 'task_advantage_label',   dk: 'task_advantage_desc',    ik: '🎁' },
+    slot_perfect:       { lk: 'task_perfect_label',     dk: 'task_perfect_desc',      ik: '💎' },
+  };
+  const cfg = TASK_MAP[task.task_type] || { lk: null, dk: null, ik: '✦' };
+  const label = cfg.lk ? t(cfg.lk) : task.task_type;
+  const desc  = cfg.dk ? t(cfg.dk) : '';
+  const icon  = cfg.ik;
+
+  const handle = async () => {
+    if (task.completed || loading || !proof.text.trim()) return;
+    setLoading(true);
+    await onComplete(task.id, proof);
+    setLoading(false);
+    setOpen(false);
+  };
+
   return (
     <div style={{
-      position: 'fixed', bottom: 24, right: 24, zIndex: 9999,
-      background: type === 'error' ? U.err : U.green,
-      color: '#fff', borderRadius: 10, padding: '12px 20px',
-      fontSize: 14, fontWeight: 600, fontFamily: F.b,
-      boxShadow: '0 4px 24px rgba(0,0,0,0.4)',
-      animation: 'fadeIn 0.2s ease',
+      background: task.completed ? 'rgba(0,216,128,0.05)' : C.card,
+      border: `1px solid ${task.completed ? 'rgba(0,216,128,0.25)' : C.border}`,
+      borderRadius: 10, marginBottom: 10, overflow: 'hidden',
+      transition: 'border-color .2s',
     }}>
-      {msg}
+      <div onClick={() => !task.completed && setOpen(o => !o)}
+        style={{ display: 'flex', alignItems: 'center', gap: 14, padding: 16, cursor: task.completed ? 'default' : 'pointer' }}>
+        <div style={{ fontSize: 22, flexShrink: 0 }}>{icon}</div>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 14, fontWeight: 700, color: task.completed ? C.green : C.text }}>{label}</div>
+          <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>{desc}</div>
+        </div>
+        {task.completed
+          ? <div style={{ fontSize: 13, color: C.green, fontWeight: 700, whiteSpace: 'nowrap' }}>✓ {t('tasks_done')}</div>
+          : <div style={{ fontSize: 18, color: C.muted, transform: open ? 'rotate(180deg)' : 'none', transition: 'transform .2s', flexShrink: 0 }}>▾</div>}
+      </div>
+
+      {open && !task.completed && (
+        <div style={{ borderTop: `1px solid ${C.border}`, padding: '16px 16px 20px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <textarea rows={2} placeholder={t('tasks_proof_text_ph')} value={proof.text}
+            onChange={e => setProof(p => ({ ...p, text: e.target.value }))}
+            style={{ background: 'rgba(0,200,240,0.04)', border: `1px solid ${C.border}`, borderRadius: 7, padding: '10px 12px', color: C.text, fontSize: 13, fontFamily: 'inherit', resize: 'vertical' }} />
+          <input placeholder={t('tasks_proof_url_ph')} value={proof.url}
+            onChange={e => setProof(p => ({ ...p, url: e.target.value }))}
+            style={{ background: 'rgba(0,200,240,0.04)', border: `1px solid ${C.border}`, borderRadius: 7, padding: '10px 12px', color: C.text, fontSize: 13, fontFamily: 'inherit' }} />
+          <select value={proof.platform} onChange={e => setProof(p => ({ ...p, platform: e.target.value }))}
+            style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 7, padding: '10px 12px', color: proof.platform ? C.text : C.muted, fontSize: 13, fontFamily: 'inherit' }}>
+            <option value="">{t('tasks_proof_platform_ph')}</option>
+            {(t('tasks_platforms') || []).map(pl => <option key={pl}>{pl}</option>)}
+          </select>
+          <button onClick={handle} disabled={!proof.text.trim() || loading}
+            style={{ background: proof.text.trim() ? C.cyan : 'rgba(0,200,240,0.15)', color: proof.text.trim() ? '#01020A' : C.muted, border: 'none', borderRadius: 7, padding: '12px 20px', fontSize: 13, fontWeight: 800, letterSpacing: '0.08em', cursor: proof.text.trim() ? 'pointer' : 'not-allowed', fontFamily: 'inherit', transition: 'background .15s' }}>
+            {loading ? t('tasks_validating') : t('tasks_validate_btn')}
+          </button>
+        </div>
+      )}
     </div>
   );
 }
 
-function StatusBadge({ status }) {
-  const cfg = {
-    active:    { bg: 'rgba(34,197,94,0.12)',  color: '#22c55e',  label: 'Actif' },
-    pending:   { bg: 'rgba(212,168,75,0.12)', color: U.accent,   label: 'En attente' },
-    expired:   { bg: 'rgba(255,255,255,0.06)', color: U.muted,   label: 'Expiré' },
-    cancelled: { bg: 'rgba(224,82,82,0.12)',  color: U.err,      label: 'Annulé' },
-  }[status] || { bg: U.faint, color: U.muted, label: status };
-
+function FeedItem({ item }) {
+  const { ago, t } = useT();
+  const EMOJI = { share: '📡', highlight: '✨', recommend: '🤝', welcome: '👋', advantage: '🎁', content: '🎨' };
+  const emoji = EMOJI[item.action_type] || '✦';
   return (
-    <span style={{
-      background: cfg.bg, color: cfg.color, borderRadius: 6,
-      padding: '3px 10px', fontSize: 11, fontWeight: 700, letterSpacing: '0.06em',
-    }}>
-      {cfg.label}
-    </span>
+    <div style={{ display: 'flex', gap: 12, padding: '12px 0', borderBottom: `1px solid ${C.border}` }}>
+      <div style={{ fontSize: 20, marginTop: 2, flexShrink: 0 }}>{emoji}</div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 13, color: C.text, lineHeight: 1.5 }}>
+          <span style={{ color: C.cyan, fontWeight: 700 }}>{item.author_name || 'Anonyme'}</span>
+          {' '}<span style={{ color: C.muted }}>{item.content_text}</span>
+        </div>
+        {item.proof_url && (
+          <a href={item.proof_url} target="_blank" rel="noopener noreferrer"
+            style={{ fontSize: 11, color: C.cyan, opacity: 0.7, marginTop: 3, display: 'block' }}>
+            {item.platform ? `↗ ${item.platform}` : t('dash_feed_proof')}
+          </a>
+        )}
+        <div style={{ fontSize: 11, color: C.muted, marginTop: 3 }}>{ago(item.created_at)}</div>
+      </div>
+      {item.rank && (
+        <div style={{ fontSize: 11, color: RANK_COLOR[item.rank] || C.muted, fontWeight: 700, flexShrink: 0 }}>
+          {item.rank.toUpperCase()}
+        </div>
+      )}
+    </div>
   );
 }
 
-// ─── TAB : Mes Blocs ─────────────────────────────────────────
-// ─── Boost Toggle ────────────────────────────────────────────
-function BoostToggle({ booking, onToggled }) {
-  const [loading, setLoading] = useState(false);
-  const [boosted, setBoosted] = useState(!!booking.is_boosted);
+/* ── Main Dashboard ────────────────────────────────────────────────────── */
+export default function DashboardPage() {
+  const { t } = useT();
+  const [tab, setTab]           = useState('stats');
+  const [data, setData]         = useState(null);
+  const [loading, setLoading]   = useState(false);
+  const [token, setToken]       = useState(null);
 
-  const handleToggle = async (e) => {
-    e.stopPropagation();
+  // Auth states
+  const [email, setEmail]       = useState('');
+  const [loginStep, setStep]    = useState('email'); // 'email' | 'otp'
+  const [otp, setOtp]           = useState('');
+  const [authErr, setAuthErr]   = useState('');
+  const [authLoading, setAL]    = useState(false);
+
+  // Init token from localStorage
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const saved = localStorage.getItem('ads_token');
+    if (saved) setToken(saved);
+  }, []);
+
+  const fetchData = useCallback(async (tk) => {
+    if (!tk) return;
     setLoading(true);
     try {
-      const next = !boosted;
-      await toggleBookingBoost(booking.id, next);
-      setBoosted(next);
-      if (onToggled) onToggled(booking);
-    } catch(err) {
-      console.error('Boost toggle failed:', err.message);
-    } finally { setLoading(false); }
+      const r = await fetch(`/api/tasks?token=${encodeURIComponent(tk)}`);
+      if (!r.ok) {
+        if (r.status === 401) { setToken(null); localStorage.removeItem('ads_token'); }
+        throw new Error('fetch error');
+      }
+      setData(await r.json());
+    } catch { /* silent */ } finally { setLoading(false); }
+  }, []);
+
+  useEffect(() => { if (token) fetchData(token); }, [token, fetchData]);
+
+  const handleCompleteTask = async (taskId, proof) => {
+    if (!token) return;
+    const r = await fetch('/api/tasks', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token, task_id: taskId, proof_text: proof.text, proof_url: proof.url, proof_platform: proof.platform }),
+    });
+    if (r.ok) fetchData(token);
   };
 
-  return (
-    <button
-      onClick={handleToggle}
-      disabled={loading}
-      title={boosted ? 'Désactiver le boost ticker' : 'Apparaître dans la barre boost'}
-      style={{
-        display: 'flex', alignItems: 'center', gap: 5,
-        padding: '4px 9px', borderRadius: 6, fontSize: 10, fontWeight: 700,
-        cursor: loading ? 'wait' : 'pointer',
-        border: `1px solid ${boosted ? '#f0b42940' : '#ffffff18'}`,
-        background: boosted ? '#f0b42912' : 'transparent',
-        color: boosted ? '#f0b429' : 'rgba(255,255,255,0.3)',
-        transition: 'all 0.2s',
-      }}>
-      <span style={{ fontSize: 11 }}>⚡</span>
-      {loading ? '…' : boosted ? 'Boosté' : 'Booster'}
-    </button>
+  // Magic link auth via Supabase
+  const handleSendOtp = async () => {
+    setAuthErr(''); setAL(true);
+    try {
+      const r = await fetch('/api/emails', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'magic_link', email }),
+      });
+      if (!r.ok) throw new Error(t('error'));
+      setStep('otp');
+    } catch (e) { setAuthErr(e.message); } finally { setAL(false); }
+  };
+
+  const handleVerifyOtp = async () => {
+    setAuthErr(''); setAL(true);
+    try {
+      const SB_URL  = process.env.NEXT_PUBLIC_SUPABASE_URL;
+      const SB_ANON = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+      const r = await fetch(`${SB_URL}/auth/v1/verify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', apikey: SB_ANON },
+        body: JSON.stringify({ email, token: otp, type: 'magiclink' }),
+      });
+      const j = await r.json();
+      if (!j.access_token) throw new Error(t('dash_invalid_token'));
+      localStorage.setItem('ads_token', j.access_token);
+      setToken(j.access_token);
+    } catch (e) { setAuthErr(e.message); } finally { setAL(false); }
+  };
+
+  const handleLogout = () => { localStorage.removeItem('ads_token'); setToken(null); setData(null); setStep('email'); setEmail(''); setOtp(''); };
+
+  /* ── Login screen ───────────────────────────────────────────────────── */
+  if (!token) return (
+    <div style={{ minHeight: '100vh', background: C.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, fontFamily: "'Rajdhani','Sora',system-ui,sans-serif" }}>
+      <style>{`*{box-sizing:border-box}input,select,button,textarea{font-family:inherit}input::placeholder,textarea::placeholder{color:rgba(140,180,220,0.4)}`}</style>
+      <div style={{ width: '100%', maxWidth: 420 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 32 }}>
+          <div style={{ fontSize: 13, letterSpacing: '0.25em', color: C.cyan, fontWeight: 700 }}>AdsMostFair</div>
+          <LanguageSwitcher />
+        </div>
+        <h1 style={{ fontSize: 32, fontWeight: 900, color: C.text, marginBottom: 8 }}>{t('dash_login_title')}</h1>
+        <p style={{ color: C.muted, fontSize: 14, marginBottom: 32, lineHeight: 1.5 }}>{t('dash_login_sub')}</p>
+
+        <Card>
+          {loginStep === 'email' && (
+            <>
+              <input type="email" placeholder={t('dash_email_ph')} value={email}
+                onChange={e => setEmail(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && email.includes('@') && handleSendOtp()}
+                style={{ width: '100%', background: 'rgba(0,200,240,0.04)', border: `1px solid ${C.border2}`, borderRadius: 8, padding: '13px 14px', color: C.text, fontSize: 14, marginBottom: 14 }} />
+              <button onClick={handleSendOtp} disabled={!email.includes('@') || authLoading}
+                style={{ width: '100%', background: email.includes('@') && !authLoading ? C.cyan : 'rgba(0,200,240,0.2)', color: email.includes('@') && !authLoading ? '#01020A' : C.muted, border: 'none', borderRadius: 8, padding: 14, fontSize: 13, fontWeight: 800, letterSpacing: '0.10em', cursor: email.includes('@') && !authLoading ? 'pointer' : 'not-allowed', transition: 'background .15s' }}>
+                {authLoading ? t('dash_sending') : t('dash_send_code')}
+              </button>
+            </>
+          )}
+          {loginStep === 'otp' && (
+            <>
+              <div style={{ fontSize: 13, color: C.muted, marginBottom: 16, lineHeight: 1.5 }}>
+                {t('dash_code_sent', email)}
+              </div>
+              <input type="text" placeholder={t('dash_code_ph')} value={otp} maxLength={6}
+                onChange={e => setOtp(e.target.value.replace(/\D/g, ''))}
+                onKeyDown={e => e.key === 'Enter' && otp.length === 6 && handleVerifyOtp()}
+                style={{ width: '100%', background: 'rgba(0,200,240,0.04)', border: `1px solid ${C.border2}`, borderRadius: 8, padding: '13px 14px', color: C.text, fontSize: 22, letterSpacing: '0.4em', textAlign: 'center', marginBottom: 14 }} />
+              <button onClick={handleVerifyOtp} disabled={otp.length < 6 || authLoading}
+                style={{ width: '100%', background: otp.length === 6 && !authLoading ? C.cyan : 'rgba(0,200,240,0.2)', color: otp.length === 6 && !authLoading ? '#01020A' : C.muted, border: 'none', borderRadius: 8, padding: 14, fontSize: 13, fontWeight: 800, letterSpacing: '0.10em', cursor: otp.length === 6 && !authLoading ? 'pointer' : 'not-allowed', transition: 'background .15s' }}>
+                {authLoading ? t('dash_connecting') : t('dash_connect')}
+              </button>
+              <button onClick={() => setStep('email')}
+                style={{ background: 'none', border: 'none', color: C.muted, fontSize: 12, cursor: 'pointer', marginTop: 12, display: 'block', width: '100%', textAlign: 'center' }}>
+                {t('dash_change_email')}
+              </button>
+            </>
+          )}
+          {authErr && <div style={{ color: C.red, fontSize: 13, marginTop: 10 }}>{authErr}</div>}
+        </Card>
+      </div>
+    </div>
   );
-}
 
-function TabMesBlocs({ bookings, onSelect, selectedId }) {
-  const active  = bookings.filter(b => b.status === 'active');
-  const others  = bookings.filter(b => b.status !== 'active');
+  /* ── Loading ────────────────────────────────────────────────────────── */
+  if (loading || !data) return (
+    <div style={{ minHeight: '100vh', background: C.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'system-ui' }}>
+      <div style={{ width: 40, height: 40, borderRadius: '50%', border: `3px solid rgba(0,200,240,0.15)`, borderTopColor: C.cyan, animation: 'spin .8s linear infinite' }} />
+      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+    </div>
+  );
 
-  const BookingCard = ({ b }) => {
-    const tier = b.tier || 'thousand';
-    const color = TIER_COLOR[tier] || U.accent;
-    const isSelected = b.id === selectedId;
+  const sub       = data.subscription || {};
+  const tasks     = data.tasks || [];
+  const feed      = data.feed || [];
+  const offers    = data.offers || [];
+  const topStreaks = data.topStreaks || [];
+  const stats     = data.stats || {};
+  const streak    = sub.tasks_streak || 0;
+  const rank      = sub.rank || 'signal';
+  const rankColor = RANK_COLOR[rank] || C.muted;
 
-    return (
-      <div
-        onClick={() => onSelect(b)}
-        style={{
-          background: isSelected ? `rgba(212,168,75,0.08)` : U.card2,
-          border: `1px solid ${isSelected ? U.accent : U.border}`,
-          borderRadius: 12, padding: '16px 18px', cursor: 'pointer',
-          transition: 'all 0.15s', marginBottom: 10,
-          display: 'flex', alignItems: 'center', gap: 14,
-        }}
-      >
-        {/* Bloc visuel */}
-        <div style={{
-          width: 44, height: 44, borderRadius: 8, flexShrink: 0,
-          background: b.image_url ? `url(${b.image_url}) center/cover` : b.background_color || '#111',
-          border: `2px solid ${color}`,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: 16, fontWeight: 700, color,
-        }}>
-          {!b.image_url && (b.logo_initials || '??')}
+  const daysLeft  = sub.days_remaining ?? null;
+  const showWarning = daysLeft !== null && daysLeft <= 3;
+
+  const clicksArr = stats.clicks_history || Array(7).fill(0);
+  const doneTasks = tasks.filter(t2 => t2.completed).length;
+
+  /* ── Tabs ───────────────────────────────────────────────────────────── */
+  const TABS = [
+    { id: 'stats',  label: t('dash_tab_stats') },
+    { id: 'tasks',  label: t('dash_tab_tasks') },
+    { id: 'feed',   label: t('dash_tab_feed') },
+    { id: 'offers', label: `${t('dash_tab_offers')}${offers.length > 0 ? ` (${offers.length})` : ''}` },
+  ];
+
+  return (
+    <div style={{ minHeight: '100vh', background: C.bg, fontFamily: "'Rajdhani','Sora',system-ui,sans-serif", color: C.text }}>
+      <style>{`*{box-sizing:border-box}input,select,button,textarea{font-family:inherit}input::placeholder,textarea::placeholder{color:rgba(140,180,220,0.4)} @keyframes spin{to{transform:rotate(360deg)}}`}</style>
+
+      {/* ── Header ───────────────────────────────────────────────── */}
+      <div style={{ borderBottom: `1px solid ${C.border}`, padding: '14px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(0,2,10,0.98)', position: 'sticky', top: 0, zIndex: 50 }}>
+        <a href="/" style={{ fontSize: 13, letterSpacing: '0.25em', color: C.cyan, fontWeight: 700, textDecoration: 'none' }}>AdsMostFair</a>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <span style={{ fontSize: 12, color: rankColor, fontWeight: 700, letterSpacing: '0.1em' }}>⬡ {rank.toUpperCase()}</span>
+          <LanguageSwitcher compact />
+          <button onClick={handleLogout}
+            style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 6, padding: '6px 12px', color: C.muted, fontSize: 12, cursor: 'pointer' }}>
+            {t('dash_logout')}
+          </button>
         </div>
+      </div>
 
-        {/* Info */}
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-            <span style={{ fontWeight: 700, color: U.text, fontSize: 14 }}>{b.display_name}</span>
-            <StatusBadge status={b.status} />
-          </div>
-          <div style={{ color: U.muted, fontSize: 12 }}>
-            <span style={{ color }}>{TIER_LABEL[tier]}</span>
-            {' · '}Position ({b.slot_x},{b.slot_y})
-            {' · '}
-            {b.start_date} → {b.end_date}
-          </div>
+      {/* ── Suspension warning ───────────────────────────────────── */}
+      {showWarning && (
+        <div style={{ background: `rgba(208,40,72,0.12)`, border: `1px solid rgba(208,40,72,0.30)`, padding: '10px 20px', display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span style={{ fontSize: 16 }}>⚠️</span>
+          <span style={{ fontSize: 13, color: C.red, fontWeight: 600 }}>{t('dash_suspension_warning', daysLeft)}</span>
         </div>
+      )}
 
-        {/* Stats rapides */}
-        {b.status === 'active' && (
-          <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-end', gap:6, flexShrink:0 }}>
-            <div style={{ textAlign: 'right' }}>
-              <div style={{ fontSize: 15, fontWeight: 700, color: U.text }}>{b.clicks}</div>
-              <div style={{ fontSize: 11, color: U.muted }}>clics</div>
+      <div style={{ maxWidth: 900, margin: '0 auto', padding: '24px 20px' }}>
+
+        {/* ── Hero row ─────────────────────────────────────────── */}
+        <div style={{ display: 'flex', gap: 20, marginBottom: 24, flexWrap: 'wrap' }}>
+          {/* Streak ring */}
+          <Card style={{ display: 'flex', alignItems: 'center', gap: 20, flex: '0 0 auto' }}>
+            <StreakRing streak={streak} />
+            <div>
+              <div style={{ fontSize: 11, letterSpacing: '0.12em', color: C.muted, marginBottom: 4 }}>{t('dash_streak')}</div>
+              <div style={{ fontSize: 13, color: streak > 0 ? C.amber : C.muted }}>
+                {streak > 0 ? `🔥 ${t('tasks_streak', streak)}` : '—'}
+              </div>
+              <div style={{ marginTop: 8 }}>
+                <div style={{ display: 'inline-block', padding: '4px 10px', borderRadius: 20, background: `${rankColor}18`, border: `1px solid ${rankColor}40`, fontSize: 11, fontWeight: 700, color: rankColor, letterSpacing: '0.08em' }}>
+                  {rank.toUpperCase()}
+                </div>
+              </div>
             </div>
-            <BoostToggle booking={b} onToggled={onSelect} />
+          </Card>
+
+          {/* Active slot */}
+          {sub.slot_x != null && (
+            <Card style={{ flex: 1, minWidth: 200 }}>
+              <div style={{ fontSize: 11, letterSpacing: '0.10em', color: C.muted, marginBottom: 8 }}>{t('dash_slot_section')}</div>
+              <div style={{ fontSize: 22, fontWeight: 800, color: TIER_COLOR[sub.tier] || C.cyan, fontFamily: "'JetBrains Mono',monospace" }}>
+                [{sub.slot_x},{sub.slot_y}]
+              </div>
+              <div style={{ fontSize: 13, color: C.text, marginTop: 4, marginBottom: 12 }}>{sub.display_name || '—'}</div>
+              {sub.end_date && (
+                <div style={{ fontSize: 11, color: C.muted, marginBottom: 10 }}>
+                  {t('slot_active_until', new Date(sub.end_date).toLocaleDateString())}
+                </div>
+              )}
+              <a href={`/slot/${sub.slot_x}-${sub.slot_y}`} target="_blank" rel="noreferrer"
+                style={{ fontSize: 12, color: C.cyan, textDecoration: 'none', fontWeight: 700, letterSpacing: '0.08em' }}>
+                {t('dash_view_page')}
+              </a>
+            </Card>
+          )}
+
+          {/* Tasks progress */}
+          {tasks.length > 0 && (
+            <Card style={{ flex: '0 0 auto', minWidth: 180, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+              <div>
+                <div style={{ fontSize: 11, letterSpacing: '0.10em', color: C.muted, marginBottom: 6 }}>{t('tasks_title')}</div>
+                <div style={{ fontSize: 26, fontWeight: 900, color: doneTasks === tasks.length ? C.green : C.text }}>
+                  {doneTasks}/{tasks.length}
+                </div>
+                <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>{t('tasks_progress', doneTasks, tasks.length)}</div>
+              </div>
+              {/* Progress bar */}
+              <div style={{ marginTop: 12, height: 4, background: `${C.green}20`, borderRadius: 2 }}>
+                <div style={{ height: 4, borderRadius: 2, width: `${tasks.length > 0 ? (doneTasks / tasks.length) * 100 : 0}%`, background: C.green, transition: 'width .6s ease' }} />
+              </div>
+            </Card>
+          )}
+        </div>
+
+        {/* ── Tabs ─────────────────────────────────────────────── */}
+        <div style={{ display: 'flex', gap: 4, marginBottom: 20, background: 'rgba(0,200,240,0.04)', padding: 4, borderRadius: 10, border: `1px solid ${C.border}` }}>
+          {TABS.map(tb => (
+            <button key={tb.id} onClick={() => setTab(tb.id)}
+              style={{ flex: 1, padding: '9px 12px', border: 'none', borderRadius: 7, background: tab === tb.id ? C.cyan : 'transparent', color: tab === tb.id ? '#01020A' : C.muted, fontSize: 13, fontWeight: 700, cursor: 'pointer', transition: 'background .15s, color .15s', letterSpacing: '0.03em' }}>
+              {tb.label}
+            </button>
+          ))}
+        </div>
+
+        {/* ── Tab : Stats ──────────────────────────────────────── */}
+        {tab === 'stats' && (
+          <div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 12, marginBottom: 20 }}>
+              <StatCard label={t('dash_clicks_7d')}  value={fmt(stats.clicks_7d)}  icon="📡" color={C.cyan} />
+              <StatCard label={t('dash_clicks_today')} value={fmt(stats.clicks_today)} icon="🖱" color={C.green} />
+              <StatCard label={t('dash_clicks_month')} value={fmt(stats.clicks_30d)} icon="📈" color={C.amber} />
+              <StatCard label={t('dash_ctr')} value={`${stats.ctr_pct || 0}%`} icon="📊" color={C.purple}
+                sub={stats.impressions_7d ? `${fmt(stats.impressions_7d)} imp.` : t('dash_coming_soon')} />
+            </div>
+
+            {clicksArr.some(v => v > 0) && (
+              <Card>
+                <div style={{ fontSize: 11, letterSpacing: '0.10em', color: C.muted, marginBottom: 12 }}>{t('dash_chart_title')}</div>
+                <MiniChart values={clicksArr} color={C.cyan} label="clics" />
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8 }}>
+                  {(t('dash_chart_days') || []).map((d, i) => (
+                    <div key={i} style={{ flex: 1, textAlign: 'center', fontSize: 10, color: i === 6 ? C.cyan : C.muted }}>{d}</div>
+                  ))}
+                </div>
+              </Card>
+            )}
+          </div>
+        )}
+
+        {/* ── Tab : Tasks ──────────────────────────────────────── */}
+        {tab === 'tasks' && (
+          <div>
+            {tasks.length === 0 ? (
+              <Card style={{ textAlign: 'center', padding: 40 }}>
+                <div style={{ fontSize: 32, marginBottom: 12 }}>🌙</div>
+                <div style={{ fontSize: 15, color: C.text, marginBottom: 8 }}>{t('tasks_no_tasks')}</div>
+                <div style={{ fontSize: 13, color: C.muted }}>{t('tasks_no_tasks_sub')}</div>
+              </Card>
+            ) : (
+              <>
+                {doneTasks === tasks.length && (
+                  <div style={{ background: 'rgba(0,216,128,0.10)', border: '1px solid rgba(0,216,128,0.25)', borderRadius: 10, padding: '14px 18px', marginBottom: 16, fontSize: 14, color: C.green, fontWeight: 700 }}>
+                    {t('tasks_all_done')}
+                  </div>
+                )}
+                {tasks.map(task => (
+                  <TaskItem key={task.id} task={task} onComplete={handleCompleteTask} />
+                ))}
+              </>
+            )}
+
+            {/* Top streaks sidebar */}
+            {topStreaks.length > 0 && (
+              <Card style={{ marginTop: 20 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: C.muted, letterSpacing: '0.08em', marginBottom: 14 }}>{t('tasks_top_streaks')}</div>
+                {topStreaks.slice(0, 5).map((m, i) => (
+                  <div key={m.advertiser_id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 0', borderBottom: i < 4 ? `1px solid ${C.border}` : 'none' }}>
+                    <div style={{ fontSize: 20, flexShrink: 0 }}>{['🥇','🥈','🥉','4️⃣','5️⃣'][i]}</div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: C.text }}>{m.display_name}</div>
+                      <div style={{ fontSize: 11, color: RANK_COLOR[m.rank] || C.muted }}>{m.rank?.toUpperCase()}</div>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ fontSize: 18, fontWeight: 900, color: C.amber }}>🔥 {m.tasks_streak}</div>
+                      <div style={{ fontSize: 10, color: C.muted }}>{t('tasks_consecutive')}</div>
+                    </div>
+                  </div>
+                ))}
+              </Card>
+            )}
+          </div>
+        )}
+
+        {/* ── Tab : Feed ───────────────────────────────────────── */}
+        {tab === 'feed' && (
+          <div>
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ fontSize: 18, fontWeight: 800, color: C.text }}>{t('dash_feed_title')}</div>
+              <div style={{ fontSize: 13, color: C.muted, marginTop: 4 }}>{t('dash_feed_sub')}</div>
+            </div>
+            {feed.length === 0 ? (
+              <Card style={{ textAlign: 'center', padding: 40 }}>
+                <div style={{ fontSize: 32, marginBottom: 12 }}>🌐</div>
+                <div style={{ fontSize: 15, color: C.text, marginBottom: 8 }}>{t('dash_feed_empty')}</div>
+                <div style={{ fontSize: 13, color: C.muted }}>{t('dash_feed_empty_sub')}</div>
+              </Card>
+            ) : (
+              <Card style={{ padding: '4px 20px' }}>
+                {feed.map(item => <FeedItem key={item.id} item={item} />)}
+              </Card>
+            )}
+          </div>
+        )}
+
+        {/* ── Tab : Offers ─────────────────────────────────────── */}
+        {tab === 'offers' && (
+          <div>
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ fontSize: 18, fontWeight: 800, color: C.text }}>{t('dash_offers_title')}</div>
+              <div style={{ fontSize: 13, color: C.muted, marginTop: 4 }}>{t('dash_offers_sub')}</div>
+            </div>
+            {offers.length === 0 ? (
+              <Card style={{ textAlign: 'center', padding: 40 }}>
+                <div style={{ fontSize: 32, marginBottom: 12 }}>💰</div>
+                <div style={{ fontSize: 15, color: C.text, marginBottom: 8 }}>{t('dash_offers_empty')}</div>
+                <div style={{ fontSize: 13, color: C.muted }}>{t('dash_offers_empty_sub')}</div>
+              </Card>
+            ) : (
+              offers.map(offer => (
+                <Card key={offer.id} style={{ marginBottom: 12, border: `1px solid rgba(232,160,32,0.30)` }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+                    <div>
+                      <div style={{ fontSize: 22, fontWeight: 900, color: C.amber }}>
+                        €{((offer.offer_amount_cents || 0) / 100).toLocaleString('fr-FR')}
+                      </div>
+                      <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>par {offer.buyer_name || offer.buyer_email}</div>
+                    </div>
+                    <div style={{ fontSize: 11, color: C.muted, textAlign: 'right' }}>
+                      {offer.expires_at && (
+                        <div style={{ color: C.red }}>
+                          Expire dans {Math.max(0, Math.floor((new Date(offer.expires_at) - Date.now()) / 3600000))}h
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  {offer.message && (
+                    <div style={{ padding: '10px 12px', background: 'rgba(232,160,32,0.06)', borderRadius: 7, fontSize: 13, color: C.muted, marginBottom: 12, fontStyle: 'italic' }}>
+                      "{offer.message}"
+                    </div>
+                  )}
+                  <div style={{ display: 'flex', gap: 10 }}>
+                    <button onClick={async () => {
+                      await fetch('/api/tasks', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token, action: 'accept_offer', offerId: offer.id }) });
+                      fetchData(token);
+                    }}
+                      style={{ flex: 1, background: 'rgba(0,216,128,0.15)', border: '1px solid rgba(0,216,128,0.30)', color: C.green, borderRadius: 8, padding: 12, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+                      ✓ Accepter
+                    </button>
+                    <button onClick={async () => {
+                      await fetch('/api/tasks', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token, action: 'reject_offer', offerId: offer.id }) });
+                      fetchData(token);
+                    }}
+                      style={{ flex: 1, background: 'rgba(208,40,72,0.12)', border: '1px solid rgba(208,40,72,0.25)', color: C.red, borderRadius: 8, padding: 12, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+                      ✕ Refuser
+                    </button>
+                  </div>
+                </Card>
+              ))
+            )}
           </div>
         )}
       </div>
-    );
-  };
-
-  return (
-    <div>
-      <h2 style={{ fontSize: 18, fontWeight: 700, color: U.text, margin: '0 0 20px', fontFamily: F.h }}>
-        Mes blocs publicitaires
-      </h2>
-
-      {bookings.length === 0 && (
-        <div style={{
-          background: U.card2, border: `1px solid ${U.border}`,
-          borderRadius: 12, padding: 40, textAlign: 'center',
-        }}>
-          <div style={{ fontSize: 32, marginBottom: 12 }}>◻</div>
-          <div style={{ color: U.text, fontWeight: 600, marginBottom: 8 }}>Aucun bloc réservé</div>
-          <div style={{ color: U.muted, fontSize: 14, marginBottom: 20 }}>
-            Réservez votre premier espace publicitaire depuis la grille.
-          </div>
-          <Link href="/" style={{
-            display: 'inline-block', padding: '10px 20px',
-            background: U.accent, color: U.accentFg,
-            borderRadius: 8, fontWeight: 700, textDecoration: 'none', fontSize: 14,
-          }}>
-            Explorer la grille →
-          </Link>
-        </div>
-      )}
-
-      {active.length > 0 && (
-        <>
-          <div style={{ fontSize: 11, fontWeight: 700, color: U.muted, letterSpacing: '0.1em', marginBottom: 10 }}>
-            ACTIFS ({active.length})
-          </div>
-          {active.map(b => <BookingCard key={b.id} b={b} />)}
-        </>
-      )}
-
-      {others.length > 0 && (
-        <>
-          <div style={{ fontSize: 11, fontWeight: 700, color: U.muted, letterSpacing: '0.1em', margin: '20px 0 10px' }}>
-            HISTORIQUE ({others.length})
-          </div>
-          {others.map(b => <BookingCard key={b.id} b={b} />)}
-        </>
-      )}
-    </div>
-  );
-}
-
-
-// ─── Composant : preview image avec validation de taille ─────
-const IMAGE_RECS = {
-  one:        { min: 500, warn: 300, label: '500×500px min' },
-  ten:        { min: 300, warn: 200, label: '300×300px min' },
-  corner_ten: { min: 300, warn: 200, label: '300×300px min' },
-  hundred:    { min: 200, warn: 120, label: '200×200px min' },
-  thousand:   null,
-};
-
-function ImagePreviewWithCheck({ src, tier }) {
-  const [imgInfo, setImgInfo] = useState(null); // {w, h, ok, warn}
-  const [loadErr, setLoadErr] = useState(false);
-  const rec = IMAGE_RECS[tier];
-
-  useEffect(() => {
-    if (!src) return;
-    setImgInfo(null);
-    setLoadErr(false);
-    const img = new window.Image();
-    img.onload = () => {
-      const w = img.naturalWidth;
-      const h = img.naturalHeight;
-      const minDim = Math.min(w, h);
-      const ok   = rec ? minDim >= rec.min : true;
-      const warn = rec ? minDim >= rec.warn && minDim < rec.min : false;
-      setImgInfo({ w, h, ok, warn });
-    };
-    img.onerror = () => setLoadErr(true);
-    img.src = src;
-  }, [src, tier]);
-
-  if (loadErr) return (
-    <div style={{ marginTop:8, padding:'8px 12px', borderRadius:8, background:'#e5353512', border:'1px solid #e5353540', display:'flex', alignItems:'center', gap:8 }}>
-      <span>⚠️</span>
-      <span style={{ fontSize:11, color:'#e53535' }}>Image inaccessible ou URL invalide</span>
-    </div>
-  );
-
-  return (
-    <div>
-      <div style={{ marginTop:8, borderRadius:8, overflow:'hidden', height:100, background:'#0d1828', border:`1px solid ${imgInfo ? (imgInfo.ok ? '#00e8a240' : imgInfo.warn ? '#f0b42940' : '#e5353540') : '#ffffff15'}` }}>
-        <img src={src} alt="preview" style={{ width:'100%', height:'100%', objectFit:'cover' }} />
-      </div>
-      {imgInfo && (
-        <div style={{ marginTop:6, padding:'6px 10px', borderRadius:7, background: imgInfo.ok ? '#00e8a212' : imgInfo.warn ? '#f0b42912' : '#e5353512', border:`1px solid ${imgInfo.ok ? '#00e8a230' : imgInfo.warn ? '#f0b42930' : '#e5353530'}`, display:'flex', alignItems:'center', gap:8 }}>
-          <span style={{ fontSize:13 }}>{imgInfo.ok ? '✅' : imgInfo.warn ? '⚠️' : '❌'}</span>
-          <div>
-            <span style={{ fontSize:11, fontWeight:700, color: imgInfo.ok ? '#00e8a2' : imgInfo.warn ? '#f0b429' : '#e53535' }}>
-              {imgInfo.ok ? 'Taille parfaite' : imgInfo.warn ? 'Taille acceptable' : 'Image trop petite'}
-            </span>
-            <span style={{ fontSize:11, color:'rgba(255,255,255,0.4)', marginLeft:6 }}>
-              {imgInfo.w}×{imgInfo.h}px{rec && !imgInfo.ok ? ` — recommandé : ${rec.label}` : ''}
-            </span>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ─── TAB : Éditer le bloc ────────────────────────────────────
-function TabEditBloc({ booking, onSaved, showToast }) {
-  const [form, setForm]     = useState({});
-  const [category, setCat]  = useState('link');
-  const [saving, setSaving] = useState(false);
-  const [focused, setFocused] = useState('');
-  const [uploading, setUploading] = useState(false);
-  const fileInputRef = useState(null)[0] || { current: null };
-  const fileRef = useRef(null);
-
-  const CATS = [
-    {id:'video',    label:'Vidéo',      icon:'▶', color:'#e53935', urlLabel:'LIEN VIDÉO',        urlPh:'https://youtube.com/watch?v=…',  showImg:false, showSocial:false, showMusic:false},
-    {id:'image',    label:'Image',      icon:'◻', color:'#8e24aa', urlLabel:'LIEN DESTINATION',   urlPh:'https://votresite.com',          showImg:true,  showSocial:false, showMusic:false},
-    {id:'link',     label:'Lien',       icon:'⌖', color:'#1e88e5', urlLabel:'URL DESTINATION',    urlPh:'https://votresite.com',          showImg:false, showSocial:false, showMusic:false},
-    {id:'social',   label:'Réseaux',    icon:'⊕', color:'#00acc1', urlLabel:'LIEN DU PROFIL',     urlPh:'https://instagram.com/…',        showImg:false, showSocial:true,  showMusic:false},
-    {id:'music',    label:'Musique',    icon:'♪', color:'#1ed760', urlLabel:"LIEN D'ÉCOUTE",      urlPh:'https://open.spotify.com/…',     showImg:false, showSocial:false, showMusic:true },
-    {id:'app',      label:'App',        icon:'⬡', color:'#43a047', urlLabel:"LIEN APP",           urlPh:'https://apps.apple.com/…',       showImg:true,  showSocial:false, showMusic:false},
-    {id:'brand',    label:'Marque',     icon:'⬟', color:'#f0b429', urlLabel:'SITE MARQUE',        urlPh:'https://votremarque.com',        showImg:true,  showSocial:false, showMusic:false},
-    {id:'clothing', label:'Vêtements',  icon:'◎', color:'#f4511e', urlLabel:'LIEN COLLECTION',    urlPh:'https://boutique.com',           showImg:true,  showSocial:false, showMusic:false},
-    {id:'lifestyle',label:'Lifestyle',  icon:'❋', color:'#00bfa5', urlLabel:'LIEN DESTINATION',   urlPh:'https://votrecontenu.com',       showImg:true,  showSocial:false, showMusic:false},
-    {id:'text',     label:'Publication',icon:'≡', color:'#90a4ae', urlLabel:"LIEN ARTICLE",       urlPh:'https://medium.com/…',           showImg:false, showSocial:false, showMusic:false},
-  ];
-  const SOCIALS = [
-    {id:'instagram',label:'Instagram',color:'#e1306c',e:'📸'},{id:'tiktok',label:'TikTok',color:'#69c9d0',e:'🎵'},
-    {id:'x',label:'X/Twitter',color:'#1d9bf0',e:'✕'},{id:'youtube',label:'YouTube',color:'#ff0000',e:'▶'},
-    {id:'linkedin',label:'LinkedIn',color:'#0a66c2',e:'💼'},{id:'snapchat',label:'Snapchat',color:'#fffc00',e:'👻'},
-    {id:'twitch',label:'Twitch',color:'#9146ff',e:'🎮'},{id:'discord',label:'Discord',color:'#5865f2',e:'💬'},
-  ];
-  const MUSIC_PLATS = [
-    {id:'spotify',label:'Spotify',color:'#1ed760',e:'🎵'},{id:'apple_music',label:'Apple Music',color:'#fc3c44',e:'🍎'},
-    {id:'soundcloud',label:'SoundCloud',color:'#ff5500',e:'☁'},{id:'deezer',label:'Deezer',color:'#a238ff',e:'🎶'},
-    {id:'youtube_music',label:'YT Music',color:'#ff0000',e:'▶'},{id:'bandcamp',label:'Bandcamp',color:'#1da0c3',e:'🎸'},
-  ];
-
-  useEffect(() => {
-    if (!booking) return;
-    const c = booking.content_type || 'link';
-    setCat(c);
-    setForm({
-      display_name:    booking.display_name || '',
-      slogan:          booking.slogan || '',
-      description:     booking.description || '',
-      cta_url:         booking.cta_url || '',
-      cta_text:        booking.cta_text || 'Visiter',
-      primary_color:   booking.primary_color || '',
-      background_color:booking.background_color || '#0d1828',
-      image_url:       booking.image_url || '',
-      social_network:  '',
-      music_platform:  '',
-    });
-  }, [booking?.id]);
-
-  if (!booking) return (
-    <div style={{ textAlign: 'center', padding: 60, color: U.muted }}>
-      <div style={{ fontSize: 40, marginBottom: 12 }}>◻</div>
-      Sélectionnez un bloc dans "Mes blocs" pour l'éditer.
-    </div>
-  );
-
-  const tier  = booking.tier || 'thousand';
-  const color = TIER_COLOR[tier];
-  const cat   = CATS.find(c => c.id === category) || CATS[2];
-  const selSocial = SOCIALS.find(s => s.id === form.social_network);
-  const selMusic  = MUSIC_PLATS.find(p => p.id === form.music_platform);
-  const blockColor = form.primary_color || selSocial?.color || selMusic?.color || cat.color;
-  const canEdit = ['active', 'pending'].includes(booking.status);
-
-  const set = (k, v) => setForm(f => ({...f, [k]: v}));
-
-  const iStyle = (f) => ({
-    width:'100%', padding:'11px 13px', background:U.s1,
-    border:`1px solid ${f ? U.accent : U.border2}`,
-    borderRadius:8, color:U.text, fontSize:13, outline:'none',
-    fontFamily:"'DM Sans',sans-serif", boxSizing:'border-box',
-    transition:'border-color 0.2s', opacity: canEdit ? 1 : 0.5,
-  });
-
-  const handleSave = async () => {
-    setSaving(true);
-    try {
-      await updateBookingContent(booking.id, {
-        content_type:     category,
-        display_name:     form.display_name,
-        slogan:           form.slogan,
-        description:      form.description,
-        cta_url:          form.cta_url,
-        cta_text:         form.cta_text,
-        image_url:        form.image_url,
-        primary_color:    blockColor,
-        background_color: form.background_color,
-        badge:            cat.label.toUpperCase(),
-        logo_initials:    (form.display_name||'??').substring(0,2).toUpperCase(),
-      });
-      showToast('Bloc mis à jour ! Visible sur la grille.', 'success');
-      onSaved();
-    } catch (err) {
-      showToast('Erreur : ' + err.message, 'error');
-    } finally { setSaving(false); }
-  };
-
-  return (
-    <div>
-      {/* Header */}
-      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:24 }}>
-        <div>
-          <h2 style={{ fontSize:18, fontWeight:700, color:U.text, margin:'0 0 4px', fontFamily:F.h }}>Contenu du bloc</h2>
-          <div style={{ color:U.muted, fontSize:13 }}>
-            <span style={{ color }}>{TIER_LABEL[tier]}</span>
-            {" · "}Position ({booking.slot_x},{booking.slot_y})
-            {" · "}<StatusBadge status={booking.status} />
-          </div>
-        </div>
-        {canEdit && <Btn onClick={handleSave} disabled={saving}>{saving ? 'Sauvegarde…' : 'Sauvegarder →'}</Btn>}
-      </div>
-
-      {!canEdit && (
-        <div style={{ background:'rgba(255,255,255,0.04)', border:`1px solid ${U.border}`, borderRadius:10, padding:'12px 16px', marginBottom:20, color:U.muted, fontSize:13 }}>
-          ℹ Ce bloc est {booking.status} — l'édition est désactivée.
-        </div>
-      )}
-
-      {/* ─── CATÉGORIE ─── */}
-      <div style={{ marginBottom:24 }}>
-        <Label>CATÉGORIE DU BLOC</Label>
-        <div style={{ display:'flex', flexWrap:'wrap', gap:6 }}>
-          {CATS.map(c => (
-            <button key={c.id} disabled={!canEdit}
-              onClick={() => { setCat(c.id); set('primary_color', ''); }}
-              style={{ padding:'6px 11px', borderRadius:8, border:`1px solid ${category===c.id?c.color:U.border2}`, background:category===c.id?c.color+'15':'transparent', color:category===c.id?c.color:U.muted, fontSize:12, fontWeight:category===c.id?700:400, cursor:canEdit?'pointer':'default', display:'flex', alignItems:'center', gap:5, transition:'all 0.15s' }}>
-              <span>{c.icon}</span><span>{c.label}</span>
-            </button>
-          ))}
-        </div>
-        <div style={{ fontSize:11, color:U.muted, marginTop:6 }}>{cat.label} — {
-          cat.id==='video'?'YouTube, TikTok, Reels…':
-          cat.id==='social'?'Instagram, TikTok, X, LinkedIn…':
-          cat.id==='music'?'Spotify, Apple Music, SoundCloud…':
-          cat.id==='app'?'App Store, Google Play ou PWA':
-          'Image mise en valeur + lien de destination'
-        }</div>
-      </div>
-
-      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:20 }}>
-
-        {/* Colonne gauche — champs adaptatifs */}
-        <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
-
-          <Field label="NOM / TITRE">
-            <input type="text" value={form.display_name||''} disabled={!canEdit} maxLength={40}
-              onChange={e => set('display_name', e.target.value)}
-              onFocus={() => setFocused('dn')} onBlur={() => setFocused('')}
-              placeholder={cat.id==='social'?'Votre pseudo':cat.id==='music'?'Artiste / titre':'Votre nom ou marque'}
-              style={iStyle(focused==='dn')} />
-          </Field>
-
-          <Field label="ACCROCHE">
-            <input type="text" value={form.slogan||''} disabled={!canEdit} maxLength={80}
-              onChange={e => set('slogan', e.target.value)}
-              onFocus={() => setFocused('sl')} onBlur={() => setFocused('')}
-              placeholder={
-                cat.id==='video'?'Nouvelle vidéo chaque semaine !':
-                cat.id==='social'?'Suivez mes aventures ✨':
-                cat.id==='music'?'Nouveau single disponible':
-                cat.id==='clothing'?'Nouvelle collection 2025':
-                'Votre accroche en une phrase…'
-              }
-              style={iStyle(focused==='sl')} />
-          </Field>
-
-          {/* ── Description libre ── */}
-          <Field label="DESCRIPTION">
-            <div style={{ position: 'relative' }}>
-              <textarea
-                value={form.description || ''}
-                disabled={!canEdit}
-                maxLength={500}
-                rows={4}
-                onChange={e => set('description', e.target.value)}
-                onFocus={() => setFocused('desc')} onBlur={() => setFocused('')}
-                placeholder={
-                  cat.id === 'video'  ? "Raconte ce que tu crées, pourquoi tu le crées, à qui ça s'adresse…" :
-                  cat.id === 'social' ? "Qui tu es, ce que tu partages, pourquoi te suivre…" :
-                  cat.id === 'music'  ? "Ton univers musical, ton parcours, ce que tu prépares…" :
-                  cat.id === 'brand'  ? "L'histoire de ta marque, ta mission, ce qui te différencie…" :
-                  "Raconte ton histoire, ton projet, ce qui va donner envie de cliquer…"
-                }
-                style={{
-                  ...iStyle(focused === 'desc'),
-                  resize: 'vertical',
-                  lineHeight: 1.6,
-                  minHeight: 90,
-                  paddingBottom: 24,
-                  fontFamily: "'DM Sans',sans-serif",
-                }}
-              />
-              <div style={{
-                position: 'absolute', bottom: 8, right: 10,
-                fontSize: 10,
-                color: (form.description?.length || 0) > 450 ? '#ff6b6b' : 'rgba(255,255,255,0.22)',
-                fontFamily: 'monospace',
-                pointerEvents: 'none',
-                transition: 'color 0.2s',
-              }}>
-                {form.description?.length || 0}/500
-              </div>
-            </div>
-            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', marginTop: 5, lineHeight: 1.5 }}>
-              Affiché dans ton <strong style={{ color: 'rgba(255,255,255,0.5)' }}>profil</strong> — raconte ton histoire ou incite au clic.
-            </div>
-          </Field>
-
-          {/* Réseau social picker */}
-          {cat.showSocial && (
-            <Field label="RÉSEAU SOCIAL">
-              <div style={{ display:'flex', flexWrap:'wrap', gap:5 }}>
-                {SOCIALS.map(s => (
-                  <button key={s.id} disabled={!canEdit}
-                    onClick={() => { set('social_network', s.id); set('primary_color', s.color); }}
-                    style={{ padding:'5px 10px', borderRadius:7, border:`1px solid ${form.social_network===s.id?s.color:U.border2}`, background:form.social_network===s.id?s.color+'18':'transparent', color:form.social_network===s.id?s.color:U.muted, fontSize:11, fontWeight:600, cursor:canEdit?'pointer':'default', display:'flex', alignItems:'center', gap:4 }}>
-                    {s.e} {s.label}
-                  </button>
-                ))}
-              </div>
-            </Field>
-          )}
-
-          {/* Musique picker */}
-          {cat.showMusic && (
-            <Field label="PLATEFORME MUSICALE">
-              <div style={{ display:'flex', flexWrap:'wrap', gap:5 }}>
-                {MUSIC_PLATS.map(p => (
-                  <button key={p.id} disabled={!canEdit}
-                    onClick={() => { set('music_platform', p.id); set('primary_color', p.color); }}
-                    style={{ padding:'5px 10px', borderRadius:7, border:`1px solid ${form.music_platform===p.id?p.color:U.border2}`, background:form.music_platform===p.id?p.color+'18':'transparent', color:form.music_platform===p.id?p.color:U.muted, fontSize:11, fontWeight:600, cursor:canEdit?'pointer':'default', display:'flex', alignItems:'center', gap:4 }}>
-                    {p.e} {p.label}
-                  </button>
-                ))}
-              </div>
-            </Field>
-          )}
-
-          <Field label={cat.urlLabel}>
-            <input type="url" value={form.cta_url||''} disabled={!canEdit}
-              onChange={e => set('cta_url', e.target.value)}
-              onFocus={() => setFocused('url')} onBlur={() => setFocused('')}
-              placeholder={cat.urlPh} style={iStyle(focused==='url')} />
-            <div style={{ fontSize:11, color:U.muted, marginTop:4 }}>
-              {cat.id==='social'?'Lien direct vers votre profil':
-               cat.id==='video'?'YouTube, TikTok, Vimeo, Twitch…':
-               cat.id==='music'?'Spotify, Apple Music, SoundCloud…':
-               'Où l\'utilisateur arrive en cliquant'}
-            </div>
-          </Field>
-
-          <Field label="TEXTE DU BOUTON CTA">
-            <input type="text" value={form.cta_text||''} disabled={!canEdit}
-              onChange={e => set('cta_text', e.target.value)}
-              onFocus={() => setFocused('cta')} onBlur={() => setFocused('')}
-              placeholder={
-                cat.id==='video'?'Regarder':cat.id==='music'?'Écouter':
-                cat.id==='app'?'Télécharger':cat.id==='social'?'Suivre':'Visiter'
-              }
-              style={iStyle(focused==='cta')} />
-          </Field>
-
-          {/* Couleurs */}
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
-            <Field label="COULEUR PRINCIPALE">
-              <div style={{ display:'flex', gap:7, alignItems:'center' }}>
-                <input type="color" value={form.primary_color||cat.color} disabled={!canEdit}
-                  onChange={e => set('primary_color', e.target.value)}
-                  style={{ width:36, height:36, borderRadius:6, border:`1px solid ${U.border2}`, cursor:canEdit?'pointer':'default', background:'none', flexShrink:0 }} />
-                <input type="text" value={form.primary_color||''} disabled={!canEdit}
-                  onChange={e => set('primary_color', e.target.value)}
-                  placeholder={cat.color} style={{ ...iStyle(false), flex:1 }} />
-              </div>
-            </Field>
-            <Field label="COULEUR DE FOND">
-              <div style={{ display:'flex', gap:7, alignItems:'center' }}>
-                <input type="color" value={form.background_color||'#0d1828'} disabled={!canEdit}
-                  onChange={e => set('background_color', e.target.value)}
-                  style={{ width:36, height:36, borderRadius:6, border:`1px solid ${U.border2}`, cursor:canEdit?'pointer':'default', background:'none', flexShrink:0 }} />
-                <input type="text" value={form.background_color||''} disabled={!canEdit}
-                  onChange={e => set('background_color', e.target.value)}
-                  placeholder="#0d1828" style={{ ...iStyle(false), flex:1 }} />
-              </div>
-            </Field>
-          </div>
-        </div>
-
-        {/* Colonne droite — image + aperçu */}
-        <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
-
-          {/* Image : url ou upload fichier */}
-          {cat.showImg && (
-            <Field label="IMAGE / VISUEL">
-              <input type="url" value={form.image_url||''} disabled={!canEdit}
-                onChange={e => set('image_url', e.target.value)}
-                onFocus={() => setFocused('img')} onBlur={() => setFocused('')}
-                placeholder="https://exemple.com/image.jpg"
-                style={iStyle(focused==='img')} />
-
-              {/* Upload local */}
-              {canEdit && (
-                <div style={{ marginTop:8, display:'flex', gap:8, alignItems:'center' }}>
-                  <input ref={fileRef} type="file" accept="image/*" style={{ display:'none' }}
-                    onChange={async (e) => {
-                      const file = e.target.files?.[0];
-                      if (!file || !booking) return;
-                      setUploading(true);
-                      try {
-                        const publicUrl = await uploadBlockImage(file, booking.id);
-                        set('image_url', publicUrl);
-                        showToast('✅ Image uploadée avec succès !', 'success');
-                      } catch(err) {
-                        showToast('Erreur upload : ' + err.message, 'error');
-                      } finally { setUploading(false); e.target.value = ''; }
-                    }}
-                  />
-                  <button
-                    onClick={() => fileRef.current?.click()}
-                    disabled={uploading}
-                    style={{ padding:'8px 14px', borderRadius:8, background:uploading?U.faint:'rgba(212,168,75,0.1)', border:`1px solid ${uploading?U.border:'rgba(212,168,75,0.4)'}`, color:uploading?U.muted:'#d4a84b', fontSize:12, fontWeight:600, cursor:uploading?'wait':'pointer', fontFamily:F.b, transition:'all 0.2s' }}>
-                    {uploading ? '⏳ Upload…' : '📁 Uploader un fichier'}
-                  </button>
-                  <span style={{ fontSize:11, color:U.muted }}>JPG, PNG, WEBP</span>
-                </div>
-              )}
-
-              {(() => {
-                const rec = IMAGE_RECS[booking.tier];
-                if (!rec) return null;
-                return (
-                  <div style={{ marginTop:6, padding:'7px 10px', borderRadius:7, background:'#f0b42912', border:'1px solid #f0b42930', display:'flex', alignItems:'center', gap:8 }}>
-                    <span style={{ fontSize:14 }}>📐</span>
-                    <div>
-                      <div style={{ fontSize:11, fontWeight:700, color:'#f0b429' }}>Taille recommandée : {rec.label}</div>
-                      <div style={{ fontSize:11, color:'rgba(255,255,255,0.5)' }}>Ratio 1:1 (carré) — JPG, PNG ou WEBP</div>
-                    </div>
-                  </div>
-                );
-              })()}
-              {form.image_url && (
-                <ImagePreviewWithCheck src={form.image_url} tier={booking.tier} />
-              )}
-              {!form.image_url && (
-                <div style={{ marginTop:8, borderRadius:8, height:80, background:U.s1, border:`2px dashed ${U.border2}`, display:'flex', alignItems:'center', justifyContent:'center', flexDirection:'column', gap:4 }}>
-                  <div style={{ fontSize:20, color:U.muted }}>{cat.icon}</div>
-                  <div style={{ fontSize:11, color:U.muted }}>Collez une URL ou uploadez un fichier</div>
-                </div>
-              )}
-            </Field>
-          )}
-
-          {/* Aperçu fidèle au bloc réel */}
-          <Field label="APERÇU EN TEMPS RÉEL">
-            {(() => {
-              const TIER_SIZE_MAP = { epicenter:100, prestige:56, elite:32, business:18, standard:11, viral:7 };
-              const sz = TIER_SIZE_MAP[booking.tier] || 18;
-              const PREVIEW_SZ = 160;
-              const rPreview = booking.tier === 'epicenter' ? 16 : ['prestige','elite'].includes(booking.tier) ? 14 : booking.tier === 'business' ? 5 : 3;
-              const rReal = booking.tier === 'epicenter' ? Math.round(sz*0.1) : ['prestige','elite'].includes(booking.tier) ? Math.round(sz*0.09) : booking.tier === 'business' ? 3 : 2;
-              const img = form.image_url || '';
-              const c = blockColor;
-              const b = form.background_color || '#0d1828';
-              const name = form.display_name || '';
-              const slogan = form.slogan || '';
-              const social = form.social_network || '';
-              const music = form.music_platform || '';
-              const appStore = form.app_store || '';
-
-              const SOCIAL_ICONS = { instagram:'📸',tiktok:'🎵',x:'✕',youtube:'▶',linkedin:'💼',snapchat:'👻',twitch:'🎮',discord:'💬',facebook:'👍' };
-              const SOCIAL_COLORS = { instagram:'#e1306c',tiktok:'#69c9d0',x:'#1d9bf0',youtube:'#ff0000',linkedin:'#0a66c2',snapchat:'#fffc00',twitch:'#9146ff',discord:'#5865f2' };
-              const MUSIC_ICONS = { spotify:'🎵',apple_music:'🍎',soundcloud:'☁',deezer:'🎶',youtube_music:'▶',bandcamp:'🎸' };
-              const MUSIC_COLORS = { spotify:'#1ed760',apple_music:'#fc3c44',soundcloud:'#ff5500',deezer:'#a238ff',youtube_music:'#ff0000',bandcamp:'#1da0c3' };
-              const APP_COLORS = { app_store:'#007aff',google_play:'#01875f',web:'#6366f1' };
-
-              function BlockContent({ size }) {
-                const t = category;
-                if (t === 'video') {
-                  const btnSz = Math.min(size*0.42,32);
-                  return <div style={{ position:'absolute',inset:0,overflow:'hidden',background:b }}>{img&&<img src={img} alt="" style={{ position:'absolute',inset:0,width:'100%',height:'100%',objectFit:'cover',opacity:0.55 }} onError={e=>e.target.style.display='none'} />}<div style={{ position:'absolute',inset:0,background:'linear-gradient(to bottom,rgba(0,0,0,.2),rgba(0,0,0,.6))' }} /><div style={{ position:'absolute',inset:0,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:3 }}><div style={{ width:btnSz,height:btnSz,borderRadius:'50%',background:'rgba(0,0,0,.6)',border:`${Math.max(1,btnSz*.06)}px solid ${c}`,display:'flex',alignItems:'center',justifyContent:'center',backdropFilter:'blur(6px)',boxShadow:`0 0 ${btnSz*.6}px ${c}70` }}><span style={{ color:c,fontSize:Math.max(8,btnSz*.38),lineHeight:1,paddingLeft:'12%' }}>▶</span></div>{size>=52&&name&&<span style={{ color:'rgba(255,255,255,.85)',fontSize:Math.min(size*.1,9),fontWeight:700,textAlign:'center',maxWidth:'85%',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap' }}>{name}</span>}</div></div>;
-                }
-                if (img && ['image','lifestyle','brand','clothing'].includes(t)) {
-                  return <div style={{ position:'absolute',inset:0,overflow:'hidden' }}><img src={img} alt="" style={{ position:'absolute',inset:0,width:'100%',height:'100%',objectFit:'cover' }} onError={e=>e.target.style.display='none'} />{t==='brand'&&<div style={{ position:'absolute',inset:0,background:`linear-gradient(to top,${b} 0%,transparent 55%)` }} />}</div>;
-                }
-                if (t === 'social') {
-                  const icon = SOCIAL_ICONS[social] || selSocial?.e || '⊕';
-                  const col = SOCIAL_COLORS[social] || c;
-                  return <div style={{ position:'absolute',inset:0,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:1,padding:2,overflow:'hidden',background:`radial-gradient(circle at 50% 45%,${col}28 0%,${col}0a 55%,${b} 100%)` }}>{size>=11&&<span style={{ fontSize:Math.min(size*.52,36),lineHeight:1,filter:`drop-shadow(0 0 ${Math.min(size*.15,8)}px ${col}90)` }}>{icon}</span>}{size>=44&&name&&<span style={{ color:col,fontSize:Math.min(size*.1,9),fontWeight:700,textAlign:'center',maxWidth:'90%',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',marginTop:1 }}>{name}</span>}</div>;
-                }
-                if (t === 'music') {
-                  const icon = MUSIC_ICONS[music] || selMusic?.e || '🎵';
-                  const col = MUSIC_COLORS[music] || c;
-                  return <div style={{ position:'absolute',inset:0,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:1,padding:2,overflow:'hidden',background:`radial-gradient(ellipse at 50% 35%,${col}22 0%,${col}05 60%,${b} 100%)` }}>{size>=11&&<span style={{ color:col,fontSize:Math.min(size*.46,30),lineHeight:1,fontWeight:900 }}>{icon}</span>}{size>=52&&name&&<span style={{ color:col+'cc',fontSize:Math.min(size*.09,8),fontWeight:700,textAlign:'center',maxWidth:'92%',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap' }}>{name}</span>}</div>;
-                }
-                if (t === 'app') {
-                  const storeCol = APP_COLORS[appStore] || c;
-                  const iconSz = Math.min(size*.54,40);
-                  return <div style={{ position:'absolute',inset:0,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:2,padding:3,background:`${storeCol}0a`,overflow:'hidden' }}>{img?<img src={img} alt="" style={{ width:iconSz,height:iconSz,borderRadius:iconSz*.22,objectFit:'cover',border:`1.5px solid ${storeCol}40` }} onError={e=>e.target.style.display='none'} />:<div style={{ width:iconSz,height:iconSz,borderRadius:iconSz*.22,background:`${storeCol}22`,border:`1.5px solid ${storeCol}55`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:iconSz*.42,color:storeCol }}>{(name||'?').charAt(0).toUpperCase()}</div>}</div>;
-                }
-                if (img) return <img src={img} alt="" style={{ position:'absolute',inset:0,width:'100%',height:'100%',objectFit:'cover' }} onError={e=>e.target.style.display='none'} />;
-                return <div style={{ position:'absolute',inset:0,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:2,padding:3,background:b }}><span style={{ color:c,fontSize:Math.min(size*.36,42),fontWeight:900,lineHeight:1,fontFamily:"'Clash Display','Syne',sans-serif" }}>{selSocial?.e||selMusic?.e||cat.icon||(name||'?').charAt(0).toUpperCase()}</span>{size>=52&&name&&<span style={{ color:c+'cc',fontSize:Math.min(size*.12,13),fontWeight:700,textAlign:'center',maxWidth:'90%',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap' }}>{name}</span>}</div>;
-              }
-
-              return (
-                <div style={{ display:'flex',flexDirection:'column',gap:14,alignItems:'center',padding:'14px',borderRadius:12,background:U.s2,border:`1px solid ${U.border}` }}>
-                  {/* Label live */}
-                  <div style={{ display:'flex',alignItems:'center',gap:6,alignSelf:'flex-start' }}>
-                    <div style={{ width:6,height:6,borderRadius:'50%',background:'#00e8a2',animation:'blink 1.5s infinite' }} />
-                    <span style={{ fontSize:9,fontWeight:800,color:'#00e8a2',letterSpacing:'0.1em' }}>APERÇU EN DIRECT</span>
-                  </div>
-
-                  {/* Grande vue fidèle */}
-                  <div style={{ position:'relative',width:PREVIEW_SZ,height:PREVIEW_SZ }}>
-                    <div style={{ position:'absolute',inset:-6,borderRadius:rPreview+4,boxShadow:`0 0 32px ${c}30`,pointerEvents:'none' }} />
-                    <div style={{ width:PREVIEW_SZ,height:PREVIEW_SZ,borderRadius:rPreview,position:'relative',overflow:'hidden',border:`1.5px solid ${c}55`,background:b,boxShadow:`0 0 0 1px ${c}25,0 8px 32px rgba(0,0,0,.5)` }}>
-                      <BlockContent size={PREVIEW_SZ} />
-                    </div>
-                    <div style={{ position:'absolute',top:-8,right:-8,display:'flex',alignItems:'center',gap:4,padding:'3px 8px',borderRadius:20,background:'rgba(0,0,0,.85)',border:`1px solid ${c}30`,backdropFilter:'blur(8px)' }}>
-                      <div style={{ width:5,height:5,borderRadius:'50%',background:'#00e8a2',animation:'blink 1.5s infinite' }} />
-                      <span style={{ fontSize:8,fontWeight:700,color:'rgba(255,255,255,.7)',letterSpacing:'0.06em' }}>LIVE</span>
-                    </div>
-                  </div>
-
-                  {/* Taille réelle sur la grille */}
-                  <div style={{ fontSize:9,color:'rgba(255,255,255,.25)',letterSpacing:'0.06em',fontWeight:600 }}>TAILLE RÉELLE SUR LA GRILLE</div>
-                  <div style={{ padding:12,borderRadius:10,background:'#0a0a0a',border:`1px solid ${U.border}`,display:'grid',gridTemplateColumns:`repeat(3,${sz}px)`,gap:3 }}>
-                    {[0,1,2,3,4,5,6,7,8].map(i => {
-                      const isCenter = i===4;
-                      return (
-                        <div key={i} style={{ width:sz,height:sz,borderRadius:rReal,background:isCenter?b:'#1a1a1a',border:`1px solid ${isCenter?c+'55':U.border}`,position:'relative',overflow:'hidden',boxShadow:isCenter?`0 0 ${sz*1.5}px ${c}40`:'none',flexShrink:0 }}>
-                          {isCenter && <BlockContent size={sz} />}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              );
-            })()}
-          </Field>
-
-          <div style={{ padding:'12px 14px', background:'rgba(34,197,94,0.06)', border:'1px solid rgba(34,197,94,0.15)', borderRadius:10, fontSize:12, color:'rgba(34,197,94,0.8)' }}>
-            ✓ Les modifications sont <strong>immédiatement visibles sur la grille</strong> après sauvegarde.
-          </div>
-        </div>
-      </div>
-
-      {canEdit && (
-        <div style={{ marginTop:20 }}>
-          <Btn onClick={handleSave} disabled={saving} style={{ width:'100%', textAlign:'center' }}>
-            {saving ? 'Sauvegarde en cours…' : '✓ Sauvegarder — mettre à jour le bloc sur la grille'}
-          </Btn>
-        </div>
-      )}
-    </div>
-  );
-}
-
-
-// ─── TAB : Analytics ─────────────────────────────────────────
-function TabAnalytics({ booking }) {
-  if (!booking) {
-    return (
-      <div style={{ textAlign: 'center', padding: 60, color: U.muted }}>
-        <div style={{ fontSize: 32, marginBottom: 12 }}>📊</div>
-        Sélectionnez un bloc pour voir ses analytics.
-      </div>
-    );
-  }
-
-  const stats = [
-    { label: 'Impressions totales', value: booking.impressions || 0, icon: '👁' },
-    { label: 'Clics totaux',        value: booking.clicks || 0,      icon: '↗' },
-    { label: 'CTR',                 value: `${booking.ctr_pct || 0}%`, icon: '%' },
-    { label: 'Clics (7 derniers j)', value: booking.clicks_7d || 0,  icon: '📅' },
-  ];
-
-  const daysLeft = booking.end_date
-    ? Math.max(0, Math.ceil((new Date(booking.end_date) - new Date()) / 86400000))
-    : 0;
-
-  const totalDays = booking.start_date && booking.end_date
-    ? Math.ceil((new Date(booking.end_date) - new Date(booking.start_date)) / 86400000)
-    : 30;
-
-  const elapsed = totalDays - daysLeft;
-  const progress = totalDays > 0 ? (elapsed / totalDays) * 100 : 0;
-
-  return (
-    <div>
-      <h2 style={{ fontSize: 18, fontWeight: 700, color: U.text, margin: '0 0 20px', fontFamily: F.h }}>
-        Analytics — {booking.display_name}
-      </h2>
-
-      {/* Stats cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 24 }}>
-        {stats.map((s, i) => (
-          <div key={i} style={{
-            background: U.card2, border: `1px solid ${U.border}`,
-            borderRadius: 12, padding: '16px', textAlign: 'center',
-          }}>
-            <div style={{ fontSize: 24, marginBottom: 8 }}>{s.icon}</div>
-            <div style={{ fontSize: 26, fontWeight: 800, color: U.text, marginBottom: 4, fontFamily: F.h }}>
-              {typeof s.value === 'number' ? s.value.toLocaleString('fr-FR') : s.value}
-            </div>
-            <div style={{ fontSize: 12, color: U.muted }}>{s.label}</div>
-          </div>
-        ))}
-      </div>
-
-      {/* Durée restante */}
-      <div style={{
-        background: U.card2, border: `1px solid ${U.border}`,
-        borderRadius: 12, padding: '20px 24px', marginBottom: 16,
-      }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
-          <span style={{ fontWeight: 600, color: U.text }}>Durée de la campagne</span>
-          <span style={{
-            fontSize: 13, fontWeight: 700,
-            color: daysLeft < 5 ? U.err : U.green,
-          }}>
-            {daysLeft > 0 ? `${daysLeft} jours restants` : 'Expiré'}
-          </span>
-        </div>
-        <div style={{ background: U.s1, borderRadius: 6, height: 8, overflow: 'hidden' }}>
-          <div style={{
-            width: `${Math.min(100, progress)}%`, height: '100%',
-            background: daysLeft < 5 ? U.err : U.accent,
-            borderRadius: 6, transition: 'width 0.4s',
-          }} />
-        </div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8 }}>
-          <span style={{ fontSize: 12, color: U.muted }}>{booking.start_date}</span>
-          <span style={{ fontSize: 12, color: U.muted }}>{booking.end_date}</span>
-        </div>
-      </div>
-
-      {/* Renouveler */}
-      {booking.status === 'active' && daysLeft < 8 && (
-        <div style={{
-          background: 'rgba(212,168,75,0.08)', border: `1px solid rgba(212,168,75,0.25)`,
-          borderRadius: 12, padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        }}>
-          <div>
-            <div style={{ fontWeight: 600, color: U.accent, marginBottom: 4 }}>⚡ Renouvelez bientôt</div>
-            <div style={{ color: U.muted, fontSize: 13 }}>
-              Il reste {daysLeft} jours. Renouvelez pour garder votre position.
-            </div>
-          </div>
-          <Link href="/" style={{
-            padding: '10px 18px', background: U.accent, color: U.accentFg,
-            borderRadius: 8, fontWeight: 700, textDecoration: 'none', fontSize: 13, whiteSpace: 'nowrap',
-          }}>
-            Renouveler →
-          </Link>
-        </div>
-      )}
-
-      {/* Infos du booking */}
-      <div style={{
-        background: U.card2, border: `1px solid ${U.border}`,
-        borderRadius: 12, padding: '16px 20px', marginTop: 16,
-      }}>
-        <div style={{ fontSize: 11, fontWeight: 700, color: U.muted, letterSpacing: '0.1em', marginBottom: 12 }}>
-          DÉTAILS DU BOOKING
-        </div>
-        {[
-          ['Tier', TIER_LABEL[booking.tier]],
-          ['Position', `(${booking.slot_x}, ${booking.slot_y})`],
-          ['Montant payé', `€${((booking.amount_cents || 0) / 100).toFixed(2)}`],
-          ['ID Booking', booking.id?.slice(0, 8) + '…'],
-        ].map(([k, v]) => (
-          <div key={k} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: `1px solid ${U.border}` }}>
-            <span style={{ color: U.muted, fontSize: 13 }}>{k}</span>
-            <span style={{ color: U.text, fontSize: 13, fontWeight: 500 }}>{v}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// ─── TAB : Profil ────────────────────────────────────────────
-function TabProfil({ advertiser, onSaved, showToast }) {
-  const [form, setForm]   = useState({});
-  const [saving, setSaving] = useState(false);
-  const [focused, setFocused] = useState('');
-
-  useEffect(() => {
-    if (!advertiser) return;
-    setForm({
-      display_name:  advertiser.display_name || '',
-      bio:           advertiser.bio || '',
-      profile_type:  advertiser.profile_type || 'creator',
-      website_url:   advertiser.website_url || '',
-      instagram_url: advertiser.instagram_url || '',
-      tiktok_url:    advertiser.tiktok_url || '',
-      twitter_url:   advertiser.twitter_url || '',
-      youtube_url:   advertiser.youtube_url || '',
-      linkedin_url:  advertiser.linkedin_url || '',
-    });
-  }, [advertiser?.id]);
-
-  const set = (key, val) => setForm(f => ({ ...f, [key]: val }));
-
-  const handleSave = async () => {
-    setSaving(true);
-    try {
-      await updateAdvertiserProfile(advertiser.id, form);
-      showToast('Profil mis à jour !', 'success');
-      onSaved();
-    } catch (err) {
-      showToast('Erreur : ' + err.message, 'error');
-    } finally { setSaving(false); }
-  };
-
-  if (!advertiser) return null;
-
-  const socials = [
-    { key: 'instagram_url', label: 'Instagram', icon: '◎', placeholder: 'https://instagram.com/…' },
-    { key: 'tiktok_url',    label: 'TikTok',    icon: '♪', placeholder: 'https://tiktok.com/@…' },
-    { key: 'twitter_url',   label: 'X / Twitter', icon: '✕', placeholder: 'https://x.com/…' },
-    { key: 'youtube_url',   label: 'YouTube',   icon: '▶', placeholder: 'https://youtube.com/@…' },
-    { key: 'linkedin_url',  label: 'LinkedIn',  icon: '⊡', placeholder: 'https://linkedin.com/in/…' },
-  ];
-
-  return (
-    <div>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
-        <h2 style={{ fontSize: 18, fontWeight: 700, color: U.text, margin: 0, fontFamily: F.h }}>
-          Mon profil
-        </h2>
-        <Btn onClick={handleSave} disabled={saving}>
-          {saving ? 'Sauvegarde…' : 'Sauvegarder →'}
-        </Btn>
-      </div>
-
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
-        {/* Colonne gauche — infos générales */}
-        <div>
-          <Field label="NOM / MARQUE">
-            <input type="text" value={form.display_name || ''}
-              onChange={e => set('display_name', e.target.value)}
-              onFocus={() => setFocused('dn')} onBlur={() => setFocused('')}
-              style={inputStyle(focused === 'dn')} placeholder="Votre nom ou marque" />
-          </Field>
-
-          <Field label="BIO">
-            <textarea value={form.bio || ''}
-              onChange={e => set('bio', e.target.value)}
-              onFocus={() => setFocused('bio')} onBlur={() => setFocused('')}
-              rows={4} placeholder="Décrivez votre activité…"
-              style={{ ...inputStyle(focused === 'bio'), resize: 'vertical', lineHeight: 1.5 }} />
-          </Field>
-
-          <Field label="SITE WEB">
-            <input type="url" value={form.website_url || ''}
-              onChange={e => set('website_url', e.target.value)}
-              onFocus={() => setFocused('web')} onBlur={() => setFocused('')}
-              style={inputStyle(focused === 'web')} placeholder="https://votresite.com" />
-          </Field>
-
-          <Field label="TYPE DE PROFIL">
-            <div style={{ display: 'flex', gap: 8 }}>
-              {[
-                { val: 'creator', label: '🎨 Créateur' },
-                { val: 'freelance', label: '🧾 Freelance' },
-                { val: 'brand', label: '🏢 Marque' },
-              ].map(opt => (
-                <button key={opt.val}
-                  onClick={() => set('profile_type', opt.val)}
-                  style={{
-                    padding: '9px 14px', borderRadius: 8, border: `1px solid ${form.profile_type === opt.val ? U.accent : U.border}`,
-                    background: form.profile_type === opt.val ? 'rgba(212,168,75,0.12)' : 'transparent',
-                    color: form.profile_type === opt.val ? U.accent : U.muted,
-                    fontSize: 13, fontWeight: 600, cursor: 'pointer', flex: 1,
-                  }}>
-                  {opt.label}
-                </button>
-              ))}
-            </div>
-          </Field>
-
-          <div style={{ padding: '14px 16px', background: U.faint, borderRadius: 8, fontSize: 13, color: U.muted }}>
-            <strong style={{ color: U.text }}>Email :</strong> {advertiser.email}
-            <br />
-            <span style={{ fontSize: 11 }}>L'email ne peut pas être modifié.</span>
-          </div>
-        </div>
-
-        {/* Colonne droite — réseaux sociaux */}
-        <div>
-          <div style={{ fontSize: 11, fontWeight: 700, color: U.muted, letterSpacing: '0.1em', marginBottom: 16 }}>
-            RÉSEAUX SOCIAUX
-          </div>
-          {socials.map(s => (
-            <Field key={s.key} label={s.label}>
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                <div style={{
-                  width: 36, height: 36, borderRadius: 7, background: U.s1,
-                  border: `1px solid ${U.border}`, display: 'flex', alignItems: 'center',
-                  justifyContent: 'center', color: U.muted, fontSize: 14, flexShrink: 0,
-                }}>{s.icon}</div>
-                <input type="url" value={form[s.key] || ''}
-                  onChange={e => set(s.key, e.target.value)}
-                  onFocus={() => setFocused(s.key)} onBlur={() => setFocused('')}
-                  style={{ ...inputStyle(focused === s.key), flex: 1 }}
-                  placeholder={s.placeholder} />
-              </div>
-            </Field>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── TAB : Paiements ─────────────────────────────────────────
-function TabPaiements({ bookings }) {
-  const sorted = [...bookings].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-  const total = bookings.reduce((sum, b) => sum + (b.amount_cents || 0), 0);
-
-  return (
-    <div>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-        <h2 style={{ fontSize: 18, fontWeight: 700, color: U.text, margin: 0, fontFamily: F.h }}>
-          Historique des paiements
-        </h2>
-        <div style={{ textAlign: 'right' }}>
-          <div style={{ fontSize: 22, fontWeight: 800, color: U.accent, fontFamily: F.h }}>
-            €{(total / 100).toFixed(2)}
-          </div>
-          <div style={{ fontSize: 12, color: U.muted }}>total investi</div>
-        </div>
-      </div>
-
-      {sorted.length === 0 && (
-        <div style={{ textAlign: 'center', padding: 40, color: U.muted }}>Aucun paiement enregistré.</div>
-      )}
-
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {sorted.map(b => (
-          <div key={b.id} style={{
-            background: U.card2, border: `1px solid ${U.border}`,
-            borderRadius: 12, padding: '16px 20px',
-            display: 'flex', alignItems: 'center', gap: 16,
-          }}>
-            <div style={{
-              width: 40, height: 40, borderRadius: 8, flexShrink: 0,
-              background: TIER_COLOR[b.tier] + '18',
-              border: `1.5px solid ${TIER_COLOR[b.tier] || U.accent}`,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 18,
-            }}>◻</div>
-
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
-                <span style={{ fontWeight: 600, color: U.text, fontSize: 14 }}>{b.display_name}</span>
-                <StatusBadge status={b.status} />
-              </div>
-              <div style={{ color: U.muted, fontSize: 12 }}>
-                {TIER_LABEL[b.tier]} · Bloc ({b.slot_x},{b.slot_y}) · {b.start_date} → {b.end_date}
-              </div>
-            </div>
-
-            <div style={{ textAlign: 'right', flexShrink: 0 }}>
-              <div style={{ fontSize: 16, fontWeight: 700, color: U.text }}>
-                €{((b.amount_cents || 0) / 100).toFixed(2)}
-              </div>
-              <div style={{ fontSize: 11, color: U.muted }}>
-                {new Date(b.created_at).toLocaleDateString('fr-FR')}
-              </div>
-            </div>
-
-            {/* Renouveler */}
-            {b.status === 'active' && (
-              <Link href={`/?slot=${b.slot_x}-${b.slot_y}`} style={{
-                padding: '8px 14px', background: 'rgba(212,168,75,0.1)',
-                border: `1px solid rgba(212,168,75,0.3)`,
-                color: U.accent, borderRadius: 8, fontSize: 12,
-                fontWeight: 600, textDecoration: 'none', whiteSpace: 'nowrap',
-              }}>
-                Renouveler
-              </Link>
-            )}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// ─── DASHBOARD PRINCIPAL ──────────────────────────────────────
-
-// ─── TAB : Offres reçues ─────────────────────────────────────
-function TabOffres({ bookings, userId, showToast }) {
-  const [offers, setOffers]     = useState([]);
-  const [loading, setLoading]   = useState(true);
-  const [responding, setResp]   = useState(null); // offerId being processed
-
-  useEffect(() => {
-    if (!bookings?.length) { setLoading(false); return; }
-    const ids = bookings.map(b => b.id);
-    // Fetch pending offers on all my bookings
-    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-    if (!url || !key) { setLoading(false); return; }
-    const idsStr = ids.map(id => `"${id}"`).join(',');
-    fetch(`${url}/rest/v1/slot_offers?select=*&target_booking_id=in.(${ids.join(',')})&status=in.(pending)&expires_at=gt.${encodeURIComponent(new Date().toISOString())}&order=created_at.desc`, {
-      headers: { 'apikey': key, 'Authorization': `Bearer ${key}` }
-    }).then(r => r.json()).then(data => {
-      setOffers(Array.isArray(data) ? data : []);
-      setLoading(false);
-    }).catch(() => setLoading(false));
-  }, [bookings]);
-
-  const handleRespond = async (offerId, action) => {
-    setResp(offerId);
-    try {
-      const res = await fetch('/api/offers/respond', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ offerId, action, userId }),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || 'Erreur');
-      showToast(action === 'accept' ? '✅ Offre acceptée !' : '❌ Offre refusée', action === 'accept' ? 'success' : 'info');
-      setOffers(prev => prev.filter(o => o.id !== offerId));
-    } catch (err) {
-      showToast('Erreur : ' + err.message, 'error');
-    } finally {
-      setResp(null);
-    }
-  };
-
-  if (loading) return <div style={{ color: U.muted, padding: 32, textAlign:'center' }}>Chargement…</div>;
-
-  if (!offers.length) return (
-    <div style={{ textAlign:'center', padding:'48px 20px' }}>
-      <div style={{ fontSize: 40, marginBottom: 16 }}>💬</div>
-      <div style={{ color: U.text, fontWeight: 700, fontSize: 18, marginBottom: 8 }}>Aucune offre en attente</div>
-      <div style={{ color: U.muted, fontSize: 13 }}>Les offres de rachat sur vos blocs apparaîtront ici.</div>
-    </div>
-  );
-
-  return (
-    <div>
-      <div style={{ fontWeight: 700, fontSize: 18, color: U.text, marginBottom: 6 }}>Offres reçues</div>
-      <div style={{ color: U.muted, fontSize: 12, marginBottom: 24 }}>{offers.length} offre{offers.length > 1 ? 's' : ''} en attente · Expire sous 72h</div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-        {offers.map(o => {
-          const booking = bookings?.find(b => b.id === o.target_booking_id);
-          const euros   = (o.offer_amount_cents / 100).toLocaleString('fr-FR', { style:'currency', currency:'EUR' });
-          const hoursLeft = Math.max(0, Math.round((new Date(o.expires_at) - new Date()) / 3600000));
-          const isProc = responding === o.id;
-          return (
-            <div key={o.id} style={{ borderRadius: 12, background: U.s1, border: `1px solid ${U.border2}`, overflow: 'hidden' }}>
-              {/* Header */}
-              <div style={{ padding: '14px 18px', borderBottom: `1px solid ${U.border}`, display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-                <div>
-                  <div style={{ color: U.text, fontWeight: 700, fontSize: 15 }}>{o.buyer_name || o.buyer_email}</div>
-                  <div style={{ color: U.muted, fontSize: 11, marginTop: 2 }}>
-                    {o.buyer_email} · Bloc ({o.slot_x},{o.slot_y})
-                    {booking && <span style={{ color: U.accent }}> · {booking.display_name || ''}</span>}
-                  </div>
-                </div>
-                <div style={{ textAlign:'right' }}>
-                  <div style={{ color: U.accent, fontWeight: 800, fontSize: 22 }}>{euros}</div>
-                  <div style={{ color: hoursLeft < 12 ? '#e53535' : U.muted, fontSize: 10 }}>⏱ {hoursLeft}h restantes</div>
-                </div>
-              </div>
-              {/* Message */}
-              {o.message && (
-                <div style={{ padding: '10px 18px', background: U.faint, borderBottom: `1px solid ${U.border}` }}>
-                  <div style={{ fontSize: 10, color: U.muted, fontWeight: 600, marginBottom: 4 }}>MESSAGE</div>
-                  <div style={{ fontSize: 13, color: U.text, lineHeight: 1.6, fontStyle:'italic' }}>"{o.message}"</div>
-                </div>
-              )}
-              {/* Actions */}
-              <div style={{ padding: '12px 18px', display:'flex', gap: 10 }}>
-                <button
-                  disabled={isProc}
-                  onClick={() => handleRespond(o.id, 'accept')}
-                  style={{ flex:1, padding:'10px', borderRadius:8, border:'none', background: isProc ? U.s2 : U.accent, color: isProc ? U.muted : U.accentFg, fontWeight:700, fontSize:13, cursor: isProc ? 'wait' : 'pointer', boxShadow: isProc ? 'none' : `0 0 18px ${U.accent}40` }}>
-                  {isProc ? '…' : '✅ Accepter'}
-                </button>
-                <button
-                  disabled={isProc}
-                  onClick={() => handleRespond(o.id, 'reject')}
-                  style={{ flex:1, padding:'10px', borderRadius:8, border:`1px solid ${U.border2}`, background:'transparent', color: U.muted, fontWeight:600, fontSize:13, cursor: isProc ? 'wait' : 'pointer' }}>
-                  ❌ Refuser
-                </button>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-export default function DashboardPage() {
-  const router = useRouter();
-  const [session, setSession]         = useState(null);
-  const [advertiser, setAdvertiser]   = useState(null);
-  const [bookings, setBookings]       = useState([]);
-  const [loading, setLoading]         = useState(true);
-  const [activeTab, setActiveTab]     = useState('blocs');
-  const [selectedBooking, setSelected] = useState(null);
-  const [toast, setToast]             = useState({ msg: '', type: 'success' });
-
-  const showToast = useCallback((msg, type = 'success') => {
-    setToast({ msg, type });
-    setTimeout(() => setToast({ msg: '', type: 'success' }), 3000);
-  }, []);
-
-  const loadData = useCallback(async () => {
-    try {
-      const [adv, bkgs] = await Promise.all([getAdvertiserProfile(), getDashboardBookings()]);
-      setAdvertiser(adv);
-      setBookings(bkgs || []);
-      // Keep selected booking in sync
-      if (selectedBooking) {
-        const updated = (bkgs || []).find(b => b.id === selectedBooking.id);
-        if (updated) setSelected(updated);
-      }
-    } catch (err) {
-      console.error('[Dashboard] loadData error:', err);
-    }
-  }, [selectedBooking?.id]);
-
-  useEffect(() => {
-    getSession().then(async s => {
-      if (!s) { router.replace('/dashboard/login'); return; }
-      setSession(s);
-      await loadData();
-      setLoading(false);
-    });
-  }, []);
-
-  const handleSelectBooking = (b) => {
-    setSelected(b);
-    setActiveTab('edit');
-  };
-
-  const tabs = [
-    { id: 'blocs',     label: 'Mes blocs',    icon: '◻' },
-    { id: 'edit',      label: 'Contenu',       icon: '✏' },
-    { id: 'analytics', label: 'Analytics',     icon: '📊' },
-    { id: 'offres',    label: 'Offres reçues', icon: '💬' },
-    { id: 'profil',    label: 'Profil',        icon: '👤' },
-    { id: 'paiements', label: 'Paiements',     icon: '💳' },
-  ];
-
-  if (loading) {
-    return (
-      <div style={{ minHeight: '100vh', background: U.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', color: U.muted, fontFamily: F.b }}>
-        Chargement…
-      </div>
-    );
-  }
-
-  return (
-    <div style={{ minHeight: '100vh', background: U.bg, fontFamily: F.b, display: 'flex', flexDirection: 'column' }}>
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600;700&display=swap');
-        @keyframes blink{0%,100%{opacity:1}50%{opacity:.2}}
-        @keyframes scanMove{0%{transform:translateY(-100%)}100%{transform:translateY(100vh)}}
-        *{box-sizing:border-box}
-        ::-webkit-scrollbar{width:2px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:rgba(0,200,240,.15)}
-      `}</style>
-
-      {/* Topbar */}
-      <div style={{
-        background: 'rgba(0,2,10,0.99)',
-        borderBottom: `0.5px solid rgba(0,200,240,0.14)`,
-        padding: '0 24px', display: 'flex', alignItems: 'center',
-        gap: 16, height: 52, flexShrink: 0,
-        boxShadow: '0 4px 32px rgba(0,0,0,0.7)',
-        position: 'relative', overflow: 'hidden',
-      }}>
-        <div style={{ position:'absolute', bottom:0, left:0, right:0, height:'0.5px', background:'linear-gradient(90deg,transparent,rgba(0,200,240,0.30),rgba(0,200,240,0.15),transparent)' }}/>
-        <Link href="/" style={{ display:'flex', alignItems:'center', gap:8, textDecoration:'none' }}>
-          <span style={{ color:U.accent, fontSize:15, fontFamily:F.mono }}>◈</span>
-          <span style={{ fontSize:13, fontWeight:700, color:U.accent, letterSpacing:'.16em', fontFamily:F.mono }}>DYSON·COSMOS</span>
-        </Link>
-        <div style={{ width:1, height:16, background:'rgba(0,200,240,0.15)' }} />
-        <span style={{ color:U.muted, fontSize:10, fontFamily:F.mono, letterSpacing:'.12em' }}>ESPACE·CLIENT</span>
-        <div style={{ flex:1 }} />
-        <div style={{ display:'flex', alignItems:'center', gap:12 }}>
-          <div style={{
-            width:28, height:28,
-            clipPath:'polygon(15% 0,85% 0,100% 15%,100% 85%,85% 100%,15% 100%,0 85%,0 15%)',
-            background:`${U.accent}15`, border:`1px solid ${U.accent}50`,
-            display:'flex', alignItems:'center', justifyContent:'center',
-            fontSize:11, fontWeight:700, color:U.accent, fontFamily:F.mono,
-          }}>
-            {(advertiser?.display_name || session?.user?.email || '?')[0].toUpperCase()}
-          </div>
-          <span style={{ color:U.text, fontSize:12, fontFamily:F.mono }}>
-            {advertiser?.display_name || session?.user?.email}
-          </span>
-          <Btn variant="secondary" size="sm" onClick={async () => { await signOut(); router.replace('/dashboard/login'); }}>
-            DÉCONNEXION
-          </Btn>
-        </div>
-      </div>
-
-      <div style={{ display:'flex', flex:1, overflow:'hidden' }}>
-
-        {/* Sidebar */}
-        <div style={{
-          width:220, background:'rgba(0,2,10,0.99)', borderRight:`0.5px solid rgba(0,200,240,0.10)`,
-          padding:'16px 10px', flexShrink:0, display:'flex', flexDirection:'column', gap:3,
-          boxShadow:'4px 0 32px rgba(0,0,0,0.5)',
-        }}>
-          {tabs.map(tab => (
-            <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-              style={{
-                display:'flex', alignItems:'center', gap:10,
-                padding:'10px 12px', border:'none',
-                background: activeTab===tab.id ? `${U.accent}10` : 'transparent',
-                color: activeTab===tab.id ? U.accent : U.muted,
-                fontSize:12, fontWeight:700, letterSpacing:'.06em',
-                cursor:'pointer', textAlign:'left', width:'100%',
-                borderLeft: activeTab===tab.id ? `2px solid ${U.accent}` : '2px solid transparent',
-                transition:'all .12s', fontFamily:F.mono,
-                clipPath: activeTab===tab.id ? 'polygon(0 0,calc(100% - 5px) 0,100% 5px,100% 100%,0 100%)' : 'none',
-              }}>
-              <span style={{ fontSize:13 }}>{tab.icon}</span>
-              {tab.label.toUpperCase()}
-            </button>
-          ))}
-
-          <div style={{ flex:1 }} />
-
-          {/* Bloc sélectionné */}
-          {selectedBooking && (
-            <div style={{
-              background:`${U.accent}08`, border:`0.5px solid ${U.accent}30`,
-              padding:'10px 12px', fontSize:12,
-              clipPath:'polygon(0 0,calc(100% - 7px) 0,100% 7px,100% 100%,0 100%)',
-              marginBottom:8,
-            }}>
-              <div style={{ color:U.muted, marginBottom:4, fontSize:9, letterSpacing:'.14em', fontWeight:700, fontFamily:F.mono }}>
-                BLOC·SÉLECTIONNÉ
-              </div>
-              <div style={{ color:U.accent, fontWeight:700, fontFamily:F.mono, fontSize:12 }}>{selectedBooking.display_name}</div>
-              <div style={{ color:U.muted, fontFamily:F.mono, fontSize:10 }}>({selectedBooking.slot_x},{selectedBooking.slot_y})</div>
-            </div>
-          )}
-
-          <Link href="/" style={{
-            display:'flex', alignItems:'center', gap:7,
-            padding:'9px 12px', color:U.muted, fontSize:11,
-            textDecoration:'none', fontFamily:F.mono, letterSpacing:'.08em',
-          }}>
-            ← RETOUR·GRILLE
-          </Link>
-        </div>
-
-        {/* Main content */}
-        <div style={{ flex:1, overflow:'auto', padding:28, background:'rgba(0,1,8,0.60)' }}>
-          {activeTab === 'blocs' && (
-            <TabMesBlocs bookings={bookings} onSelect={handleSelectBooking} selectedId={selectedBooking?.id} />
-          )}
-          {activeTab === 'edit' && (
-            <TabEditBloc booking={selectedBooking} onSaved={loadData} showToast={showToast} />
-          )}
-          {activeTab === 'analytics' && (
-            <TabAnalytics booking={selectedBooking} />
-          )}
-          {activeTab === 'profil' && (
-            <TabProfil advertiser={advertiser} onSaved={loadData} showToast={showToast} />
-          )}
-          {activeTab === 'offres' && (
-            <TabOffres bookings={bookings} userId={session?.user?.id} showToast={showToast} />
-          )}
-          {activeTab === 'paiements' && (
-            <TabPaiements bookings={bookings} />
-          )}
-        </div>
-      </div>
-
-      <Toast msg={toast.msg} type={toast.type} />
     </div>
   );
 }

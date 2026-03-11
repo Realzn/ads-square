@@ -6,8 +6,8 @@ import { NextResponse } from 'next/server';
 export const dynamic = 'force-dynamic';
 
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
-const FROM = process.env.RESEND_FROM_EMAIL || 'ADS-SQUARE <noreply@ads-square.com>';
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://ads-square.com';
+const FROM = process.env.RESEND_FROM_EMAIL || 'AdsMostFair <noreply@adsmostfair.com>';
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://adsmostfair.com';
 
 // ─── Templates HTML ────────────────────────────────────────────────────────
 
@@ -17,7 +17,7 @@ function baseTemplate(content, preheader = '') {
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ADS-SQUARE</title>
+<title>AdsMostFair</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { background: #01020A; font-family: 'Rajdhani', 'Segoe UI', sans-serif; color: #DDE6F2; }
@@ -44,7 +44,7 @@ ${preheader ? `<div style="display:none;max-height:0;overflow:hidden;">${prehead
   <div class="logo">ADS<span>-SQUARE</span></div>
   ${content}
   <div class="footer">
-    <p>ADS-SQUARE — La grille publicitaire ouverte à tous</p>
+    <p>AdsMostFair — La grille publicitaire ouverte à tous</p>
     <p><a href="${APP_URL}/unsubscribe" style="color:rgba(221,230,242,0.35)">Se désabonner</a></p>
   </div>
 </div>
@@ -72,7 +72,7 @@ function waitlistWelcome({ profile }) {
       <hr class="divider">
       <a href="${APP_URL}" class="btn">DÉCOUVRIR LA GRILLE →</a>
     </div>
-  `, 'Bienvenue sur ADS-SQUARE — votre place est réservée');
+  `, 'Bienvenue sur AdsMostFair — votre place est réservée');
 }
 
 function bookingConfirmed({ name, slotX, slotY, tier, endDate, totalCents }) {
@@ -216,7 +216,7 @@ export async function POST(request) {
     switch (type) {
       case 'waitlist_welcome':
         html = waitlistWelcome(data);
-        emailSubject = subject || '🟦 Bienvenue sur ADS-SQUARE — votre place est réservée';
+        emailSubject = subject || '🟦 Bienvenue sur AdsMostFair — votre place est réservée';
         break;
       case 'booking_confirmed':
         html = bookingConfirmed(data);
