@@ -6,14 +6,17 @@ import Stripe from 'stripe';
 import { createServiceClient } from '../../../../lib/supabase-server';
 import { TIER_PRICE, TIER_LABEL, getTier, isTierAvailable } from '../../../../lib/grid';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
-  apiVersion: '2023-10-16',
-  httpClient: Stripe.createFetchHttpClient(),
-});
+// ✅ Lazy init — process.env not available at module load time on CF Workers
 
 
 
 export async function POST(request) {
+  // ✅ Lazy init inside handler — env vars available here on CF Workers
+  const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
+    apiVersion: '2023-10-16',
+    httpClient: Stripe.createFetchHttpClient(),
+  });
+
   try {
     const {
       slotX, slotY, tier, days = 30, email,
