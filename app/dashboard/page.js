@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
-import { useT, LanguageSwitcher } from '../../lib/i18n/index';
+import { useT, LanguageSwitcher } from '../../lib/i18n';
 
 /* ── Design tokens ─────────────────────────────────────────────────────── */
 const C = {
@@ -247,7 +247,7 @@ export default function DashboardPage() {
       const r = await fetch(`${SB_URL}/auth/v1/verify`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', apikey: SB_ANON },
-        body: JSON.stringify({ email, token: otp, type: 'magiclink' }),
+        body: JSON.stringify({ email, token: otp, type: 'email' }),
       });
       const j = await r.json();
       if (!j.access_token) throw new Error(t('dash_invalid_token'));
