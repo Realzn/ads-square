@@ -3508,8 +3508,8 @@ function HUDLoader(){
 
 
 // ══════════════════════════════════════════════════════════════════════════════
-// FLATVIEW 2D — Vue orbitale concentrique · Sphère de Dyson en coupe
-// Transition fluide 3D↔2D par opacité + scale CSS
+// FLATVIEW 2D — Vue Orbitale · Vercel-inspired flat map
+// Transition 3D→2D : perspective fold + morphing scale
 // ══════════════════════════════════════════════════════════════════════════════
 
 const TIER_RING_CONFIG = {
@@ -3536,10 +3536,10 @@ function FlatView2D({ slots=[], onSlotSelect, activeFilter, visible=false }) {
     return m;
   }, [slots]);
 
-  // Animate in when visible
+  // Staggered entry on visible change
   useEffect(() => {
     if (visible) {
-      const t = setTimeout(() => setEntered(true), 60);
+      const t = setTimeout(() => setEntered(true), 40);
       return () => clearTimeout(t);
     } else {
       setEntered(false);
@@ -3577,12 +3577,12 @@ function FlatView2D({ slots=[], onSlotSelect, activeFilter, visible=false }) {
           layout.push({ tier, x:cx, y:cy, r:cfg.dotR, slot, occ: !!(slot?.occ ?? slot?.status==='active') });
           return;
         }
-        const gapFactor = tier === 'viral' ? 2.2 : tier === 'standard' ? 2.4 : 2.8;
+        const gapFactor = tier === 'viral' ? 2.0 : tier === 'standard' ? 2.2 : 2.6;
         const dotsPerRing = Math.max(1, Math.floor((2 * Math.PI * ringR) / (cfg.dotR * 2 * gapFactor)));
         const rings = Math.ceil(total / dotsPerRing);
         let idx = 0;
         for (let ring = 0; ring < rings && idx < total; ring++) {
-          const r = ringR + ring * cfg.dotR * 2.5;
+          const r = ringR + ring * cfg.dotR * 2.6;
           const count = Math.min(dotsPerRing, total - idx);
           const offsetAngle = (ring % 2) * (Math.PI / count);
           for (let i = 0; i < count; i++, idx++) {
@@ -3602,80 +3602,172 @@ function FlatView2D({ slots=[], onSlotSelect, activeFilter, visible=false }) {
       return `rgba(${r},${g},${b},${alpha})`;
     }
 
+    function drawDotGrid(W, H) {
+      // Vercel-style subtle dot grid background
+      const spacing = 24;
+      ctx.fillStyle = 'rgba(255,255,255,0.018)';
+      for (let x = spacing; x < W; x += spacing) {
+        for (let y = spacing; y < H; y += spacing) {
+          ctx.beginPath();
+          ctx.arc(x, y, 0.8, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+    }
+
     function draw() {
       const t = (performance.now() - t0) / 1000;
       const W = canvas.offsetWidth, H = canvas.offsetHeight;
       ctx.clearRect(0, 0, W, H);
 
-      // Background
-      const bg = ctx.createRadialGradient(W*.5, H*.5, 0, W*.5, H*.5, Math.max(W,H)*.6);
-      bg.addColorStop(0, '#01040F');
-      bg.addColorStop(1, '#000508');
-      ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
+      // ── Background — deep black with radial vignette ──
+      ctx.fillStyle = '#000810';
+      ctx.fillRect(0, 0, W, H);
+      const vignette = ctx.createRadialGradient(W*.5, H*.5, 0, W*.5, H*.5, Math.max(W,H)*.65);
+      vignette.addColorStop(0, 'rgba(0,12,28,0)');
+      vignette.addColorStop(1, 'rgba(0,4,10,0.6)');
+      ctx.fillStyle = vignette; ctx.fillRect(0, 0, W, H);
+
+      // ── Dot grid ──
+      drawDotGrid(W, H);
 
       const layout = buildLayout();
       layoutRef.current = layout;
       const hovItem = hovRef.current;
-
-      // Ring guide lines
       const cx = W*.5, cy = H*.5, maxR = Math.min(W,H)*.44;
+
+      // ── Ring guide lines — dashed, minimal ──
       TIER_ORDER.forEach(tier => {
         if (tier === 'epicenter') return;
         const cfg = TIER_RING_CONFIG[tier];
         const ringR = cfg.ringR * maxR * 2.5;
         const col = pal[tier] || TIER_NEON[tier];
+        ctx.save();
+        ctx.setLineDash([3, 8]);
         ctx.beginPath(); ctx.arc(cx, cy, ringR, 0, Math.PI*2);
-        ctx.strokeStyle = hexColor(col, 0.05); ctx.lineWidth = 0.5; ctx.stroke();
+        ctx.strokeStyle = hexColor(col, 0.07);
+        ctx.lineWidth = 0.5;
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.restore();
       });
 
-      // Dots
+      // ── Central glow behind epicenter ──
+      const epicGlow = ctx.createRadialGradient(cx, cy, 0, cx, cy, maxR * 0.6);
+      const epicCol = pal.epicenter || TIER_NEON.epicenter;
+      epicGlow.addColorStop(0, hexColor(epicCol, 0.04));
+      epicGlow.addColorStop(0.4, hexColor(epicCol, 0.012));
+      epicGlow.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = epicGlow;
+      ctx.fillRect(cx - maxR, cy - maxR, maxR * 2, maxR * 2);
+
+      // ── Dots ──
       layout.forEach(({ tier, x, y, r, slot, occ }) => {
         const col = pal[tier] || TIER_NEON[tier];
-        const isHov = hovItem && slot && hovItem._id && hovItem._id === (slot.id || slot._id);
+        const isHov = hovItem && slot && (hovItem.slot?.id || hovItem.slot?._id) && 
+                      (hovItem.slot?.id || hovItem.slot?._id) === (slot?.id || slot?._id);
 
         if (occ) {
-          const pulse = 0.94 + 0.06 * Math.sin(t * 1.4 + x * 0.015 + y * 0.012);
-          const rr = r * pulse * (isHov ? 1.35 : 1.0);
+          // Pulse phase — unique per position for organic feel
+          const phase = (x * 0.019 + y * 0.013) % (Math.PI * 2);
+          const pulse = 0.93 + 0.07 * Math.sin(t * 1.2 + phase);
+          const rr = r * pulse * (isHov ? 1.45 : 1.0);
+
+          // Outer glow — only for larger dots (prestige+)
           if (r >= 5) {
-            const grd = ctx.createRadialGradient(x, y, 0, x, y, rr * 3.5);
-            grd.addColorStop(0, hexColor(col, 0.18)); grd.addColorStop(1, 'rgba(0,0,0,0)');
-            ctx.beginPath(); ctx.arc(x, y, rr * 3.5, 0, Math.PI*2);
+            const glowR = rr * (isHov ? 4.5 : 3.2);
+            const grd = ctx.createRadialGradient(x, y, 0, x, y, glowR);
+            grd.addColorStop(0, hexColor(col, isHov ? 0.22 : 0.14));
+            grd.addColorStop(0.5, hexColor(col, isHov ? 0.08 : 0.04));
+            grd.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.beginPath(); ctx.arc(x, y, glowR, 0, Math.PI*2);
             ctx.fillStyle = grd; ctx.fill();
           }
-          ctx.beginPath(); ctx.arc(x, y, rr, 0, Math.PI*2);
-          ctx.fillStyle = hexColor(col, isHov ? 0.92 : 0.72); ctx.fill();
-          ctx.beginPath(); ctx.arc(x, y, rr, 0, Math.PI*2);
-          ctx.strokeStyle = hexColor(col, isHov ? 1.0 : 0.85);
-          ctx.lineWidth = isHov ? 1.5 : 0.7; ctx.stroke();
 
+          // Mid ring halo for hovered items
+          if (isHov && r >= 3) {
+            ctx.beginPath(); ctx.arc(x, y, rr * 2.2, 0, Math.PI*2);
+            ctx.strokeStyle = hexColor(col, 0.25);
+            ctx.lineWidth = 0.6;
+            ctx.stroke();
+          }
+
+          // Main dot — gradient fill for depth
+          const dotGrd = ctx.createRadialGradient(x - rr*0.3, y - rr*0.3, 0, x, y, rr);
+          dotGrd.addColorStop(0, hexColor(col, isHov ? 1.0 : 0.90));
+          dotGrd.addColorStop(0.6, hexColor(col, isHov ? 0.85 : 0.68));
+          dotGrd.addColorStop(1, hexColor(col, isHov ? 0.60 : 0.40));
+          ctx.beginPath(); ctx.arc(x, y, rr, 0, Math.PI*2);
+          ctx.fillStyle = dotGrd; ctx.fill();
+
+          // Crisp border
+          ctx.beginPath(); ctx.arc(x, y, rr, 0, Math.PI*2);
+          ctx.strokeStyle = hexColor(col, isHov ? 1.0 : 0.70);
+          ctx.lineWidth = isHov ? 1.5 : 0.8;
+          ctx.stroke();
+
+          // Epicenter crosshair
           if (tier === 'epicenter') {
-            ctx.strokeStyle = hexColor(col, 0.60); ctx.lineWidth = 1;
-            ctx.beginPath(); ctx.moveTo(x-rr*.55, y); ctx.lineTo(x+rr*.55, y); ctx.stroke();
-            ctx.beginPath(); ctx.moveTo(x, y-rr*.55); ctx.lineTo(x, y+rr*.55); ctx.stroke();
+            ctx.save();
+            ctx.strokeStyle = hexColor(col, 0.55);
+            ctx.lineWidth = 1.2;
+            const arm = rr * 0.7;
+            ctx.beginPath(); ctx.moveTo(x-arm, y); ctx.lineTo(x+arm, y); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(x, y-arm); ctx.lineTo(x, y+arm); ctx.stroke();
+            // Outer ring
+            ctx.beginPath(); ctx.arc(x, y, rr + 5, 0, Math.PI*2);
+            ctx.strokeStyle = hexColor(col, 0.30);
+            ctx.lineWidth = 0.8;
+            ctx.stroke();
+            ctx.restore();
           }
+
+          // Name label for large enough dots
           if (r >= 10 && slot?.display_name) {
-            ctx.font = `700 ${Math.max(6, r*0.55)}px "JetBrains Mono",monospace`;
-            ctx.fillStyle = 'rgba(255,255,255,0.90)';
+            ctx.save();
+            ctx.shadowColor = hexColor(col, 0.6);
+            ctx.shadowBlur = 4;
+            ctx.font = `700 ${Math.max(6.5, r * 0.52)}px "JetBrains Mono",monospace`;
+            ctx.fillStyle = 'rgba(255,255,255,0.95)';
             ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-            ctx.fillText(slot.display_name.toUpperCase().slice(0,6), x, y);
+            ctx.fillText(slot.display_name.toUpperCase().slice(0, 6), x, y);
+            ctx.restore();
           }
-          if (isHov && slot?.display_name && r < 10) {
-            const lx = x + (x > W*.5 ? rr+8 : -(rr+8));
-            ctx.font = `700 7.5px "JetBrains Mono",monospace`;
-            ctx.fillStyle = hexColor(col, 0.90);
-            ctx.textAlign = x > W*.5 ? 'left' : 'right'; ctx.textBaseline = 'middle';
-            ctx.fillText(slot.display_name.toUpperCase().slice(0,14), lx, y);
-            ctx.beginPath(); ctx.moveTo(x + (x > W*.5 ? rr : -rr), y); ctx.lineTo(lx + (x > W*.5 ? -3 : 3), y);
-            ctx.strokeStyle = hexColor(col, 0.35); ctx.lineWidth = 0.5; ctx.stroke();
+
+          // Inline label for smaller hovered dots
+          if (isHov && r < 10 && slot?.display_name) {
+            const side = x > W * .5 ? 1 : -1;
+            const lx = x + side * (rr + 10);
+            ctx.save();
+            ctx.shadowColor = hexColor(col, 0.5);
+            ctx.shadowBlur = 6;
+            ctx.font = `700 8px "JetBrains Mono",monospace`;
+            ctx.fillStyle = hexColor(col, 0.95);
+            ctx.textAlign = side > 0 ? 'left' : 'right';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(slot.display_name.toUpperCase().slice(0, 14), lx, y);
+            ctx.restore();
+            // Connector line
+            ctx.beginPath();
+            ctx.moveTo(x + side * rr, y);
+            ctx.lineTo(lx + side * -4, y);
+            ctx.strokeStyle = hexColor(col, 0.25);
+            ctx.lineWidth = 0.5;
+            ctx.stroke();
           }
+
         } else {
-          const dotR = Math.max(r * 0.38, 1.2);
+          // Empty slot — minimal ghost dot
+          const dotR = Math.max(r * 0.32, 1.0);
           ctx.beginPath(); ctx.arc(x, y, dotR, 0, Math.PI*2);
-          ctx.fillStyle = hexColor(col, isHov ? 0.30 : 0.10); ctx.fill();
+          ctx.fillStyle = hexColor(col, isHov ? 0.28 : 0.07);
+          ctx.fill();
         }
       });
 
-      // Tier ring labels
+      // ── Tier ring labels — right side, clean alignment ──
+      const labelX = cx + maxR * 2.5 + 14;
+      let labelStack = []; // collect for smart Y positioning
       TIER_ORDER.forEach(tier => {
         if (tier === 'epicenter') return;
         const cfg  = TIER_RING_CONFIG[tier];
@@ -3683,17 +3775,39 @@ function FlatView2D({ slots=[], onSlotSelect, activeFilter, visible=false }) {
         const col  = pal[tier] || TIER_NEON[tier];
         const occ  = (slotsByTier[tier] || []).filter(s => s.occ || s.status==='active').length;
         const total = cfg.total;
-        ctx.font   = `700 6.5px "JetBrains Mono",monospace`;
-        ctx.fillStyle = hexColor(col, 0.40); ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-        ctx.fillText(`${tier.toUpperCase()} ${occ}/${total}`, cx + ringR + 10, cy);
+        const pct = total > 0 ? occ / total : 0;
+
+        // Label on the right of the outermost ring edge
+        const lx = cx + ringR + 10;
+        const ly = cy;
+
+        // Tier name
+        ctx.font = `600 7px "JetBrains Mono",monospace`;
+        ctx.fillStyle = hexColor(col, 0.55);
+        ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+        ctx.fillText(tier.toUpperCase(), lx, ly - 5);
+
+        // Count
+        ctx.font = `500 6.5px "JetBrains Mono",monospace`;
+        ctx.fillStyle = hexColor(col, 0.32);
+        ctx.fillText(`${occ}/${total}`, lx, ly + 5);
       });
+
+      // Epicenter label
       {
         const col = pal.epicenter || TIER_NEON.epicenter;
         const occ = (slotsByTier.epicenter || []).filter(s => s.occ || s.status==='active').length;
-        ctx.font = `700 6.5px "JetBrains Mono",monospace`;
-        ctx.fillStyle = hexColor(col, 0.40); ctx.textAlign = 'center'; ctx.textBaseline = 'top';
-        ctx.fillText(`ÉPICENTRE ${occ}/1`, cx, cy + TIER_RING_CONFIG.epicenter.dotR + 8);
+        ctx.font = `700 7px "JetBrains Mono",monospace`;
+        ctx.fillStyle = hexColor(col, 0.50);
+        ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+        ctx.fillText(`ÉPICENTRE · ${occ}/1`, cx, cy + TIER_RING_CONFIG.epicenter.dotR + 10);
       }
+
+      // ── Bottom watermark ──
+      ctx.font = `500 7px "JetBrains Mono",monospace`;
+      ctx.fillStyle = 'rgba(0,200,240,0.08)';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+      ctx.fillText('DYSON · COSMOS · ORBITAL MAP · v7', W * .5, H - 12);
 
       raf = requestAnimationFrame(draw);
     }
@@ -3708,7 +3822,7 @@ function FlatView2D({ slots=[], onSlotSelect, activeFilter, visible=false }) {
     const mx = e.clientX - rect.left, my = e.clientY - rect.top;
     let found = null;
     for (const item of layoutRef.current) {
-      if (Math.hypot(mx - item.x, my - item.y) <= Math.max(item.r * 1.8, 5)) { found = item; break; }
+      if (Math.hypot(mx - item.x, my - item.y) <= Math.max(item.r * 1.9, 6)) { found = item; break; }
     }
     hovRef.current = found; setHov(found);
   }
@@ -3718,66 +3832,194 @@ function FlatView2D({ slots=[], onSlotSelect, activeFilter, visible=false }) {
     const rect = canvas.getBoundingClientRect();
     const mx = e.clientX - rect.left, my = e.clientY - rect.top;
     for (const item of layoutRef.current) {
-      if (Math.hypot(mx - item.x, my - item.y) <= Math.max(item.r * 1.8, 5)) {
+      if (Math.hypot(mx - item.x, my - item.y) <= Math.max(item.r * 1.9, 6)) {
         onSlotSelect && onSlotSelect(item.slot || { tier: item.tier }); return;
       }
     }
   }
 
+  const hovCol = hov ? (pal[hov.tier] || TIER_NEON[hov.tier] || '#00C8E4') : '#00C8E4';
+  const cW = canvasRef.current?.offsetWidth || 0;
+
   return (
-    <div style={{ position:'absolute', inset:0,
+    <div style={{
+      position:'absolute', inset:0,
       opacity: entered ? 1 : 0,
-      transform: entered ? 'scale(1)' : 'scale(0.97)',
-      transition: 'opacity 0.38s cubic-bezier(.4,0,.2,1), transform 0.38s cubic-bezier(.4,0,.2,1)',
+      transform: entered ? 'perspective(1800px) rotateX(0deg) scale(1)' : 'perspective(1800px) rotateX(8deg) scale(0.97)',
+      transition: 'opacity 0.55s cubic-bezier(.16,1,.3,1), transform 0.55s cubic-bezier(.16,1,.3,1)',
+      transformOrigin: '50% 40%',
     }}>
       <canvas
         ref={canvasRef}
-        style={{ width:'100%', height:'100%', display:'block', cursor: hov?.occ ? 'pointer' : 'default' }}
+        style={{ width:'100%', height:'100%', display:'block', cursor: hov?.occ ? 'pointer' : 'crosshair' }}
         onMouseMove={handleMouseMove}
         onClick={handleClick}
         onMouseLeave={() => { hovRef.current = null; setHov(null); }}
       />
-      {hov?.occ && hov.slot?.display_name && hov.r >= 5 && (
+
+      {/* ── Vercel-style tier legend — bottom left ── */}
+      <div style={{
+        position:'absolute', bottom:28, left:20,
+        display:'flex', flexDirection:'column', gap:5,
+        pointerEvents:'none',
+      }}>
+        {TIER_ORDER.map(tier => {
+          const col = pal[tier] || TIER_NEON[tier];
+          const occ = (slotsByTier[tier] || []).filter(s => s?.occ || s?.status==='active').length;
+          const tot = TIER_RING_CONFIG[tier].total;
+          const pct = tot > 0 ? occ / tot : 0;
+          return (
+            <div key={tier} style={{ display:'flex', alignItems:'center', gap:7 }}>
+              <div style={{
+                width: 6, height: 6, borderRadius: '50%', flexShrink: 0,
+                background: col,
+                opacity: occ > 0 ? 0.85 : 0.20,
+                boxShadow: occ > 0 ? `0 0 5px ${col}60` : 'none',
+              }}/>
+              <span style={{
+                fontFamily:'"JetBrains Mono",monospace', fontSize:7,
+                color: occ > 0 ? `${col}90` : 'rgba(255,255,255,0.18)',
+                letterSpacing:'.10em', fontWeight: 600,
+                minWidth: 52,
+              }}>{tier.toUpperCase()}</span>
+              {/* Mini progress bar */}
+              <div style={{ width:40, height:2, background:'rgba(255,255,255,0.06)', position:'relative', overflow:'hidden' }}>
+                <div style={{
+                  position:'absolute', left:0, top:0, bottom:0,
+                  width:`${pct * 100}%`,
+                  background: col, opacity: 0.6,
+                  transition:'width .5s ease',
+                }}/>
+              </div>
+              <span style={{
+                fontFamily:'"JetBrains Mono",monospace', fontSize:6.5,
+                color:'rgba(255,255,255,0.22)', letterSpacing:'.04em',
+                minWidth:28, textAlign:'right',
+              }}>{occ}<span style={{opacity:.5}}>/{tot}</span></span>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* ── Hover tooltip — Vercel-style card ── */}
+      {hov?.occ && (
         <div style={{
           position:'absolute',
-          left: hov.x > (canvasRef.current?.offsetWidth||0)/2 ? 'auto' : hov.x + hov.r + 14,
-          right: hov.x > (canvasRef.current?.offsetWidth||0)/2 ? (canvasRef.current?.offsetWidth||0) - hov.x + hov.r + 14 : 'auto',
-          top: hov.y - 24,
-          background:'rgba(0,3,14,0.97)',
-          border:`0.5px solid ${(pal[hov.tier]||'#00C8E4')}50`,
-          borderLeft:`2px solid ${pal[hov.tier]||'#00C8E4'}`,
-          padding:'7px 10px', pointerEvents:'none', zIndex:50,
-          minWidth:120, maxWidth:200,
+          left: hov.x > cW * .55 ? 'auto' : hov.x + Math.max(hov.r, 8) + 16,
+          right: hov.x > cW * .55 ? cW - hov.x + Math.max(hov.r, 8) + 16 : 'auto',
+          top: Math.max(12, hov.y - 42),
+          pointerEvents:'none', zIndex:60,
+          animation:'flatHovIn 0.15s cubic-bezier(.16,1,.3,1) both',
         }}>
-          <div style={{ fontFamily:'"JetBrains Mono",monospace', fontSize:8, letterSpacing:'.12em', color: pal[hov.tier]||'#00C8E4', fontWeight:700, marginBottom:3 }}>
-            {hov.tier.toUpperCase()}
-          </div>
-          <div style={{ fontFamily:'"JetBrains Mono",monospace', fontSize:10, fontWeight:700, color:'#DDE6F2', marginBottom:2, letterSpacing:'.06em' }}>
-            {(hov.slot.display_name||'').toUpperCase()}
-          </div>
-          {hov.slot.cta_url && (
-            <div style={{ fontFamily:'"JetBrains Mono",monospace', fontSize:7, color:'rgba(0,200,240,0.50)', letterSpacing:'.06em', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
-              {hov.slot.cta_url}
+          {/* Card */}
+          <div style={{
+            background:'rgba(4,8,20,0.97)',
+            border:`1px solid ${hovCol}28`,
+            borderTop:`1px solid ${hovCol}50`,
+            borderRadius:8,
+            padding:'10px 14px',
+            minWidth:140, maxWidth:220,
+            boxShadow:`0 8px 32px rgba(0,0,0,0.6), 0 0 0 0.5px ${hovCol}18`,
+            backdropFilter:'blur(12px)',
+          }}>
+            {/* Tier badge */}
+            <div style={{
+              display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:7,
+            }}>
+              <div style={{
+                fontFamily:'"JetBrains Mono",monospace', fontSize:7.5, letterSpacing:'.14em',
+                color: hovCol, fontWeight:700,
+                background:`${hovCol}14`, border:`0.5px solid ${hovCol}30`,
+                padding:'2px 7px', borderRadius:3,
+              }}>{hov.tier.toUpperCase()}</div>
+              <div style={{
+                display:'flex', alignItems:'center', gap:4,
+                fontFamily:'"JetBrains Mono",monospace', fontSize:7,
+                color: hov.occ ? '#00D880' : 'rgba(255,255,255,0.25)',
+              }}>
+                <div style={{ width:4, height:4, borderRadius:'50%', background: hov.occ ? '#00D880' : 'rgba(255,255,255,0.20)' }}/>
+                {hov.occ ? 'ACTIF' : 'LIBRE'}
+              </div>
             </div>
-          )}
+
+            {/* Name */}
+            {hov.slot?.display_name && (
+              <div style={{
+                fontFamily:'"JetBrains Mono",monospace', fontSize:11.5, fontWeight:700,
+                color:'rgba(230,240,255,0.95)', marginBottom:4, letterSpacing:'.04em',
+                lineHeight:1.2,
+              }}>{hov.slot.display_name.toUpperCase()}</div>
+            )}
+
+            {/* Tenant */}
+            {hov.slot?.tenant?.slogan && (
+              <div style={{
+                fontFamily:'Rajdhani,system-ui,sans-serif', fontSize:9,
+                color:'rgba(180,200,230,0.55)', lineHeight:1.5, marginBottom:6,
+              }}>{hov.slot.tenant.slogan}</div>
+            )}
+
+            {/* Price */}
+            <div style={{
+              display:'flex', alignItems:'baseline', gap:4, paddingTop:6,
+              borderTop:`0.5px solid rgba(255,255,255,0.06)`,
+            }}>
+              <span style={{ color:'#E8A020', fontFamily:'"JetBrains Mono",monospace', fontSize:13, fontWeight:700 }}>
+                €{fmt(hov.tier)}
+              </span>
+              <span style={{ color:'rgba(255,255,255,0.25)', fontFamily:'"JetBrains Mono",monospace', fontSize:7 }}>/JOUR</span>
+            </div>
+          </div>
+          {/* Arrow pointer */}
+          <div style={{
+            position:'absolute',
+            [hov.x > cW * .55 ? 'right' : 'left']: -5,
+            top:'50%', transform:'translateY(-50%)',
+            width:5, height:8,
+            background:'rgba(4,8,20,0.97)',
+            clipPath: hov.x > cW * .55
+              ? 'polygon(100% 0, 0 50%, 100% 100%)'
+              : 'polygon(0 0, 100% 50%, 0 100%)',
+            opacity: 0.9,
+          }}/>
         </div>
       )}
+
+      {/* ── Grid mode label ── */}
       <div style={{
-        position:'absolute', bottom:10, left:'50%', transform:'translateX(-50%)',
-        fontFamily:'"JetBrains Mono",monospace', fontSize:6.5, letterSpacing:'.20em',
-        color:'rgba(0,200,240,0.15)', pointerEvents:'none', whiteSpace:'nowrap',
-      }}>DYSON·COSMOS · ORBITAL·GRID · 2D</div>
+        position:'absolute', top:14, left:'50%', transform:'translateX(-50%)',
+        display:'flex', alignItems:'center', gap:8,
+        padding:'4px 14px',
+        background:'rgba(0,4,18,0.70)',
+        border:'0.5px solid rgba(0,200,240,0.10)',
+        borderRadius:20,
+        backdropFilter:'blur(8px)',
+        pointerEvents:'none',
+      }}>
+        <span style={{ fontSize:8, color:'rgba(0,200,240,0.40)' }}>⊞</span>
+        <span style={{
+          fontFamily:'"JetBrains Mono",monospace', fontSize:7.5, letterSpacing:'.20em',
+          color:'rgba(0,200,240,0.35)', fontWeight:600,
+        }}>ORBITAL·MAP · 2D</span>
+      </div>
+
+      <style>{`
+        @keyframes flatHovIn {
+          from { opacity:0; transform:translateY(-4px) scale(0.97); }
+          to   { opacity:1; transform:translateY(0) scale(1); }
+        }
+      `}</style>
     </div>
   );
 }
 
+
 // ══════════════════════════════════════════════════════════════════════════════
-// CONTROL PANEL — panneau latéral unifié (remplace Sidebar + TierCommandBar + VueDial)
-// Sobre · compact · rapide
+// CONTROL PANEL — panneau latéral unifié · lecture améliorée
 // ══════════════════════════════════════════════════════════════════════════════
 
 function ControlPanel({ slots, isLive, activeTier, onTierSelect, activeFilter, onFilterSelect, viewMode, onViewToggle, onViewSlot, visible, onClose }) {
-  const [tab, setTab] = useState('tiers'); // 'tiers' | 'vue' | 'actifs'
+  const [tab, setTab] = useState('tiers');
   const isMobile = useIsMobile();
 
   const stats = useMemo(() => {
@@ -3787,114 +4029,149 @@ function ControlPanel({ slots, isLive, activeTier, onTierSelect, activeFilter, o
   }, [slots]);
 
   const occupied = slots?.filter(s => s?.occ && s?.tenant) || [];
+  const totalOcc = slots?.filter(s => s?.occ).length || 0;
+  const totalSlots = 1306;
+  const globalPct = totalOcc / totalSlots;
 
   if (!visible) return null;
 
   return (
     <div style={{
       position:'absolute', right:0, top:0, bottom:0,
-      width: isMobile ? '100%' : 240,
+      width: isMobile ? '100%' : 252,
       zIndex:40,
       display:'flex', flexDirection:'column',
-      background:'rgba(4,6,18,0.98)',
-      borderLeft:`0.5px solid rgba(0,200,240,0.10)`,
-      backdropFilter:'blur(24px)',
-      boxShadow:'-12px 0 40px rgba(0,0,0,0.7)',
-      animation:'panelIn .25s cubic-bezier(.16,1,.3,1) both',
+      background:'rgba(3,5,14,0.99)',
+      borderLeft:`1px solid rgba(255,255,255,0.06)`,
+      backdropFilter:'blur(28px)',
+      WebkitBackdropFilter:'blur(28px)',
+      boxShadow:'-16px 0 48px rgba(0,0,0,0.75)',
+      animation:'panelIn .28s cubic-bezier(.16,1,.3,1) both',
       overflow:'hidden',
     }}>
 
-      {/* Header */}
+      {/* ── Accent line top ── */}
+      <div style={{ height:1.5, background:`linear-gradient(90deg, transparent, ${DS.cyan}60, ${DS.gold}40, transparent)` }}/>
+
+      {/* ── Header ── */}
       <div style={{
-        padding:'12px 14px 10px',
-        borderBottom:`0.5px solid rgba(0,200,240,0.08)`,
-        display:'flex', alignItems:'center', justifyContent:'space-between',
+        padding:'14px 16px 12px',
+        borderBottom:`1px solid rgba(255,255,255,0.05)`,
         flexShrink:0,
       }}>
-        <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-          <span style={{ color:DS.gold, fontSize:14 }}>◈</span>
+        <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', marginBottom:12 }}>
           <div>
-            <div style={{ color:DS.textHi, fontFamily:F.mono, fontSize:10, fontWeight:700, letterSpacing:'.14em' }}>DYSON·COSMOS</div>
-            {isLive && <div style={{ display:'flex', alignItems:'center', gap:4, marginTop:2 }}>
-              <div style={{ width:4, height:4, borderRadius:'50%', background:DS.green, animation:'hpulse 1.4s ease-in-out infinite' }}/>
-              <span style={{ color:DS.green, fontFamily:F.mono, fontSize:7, letterSpacing:'.10em' }}>LIVE</span>
-            </div>}
+            <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:4 }}>
+              <div style={{
+                width:22, height:22, flexShrink:0,
+                border:`1px solid ${DS.gold}40`,
+                background:`${DS.gold}0e`,
+                display:'flex', alignItems:'center', justifyContent:'center',
+                fontSize:11, color:DS.gold, borderRadius:4,
+              }}>◈</div>
+              <span style={{ color:'rgba(230,240,255,0.85)', fontFamily:F.mono, fontSize:11, fontWeight:700, letterSpacing:'.12em' }}>DYSON·COSMOS</span>
+            </div>
+            {isLive && (
+              <div style={{ display:'flex', alignItems:'center', gap:5, paddingLeft:30 }}>
+                <div style={{ width:5, height:5, borderRadius:'50%', background:DS.green, animation:'hpulse 1.4s ease-in-out infinite' }}/>
+                <span style={{ color:DS.green, fontFamily:F.mono, fontSize:7.5, letterSpacing:'.12em', fontWeight:600 }}>LIVE</span>
+                <span style={{ color:'rgba(255,255,255,0.14)', fontFamily:F.mono, fontSize:7 }}>·</span>
+                <span style={{ color:`${DS.green}70`, fontFamily:F.mono, fontSize:7 }}>{totalOcc} ACTIFS</span>
+              </div>
+            )}
+          </div>
+          <button onClick={onClose} style={{
+            width:24, height:24, background:'transparent', flexShrink:0,
+            border:`1px solid rgba(0,200,240,0.12)`,
+            color:'rgba(0,200,240,0.35)', fontFamily:F.mono, fontSize:10,
+            cursor:'pointer', outline:'none', borderRadius:4,
+            display:'flex', alignItems:'center', justifyContent:'center',
+            transition:'all .12s',
+          }}
+          onMouseEnter={e=>{e.currentTarget.style.background='rgba(0,200,240,0.08)';e.currentTarget.style.color=DS.cyan;e.currentTarget.style.borderColor='rgba(0,200,240,0.30)';}}
+          onMouseLeave={e=>{e.currentTarget.style.background='transparent';e.currentTarget.style.color='rgba(0,200,240,0.35)';e.currentTarget.style.borderColor='rgba(0,200,240,0.12)';}}>
+            ✕
+          </button>
+        </div>
+
+        {/* Global occupancy bar */}
+        <div style={{ marginBottom:10 }}>
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', marginBottom:4 }}>
+            <span style={{ color:'rgba(255,255,255,0.22)', fontFamily:F.mono, fontSize:6.5, letterSpacing:'.12em' }}>OCCUPATION GLOBALE</span>
+            <span style={{ color:DS.gold, fontFamily:F.mono, fontSize:9, fontWeight:700 }}>{Math.round(globalPct * 100)}%</span>
+          </div>
+          <div style={{ height:2, background:'rgba(255,255,255,0.06)', borderRadius:1, overflow:'hidden', position:'relative' }}>
+            <div style={{
+              position:'absolute', left:0, top:0, bottom:0,
+              width:`${globalPct * 100}%`,
+              background:`linear-gradient(90deg, ${DS.cyan}88, ${DS.gold})`,
+              transition:'width .6s ease', borderRadius:1,
+            }}/>
           </div>
         </div>
-        <button onClick={onClose} style={{
-          width:22, height:22, background:'transparent',
-          border:`0.5px solid rgba(0,200,240,0.14)`,
-          color:'rgba(0,200,240,0.40)', fontFamily:F.mono, fontSize:11,
-          cursor:'pointer', outline:'none',
-          display:'flex', alignItems:'center', justifyContent:'center',
-          transition:'all .12s',
-        }}
-        onMouseEnter={e=>{e.currentTarget.style.background='rgba(0,200,240,0.08)';e.currentTarget.style.color=DS.cyan;}}
-        onMouseLeave={e=>{e.currentTarget.style.background='transparent';e.currentTarget.style.color='rgba(0,200,240,0.40)';}}>
-          ✕
-        </button>
+
+        {/* 3D / 2D toggle */}
+        <div style={{ display:'flex', gap:3 }}>
+          {[{ id:'3d', icon:'◎', label:'SPHÈRE 3D' }, { id:'2d', icon:'⊞', label:'MAP 2D' }].map(({ id, icon, label }) => {
+            const on = viewMode === id;
+            return (
+              <button key={id} onClick={() => onViewToggle(id)} style={{
+                flex:1, padding:'8px 6px',
+                background: on ? 'rgba(0,200,240,0.10)' : 'rgba(255,255,255,0.02)',
+                border: `1px solid ${on ? 'rgba(0,200,240,0.30)' : 'rgba(255,255,255,0.06)'}`,
+                borderRadius:5,
+                color: on ? DS.cyan : 'rgba(255,255,255,0.28)',
+                fontFamily:F.mono, fontSize:8, fontWeight:on?700:500, letterSpacing:'.10em',
+                cursor:'pointer', outline:'none',
+                transition:'all .18s cubic-bezier(.4,0,.2,1)',
+                display:'flex', alignItems:'center', justifyContent:'center', gap:5,
+                position:'relative', overflow:'hidden',
+              }}>
+                {on && <div style={{ position:'absolute', bottom:0, left:'15%', right:'15%', height:1.5, background:DS.cyan, borderRadius:1 }}/>}
+                <span style={{ fontSize:12 }}>{icon}</span>
+                <span>{label}</span>
+              </button>
+            );
+          })}
+        </div>
       </div>
 
-      {/* View toggle 3D / 2D — inside panel */}
-      <div style={{
-        display:'flex', gap:2, padding:'8px 10px',
-        borderBottom:`0.5px solid rgba(0,200,240,0.06)`,
-        flexShrink:0,
-      }}>
+      {/* ── Tabs ── */}
+      <div style={{ display:'flex', borderBottom:`1px solid rgba(255,255,255,0.05)`, flexShrink:0 }}>
         {[
-          { id:'3d', icon:'◎', label:'SPHÈRE·3D' },
-          { id:'2d', icon:'⊞', label:'GRILLE·2D' },
-        ].map(({ id, icon, label }) => {
-          const on = viewMode === id;
+          { id:'tiers', label:'TIERS', count: null },
+          { id:'vue',   label:'VUE',   count: null },
+          { id:'actifs',label:'ACTIFS',count: occupied.length || null },
+        ].map(({ id, label, count }) => {
+          const on = tab === id;
           return (
-            <button key={id} onClick={() => onViewToggle(id)} style={{
-              flex:1, padding:'7px 4px',
-              background: on ? 'rgba(0,200,240,0.12)' : 'transparent',
-              border: on ? '0.5px solid rgba(0,200,240,0.35)' : '0.5px solid rgba(255,255,255,0.05)',
-              color: on ? DS.cyan : 'rgba(0,200,240,0.30)',
-              fontFamily:F.mono, fontSize:8, fontWeight:700, letterSpacing:'.12em',
-              cursor:'pointer', outline:'none',
-              transition:'all .18s cubic-bezier(.4,0,.2,1)',
+            <button key={id} onClick={() => setTab(id)} style={{
+              flex:1, padding:'10px 4px 9px',
+              background:'transparent', border:'none',
+              borderBottom: `2px solid ${on ? DS.cyan : 'transparent'}`,
+              color: on ? DS.cyan : 'rgba(255,255,255,0.28)',
+              fontFamily:F.mono, fontSize:8, fontWeight:on?700:500, letterSpacing:'.10em',
+              cursor:'pointer', outline:'none', transition:'all .14s',
               display:'flex', alignItems:'center', justifyContent:'center', gap:5,
             }}>
-              <span style={{ fontSize:11 }}>{icon}</span>
               <span>{label}</span>
+              {count !== null && (
+                <span style={{
+                  background: on ? `${DS.cyan}22` : 'rgba(255,255,255,0.07)',
+                  border: `0.5px solid ${on ? DS.cyan+'40' : 'rgba(255,255,255,0.10)'}`,
+                  color: on ? DS.cyan : 'rgba(255,255,255,0.40)',
+                  fontSize:6.5, padding:'1px 5px', borderRadius:10, fontWeight:700,
+                }}>{count}</span>
+              )}
             </button>
           );
         })}
       </div>
 
-      {/* Tabs */}
-      <div style={{
-        display:'flex', gap:1, padding:'6px 8px',
-        borderBottom:`0.5px solid rgba(0,200,240,0.06)`,
-        flexShrink:0,
-      }}>
-        {[
-          { id:'tiers', label:'TIERS' },
-          { id:'vue', label:'VUE' },
-          { id:'actifs', label:'ACTIFS' },
-        ].map(({ id, label }) => {
-          const on = tab === id;
-          return (
-            <button key={id} onClick={() => setTab(id)} style={{
-              flex:1, padding:'5px 4px',
-              background: on ? 'rgba(0,200,240,0.10)' : 'transparent',
-              border: 'none',
-              borderBottom: on ? `1.5px solid ${DS.cyan}` : '1.5px solid transparent',
-              color: on ? DS.cyan : 'rgba(0,200,240,0.32)',
-              fontFamily:F.mono, fontSize:8, fontWeight:on?700:500, letterSpacing:'.12em',
-              cursor:'pointer', outline:'none',
-              transition:'all .12s',
-            }}>{label}</button>
-          );
-        })}
-      </div>
-
-      {/* Content */}
+      {/* ── Content ── */}
       <div style={{ flex:1, overflowY:'auto' }}>
 
-        {/* ── TIERS ── */}
+        {/* TIERS */}
         {tab === 'tiers' && (
           <div>
             {TIER_LIST.filter(k => k !== 'all').map(key => {
@@ -3905,118 +4182,170 @@ function ControlPanel({ slots, isLive, activeTier, onTierSelect, activeFilter, o
               const free = tot - occ;
               const pct = tot > 0 ? occ / tot : 0;
               const isActive = activeTier === cfg.id;
-              const segs = Math.min(tot, 16);
-
               return (
                 <div key={key}
                   onClick={() => onTierSelect(isActive ? -1 : cfg.id)}
                   style={{
-                    padding:'10px 14px',
-                    borderLeft:`2px solid ${isActive ? col : 'transparent'}`,
-                    borderBottom:`0.5px solid rgba(255,255,255,0.04)`,
-                    background: isActive ? `${col}09` : 'transparent',
-                    cursor:'pointer', transition:'all .14s',
+                    padding:'12px 16px',
+                    borderLeft:`2.5px solid ${isActive ? col : 'transparent'}`,
+                    borderBottom:`1px solid rgba(255,255,255,0.03)`,
+                    background: isActive ? `${col}08` : 'transparent',
+                    cursor:'pointer', transition:'all .16s ease', position:'relative',
                   }}
-                  onMouseEnter={e => e.currentTarget.style.background = `${col}06`}
-                  onMouseLeave={e => e.currentTarget.style.background = isActive ? `${col}09` : 'transparent'}
+                  onMouseEnter={e => e.currentTarget.style.background = isActive ? `${col}0c` : `${col}04`}
+                  onMouseLeave={e => e.currentTarget.style.background = isActive ? `${col}08` : 'transparent'}
                 >
-                  <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:6 }}>
-                    <span style={{ fontSize:13, color:`${col}${isActive?'ee':'55'}`, transition:'color .14s' }}>{cfg.icon}</span>
-                    <div style={{ flex:1 }}>
-                      <div style={{ color: isActive ? col : DS.textMid, fontFamily:F.mono, fontSize:9, fontWeight:700, letterSpacing:'.08em' }}>{cfg.short}</div>
-                      <div style={{ color:DS.textLo, fontFamily:F.mono, fontSize:6.5, letterSpacing:'.06em', marginTop:1 }}>{cfg.sub}</div>
+                  <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:7 }}>
+                    <div style={{
+                      width:26, height:26, flexShrink:0, borderRadius: key === 'epicenter' ? '50%' : 4,
+                      border:`1px solid ${col}${isActive?'50':'20'}`,
+                      background:`${col}${isActive?'12':'06'}`,
+                      display:'flex', alignItems:'center', justifyContent:'center',
+                      fontSize:13, color:`${col}${isActive?'ee':'50'}`, transition:'all .16s',
+                    }}>{cfg.icon}</div>
+                    <div style={{ flex:1, minWidth:0 }}>
+                      <div style={{
+                        color: isActive ? col : 'rgba(200,215,235,0.75)',
+                        fontFamily:F.mono, fontSize:10.5, fontWeight:700, letterSpacing:'.07em',
+                        transition:'color .16s', marginBottom:2,
+                      }}>{cfg.short}</div>
+                      <div style={{ color:'rgba(255,255,255,0.20)', fontFamily:F.mono, fontSize:7, letterSpacing:'.06em' }}>{cfg.sub}</div>
                     </div>
-                    <div style={{ textAlign:'right' }}>
-                      {cfg.price && <div style={{ color:isActive?col:DS.textLo, fontFamily:F.mono, fontSize:8, fontWeight:700 }}>€{cfg.price}<span style={{fontSize:6}}>/j</span></div>}
-                      <div style={{ color: free>0 ? DS.green : DS.textLo, fontFamily:F.mono, fontSize:6.5, letterSpacing:'.04em', marginTop:1 }}>{free} libres</div>
+                    <div style={{ textAlign:'right', flexShrink:0 }}>
+                      {cfg.price && <div style={{
+                        color: isActive ? col : 'rgba(232,160,32,0.65)',
+                        fontFamily:F.mono, fontSize:10, fontWeight:700, letterSpacing:'.02em',
+                      }}>€{cfg.price}<span style={{ fontSize:7, opacity:.6, fontWeight:400 }}>/j</span></div>}
+                      <div style={{
+                        color: free > 0 ? `${DS.green}80` : 'rgba(255,255,255,0.18)',
+                        fontFamily:F.mono, fontSize:7, letterSpacing:'.04em', marginTop:1,
+                      }}>{free} libres</div>
                     </div>
                   </div>
-                  {/* Progress bar */}
-                  <div style={{ display:'flex', gap:1, height:2 }}>
-                    {Array.from({length:segs}, (_,si) => {
-                      const filled = si < Math.round(pct * segs);
-                      return <div key={si} style={{ flex:1, background: filled ? col : `${col}18`, transition:'background .4s' }}/>;
+                  <div style={{ display:'flex', gap:1.5, height:3, borderRadius:2, overflow:'hidden' }}>
+                    {Array.from({length: Math.min(tot, 20)}, (_,si) => {
+                      const filled = si < Math.round(pct * Math.min(tot, 20));
+                      return <div key={si} style={{
+                        flex:1, background: filled ? col : `${col}12`,
+                        boxShadow: filled ? `0 0 4px ${col}50` : 'none',
+                        transition:'background .4s',
+                      }}/>;
                     })}
                   </div>
-                  <div style={{ display:'flex', justifyContent:'flex-end', marginTop:3 }}>
-                    <span style={{ color:DS.textLo, fontFamily:F.mono, fontSize:6, letterSpacing:'.04em' }}>{occ}/{tot}</span>
+                  <div style={{ display:'flex', justifyContent:'space-between', marginTop:4 }}>
+                    <span style={{ color:`${col}50`, fontFamily:F.mono, fontSize:6.5 }}>{occ} actifs</span>
+                    <span style={{ color:'rgba(255,255,255,0.15)', fontFamily:F.mono, fontSize:6.5 }}>{Math.round(pct*100)}%</span>
                   </div>
+                  {isActive && <div style={{ position:'absolute', top:0, left:'2.5px', right:0, height:1, background:`linear-gradient(90deg, ${col}60, transparent)` }}/>}
                 </div>
               );
             })}
           </div>
         )}
 
-        {/* ── VUE / SCANNER ── */}
+        {/* VUE */}
         {tab === 'vue' && (
-          <div style={{ padding:'10px 12px', display:'flex', flexDirection:'column', gap:6 }}>
+          <div style={{ padding:'10px 12px', display:'flex', flexDirection:'column', gap:5 }}>
             {Object.entries(VUE_CONFIG).map(([id, cfg]) => {
               const on = activeFilter === id;
               return (
                 <button key={id} onClick={() => onFilterSelect(id)} style={{
-                  display:'flex', alignItems:'center', gap:10,
-                  padding:'9px 12px',
-                  background: on ? `${cfg.col}14` : 'transparent',
-                  border:`0.5px solid ${on ? cfg.col+'44' : 'rgba(255,255,255,0.06)'}`,
-                  borderLeft: on ? `2px solid ${cfg.col}` : '2px solid transparent',
-                  color: on ? cfg.col : DS.textMid,
+                  display:'flex', alignItems:'center', gap:10, padding:'11px 12px',
+                  background: on ? `${cfg.col}12` : 'rgba(255,255,255,0.02)',
+                  border:`1px solid ${on ? cfg.col+'40' : 'rgba(255,255,255,0.05)'}`,
+                  borderLeft: on ? `3px solid ${cfg.col}` : '3px solid transparent',
+                  borderRadius:6, color: on ? cfg.col : 'rgba(200,215,235,0.55)',
                   fontFamily:F.mono, fontSize:9, cursor:'pointer', outline:'none',
-                  transition:'all .14s', textAlign:'left', width:'100%',
+                  transition:'all .16s ease', textAlign:'left', width:'100%',
                 }}>
-                  <span style={{ fontSize:14 }}>{cfg.icon}</span>
+                  <span style={{ fontSize:15, flexShrink:0 }}>{cfg.icon}</span>
                   <div style={{ flex:1 }}>
-                    <div style={{ fontWeight:700, letterSpacing:'.08em', marginBottom:2 }}>{cfg.label}</div>
-                    <div style={{ fontSize:7, color:on?`${cfg.col}70`:DS.textLo, letterSpacing:'.06em' }}>{cfg.desc}</div>
+                    <div style={{ fontWeight:700, letterSpacing:'.08em', marginBottom:2.5 }}>{cfg.label}</div>
+                    <div style={{ fontSize:7, color:on?`${cfg.col}65`:'rgba(255,255,255,0.20)', letterSpacing:'.05em', lineHeight:1.4 }}>{cfg.desc}</div>
                   </div>
-                  {on && <div style={{ width:4, height:4, borderRadius:'50%', background:cfg.col, flexShrink:0, opacity:0.8 }}/>}
+                  {on && <div style={{ width:5, height:5, borderRadius:'50%', background:cfg.col, flexShrink:0, opacity:0.8, boxShadow:`0 0 6px ${cfg.col}` }}/>}
                 </button>
               );
             })}
           </div>
         )}
 
-        {/* ── ACTIFS ── */}
+        {/* ACTIFS */}
         {tab === 'actifs' && (
           <div>
+            <div style={{
+              padding:'8px 16px 7px', borderBottom:`1px solid rgba(255,255,255,0.04)`,
+              display:'flex', alignItems:'center', justifyContent:'space-between',
+            }}>
+              <span style={{ color:'rgba(255,255,255,0.28)', fontFamily:F.mono, fontSize:7, letterSpacing:'.10em' }}>{occupied.length} SLOTS ACTIFS</span>
+              <div style={{ display:'flex', alignItems:'center', gap:4 }}>
+                <div style={{ width:4.5, height:4.5, borderRadius:'50%', background:DS.green, animation:'hpulse 1.4s ease-in-out infinite' }}/>
+                <span style={{ color:DS.green, fontFamily:F.mono, fontSize:6.5, letterSpacing:'.10em', fontWeight:600 }}>EN DIRECT</span>
+              </div>
+            </div>
             {occupied.length === 0 ? (
-              <div style={{ padding:'24px 14px', textAlign:'center', color:DS.textLo, fontFamily:F.mono, fontSize:8, letterSpacing:'.10em' }}>
-                AUCUN·SLOT·ACTIF
+              <div style={{ padding:'32px 16px', textAlign:'center' }}>
+                <div style={{ fontSize:20, marginBottom:10, opacity:.3, color:DS.textMid }}>◯</div>
+                <div style={{ color:'rgba(255,255,255,0.20)', fontFamily:F.mono, fontSize:8, letterSpacing:'.12em' }}>AUCUN SLOT ACTIF</div>
               </div>
             ) : (
               occupied.map((slot, i) => {
                 const col = TIER_NEON[slot.tier] || DS.cyan;
+                const name = (slot.tenant?.name || slot.display_name || '—').toUpperCase();
                 return (
                   <div key={slot.id || i}
                     onClick={() => onViewSlot && onViewSlot(slot)}
                     style={{
-                      padding:'9px 14px',
-                      borderBottom:`0.5px solid rgba(255,255,255,0.04)`,
+                      padding:'10px 16px', borderBottom:`1px solid rgba(255,255,255,0.03)`,
                       cursor:'pointer', transition:'background .12s',
-                      display:'flex', alignItems:'center', gap:9,
+                      display:'flex', alignItems:'center', gap:10,
                     }}
                     onMouseEnter={e => e.currentTarget.style.background = `${col}08`}
                     onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                   >
-                    <div style={{
-                      width:6, height:6, borderRadius:'50%', background:col, flexShrink:0,
-                      boxShadow:`0 0 6px ${col}60`,
-                    }}/>
+                    <div style={{ width:7, height:7, borderRadius:'50%', background:col, flexShrink:0, boxShadow:`0 0 7px ${col}70` }}/>
                     <div style={{ flex:1, minWidth:0 }}>
-                      <div style={{ color:DS.textHi, fontFamily:F.mono, fontSize:8.5, fontWeight:700, letterSpacing:'.06em',
-                        overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
-                        {(slot.tenant?.name || slot.display_name || '—').toUpperCase()}
-                      </div>
-                      <div style={{ color:`${col}70`, fontFamily:F.mono, fontSize:6.5, letterSpacing:'.08em', marginTop:1 }}>
-                        {slot.tier.toUpperCase()} · ({slot.x},{slot.y})
+                      <div style={{
+                        color:'rgba(225,235,250,0.88)', fontFamily:F.mono, fontSize:9, fontWeight:700,
+                        letterSpacing:'.05em', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', marginBottom:2,
+                      }}>{name}</div>
+                      <div style={{ display:'flex', alignItems:'center', gap:5, color:`${col}65`, fontFamily:F.mono, fontSize:7 }}>
+                        <span style={{ background:`${col}12`, border:`0.5px solid ${col}30`, padding:'0.5px 5px', borderRadius:2, fontSize:6.5 }}>
+                          {slot.tier.toUpperCase()}
+                        </span>
+                        {slot.tenant?.slogan && <span style={{ opacity:.7, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', maxWidth:110 }}>{slot.tenant.slogan.slice(0,30)}</span>}
                       </div>
                     </div>
-                    <span style={{ color:`${col}50`, fontSize:9, flexShrink:0 }}>→</span>
+                    <span style={{ color:`${col}40`, fontSize:9, flexShrink:0 }}>→</span>
                   </div>
                 );
               })
             )}
           </div>
         )}
+      </div>
+
+      {/* ── Footer — Revenue KPI ── */}
+      <div style={{
+        padding:'11px 16px 13px', borderTop:`1px solid rgba(255,255,255,0.05)`,
+        flexShrink:0, background:'rgba(0,0,0,0.25)',
+      }}>
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', marginBottom:8 }}>
+          <span style={{ color:'rgba(255,255,255,0.22)', fontFamily:F.mono, fontSize:7, letterSpacing:'.12em' }}>REVENUS·/·JOUR</span>
+          <span style={{ color:DS.gold, fontFamily:F.mono, fontSize:16, fontWeight:700, letterSpacing:'.02em' }}>
+            {TIER_ORDER.reduce((s,t)=>s+(stats[t]||0)*(TIER_PRICE[t]||0)/100,0).toLocaleString('fr-FR')} €
+          </span>
+        </div>
+        <div style={{ display:'flex', gap:2, height:2.5, borderRadius:1.5, overflow:'hidden', marginBottom:7 }}>
+          {TIER_ORDER.map(t => {
+            const c = TIER_NEON[t], o = stats[t]||0, tot = TIER_TOTALS[t];
+            return <div key={t} style={{ flex:1, background: o>0 ? c : 'rgba(255,255,255,0.06)', opacity:0.15+0.85*(o/tot||0), transition:'all .5s' }}/>;
+          })}
+        </div>
+        <div style={{ display:'flex', justifyContent:'space-between', color:'rgba(255,255,255,0.18)', fontFamily:F.mono, fontSize:6.5 }}>
+          <span>{totalOcc} ACTIFS</span>
+          <span>{totalSlots - totalOcc} LIBRES</span>
+        </div>
       </div>
     </div>
   );
@@ -4130,17 +4459,26 @@ export default function View3D({slots=[],isLive=false,onCheckout,onBuyout,onView
           width:'100%', height:'100%', display:'block', outline:'none',
           opacity: (loading || viewMode==='2d') ? 0 : 1,
           pointerEvents: viewMode==='2d' ? 'none' : 'auto',
-          transition:'opacity 0.42s cubic-bezier(.4,0,.2,1)',
+          transform: viewMode==='2d'
+            ? 'perspective(1200px) rotateX(-12deg) scale(0.93)'
+            : 'perspective(1200px) rotateX(0deg) scale(1)',
+          transformOrigin: '50% 50%',
+          transition:'opacity 0.50s cubic-bezier(.4,0,.2,1), transform 0.55s cubic-bezier(.16,1,.3,1)',
           position: viewMode==='2d' ? 'absolute' : 'relative',
+          filter: viewMode==='2d' ? 'blur(2px)' : 'blur(0px)',
         }}/>
 
-        {/* FlatView 2D — transition scale+fade */}
+        {/* FlatView 2D — Vercel-style perspective fold in */}
         <div style={{
           position:'absolute', inset:0,
           opacity: viewMode==='2d' ? 1 : 0,
-          transform: viewMode==='2d' ? 'scale(1)' : 'scale(1.03)',
-          transition:'opacity 0.42s cubic-bezier(.4,0,.2,1), transform 0.42s cubic-bezier(.4,0,.2,1)',
+          transform: viewMode==='2d'
+            ? 'perspective(1200px) rotateX(0deg) scale(1)'
+            : 'perspective(1200px) rotateX(14deg) scale(0.94)',
+          transformOrigin: '50% 55%',
+          transition:'opacity 0.50s cubic-bezier(.4,0,.2,1), transform 0.55s cubic-bezier(.16,1,.3,1)',
           pointerEvents: viewMode==='2d' ? 'auto' : 'none',
+          filter: viewMode==='2d' ? 'blur(0px)' : 'blur(3px)',
         }}>
           <FlatView2D slots={slots} onSlotSelect={setSelSlot} activeFilter={activeFilter} visible={viewMode==='2d'}/>
         </div>
