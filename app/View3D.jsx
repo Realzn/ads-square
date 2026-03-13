@@ -175,14 +175,12 @@ const TIER_PANEL_SCALE = { epicenter:1.30, prestige:1.14, elite:0.98, business:0
 //   • 3 anneaux obliques à 54°/58° d'inclinaison, décalés de 60° entre eux
 // → aucun regroupement visuel, chaque anneau coupe l'étoile depuis un côté différent
 const ELITE_RING_CFG = [
-  // ── Groupe équatorial — PALIER 3 · anneaux éloignés de la sphère ──
-  {mR:SPHERE_R*2.10, tR:SPHERE_R*0.10, thick:SPHERE_R*0.008, rX:-0.1489, rZ:0.0000, slots:9, col:'#4A7898'}, // 0°
-  {mR:SPHERE_R*2.35, tR:SPHERE_R*0.09, thick:SPHERE_R*0.007, rX: 0.0997, rZ:2.0944, slots:9, col:'#5A6888'}, // 120°
-  {mR:SPHERE_R*2.05, tR:SPHERE_R*0.11, thick:SPHERE_R*0.008, rX:-0.1974, rZ:-2.0944, slots:8, col:'#3A5878'}, // 240°
-  // ── Groupe oblique — plus distants encore pour hiérarchie claire ──
-  {mR:SPHERE_R*2.55, tR:SPHERE_R*0.08, thick:SPHERE_R*0.006, rX:-0.4379, rZ:0.9457, slots:8, col:'#607A94'}, // NE ~58°
-  {mR:SPHERE_R*2.20, tR:SPHERE_R*0.10, thick:SPHERE_R*0.007, rX: 1.0122, rZ:0.0000, slots:8, col:'#2A4868'}, // N  ~58°
-  {mR:SPHERE_R*2.45, tR:SPHERE_R*0.09, thick:SPHERE_R*0.006, rX:-0.4379, rZ:-0.9457, slots:8, col:'#485C78'}, // NW ~58°
+  // ── ANNEAU PRINCIPAL — station orbitale massive, proche de la sphère ──
+  // face interne : panneaux holographiques dashboard  |  face externe : coque acier greebles
+  // inner edge ≈ SPHERE_R*1.08   outer edge ≈ SPHERE_R*1.82   height = ±SPHERE_R*0.47
+  {mR:SPHERE_R*1.45, tR:SPHERE_R*0.47, thick:SPHERE_R*0.37, rX:0.10, rZ:0.00, slots:8, col:'#00FFCC'},
+  // ── ANNEAU ORBITAL — ring équatorial incliné, plus fin ──
+  {mR:SPHERE_R*1.70, tR:SPHERE_R*0.07, thick:SPHERE_R*0.014, rX:1.05, rZ:0.00, slots:8, col:'#1155BB'},
 ];
 
 const MOON_CFG = [
@@ -404,6 +402,37 @@ precision highp float;uniform float uTime,uInsideBlend,uSelected,uEpicFocus;vary
 float h21(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5);}
 float noise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(h21(i),h21(i+vec2(1,0)),f.x),mix(h21(i+vec2(0,1)),h21(i+vec2(1,1)),f.x),f.y);}
 float fbm(vec2 p){float v=0.,a=.5;for(int i=0;i<6;i++){v+=a*noise(p);p=p*2.1+vec2(1.7,9.2);a*=.5;}return v;}
+
+// Flower of Life — superposition de cercles sur grille hexagonale
+float flowerOfLife(vec3 pos){
+  // Projeter sur sphère en coordonnées UV sphériques
+  vec3 np=normalize(pos);
+  float u=atan(np.z,np.x)/(3.14159*2.)+.5;
+  float v=asin(clamp(np.y,-1.,1.))/3.14159+.5;
+  vec2 uv=vec2(u,v)*6.; // densité du motif
+  float scale=3.0;
+  vec2 p=uv*scale;
+  // Grille hexagonale
+  float ring=0.;
+  // Centre + 6 cercles du 1er anneau Flower of Life
+  vec2 centers[7];
+  centers[0]=vec2(0.,0.);
+  float r=1.0;
+  for(int i=0;i<6;i++){
+    float a=float(i)*3.14159/3.;
+    centers[i+1]=vec2(cos(a)*r,sin(a)*r);
+  }
+  float R=1.0; // rayon de chaque cercle
+  for(int i=0;i<7;i++){
+    vec2 diff=p-floor(p/2.5)*2.5-centers[i];
+    float dist=length(diff);
+    // Ligne du cercle (épaisseur 0.06)
+    float line=smoothstep(.06,.0,abs(dist-R*.92));
+    ring=max(ring,line);
+  }
+  return ring;
+}
+
 void main(){
   float t=uTime;vec3 vd=normalize(cameraPosition-vWP);
   vec3 fn=normalize(floor(vN*4.+.5)/4.);
@@ -418,8 +447,13 @@ void main(){
   col=mix(col,bright,fresnel*.6);col=mix(col,white,facet*.7*pulse);
   col+=white*pow(fresnel,1.2)*1.8*(.9+.1*sin(t*2.2))+mid*facet*2.4*pulse;
   if(uSelected>.5){col=mix(col,white*2.,sin(t*8.)*.5+.5);col+=bright*.6*sin(t*12.+length(vPos)*8.);}
+  // ── Flower of Life overlay ──
+  float fol=flowerOfLife(vPos);
+  // Couleur dorée/ambrée pour le motif sacré
+  vec3 goldenLine=mix(vec3(.95,.72,.12),vec3(1.,.95,.6),fol);
+  float folPulse=.6+.4*sin(t*.8+length(vPos.xy)*2.);
+  col=mix(col,col+goldenLine*2.5*folPulse,fol*.75);
   float intensity=mix(2.8,.8,uInsideBlend*.5);
-  // uEpicFocus : épicentre en vedette — exposition scène baissée, noyau amplifié
   intensity*=mix(1.0,4.2,uEpicFocus);
   col=mix(col,col+white*uEpicFocus*(.5+.5*sin(t*3.)),uEpicFocus);
   gl_FragColor=vec4(col*intensity*pulse,1.);
@@ -435,10 +469,12 @@ varying float vIsOuter;
 void main(){
   vUV=uv;vN=normalize(normalMatrix*normal);
   vec4 wp=modelMatrix*vec4(position,1.);vWP=wp.xyz;vPos=position;
-  // Outer face : calculé en espace monde pour être robuste aux rotations de l'anneau
+  // Outer face: normal pointe radialement vers l'extérieur (dot ~ +1)
+  // Inner face: normal pointe vers l'intérieur (dot ~ -1)
   vec3 worldNormal=normalize(mat3(modelMatrix)*normal);
   vec3 radial=normalize(vec3(wp.x,0.0,wp.z));
-  vIsOuter=dot(worldNormal,radial)>-0.1?1.0:0.0;
+  float radialDot=dot(worldNormal,radial);
+  vIsOuter=radialDot>0.3?1.0:0.0;
   gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);
 }`;
 const RING_FRAG=`
@@ -453,56 +489,23 @@ varying vec2 vUV;varying vec3 vN,vWP,vPos;
 varying float vIsOuter;
 
 float hash(float n){return fract(sin(n)*43758.5453);}
+float hash2d(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5);}
+float noise2d(vec2 p){vec2 i=floor(p);vec2 f=fract(p);f=f*f*(3.-2.*f);return mix(mix(hash2d(i),hash2d(i+vec2(1,0)),f.x),mix(hash2d(i+vec2(0,1)),hash2d(i+vec2(1,1)),f.x),f.y);}
 float GGX(float NdotH,float rough){float a=rough*rough;float a2=a*a;float d=NdotH*NdotH*(a2-1.)+1.;return a2/(3.14159*d*d);}
 
 void main(){
-  if(uDim>.5){gl_FragColor=vec4(.004,.005,.008,1.);return;}
+  if(uDim>.5){gl_FragColor=vec4(.003,.004,.007,1.);return;}
   float t=uTime;
   vec2 uv=vUV;
 
-  // ── Slot segmentation ──
+  // Slot segmentation
   float slotRaw=uv.x*uSlots;
   float slotIdx=floor(slotRaw);
   float slotFrac=fract(slotRaw);
   float seed=hash(slotIdx*.37+uRingIdx*5.13+2.1);
   float isOcc=step(slotIdx,uOccCount-.5);
 
-  // ── Séparateurs ──
-  float sepW=.018;
-  float sepMask=1.-smoothstep(0.,sepW*.5,min(slotFrac,1.-slotFrac)*2.);
-  float isSep=sepMask>.4?1.:0.;
-
-  // ── Bords haut/bas ──
-  float edgeH=.055;
-  float topEdge=1.-smoothstep(0.,edgeH,uv.y);
-  float botEdge=smoothstep(1.-edgeH,1.,uv.y);
-  float isEdge=max(topEdge,botEdge);
-
-  // ── Nervures ──
-  float ribFreq=8.;float ribRaw=fract(slotFrac*ribFreq);float ribW=.06;
-  float rib=pow(max(0.,1.-abs(ribRaw-.5)*2./ribW),4.)*(.04+isOcc*.03);
-  float hrib=pow(max(0.,1.-abs(fract(uv.y*5.)-.5)*2./.08),4.)*.03;
-
-  // ── Zone active ──
-  float contentY=smoothstep(edgeH,edgeH+.02,uv.y)*(1.-smoothstep(1.-edgeH-.02,1.-edgeH,uv.y));
-
-  // ── Scan line décorative ──
-  float scrollRate=(1.2+seed*.6)*uScrollSpeed;
-  float scrollOffset=fract(slotFrac-(t*scrollRate+seed*3.14));
-  float scanPos=fract(scrollOffset*3.+seed);
-  float scanLine=exp(-abs(uv.y-scanPos)*60.)*.5*isOcc;
-
-  // ── Barre de progression ──
-  float progY=.88;float progH=.025;
-  float progMask=smoothstep(0.,.01,uv.y-(progY-progH*.5))*(1.-smoothstep(0.,.01,uv.y-(progY+progH*.5)));
-  float progFill=step(slotFrac,isOcc>.5?(seed*.5+.3):.08);
-  float progress=progMask*progFill*contentY;
-
-  // ── Glow ambiant ──
-  float centerGlow=exp(-pow((uv.y-.5)*2.2,2.)*.8)*exp(-pow((slotFrac-.5)*2.2,2.)*.8);
-  float ambientOcc=isOcc>.5?(.18+.08*sin(t*1.1+seed*6.28)):(.015+.005*sin(t*.4+seed*3.));
-
-  // ── Slot tex info — déclaré ICI avant brandBgFill qui en a besoin ──
+  // Texture per slot
   float sid=slotIdx;
   float slotHasTex;
   if(sid<0.5)       slotHasTex=uHasTex1;
@@ -516,79 +519,186 @@ void main(){
   float anyHasTex=max(max(max(max(uHasTex1,uHasTex2),max(uHasTex3,uHasTex4)),max(uHasTex5,uHasTex6)),max(uHasTex7,uHasTex8));
   float slotIsOcc=max(slotHasTex,isOcc);
 
-  // brandBgFill activé par slotHasTex (pas uniquement isOcc)
-  vec3 brandBgFill=slotHasTex>.5?uBrandBg*(.7+.3*sin(t*.3+seed)):(isOcc>.5?uBrandBg*(.4+.2*sin(t*.3+seed)):vec3(0.));
-
-  // ── PBR métal ──
+  // PBR specular commun
   vec3 toStar=normalize(-vWP);vec3 viewDir=normalize(cameraPosition-vWP);
-  vec3 H=normalize(toStar+viewDir);float NdotH=max(0.,dot(normalize(vN),H));float NdotL=max(0.,dot(normalize(vN),toStar))*.5+.5;
-  float roughMetal=uHov>.5?.08:.18;float spec=GGX(NdotH,roughMetal)*NdotL;
-  vec3 specCol=mix(vec3(.7,.65,.55),uCol,.25)*spec*.8;
+  vec3 H=normalize(toStar+viewDir);
+  float NdotH=max(0.,dot(normalize(vN),H));
+  float NdotL=max(0.,dot(normalize(vN),toStar))*.5+.5;
+  float NdotV=abs(dot(normalize(vN),normalize(cameraPosition-vWP)));
+  float roughMetal=uHov>.5?.06:.15;
+  float spec=GGX(NdotH,roughMetal)*NdotL;
 
-  // ── Assemblage base métal ──
-  vec3 steelDark=vec3(.012,.015,.022);vec3 steelMid=vec3(.028,.034,.048);vec3 steelLight=vec3(.06,.075,.10);
-  vec3 edgeSteel=mix(steelMid,steelLight,spec*2.);
-  vec3 col=mix(steelDark,steelMid,NdotL*.4+rib+hrib);
-  col=mix(col,edgeSteel+uCol*.12,isEdge*(1.-isSep));
-  col+=uCol*isEdge*.06*(.6+.4*sin(t*.8+seed*3.14));
-  col=mix(col,steelDark*.4,isSep*.85);
-
-  // ── Fond couleur de marque — toujours, pas seulement front-facing ──
-  if(slotIsOcc>.5) col=mix(col, brandBgFill, contentY*0.60);
-
-  // ── TICKER — texture sur toute la surface de l'anneau ──
-  float texV = clamp(uv.y, 0.0, 1.0);
-  float sharedOffset = uTexOffset1;
-  float scrollU = fract(uv.x + sharedOffset);
-  vec4 texSample = vec4(0.0);
-  float hasAnyTex = anyHasTex;
-  if(uHasTex1>.5)      texSample = texture2D(uBrandTex1, vec2(scrollU, texV));
-  else if(uHasTex2>.5) texSample = texture2D(uBrandTex2, vec2(fract(uv.x+uTexOffset2), texV));
-  else if(uHasTex3>.5) texSample = texture2D(uBrandTex3, vec2(fract(uv.x+uTexOffset3), texV));
-  else if(uHasTex4>.5) texSample = texture2D(uBrandTex4, vec2(fract(uv.x+uTexOffset4), texV));
-  else if(uHasTex5>.5) texSample = texture2D(uBrandTex5, vec2(fract(uv.x+uTexOffset5), texV));
-  else if(uHasTex6>.5) texSample = texture2D(uBrandTex6, vec2(fract(uv.x+uTexOffset6), texV));
-  else if(uHasTex7>.5) texSample = texture2D(uBrandTex7, vec2(fract(uv.x+uTexOffset7), texV));
-  else if(uHasTex8>.5) texSample = texture2D(uBrandTex8, vec2(fract(uv.x+uTexOffset8), texV));
-
-  // Appliquer sur toute la surface (plus de restriction face externe)
-  float texBlend = hasAnyTex;
-
-  // Fond sombre pour lisibilité du texte
-  col = mix(col, col*0.05, texBlend*0.98);
-  col = mix(col, brandBgFill, texBlend*0.80);
-
-  // Texture nettement
-  col = mix(col, texSample.rgb, texBlend);
-
-  // Émission néon — pixels clairs brillent fort
-  col += texSample.rgb * texBlend * 3.0;
-
-  col += uCol*centerGlow*ambientOcc*mix(1.0,0.05,anyHasTex);
-  if(uHov>.5) col += uCol*(.30+centerGlow*.50);
-
-  col += specCol*(1.+isEdge*.8);
-
-  float NdotV = abs(dot(normalize(vN), normalize(cameraPosition-vWP)));
-  float angleFade = smoothstep(0.0, 0.25, NdotV);
-  // Slots avec texture : alpha maximal pour que le bandeau soit bien visible
-  float viewFade = slotHasTex>.5 ? mix(0.85, 1.0, angleFade) : (0.08+(0.92)*angleFade);
-
+  vec3 col;
   float alpha;
-  if(isSep>.4){
-    alpha = slotHasTex>.5 ? 0.50*viewFade : 0.08*viewFade;
-  } else if(isEdge>.2){
-    alpha = mix(.35,.70,isEdge)*(uHov>.5?1.15:1.)*viewFade;
+
+  // ════════════════════════════════════════════════════════
+  // FACE EXTERNE — coque métallique sci-fi (Space Station Hull)
+  // ════════════════════════════════════════════════════════
+  if(vIsOuter>.5){
+    vec3 steelBase=vec3(.038,.044,.058);
+    vec3 steelDark=vec3(.008,.010,.016);
+    vec3 steelAccent=vec3(.055,.065,.090);
+
+    // Panneau greeble — grille de plaques structurelles
+    float gX=fract(uv.x*20.);float gY=fract(uv.y*10.);
+    float pLineX=smoothstep(.0,.022,min(gX,1.-gX));
+    float pLineY=smoothstep(.0,.022,min(gY,1.-gY));
+    float panel=pLineX*pLineY;
+
+    // Panneau profond secondaire
+    float g2X=fract(uv.x*6.+.5);float g2Y=fract(uv.y*3.+.5);
+    float p2=smoothstep(.0,.04,min(g2X,1.-g2X))*smoothstep(.0,.04,min(g2Y,1.-g2Y));
+
+    // Variation micro-surface
+    float micro=noise2d(uv*30.+vec2(t*.01,0.))*.05+noise2d(uv*12.)*.08;
+
+    // Rivets / boulons
+    float rX=fract(uv.x*20.-.5);float rY=fract(uv.y*10.-.5);
+    float rivet=smoothstep(.18,.0,length(vec2(rX-.5,rY-.5))*.5)*.25;
+
+    // Liseré teal en haut et bas de la coque (éclairage intérieur qui déborde)
+    float topGlow=smoothstep(.08,.0,uv.y);
+    float botGlow=smoothstep(.92,1.,uv.y);
+    float edgeGlow=(topGlow+botGlow)*(.8+.2*sin(t*.7+uRingIdx*1.2));
+
+    // Séparateurs de slots — ligne recessed
+    float sepW=.014;
+    float sepMask=smoothstep(0.,sepW*.5,min(slotFrac,1.-slotFrac)*2.);
+
+    col=mix(steelDark,steelBase,panel*.65+p2*.25+micro+NdotL*.12);
+    col+=steelAccent*rivet;
+    col=mix(col,steelDark*.3,1.-sepMask)*.9+steelDark*.1*(1.-sepMask);
+    // Reflet spéculaire acier
+    col+=vec3(.55,.60,.70)*spec*1.2;
+    // Teal glow sur bords (lumière interne de l'anneau)
+    col+=vec3(.0,.90,.65)*edgeGlow*.18;
+    // Hover
+    if(uHov>.5)col+=vec3(.0,.5,.35)*.12+vec3(.55,.60,.70)*spec*.6;
+
+    float angleFade=smoothstep(.0,.15,NdotV);
+    alpha=(.88+rivet*.08)*angleFade;
+    alpha=clamp(alpha,0.,1.);
+
+  // ════════════════════════════════════════════════════════
+  // FACE INTERNE — panneaux holographiques dashboard (Inner Ring)
+  // ════════════════════════════════════════════════════════
   } else {
-    float basA = slotHasTex>.5 ? 0.95 : (slotIsOcc>.5 ? 0.55 : 0.20);
-    alpha = (basA + scanLine*0.04 + progress*0.06)*viewFade;
-    if(uHov>.5) alpha = min(alpha*1.1, 0.97);
+    vec3 panelBg=vec3(.003,.010,.020);
+    vec3 teal=vec3(.0,.95,.72);
+    vec3 green=vec3(.12,.95,.38);
+    vec3 amber=vec3(.95,.62,.05);
+    vec3 blue=vec3(.15,.55,1.0);
+
+    // Séparateur de slot
+    float sepW=.012;
+    float isSep=step(min(slotFrac,1.-slotFrac)*2.,sepW);
+
+    // Bords haut/bas
+    float edgeH=.05;
+    float topEdge=1.-smoothstep(0.,edgeH,uv.y);
+    float botEdge=smoothstep(1.-edgeH,1.,uv.y);
+    float isEdge=max(topEdge,botEdge);
+
+    // Zone de contenu intérieure (bords top/bot gérés séparément)
+    float bT=smoothstep(0.,edgeH+.01,uv.y);
+    float bB=1.-smoothstep(1.-edgeH-.01,1.-edgeH,uv.y);
+    float contentY=bT*bB;
+
+    // Couleur accent du slot (variation selon seed)
+    vec3 slotAccent=mix(teal,green,step(.4,seed));
+    slotAccent=mix(slotAccent,amber,step(.75,seed));
+    slotAccent=mix(slotAccent,blue,step(.88,seed));
+
+    // ── BORDURE DE PANNEAU holographique ──
+    float borderW=.028;
+    float bL=smoothstep(0.,borderW,slotFrac);
+    float bR=smoothstep(1.,1.-borderW,slotFrac);
+    float bTb=smoothstep(0.,borderW,uv.y);
+    float bBb=smoothstep(1.,1.-borderW,uv.y);
+    float borderFade=min(min(bL,bR),min(bTb,bBb));
+    float border=step(.55,1.-borderFade);
+    float borderGlow=1.-borderFade;
+
+    // ── SCAN LINES holographiques ──
+    float lineFreq=28.;
+    float scanY=fract(uv.y*lineFreq);
+    float scanLine=step(.42,scanY)*.22*slotIsOcc*contentY;
+
+    // ── BARRES DE DONNÉES animées ──
+    float scrollRate=(1.2+seed*.6)*uScrollSpeed;
+    float barN=6.;
+    float barUX=fract(slotFrac*barN);
+    float barIdx=floor(slotFrac*barN);
+    float bH=fract(hash(barIdx*3.7+slotIdx*11.3)*1.+t*scrollRate*.08*(1.+barIdx*.15));
+    bH=clamp(bH*.75+.10,.08,.90);
+    float bar=step(uv.y,bH)*step(.07,barUX)*step(barUX,.86)*slotIsOcc*contentY*(1.-isSep);
+    float barPulse=.65+.35*sin(t*2.2+barIdx*.9+seed*6.28);
+    vec3 barCol=mix(slotAccent,teal,.35);
+
+    // ── INDICATEUR STATUS — corner top right ──
+    float dotX=abs(slotFrac-.84)*4.;float dotY=abs(uv.y-.88)*4.;
+    float statusDot=smoothstep(.5,.0,length(vec2(dotX,dotY)))*.8*slotIsOcc*contentY;
+    float dotPulse=.6+.4*sin(t*3.5+slotIdx*1.2);
+
+    // ── TITRE SLOT — ligne horizontale en haut ──
+    float titleLine=smoothstep(0.,.01,uv.y-.12)*smoothstep(.19,.17,uv.y)*slotIsOcc*contentY;
+    titleLine*=(1.-abs(slotFrac-.5)*1.6)*2.;titleLine=clamp(titleLine,0.,1.);
+
+    // ── GLOW CENTRAL ──
+    float cGlow=exp(-pow((uv.y-.5)*1.8,2.)*.8)*exp(-pow((slotFrac-.5)*1.8,2.)*.8);
+
+    // ── Assemblage couleur ──
+    col=panelBg;
+    // Fond ambiant slot actif
+    if(slotIsOcc>.5) col+=panelBg*3.*cGlow*.5+panelBg*1.;
+    // Bordure lumineuse animée
+    col+=slotAccent*(1.8+.4*sin(t*2.4+slotIdx*.6))*borderGlow*border;
+    // Bords haut/bas — frise teal
+    col+=slotAccent*isEdge*(1.2+.4*sin(t*.8+uRingIdx));
+    // Scan lines
+    col+=slotAccent*scanLine;
+    // Barres données
+    col+=barCol*bar*barPulse*2.5;
+    // Status dot
+    col+=slotAccent*statusDot*dotPulse*3.;
+    // Ligne titre
+    col+=slotAccent*titleLine*.8;
+    // Glow ambiant
+    col+=slotAccent*cGlow*(.06+.05*slotIsOcc);
+    // Séparateur
+    col=mix(col,panelBg*.15,isSep*.95);
+
+    // ── Texture de marque sur face interne ──
+    vec4 texSample=vec4(0.);
+    float texV=clamp(uv.y,0.,1.);
+    if(uHasTex1>.5)      texSample=texture2D(uBrandTex1,vec2(fract(uv.x+uTexOffset1),texV));
+    else if(uHasTex2>.5) texSample=texture2D(uBrandTex2,vec2(fract(uv.x+uTexOffset2),texV));
+    else if(uHasTex3>.5) texSample=texture2D(uBrandTex3,vec2(fract(uv.x+uTexOffset3),texV));
+    else if(uHasTex4>.5) texSample=texture2D(uBrandTex4,vec2(fract(uv.x+uTexOffset4),texV));
+    else if(uHasTex5>.5) texSample=texture2D(uBrandTex5,vec2(fract(uv.x+uTexOffset5),texV));
+    else if(uHasTex6>.5) texSample=texture2D(uBrandTex6,vec2(fract(uv.x+uTexOffset6),texV));
+    else if(uHasTex7>.5) texSample=texture2D(uBrandTex7,vec2(fract(uv.x+uTexOffset7),texV));
+    else if(uHasTex8>.5) texSample=texture2D(uBrandTex8,vec2(fract(uv.x+uTexOffset8),texV));
+
+    if(anyHasTex>.5){
+      col=mix(col,col*.04,anyHasTex*.97);
+      col=mix(col,texSample.rgb,anyHasTex);
+      col+=texSample.rgb*anyHasTex*3.2;
+    }
+
+    if(uHov>.5) col+=slotAccent*(.30+cGlow*.55);
+    col+=vec3(.5,.6,.7)*spec*.4;
+
+    float angleFade=smoothstep(.0,.18,NdotV);
+    float baseAlpha=isSep>.5?.06:(slotHasTex>.5?.90:(slotIsOcc>.5?.72:.32));
+    alpha=baseAlpha*angleFade*(border>.5?1.:1.);
+    alpha=clamp(alpha,0.,1.);
   }
 
-  gl_FragColor = vec4(col, clamp(alpha, 0., 1.));
+  gl_FragColor=vec4(col,clamp(alpha,0.,1.));
 }`
-const MOON_VERT=`precision highp float;varying vec3 vN,vWP,vPos;void main(){vN=normalize(normalMatrix*normal);vec4 wp=modelMatrix*vec4(position,1.);vWP=wp.xyz;vPos=position;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`;
-const MOON_FRAG=`
+
+const MOON_VERT=`precision highp float;varying vec3 vN,vWP,vPos;void main(){vN=normalize(normalMatrix*normal);vec4 wp=modelMatrix*vec4(position,1.);vWP=wp.xyz;vPos=position;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`;const MOON_FRAG=`
 precision highp float;uniform float uTime,uOcc,uHov,uDim;uniform vec3 uBrandCol;varying vec3 vN,vWP,vPos;
 float h21(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5);}
 float noise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(h21(i),h21(i+vec2(1,0)),f.x),mix(h21(i+vec2(0,1)),h21(i+vec2(1,1)),f.x),f.y);}

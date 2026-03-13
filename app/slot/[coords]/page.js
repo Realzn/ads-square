@@ -95,3 +95,4 @@ export default async function SlotPage({ params }) {
     </Suspense>
   );
 }
+
