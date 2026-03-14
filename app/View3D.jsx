@@ -184,16 +184,16 @@ const ELITE_RING_CFG = [
   {mR:SPHERE_R*3.60, tR:SPHERE_R*0.55, thick:SPHERE_R*0.18, rX:0.22, rZ:0.00, slots:8, col:'#00DDAA'},
 ];
 
-const MOON_CFG = [
-  {r:SPHERE_R*0.072, oR:SPHERE_R*3.05, sp:0.190, inc:0.30, pha:0.00},
-  {r:SPHERE_R*0.086, oR:SPHERE_R*3.40, sp:0.145, inc:1.22, pha:0.80},
-  {r:SPHERE_R*0.064, oR:SPHERE_R*2.85, sp:0.225, inc:2.08, pha:1.60},
-  {r:SPHERE_R*0.079, oR:SPHERE_R*3.20, sp:0.165, inc:0.77, pha:2.40},
-  {r:SPHERE_R*0.071, oR:SPHERE_R*2.95, sp:0.205, inc:1.88, pha:3.20},
-  {r:SPHERE_R*0.091, oR:SPHERE_R*3.55, sp:0.118, inc:2.92, pha:4.00},
-  {r:SPHERE_R*0.067, oR:SPHERE_R*2.75, sp:0.242, inc:0.52, pha:4.80},
-  {r:SPHERE_R*0.082, oR:SPHERE_R*3.30, sp:0.152, inc:1.58, pha:5.60},
-];
+// ── BRIDGES — 8 ponts structuraux reliant la sphère à l'anneau ──
+const N_BRIDGES = 8;
+const BRIDGE_RING_RX = 0.22;
+const BRIDGE_INNER   = SPHERE_R*1.12;
+const BRIDGE_OUTER   = SPHERE_R*3.40;
+const BRIDGE_LEN     = BRIDGE_OUTER - BRIDGE_INNER;
+const BRIDGE_W       = SPHERE_R*0.09;
+const BRIDGE_H       = SPHERE_R*0.09;
+const BRIDGE_PANEL_W = SPHERE_R*0.70;
+const BRIDGE_PANEL_H = SPHERE_R*0.50;
 
 // ── Post-processing shaders ──────────────────────────────────────────────────
 const CA_GRAIN_SHADER = {
@@ -699,29 +699,65 @@ void main(){
   gl_FragColor=vec4(col,clamp(alpha,0.,1.));
 }`
 
-const MOON_VERT=`precision highp float;varying vec3 vN,vWP,vPos;void main(){vN=normalize(normalMatrix*normal);vec4 wp=modelMatrix*vec4(position,1.);vWP=wp.xyz;vPos=position;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`;const MOON_FRAG=`
-precision highp float;uniform float uTime,uOcc,uHov,uDim;uniform vec3 uBrandCol;varying vec3 vN,vWP,vPos;
-float h21(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5);}
-float noise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(h21(i),h21(i+vec2(1,0)),f.x),mix(h21(i+vec2(0,1)),h21(i+vec2(1,1)),f.x),f.y);}
-float fbm(vec2 p){float v=0.,a=.5;for(int i=0;i<5;i++){v+=a*noise(p);p=p*2.1+vec2(1.7,9.2);a*=.5;}return v;}
+// ── Bridge panel shader — panneau 1 slot sur chaque pont ──
+const BRIDGE_PANEL_VERT=`
+precision highp float;
+varying vec2 vUV;varying vec3 vN,vWP;
 void main(){
-  if(uDim>.5){gl_FragColor=vec4(.004,.005,.008,1.);return;}
-  float t=uTime*.012;vec3 np=normalize(vPos);
-  vec2 suv=vec2(atan(np.z,np.x)/6.28318+.5,np.y*.5+.5);
-  float surf=fbm(suv*4.+vec2(t*.3,t*.2))*.55+fbm(suv*9.-vec2(t*.2,t*.4))*.45;
-  float c1=pow(max(0.,1.-abs(fbm(suv*18.+3.14)-.52)*6.),2.5);
-  float c2=pow(max(0.,1.-abs(fbm(suv*11.+1.41)-.48)*5.),2.);
-  float craters=max(c1*.9,c2*.7);
-  vec3 toE=normalize(-vWP);float NdotL=max(0.,dot(vN,toE));
-  float term=smoothstep(0.,.25,NdotL);
-  vec3 vd=normalize(cameraPosition-vWP);float rim=pow(1.-max(0.,dot(vN,vd)),3.2);
-  vec3 dark=vec3(.028,.022,.018),rock=vec3(.055,.048,.038),lit=vec3(.120,.095,.065);
-  vec3 col=mix(dark,mix(rock,lit,surf),term);
-  col=mix(col,vec3(.18,.14,.09),craters*NdotL*.4);
-  col+=vec3(.25,.15,.04)*rim*.28;
-  if(uOcc>.5){col+=uBrandCol*.14*NdotL;col+=uBrandCol*.10*rim;}
-  if(uHov>.5)col+=uBrandCol*rim*1.2;
-  gl_FragColor=vec4(col,1.);
+  vUV=uv;
+  vN=normalize(normalMatrix*normal);
+  vec4 wp=modelMatrix*vec4(position,1.);vWP=wp.xyz;
+  gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);
+}`;
+const BRIDGE_PANEL_FRAG=`
+precision highp float;
+uniform float uTime,uOcc,uHov,uDim;
+uniform vec3 uBrandCol;
+uniform sampler2D uBrandTex;uniform float uHasTex,uTexOffset;
+varying vec2 vUV;varying vec3 vN,vWP;
+float hash(float n){return fract(sin(n)*43758.5453);}
+float GGX(float NdotH,float rough){float a=rough*rough;float a2=a*a;float d=NdotH*NdotH*(a2-1.)+1.;return a2/(3.14159*d*d);}
+void main(){
+  if(uDim>.5){gl_FragColor=vec4(.003,.004,.007,1.);return;}
+  float t=uTime;vec2 uv=vUV;
+  // Cadre du panneau
+  float fw=.045;
+  float fL=smoothstep(0.,fw,uv.x);float fR=smoothstep(1.,1.-fw,uv.x);
+  float fT=smoothstep(0.,fw,uv.y);float fB=smoothstep(1.,1.-fw,uv.y);
+  float inner=min(min(fL,fR),min(fT,fB));
+  float border=1.-inner;
+  // Fond
+  vec3 bg=vec3(.004,.010,.022);
+  vec3 accent=uBrandCol;
+  vec3 col=mix(bg*.3,bg,inner);
+  // Bordure lumineuse
+  float borderGlow=border*(1.5+.5*sin(t*2.2));
+  col+=accent*borderGlow*.8;
+  // Scan lines
+  float scan=step(.5,fract(uv.y*30.))*.08*uOcc*inner;
+  col+=accent*scan;
+  // Glow central
+  float cG=exp(-pow((uv.x-.5)*2.,2.))*exp(-pow((uv.y-.5)*2.,2.));
+  col+=accent*cG*(.06+.04*uOcc)*(.8+.2*sin(t*1.2));
+  // Barre de chargement
+  float bar=step(uv.x,.15+uOcc*.70)*step(uv.y,.18)*step(.12,uv.y)*inner;
+  col+=accent*bar*(.7+.3*sin(t*2.+uv.x*8.));
+  // Texture de marque
+  if(uHasTex>.5){
+    vec4 tex=texture2D(uBrandTex,vec2(fract(uv.x+uTexOffset),uv.y));
+    col=mix(col,col*.04,inner*.95);
+    col=mix(col,tex.rgb*inner,inner);
+    col+=tex.rgb*inner*3.0;
+  }
+  // Specular
+  vec3 vd=normalize(cameraPosition-vWP);
+  vec3 h2=normalize(-normalize(vWP)+vd);
+  float NdotH=max(0.,dot(normalize(vN),h2));
+  col+=vec3(.4,.5,.7)*GGX(NdotH,uHov>.5?.06:.18)*.6;
+  if(uHov>.5)col+=accent*(.25+cG*.4);
+  float NdotV=abs(dot(normalize(vN),vd));
+  float alpha=mix(.05,.92,smoothstep(.0,.2,NdotV))*(uHasTex>.5?.98:(uOcc>.5?.82:.40));
+  gl_FragColor=vec4(col,clamp(alpha,0.,1.));
 }`;
 
 const BILL_VERT=`varying vec2 vU;uniform float uScale;void main(){vU=uv;vec3 r=vec3(modelViewMatrix[0][0],modelViewMatrix[1][0],modelViewMatrix[2][0]);vec3 u=vec3(modelViewMatrix[0][1],modelViewMatrix[1][1],modelViewMatrix[2][1]);vec4 base=modelViewMatrix*vec4(0.,0.,0.,1.);gl_Position=projectionMatrix*(base+vec4(position.x*r+position.y*u,0.)*uScale);}`;
@@ -1378,22 +1414,81 @@ class Scene3D{
   }
 
   _buildPrestigeMoons(){
+    // ── BRIDGES — ponts structuraux sphère → anneau ──
     const T=this.T;this.prestigeMoons=[];
     const[pr,pg,pb]=hex3(TIER_NEON.prestige);
-    MOON_CFG.forEach((cfg,idx)=>{
-      const uM={uTime:{value:0},uOcc:{value:0},uHov:{value:0},uDim:{value:0},uBrandCol:{value:new T.Vector3(pr,pg,pb)}};
-      const moonMesh=new T.Mesh(new T.SphereGeometry(cfg.r,32,32),new T.ShaderMaterial({vertexShader:MOON_VERT,fragmentShader:MOON_FRAG,uniforms:uM,side:T.FrontSide})); // ★ 32 au lieu de 64
-      moonMesh.castShadow=true;this.systemGroup.add(moonMesh);
-      const uH={uTime:{value:0},uInsideBlend:{value:0},uScale:{value:1}};
-      const hF=`precision highp float;uniform float uTime,uInsideBlend;varying vec2 vU;void main(){vec2 c=vU*2.-1.;float d=length(c);if(d>1.)discard;float h=pow(1.-d,2.)*pow(max(0.,1.-d*.6),.9);float p=.80+.20*sin(uTime*${(.7+idx*.12).toFixed(2)});vec3 col=mix(vec3(.25,.15,.05),vec3(.55,.38,.12),h);gl_FragColor=vec4(col,h*.28*p*mix(1.,.18,uInsideBlend));}`;
-      const haloMesh=new T.Mesh(new T.PlaneGeometry(cfg.r*6,cfg.r*6),new T.ShaderMaterial({vertexShader:BILL_VERT,fragmentShader:hF,uniforms:uH,transparent:true,depthWrite:false,blending:T.AdditiveBlending,side:T.DoubleSide}));
-      this.systemGroup.add(haloMesh);
-      const tPts=[];const tN=192; // ★ trail allégé
-      for(let i=0;i<tN;i++){const a=i/tN*Math.PI*2;tPts.push(new T.Vector3(Math.cos(a)*cfg.oR,Math.sin(a)*cfg.oR*Math.sin(cfg.inc),Math.sin(a)*cfg.oR*Math.cos(cfg.inc)));}
-      const trail=new T.LineLoop(new T.BufferGeometry().setFromPoints(tPts),new T.LineBasicMaterial({color:new T.Color(TIER_NEON.prestige),transparent:true,opacity:.04,depthWrite:false}));
-      this.systemGroup.add(trail);
-      this.prestigeMoons.push({moonMesh,haloMesh,trail,u:uM,uH,cfg,slot:null});
-    });
+    const midR=(BRIDGE_INNER+BRIDGE_OUTER)/2;
+
+    for(let idx=0;idx<N_BRIDGES;idx++){
+      const angle=idx/N_BRIDGES*Math.PI*2;
+      const rx=BRIDGE_RING_RX;
+      // Direction radiale dans le plan de l'anneau (applique rX de l'anneau)
+      const dx=Math.cos(angle);
+      const dy=-Math.sin(angle)*Math.sin(rx);
+      const dz= Math.sin(angle)*Math.cos(rx);
+
+      // ── Structure du pont (BoxGeometry) ──
+      // Axe X du box = direction du pont
+      const beamGeo=new T.BoxGeometry(BRIDGE_LEN, BRIDGE_H, BRIDGE_W);
+      const beamMat=new T.MeshPhysicalMaterial({
+        color:new T.Color(.065,.075,.105),
+        metalness:0.95, roughness:0.22,
+        transparent:true, opacity:0.88,
+      });
+      const beam=new T.Mesh(beamGeo,beamMat);
+      // Position au centre du pont
+      beam.position.set(dx*midR, dy*midR, dz*midR);
+      // Orienter le box le long de (dx,dy,dz)
+      beam.lookAt(dx*BRIDGE_OUTER, dy*BRIDGE_OUTER, dz*BRIDGE_OUTER);
+      this.systemGroup.add(beam);
+
+      // ── Lignes de contour du pont (filaire neon) ──
+      const pts2d=[
+        [-BRIDGE_LEN/2,-BRIDGE_H/2],[-BRIDGE_LEN/2,BRIDGE_H/2],
+        [BRIDGE_LEN/2,BRIDGE_H/2],[BRIDGE_LEN/2,-BRIDGE_H/2],[-BRIDGE_LEN/2,-BRIDGE_H/2]
+      ];
+      const wirePts=pts2d.map(([bx,by])=>new T.Vector3(bx,by,0));
+      const wireGeo=new T.BufferGeometry().setFromPoints(wirePts);
+      const wireMat=new T.LineBasicMaterial({color:new T.Color(0,0.7,0.55),transparent:true,opacity:.3,depthWrite:false});
+      const wire=new T.LineLoop(wireGeo,wireMat);
+      wire.position.copy(beam.position);wire.rotation.copy(beam.rotation);
+      this.systemGroup.add(wire);
+
+      // ── Panneau slot — face perpendiculaire au pont (visible latéralement) ──
+      // Normal = perpendiculaire au pont et vers le haut de la scène
+      const panelGeo=new T.PlaneGeometry(BRIDGE_PANEL_W, BRIDGE_PANEL_H);
+      const dummyTex=(()=>{
+        const c=document.createElement('canvas');c.width=1;c.height=1;
+        const ctx2=c.getContext('2d');ctx2.fillStyle='#000';ctx2.fillRect(0,0,1,1);
+        return new T.CanvasTexture(c);
+      })();
+      const uP={
+        uTime:{value:0},uOcc:{value:0},uHov:{value:0},uDim:{value:0},
+        uBrandCol:{value:new T.Vector3(pr,pg,pb)},
+        uBrandTex:{value:dummyTex},uHasTex:{value:0},uTexOffset:{value:0},
+      };
+      const panelMesh=new T.Mesh(panelGeo,new T.ShaderMaterial({
+        vertexShader:BRIDGE_PANEL_VERT,fragmentShader:BRIDGE_PANEL_FRAG,
+        uniforms:uP,transparent:true,depthWrite:false,
+        blending:T.AdditiveBlending,side:T.DoubleSide
+      }));
+      // Positionner le panneau au milieu du pont, légèrement décalé vers le haut
+      const upOffset=BRIDGE_H*0.5+BRIDGE_PANEL_H*0.5+SPHERE_R*0.02;
+      // "up" perpendiculaire au pont dans le plan de l'anneau
+      const upX=-dy*0+0; // simplified: juste lever en Y monde
+      panelMesh.position.set(dx*midR, dy*midR+upOffset, dz*midR);
+      // Panel regarde tangentiellement (perpendiculaire à la direction radiale)
+      // Normal du panel = direction radiale
+      panelMesh.lookAt(
+        dx*midR + dx*10,
+        dy*midR + dy*10,
+        dz*midR + dz*10
+      );
+      panelMesh.renderOrder=4;
+      this.systemGroup.add(panelMesh);
+
+      this.prestigeMoons.push({moonMesh:panelMesh,beam,wire,haloMesh:panelMesh,u:uP,cfg:{angle,dx,dy,dz},slot:null,_dummyTex:dummyTex});
+    }
   }
 
   _buildGodRays(){
@@ -1750,7 +1845,21 @@ class Scene3D{
       ring.u.uBrandTex.value=ring._slotTextures[0]||ring._dummyTex;
       ei+=ring.cfg.slots;
     });
-    this.prestigeMoons.forEach((moon,idx)=>{moon.slot=prestigeSlots[idx]||null;moon.u.uOcc.value=moon.slot?.occ?1:0;});
+    this.prestigeMoons.forEach((bridge,idx)=>{
+      bridge.slot=prestigeSlots[idx]||null;
+      const s=bridge.slot;
+      bridge.u.uOcc.value=s?.occ?1:0;
+      // Texture de marque sur le panneau
+      if(s?.occ&&s?.img){
+        const img=new Image();img.crossOrigin='anonymous';img.src=s.img;
+        img.onload=()=>{
+          const tex=new this.T.Texture(img);tex.needsUpdate=true;
+          bridge.u.uBrandTex.value=tex;bridge.u.uHasTex.value=1;
+        };
+      } else {
+        bridge.u.uBrandTex.value=bridge._dummyTex;bridge.u.uHasTex.value=0;
+      }
+    });
   }
 
   // Retourne la position 2D (écran) du centre d'un anneau + slot data
@@ -1910,8 +2019,10 @@ class Scene3D{
           this.onClick?.({tier:'elite',_ringIdx:ri,_ring:ring,slot,...(slot||{})},'ring',ri);
         }
         else if(fi<=-100&&fi>-1000){
-          const mi=-fi-100;const moon=this.prestigeMoons[mi];this.onClick?.(moon.slot||{tier:'prestige'},'moon',mi);
-          if(moon){const T=this.T;const wp=new T.Vector3();moon.moonMesh.getWorldPosition(wp);const dir=wp.clone().normalize();this.zoomTo({x:dir.x*SPHERE_R*1.6,y:dir.y*SPHERE_R*1.6,z:dir.z*SPHERE_R*1.6+8});}
+          const mi=-fi-100;const bridge=this.prestigeMoons[mi];
+          this.onClick?.(bridge.slot||{tier:'prestige'},'moon',mi);
+          // Zoom vers le pont
+          if(bridge){const cfg=bridge.cfg;this.zoomTo({x:cfg.dx*SPHERE_R*2.2,y:cfg.dy*SPHERE_R*2.2,z:cfg.dz*SPHERE_R*2.2});}
         }else if(fi>=0){
           this._setSel(fi);if(this._epU)this._epU.uSelected.value=0;
           const face=this._faces?.[fi];this.onClick?.(this.faceSlots[fi],'face',fi);
@@ -2024,11 +2135,8 @@ class Scene3D{
       }
     });
 
-    this.prestigeMoons.forEach(({moonMesh,haloMesh,u,uH,cfg})=>{
-      const angle=t*cfg.sp+cfg.pha;
-      const x=Math.cos(angle)*cfg.oR,y=Math.sin(angle)*cfg.oR*Math.sin(cfg.inc),z=Math.sin(angle)*cfg.oR*Math.cos(cfg.inc);
-      moonMesh.position.set(x,y,z);haloMesh.position.set(x,y,z);moonMesh.lookAt(0,0,0);
-      u.uTime.value=t;uH.uTime.value=t;uH.uInsideBlend.value=ib;
+    this.prestigeMoons.forEach(({u})=>{
+      u.uTime.value=t;
     });
 
     if(this._grU){this._grU.uTime.value=t;this._grU.uInsideBlend.value=ib;}
@@ -2100,7 +2208,7 @@ class Scene3D{
       _slotTextures?.forEach(t=>t?.dispose());
     });
     Object.values(this._ringGeoCache).forEach(g=>g?.dispose());this._ringGeoCache={};
-    this.prestigeMoons.forEach(({moonMesh,haloMesh})=>{moonMesh?.geometry?.dispose();moonMesh?.material?.dispose();haloMesh?.geometry?.dispose();haloMesh?.material?.dispose();});
+    this.prestigeMoons.forEach(({moonMesh,beam,wire,_dummyTex})=>{moonMesh?.geometry?.dispose();moonMesh?.material?.dispose();beam?.geometry?.dispose();beam?.material?.dispose();wire?.geometry?.dispose();wire?.material?.dispose();_dummyTex?.dispose();});
     this.epicHalos.forEach(({m})=>{m?.geometry?.dispose();m?.material?.dispose();});
     this.decoRings.forEach(({m})=>{m?.geometry?.dispose();m?.material?.dispose();});
 
