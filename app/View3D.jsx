@@ -540,10 +540,10 @@ void main(){
   // ════════════════════════════════════════════════════════
   if(vIsOuter>.5){
     // ── COQUE EXTERNE RINGWORLD — industrielle, greebles lourds ──
-    vec3 hullBase=vec3(.028,.032,.042);
-    vec3 hullDark=vec3(.010,.012,.018);
-    vec3 hullLight=vec3(.060,.068,.090);
-    vec3 hullAccent=vec3(.15,.22,.38); // teinte bleue froide modules
+    vec3 hullBase=vec3(.095,.110,.145);   // acier bleuté clair — visible de loin
+    vec3 hullDark=vec3(.035,.040,.060);   // rainures / zones sombres
+    vec3 hullLight=vec3(.180,.200,.260);  // reflets hauts
+    vec3 hullAccent=vec3(.20,.32,.55);    // modules bleutés
 
     // ── Grandes plaques structurelles ──
     float pX=fract(uv.x*7.);float pY=fract(uv.y*3.);
@@ -581,19 +581,19 @@ void main(){
     float reinforcement=max(reinTop,reinBot);
 
     // Assemblage couleur
-    col=mix(hullDark,hullBase,plate*.6+micro+NdotL*.15);
-    col=mix(col,hullDark*.5,plateGroove*.6);      // rainures sombres
-    col+=hullLight*outerRim*.8;                    // bord module brillant
-    col+=hullAccent*innerRim*.5;                   // anneau interne bleuté
+    col=mix(hullDark,hullBase,plate*.75+micro+NdotL*.35);
+    col=mix(col,hullDark*.6,plateGroove*.5);      // rainures sombres
+    col+=hullLight*outerRim*.9;                    // bord module brillant
+    col+=hullAccent*innerRim*.6;                   // anneau interne bleuté
     col+=hullDark*innerFill;
-    col+=hullLight*circuit*.6;                     // circuits
+    col+=hullLight*circuit*.7;                     // circuits
     col+=hullLight*rivet;                          // rivets
-    col+=hullLight*reinforcement*.4;               // renforts haut/bas
-    // Spéculaire métal froid
-    col+=vec3(.45,.50,.65)*spec*1.5;
+    col+=hullLight*reinforcement*.5;               // renforts haut/bas
+    // Spéculaire métal froid — fort
+    col+=vec3(.55,.60,.75)*spec*2.5;
     // Reflet teal minimal sur bords (lumière interne)
-    col+=vec3(.0,.70,.55)*reinforcement*.06*(1.+.3*sin(t*.5+uRingIdx));
-    if(uHov>.5)col+=hullAccent*.15+vec3(.45,.50,.65)*spec*.8;
+    col+=vec3(.0,.70,.55)*reinforcement*.10*(1.+.3*sin(t*.5+uRingIdx));
+    if(uHov>.5)col+=hullAccent*.25+vec3(.55,.60,.75)*spec*1.2;
 
     float angleFade=smoothstep(.0,.12,NdotV);
     alpha=(.90+rivet*.06)*angleFade;
@@ -1790,7 +1790,20 @@ class Scene3D{
     const{x,y}=this._ndc(cx,cy);this.raycaster.setFromCamera({x,y},this.camera);this.systemGroup.updateMatrixWorld(true);
     if(this.epicMesh&&this.raycaster.intersectObject(this.epicMesh).length)return -3;
     for(let i=0;i<this.prestigeMoons.length;i++){if(this.raycaster.intersectObject(this.prestigeMoons[i].moonMesh).length)return-(100+i);}
-    for(let i=0;i<this.eliteRings.length;i++){if(this.raycaster.intersectObject(this.eliteRings[i].mesh).length)return-(10+i);}
+    for(let i=0;i<this.eliteRings.length;i++){
+      const hits=this.raycaster.intersectObject(this.eliteRings[i].mesh);
+      if(hits.length){
+        // Détecter le slot via l'UV du point d'intersection
+        const uv=hits[0].uv;
+        if(uv){
+          const ring=this.eliteRings[i];
+          const slotIdx=Math.floor(uv.x*ring.cfg.slots);
+          // Encoder : anneau i, slot s → -(1000 + i*100 + s)
+          return -(1000+i*100+Math.min(slotIdx,ring.cfg.slots-1));
+        }
+        return-(10+i);
+      }
+    }
     if(this.panelMesh){const h=this.raycaster.intersectObject(this.panelMesh);if(h.length)return this.triToFace?.[h[0].faceIndex]??h[0].faceIndex;}
     return -1;
   }
@@ -1840,21 +1853,38 @@ class Scene3D{
         this.vel={x:dx*.004,y:dy*.004};lx=e.clientX;ly=e.clientY;
       }else{
         const fi=this._cast(e.clientX,e.clientY);
-        const isEpic=fi===-3,isRing=fi<=-10&&fi>-100,isMoon=fi<=-100;
-        const ringIdx=isRing?(-fi-10):-1,moonIdx=isMoon?(-fi-100):-1;
-        this.eliteRings.forEach((r,i)=>{r.u.uHov.value=i===ringIdx?1:0;});
+        const isEpic=fi===-3;
+        const isRingSlot=fi<=-1000;
+        const isRing=!isRingSlot&&fi<=-10&&fi>-100;
+        const isMoon=fi<=-100&&fi>-1000;
+        let ringIdx=-1,ringSlotIdx=-1;
+        if(isRingSlot){ringIdx=Math.floor((-fi-1000)/100);ringSlotIdx=(-fi-1000)%100;}
+        else if(isRing){ringIdx=-fi-10;}
+        const moonIdx=isMoon?(-fi-100):-1;
+        // Hover highlight : slot spécifique sur l'anneau
+        this.eliteRings.forEach((r,i)=>{
+          if(i===ringIdx){
+            r.u.uHov.value=1;
+            // Stocker le slot survolé pour le shader (optionnel futur)
+            r._hovSlot=ringSlotIdx;
+          } else {
+            r.u.uHov.value=0;r._hovSlot=-1;
+          }
+        });
         this.prestigeMoons.forEach((m,i)=>{m.u.uHov.value=i===moonIdx?1:0;});
         this._setHov(fi>=0?fi:-1);
         if(isEpic)this.onHover?.({tier:'epicenter',_isEpic:true});
-        else if(isRing){
+        else if(isRingSlot||isRing){
           const ring=this.eliteRings[ringIdx];
-          const slot=ring?.firstOccSlot||null;
-          this.onHover?.({tier:'elite',_ringIdx:ringIdx,_ring:ring,slot,_hasOccupant:!!slot});
+          // Chercher le slot spécifique par slotOffset+slotIdx
+          const absSlot=ring?.slotOffset+ringSlotIdx;
+          const slot=ring?._slots?.[ringSlotIdx]||ring?.firstOccSlot||null;
+          this.onHover?.({tier:'elite',_ringIdx:ringIdx,_slotIdx:ringSlotIdx,_ring:ring,slot,_hasOccupant:!!slot});
         }
         else if(isMoon)this.onHover?.(this.prestigeMoons[moonIdx].slot||{tier:'prestige',_moonIdx:moonIdx});
         else if(fi>=0)this.onHover?.(this.faceSlots[fi]);
         else this.onHover?.(null);
-        c.style.cursor=(fi>=0||isEpic||isRing||isMoon)?'pointer':'grab';
+        c.style.cursor=(fi>=0||isEpic||isRingSlot||isRing||isMoon)?'pointer':'grab';
       }
     };
     h.mu=e=>{
@@ -1865,13 +1895,21 @@ class Scene3D{
       if(!mv&&!wasDragging&&e.target===this.canvas){
         const fi=this._cast(e.clientX,e.clientY);
         if(fi===-3){this._setSel(-1);if(this._epU)this._epU.uSelected.value=1;this.onClick?.(this.epicSlot||{tier:'epicenter'},'epic');}
+        else if(fi<=-1000){
+          // Ring + slot spécifique
+          const ri=Math.floor((-fi-1000)/100);
+          const si=(-fi-1000)%100;
+          const ring=this.eliteRings[ri];
+          const slot=ring?._slots?.[si]||ring?.firstOccSlot||null;
+          this.onClick?.({tier:'elite',_ringIdx:ri,_slotIdx:si,_ring:ring,slot,...(slot||{})},'ring',ri);
+        }
         else if(fi<=-10&&fi>-100){
           const ri=-fi-10;
           const ring=this.eliteRings[ri];
           const slot=ring?.firstOccSlot||null;
           this.onClick?.({tier:'elite',_ringIdx:ri,_ring:ring,slot,...(slot||{})},'ring',ri);
         }
-        else if(fi<=-100){
+        else if(fi<=-100&&fi>-1000){
           const mi=-fi-100;const moon=this.prestigeMoons[mi];this.onClick?.(moon.slot||{tier:'prestige'},'moon',mi);
           if(moon){const T=this.T;const wp=new T.Vector3();moon.moonMesh.getWorldPosition(wp);const dir=wp.clone().normalize();this.zoomTo({x:dir.x*SPHERE_R*1.6,y:dir.y*SPHERE_R*1.6,z:dir.z*SPHERE_R*1.6+8});}
         }else if(fi>=0){
