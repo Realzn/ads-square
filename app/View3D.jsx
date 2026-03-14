@@ -2058,6 +2058,87 @@ class Scene3D{
   zoomToCenter(){if(!this.G)return;const T=this.T;this.G.to(this.camera.position,{x:0,y:0,z:0,duration:1.4,ease:'power3.inOut',onUpdate:()=>this.camera.lookAt(new T.Vector3(0,0,1))});this.G.to(this,{zoomTarget:0,duration:1.4,ease:'power3.inOut'});}
   zoom(dy){this.zoomTarget=Math.max(4,Math.min(450,this.zoomTarget+dy*.06));}
 
+  // ── zoomToSlotFaceOn — oriente systemGroup + zoome pour voir un slot de face ──
+  // Pour un slot de l'anneau si sur le ring ri :
+  //   1. Calcule la position du slot dans l'espace systemGroup (avant sa rotation)
+  //   2. Calcule rot.x/rot.y pour aligner ce slot sur l'axe caméra (+Z monde)
+  //   3. Zoom sur la distance idéale (slot remplit bien l'écran)
+  zoomToSlotFaceOn(ringIdx, slotIdx){
+    if(!this.G)return;
+    const cfg=this.eliteRings[ringIdx]?.cfg;if(!cfg)return;
+
+    const slots=cfg.slots, mR=cfg.mR, thick=cfg.thick||cfg.mR*.015;
+    const tR=cfg.tR, rX=cfg.rX||0, rZ=cfg.rZ||0;
+    const innerR=mR-thick;
+    const slotAngle=(slotIdx+0.5)/slots*Math.PI*2;
+
+    // Position du slot en espace local du mesh ring (avant rotation mesh)
+    const lx=Math.cos(slotAngle)*innerR;
+    const lz=Math.sin(slotAngle)*innerR;
+
+    // Appliquer la rotation du mesh (Euler order XYZ : rX autour X, rZ autour Z)
+    // Après rX : y' = -lz*sin(rX), z' = lz*cos(rX)
+    const y1=-lz*Math.sin(rX), z1=lz*Math.cos(rX);
+    // Après rZ : x2 = lx*cos(rZ) - y1*sin(rZ), y2 = lx*sin(rZ) + y1*cos(rZ)
+    const px=lx*Math.cos(rZ)-y1*Math.sin(rZ);
+    const py=lx*Math.sin(rZ)+y1*Math.cos(rZ);
+    const pz=z1;
+
+    // Direction normalisée du slot dans l'espace systemGroup
+    const len=Math.sqrt(px*px+py*py+pz*pz)||1;
+    const sdx=px/len, sdy=py/len, sdz=pz/len;
+
+    // Angles rotation systemGroup pour aligner ce slot face à la caméra (+Z)
+    const targetRotY=-Math.atan2(sdx,sdz);
+    const targetRotX=-Math.atan2(sdy,Math.sqrt(sdx*sdx+sdz*sdz));
+
+    // Distance caméra : slot arc ≈ 2π*mR/slots, hauteur = 2*tR
+    // Remplir l'écran avec un léger recul
+    const slotW=2*Math.PI*mR/slots;
+    const slotH=2*tR;
+    const viewDist=Math.max(slotW,slotH)*1.8+innerR;
+    const dur=1.25;
+
+    // Stop rotation inertie
+    this.vel={x:0,y:0};
+
+    // Animer rot.x/rot.y du systemGroup
+    this.G.to(this.rot,{x:targetRotX,y:targetRotY,duration:dur,ease:'power3.inOut'});
+    // Animer zoomTarget
+    this.G.to(this,{zoomTarget:viewDist,duration:dur,ease:'power3.inOut'});
+    // Camera reste sur l'axe Z, lookAt (0,0,0) — le slot sera au centre
+    this.G.to(this.camera.position,{x:0,y:0,z:viewDist,duration:dur,ease:'power3.inOut',
+      onUpdate:()=>this.camera.lookAt(new this.T.Vector3(0,0,0))});
+  }
+
+  // ── zoomToBridgeFaceOn — vise le panneau d'un pont de face ──
+  zoomToBridgeFaceOn(bridgeIdx){
+    if(!this.G)return;
+    const bridge=this.prestigeMoons[bridgeIdx];if(!bridge)return;
+    const cfg=bridge.cfg;
+    // axX = direction tangentielle (perpendiculaire au pont dans le plan de l'anneau)
+    // Le panneau est visible depuis axX → on oriente cette direction vers +Z
+    const ax=cfg.axX;if(!ax)return;
+
+    // Direction du panneau en espace systemGroup = axX
+    const len=ax.length()||1;
+    const sdx=ax.x/len, sdy=ax.y/len, sdz=ax.z/len;
+
+    const targetRotY=-Math.atan2(sdx,sdz);
+    const targetRotX=-Math.atan2(sdy,Math.sqrt(sdx*sdx+sdz*sdz));
+
+    // Distance = milieu du pont + recul confortable
+    const midDist=cfg.mid?.length()||SPHERE_R*2;
+    const viewDist=midDist+BRIDGE_PANEL_W*2.0;
+    const dur=1.25;
+
+    this.vel={x:0,y:0};
+    this.G.to(this.rot,{x:targetRotX,y:targetRotY,duration:dur,ease:'power3.inOut'});
+    this.G.to(this,{zoomTarget:viewDist,duration:dur,ease:'power3.inOut'});
+    this.G.to(this.camera.position,{x:0,y:0,z:viewDist,duration:dur,ease:'power3.inOut',
+      onUpdate:()=>this.camera.lookAt(new this.T.Vector3(0,0,0))});
+  }
+
   // ★ Visibilité — stopper le rendu si onglet caché
   _bindVisibilityChange(){
     this._visHandler=()=>{this._isBackground=document.hidden;};
@@ -2135,23 +2216,26 @@ class Scene3D{
         const fi=this._cast(e.clientX,e.clientY);
         if(fi===-3){this._setSel(-1);if(this._epU)this._epU.uSelected.value=1;this.onClick?.(this.epicSlot||{tier:'epicenter'},'epic');}
         else if(fi<=-1000){
-          // Ring + slot spécifique
+          // Ring + slot spécifique — zoom de face sur ce slot
           const ri=Math.floor((-fi-1000)/100);
           const si=(-fi-1000)%100;
           const ring=this.eliteRings[ri];
           const slot=ring?._slots?.[si]||ring?.firstOccSlot||null;
           this.onClick?.({tier:'elite',_ringIdx:ri,_slotIdx:si,_ring:ring,slot,...(slot||{})},'ring',ri);
+          this.zoomToSlotFaceOn(ri, si);
         }
         else if(fi<=-10&&fi>-100){
+          // Anneau entier sans slot précis — zoom de face sur slot 0
           const ri=-fi-10;
           const ring=this.eliteRings[ri];
           const slot=ring?.firstOccSlot||null;
           this.onClick?.({tier:'elite',_ringIdx:ri,_ring:ring,slot,...(slot||{})},'ring',ri);
+          this.zoomToSlotFaceOn(ri, 0);
         }
         else if(fi<=-100&&fi>-1000){
           const mi=-fi-100;const bridge=this.prestigeMoons[mi];
           this.onClick?.(bridge.slot||{tier:'prestige'},'moon',mi);
-          if(bridge){const m=bridge.cfg.mid;this.zoomTo({x:m.x*0.6,y:m.y*0.6,z:m.z*0.6+8});}
+          this.zoomToBridgeFaceOn(mi);
         }else if(fi>=0){
           this._setSel(fi);if(this._epU)this._epU.uSelected.value=0;
           const face=this._faces?.[fi];this.onClick?.(this.faceSlots[fi],'face',fi);
@@ -2164,7 +2248,7 @@ class Scene3D{
     c.addEventListener('mousedown',h.md);window.addEventListener('mousemove',h.mm);window.addEventListener('mouseup',h.mu);
     h.ts=e=>{if(e.touches.length===1){this.isDragging=true;mv=false;lx=e.touches[0].clientX;ly=e.touches[0].clientY;this.pinchDist=null;this._setDPRScale(1.0);}else if(e.touches.length===2){this.isDragging=false;const dx=e.touches[0].clientX-e.touches[1].clientX,dy=e.touches[0].clientY-e.touches[1].clientY;this.pinchDist=Math.sqrt(dx*dx+dy*dy);}};
     h.tm=e=>{e.preventDefault();if(e.touches.length===1&&this.isDragging){const dx=e.touches[0].clientX-lx,dy=e.touches[0].clientY-ly;if(Math.abs(dx)>2||Math.abs(dy)>2)mv=true;this.rot.y+=dx*.004;this.rot.x+=dy*.004;this.rot.x=Math.max(-1.5,Math.min(1.5,this.rot.x));this.vel={x:dx*.004,y:dy*.004};lx=e.touches[0].clientX;ly=e.touches[0].clientY;}else if(e.touches.length===2&&this.pinchDist!=null){const dx=e.touches[0].clientX-e.touches[1].clientX,dy=e.touches[0].clientY-e.touches[1].clientY;const d=Math.sqrt(dx*dx+dy*dy);this.zoom((this.pinchDist-d)*3);this.pinchDist=d;}};
-    h.te=e=>{this._setDPRScale(1.0);if(e.changedTouches.length===1){const fi=this._cast(e.changedTouches[0].clientX,e.changedTouches[0].clientY);if(fi>=0){this._setSel(fi);const face=this._faces?.[fi];this.onClick?.(this.faceSlots[fi],'face',fi);if(face?.centroid){const T=this.T,dir=new T.Vector3(...face.centroid).normalize();this.zoomTo({x:dir.x*SPHERE_R*1.2,y:dir.y*SPHERE_R*1.2,z:dir.z*SPHERE_R*1.2+8});}}}this.isDragging=false;};
+    h.te=e=>{this._setDPRScale(1.0);if(e.changedTouches.length===1){const fi=this._cast(e.changedTouches[0].clientX,e.changedTouches[0].clientY);if(fi<=-1000){const ri=Math.floor((-fi-1000)/100);const si=(-fi-1000)%100;const ring=this.eliteRings[ri];const slot=ring?._slots?.[si]||null;this.onClick?.({tier:'elite',_ringIdx:ri,_slotIdx:si,_ring:ring,slot,...(slot||{})},'ring',ri);this.zoomToSlotFaceOn(ri,si);}else if(fi<=-100&&fi>-1000){const mi=-fi-100;const bridge=this.prestigeMoons[mi];this.onClick?.(bridge.slot||{tier:'prestige'},'moon',mi);this.zoomToBridgeFaceOn(mi);}else if(fi>=0){this._setSel(fi);const face=this._faces?.[fi];this.onClick?.(this.faceSlots[fi],'face',fi);if(face?.centroid){const T=this.T,dir=new T.Vector3(...face.centroid).normalize();this.zoomTo({x:dir.x*SPHERE_R*1.2,y:dir.y*SPHERE_R*1.2,z:dir.z*SPHERE_R*1.2+8});}}}this.isDragging=false;};
     c.addEventListener('touchstart',h.ts,{passive:false});c.addEventListener('touchmove',h.tm,{passive:false});c.addEventListener('touchend',h.te);
   }
 
