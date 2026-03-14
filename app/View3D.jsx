@@ -1414,49 +1414,94 @@ class Scene3D{
   }
 
   _buildPrestigeMoons(){
-    // ── BRIDGES — ponts structuraux sphère → anneau ──
+    // ── BRIDGES — poutres rectilignes sphère ↔ anneau ──
+    // Chaque pont = une poutre droite entre la surface de la sphère
+    // et le bord interne de l'anneau, avec joints aux 2 extrémités.
+    // 1 panneau publicitaire monté perpendiculairement au milieu.
     const T=this.T;this.prestigeMoons=[];
     const[pr,pg,pb]=hex3(TIER_NEON.prestige);
-    const midR=(BRIDGE_INNER+BRIDGE_OUTER)/2;
+
+    const ringMR   = SPHERE_R*3.60;
+    const ringTh   = SPHERE_R*0.18;
+    const ringRX   = 0.22;                   // doit matcher ELITE_RING_CFG
+    const rStart   = SPHERE_R;              // surface de la sphère
+    const rEnd     = ringMR - ringTh;       // bord interne de l'anneau
+
+    // matériau acier poutre — commun à tous les ponts
+    const beamMat=new T.MeshPhysicalMaterial({
+      color:new T.Color(.07,.082,.115),
+      metalness:0.96,roughness:0.20,
+      transparent:false,
+    });
+    const jointMat=new T.MeshPhysicalMaterial({
+      color:new T.Color(.12,.14,.20),
+      metalness:0.95,roughness:0.15,
+      transparent:false,
+    });
+    // fil néon contour
+    const wireMat=new T.LineBasicMaterial({color:new T.Color(0,.75,.55),transparent:true,opacity:.35,depthWrite:false});
 
     for(let idx=0;idx<N_BRIDGES;idx++){
       const angle=idx/N_BRIDGES*Math.PI*2;
-      const rx=BRIDGE_RING_RX;
-      // Direction radiale dans le plan de l'anneau (applique rX de l'anneau)
-      const dx=Math.cos(angle);
-      const dy=-Math.sin(angle)*Math.sin(rx);
-      const dz= Math.sin(angle)*Math.cos(rx);
 
-      // ── Structure du pont (BoxGeometry) ──
-      // Axe X du box = direction du pont
-      const beamGeo=new T.BoxGeometry(BRIDGE_LEN, BRIDGE_H, BRIDGE_W);
-      const beamMat=new T.MeshPhysicalMaterial({
-        color:new T.Color(.065,.075,.105),
-        metalness:0.95, roughness:0.22,
-        transparent:true, opacity:0.88,
-      });
+      // Direction radiale dans le plan incliné de l'anneau (rotation rX autour de X)
+      const dx= Math.cos(angle);
+      const dy=-Math.sin(angle)*Math.sin(ringRX);
+      const dz= Math.sin(angle)*Math.cos(ringRX);
+      // Déjà normalisé (cos²+sin²=1)
+
+      // Points d'ancrage
+      const sx=dx*rStart, sy=dy*rStart, sz=dz*rStart;  // sphère
+      const ex=dx*rEnd,   ey=dy*rEnd,   ez=dz*rEnd;    // anneau interne
+      const bridgeLen=rEnd-rStart;
+      const mx=(sx+ex)/2, my=(sy+ey)/2, mz=(sz+ez)/2;  // milieu
+
+      // Quaternion : aligner l'axe Y du mesh (0,1,0) sur la direction (dx,dy,dz)
+      const yAxis=new T.Vector3(0,1,0);
+      const dir=new T.Vector3(dx,dy,dz).normalize();
+      const quat=new T.Quaternion().setFromUnitVectors(yAxis,dir);
+
+      // ── Poutre principale (section carrée) ──
+      const bW=BRIDGE_W, bH=BRIDGE_H;
+      const beamGeo=new T.BoxGeometry(bW,bridgeLen,bH);
       const beam=new T.Mesh(beamGeo,beamMat);
-      // Position au centre du pont
-      beam.position.set(dx*midR, dy*midR, dz*midR);
-      // Orienter le box le long de (dx,dy,dz)
-      beam.lookAt(dx*BRIDGE_OUTER, dy*BRIDGE_OUTER, dz*BRIDGE_OUTER);
+      beam.position.set(mx,my,mz);
+      beam.setRotationFromQuaternion(quat);
+      beam.castShadow=true;
       this.systemGroup.add(beam);
 
-      // ── Lignes de contour du pont (filaire neon) ──
-      const pts2d=[
-        [-BRIDGE_LEN/2,-BRIDGE_H/2],[-BRIDGE_LEN/2,BRIDGE_H/2],
-        [BRIDGE_LEN/2,BRIDGE_H/2],[BRIDGE_LEN/2,-BRIDGE_H/2],[-BRIDGE_LEN/2,-BRIDGE_H/2]
+      // ── Joint d'ancrage côté sphère ──
+      const j1=new T.Mesh(new T.BoxGeometry(bW*1.9,bW*1.9,bW*1.9),jointMat);
+      j1.position.set(sx,sy,sz);
+      this.systemGroup.add(j1);
+
+      // ── Joint d'ancrage côté anneau ──
+      const j2=new T.Mesh(new T.BoxGeometry(bW*1.9,bW*1.9,bW*1.9),jointMat);
+      j2.position.set(ex,ey,ez);
+      this.systemGroup.add(j2);
+
+      // ── Fil néon de contour ──
+      const hw=bW*0.5, hl=bridgeLen*0.5;
+      const wirePts=[
+        new T.Vector3(-hw,-hl,-hw),new T.Vector3( hw,-hl,-hw),
+        new T.Vector3( hw,-hl, hw),new T.Vector3(-hw,-hl, hw),
+        new T.Vector3(-hw,-hl,-hw), // bas
+        new T.Vector3(-hw, hl,-hw),new T.Vector3( hw, hl,-hw),
+        new T.Vector3( hw, hl, hw),new T.Vector3(-hw, hl, hw),
+        new T.Vector3(-hw, hl,-hw), // haut
       ];
-      const wirePts=pts2d.map(([bx,by])=>new T.Vector3(bx,by,0));
       const wireGeo=new T.BufferGeometry().setFromPoints(wirePts);
-      const wireMat=new T.LineBasicMaterial({color:new T.Color(0,0.7,0.55),transparent:true,opacity:.3,depthWrite:false});
-      const wire=new T.LineLoop(wireGeo,wireMat);
-      wire.position.copy(beam.position);wire.rotation.copy(beam.rotation);
+      const wire=new T.Line(wireGeo,wireMat);
+      wire.position.set(mx,my,mz);
+      wire.setRotationFromQuaternion(quat);
       this.systemGroup.add(wire);
 
-      // ── Panneau slot — face perpendiculaire au pont (visible latéralement) ──
-      // Normal = perpendiculaire au pont et vers le haut de la scène
-      const panelGeo=new T.PlaneGeometry(BRIDGE_PANEL_W, BRIDGE_PANEL_H);
+      // ── Panneau slot ──
+      // Normal du panneau = tangent perpendiculaire à la direction radiale
+      // tangent = cross(dir, ring_normal)  →  ring_normal = (0, cos(rX), -sin(rX))
+      const rn=new T.Vector3(0,Math.cos(ringRX),-Math.sin(ringRX));
+      const tangent=new T.Vector3().crossVectors(dir,rn).normalize();
+
       const dummyTex=(()=>{
         const c=document.createElement('canvas');c.width=1;c.height=1;
         const ctx2=c.getContext('2d');ctx2.fillStyle='#000';ctx2.fillRect(0,0,1,1);
@@ -1467,27 +1512,34 @@ class Scene3D{
         uBrandCol:{value:new T.Vector3(pr,pg,pb)},
         uBrandTex:{value:dummyTex},uHasTex:{value:0},uTexOffset:{value:0},
       };
-      const panelMesh=new T.Mesh(panelGeo,new T.ShaderMaterial({
-        vertexShader:BRIDGE_PANEL_VERT,fragmentShader:BRIDGE_PANEL_FRAG,
-        uniforms:uP,transparent:true,depthWrite:false,
-        blending:T.AdditiveBlending,side:T.DoubleSide
-      }));
-      // Positionner le panneau au milieu du pont, légèrement décalé vers le haut
-      const upOffset=BRIDGE_H*0.5+BRIDGE_PANEL_H*0.5+SPHERE_R*0.02;
-      // "up" perpendiculaire au pont dans le plan de l'anneau
-      const upX=-dy*0+0; // simplified: juste lever en Y monde
-      panelMesh.position.set(dx*midR, dy*midR+upOffset, dz*midR);
-      // Panel regarde tangentiellement (perpendiculaire à la direction radiale)
-      // Normal du panel = direction radiale
-      panelMesh.lookAt(
-        dx*midR + dx*10,
-        dy*midR + dy*10,
-        dz*midR + dz*10
+      const panelMesh=new T.Mesh(
+        new T.PlaneGeometry(BRIDGE_PANEL_W,BRIDGE_PANEL_H),
+        new T.ShaderMaterial({
+          vertexShader:BRIDGE_PANEL_VERT,fragmentShader:BRIDGE_PANEL_FRAG,
+          uniforms:uP,transparent:true,depthWrite:false,
+          blending:T.AdditiveBlending,side:T.DoubleSide
+        })
       );
+      // Positionner le panneau au milieu du pont,
+      // décalé latéralement (tangent) pour être visible
+      const panelOffset=bW*0.5+BRIDGE_PANEL_H*0.5+SPHERE_R*0.015;
+      panelMesh.position.set(
+        mx+tangent.x*panelOffset,
+        my+tangent.y*panelOffset,
+        mz+tangent.z*panelOffset
+      );
+      // Orienter le panneau : normal = tangent, up = dir radiale
+      const panelQuat=new T.Quaternion().setFromUnitVectors(new T.Vector3(0,0,1),tangent);
+      panelMesh.setRotationFromQuaternion(panelQuat);
       panelMesh.renderOrder=4;
       this.systemGroup.add(panelMesh);
 
-      this.prestigeMoons.push({moonMesh:panelMesh,beam,wire,haloMesh:panelMesh,u:uP,cfg:{angle,dx,dy,dz},slot:null,_dummyTex:dummyTex});
+      this.prestigeMoons.push({
+        moonMesh:panelMesh,beam,wire,j1,j2,
+        haloMesh:panelMesh,u:uP,
+        cfg:{angle,dx,dy,dz,mx,my,mz},
+        slot:null,_dummyTex:dummyTex
+      });
     }
   }
 
@@ -2208,7 +2260,7 @@ class Scene3D{
       _slotTextures?.forEach(t=>t?.dispose());
     });
     Object.values(this._ringGeoCache).forEach(g=>g?.dispose());this._ringGeoCache={};
-    this.prestigeMoons.forEach(({moonMesh,beam,wire,_dummyTex})=>{moonMesh?.geometry?.dispose();moonMesh?.material?.dispose();beam?.geometry?.dispose();beam?.material?.dispose();wire?.geometry?.dispose();wire?.material?.dispose();_dummyTex?.dispose();});
+    this.prestigeMoons.forEach(({moonMesh,beam,wire,j1,j2,_dummyTex})=>{moonMesh?.geometry?.dispose();moonMesh?.material?.dispose();beam?.geometry?.dispose();beam?.material?.dispose();wire?.geometry?.dispose();wire?.material?.dispose();j1?.geometry?.dispose();j1?.material?.dispose();j2?.geometry?.dispose();j2?.material?.dispose();_dummyTex?.dispose();});
     this.epicHalos.forEach(({m})=>{m?.geometry?.dispose();m?.material?.dispose();});
     this.decoRings.forEach(({m})=>{m?.geometry?.dispose();m?.material?.dispose();});
 
