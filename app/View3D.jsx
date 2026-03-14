@@ -175,12 +175,13 @@ const TIER_PANEL_SCALE = { epicenter:1.30, prestige:1.14, elite:0.98, business:0
 //   • 3 anneaux obliques à 54°/58° d'inclinaison, décalés de 60° entre eux
 // → aucun regroupement visuel, chaque anneau coupe l'étoile depuis un côté différent
 const ELITE_RING_CFG = [
-  // ── ANNEAU PRINCIPAL — station orbitale massive, proche de la sphère ──
-  // face interne : panneaux holographiques dashboard  |  face externe : coque acier greebles
-  // inner edge ≈ SPHERE_R*1.08   outer edge ≈ SPHERE_R*1.82   height = ±SPHERE_R*0.47
-  {mR:SPHERE_R*1.45, tR:SPHERE_R*0.47, thick:SPHERE_R*0.37, rX:0.10, rZ:0.00, slots:8, col:'#00FFCC'},
-  // ── ANNEAU ORBITAL — ring équatorial incliné, plus fin ──
-  {mR:SPHERE_R*1.70, tR:SPHERE_R*0.07, thick:SPHERE_R*0.014, rX:1.05, rZ:0.00, slots:8, col:'#1155BB'},
+  // ── RINGWORLD — anneau unique, loin de l'épicentre, section rectangulaire haute ──
+  // Inspiré Ringworld (Larry Niven) : face interne = panneaux publicitaires / paysages
+  //                                   face externe = coque industrielle greeblée
+  // mR éloigné → anneau orbital majestueux encerclant l'étoile de loin
+  // tR (demi-hauteur) tall → section bien visible de loin
+  // thick (épaisseur radiale) fin par rapport à la hauteur
+  {mR:SPHERE_R*3.60, tR:SPHERE_R*0.55, thick:SPHERE_R*0.18, rX:0.22, rZ:0.00, slots:8, col:'#00DDAA'},
 ];
 
 const MOON_CFG = [
@@ -530,168 +531,168 @@ void main(){
 
   vec3 col;
   float alpha;
+  // Zone de contenu (hors bords cap haut/bas) — utilisée en face interne
+  float edgeHc=.04;
+  float contentY=smoothstep(edgeHc,edgeHc+.01,uv.y)*(1.-smoothstep(1.-edgeHc-.01,1.-edgeHc,uv.y));
 
   // ════════════════════════════════════════════════════════
   // FACE EXTERNE — coque métallique sci-fi (Space Station Hull)
   // ════════════════════════════════════════════════════════
   if(vIsOuter>.5){
-    vec3 steelBase=vec3(.038,.044,.058);
-    vec3 steelDark=vec3(.008,.010,.016);
-    vec3 steelAccent=vec3(.055,.065,.090);
+    // ── COQUE EXTERNE RINGWORLD — industrielle, greebles lourds ──
+    vec3 hullBase=vec3(.028,.032,.042);
+    vec3 hullDark=vec3(.010,.012,.018);
+    vec3 hullLight=vec3(.060,.068,.090);
+    vec3 hullAccent=vec3(.15,.22,.38); // teinte bleue froide modules
 
-    // Panneau greeble — grille de plaques structurelles
-    float gX=fract(uv.x*20.);float gY=fract(uv.y*10.);
-    float pLineX=smoothstep(.0,.022,min(gX,1.-gX));
-    float pLineY=smoothstep(.0,.022,min(gY,1.-gY));
-    float panel=pLineX*pLineY;
+    // ── Grandes plaques structurelles ──
+    float pX=fract(uv.x*7.);float pY=fract(uv.y*3.);
+    float plateX=smoothstep(.0,.03,min(pX,1.-pX));
+    float plateY=smoothstep(.0,.03,min(pY,1.-pY));
+    float plate=plateX*plateY;
+    float plateGroove=1.-plate; // rainures entre plaques
 
-    // Panneau profond secondaire
-    float g2X=fract(uv.x*6.+.5);float g2Y=fract(uv.y*3.+.5);
-    float p2=smoothstep(.0,.04,min(g2X,1.-g2X))*smoothstep(.0,.04,min(g2Y,1.-g2Y));
+    // ── Modules circulaires (style Ringworld) ──
+    // Position centre du module = grille 3×2 sur chaque plaque
+    float mX=fract(uv.x*7.*3.-.5);float mY=fract(uv.y*3.*2.-.5);
+    float modDist=length(vec2(mX-.5,mY-.5)*vec2(1.2,1.8));
+    float outerRim=smoothstep(.38,.35,modDist)-smoothstep(.35,.30,modDist); // bord anneau
+    float innerRim=smoothstep(.22,.20,modDist)-smoothstep(.20,.15,modDist); // bord intérieur
+    float innerFill=smoothstep(.15,.0,modDist)*.25; // fond sombre module
+    float modGlow=outerRim+innerRim*.7;
 
-    // Variation micro-surface
-    float micro=noise2d(uv*30.+vec2(t*.01,0.))*.05+noise2d(uv*12.)*.08;
+    // ── Circuits / tracés sur les plaques ──
+    float cX=fract(uv.x*42.);float cY=fract(uv.y*22.);
+    float circH=step(.48,cX)*step(cX,.52)*.18; // lignes horizontales
+    float circV=step(.48,cY)*step(cY,.52)*.18; // lignes verticales
+    float circuit=(circH+circV)*plate;
 
-    // Rivets / boulons
-    float rX=fract(uv.x*20.-.5);float rY=fract(uv.y*10.-.5);
-    float rivet=smoothstep(.18,.0,length(vec2(rX-.5,rY-.5))*.5)*.25;
+    // ── Rivets sur les bords de plaque ──
+    float rX2=fract(uv.x*7.*4.);float rY2=fract(uv.y*3.*4.);
+    float rivet=smoothstep(.3,.0,length(vec2(rX2-.5,rY2-.5)))*.35*plateGroove;
 
-    // Liseré teal en haut et bas de la coque (éclairage intérieur qui déborde)
-    float topGlow=smoothstep(.08,.0,uv.y);
-    float botGlow=smoothstep(.92,1.,uv.y);
-    float edgeGlow=(topGlow+botGlow)*(.8+.2*sin(t*.7+uRingIdx*1.2));
+    // ── Micro-détails noise ──
+    float micro=noise2d(uv*50.+vec2(t*.008,0.))*.04;
 
-    // Séparateurs de slots — ligne recessed
-    float sepW=.014;
-    float sepMask=smoothstep(0.,sepW*.5,min(slotFrac,1.-slotFrac)*2.);
+    // ── Bandes de renfort horizontales en haut/bas ──
+    float reinH=.08;
+    float reinTop=smoothstep(reinH,.0,uv.y);
+    float reinBot=smoothstep(1.-reinH,1.,uv.y);
+    float reinforcement=max(reinTop,reinBot);
 
-    col=mix(steelDark,steelBase,panel*.65+p2*.25+micro+NdotL*.12);
-    col+=steelAccent*rivet;
-    col=mix(col,steelDark*.3,1.-sepMask)*.9+steelDark*.1*(1.-sepMask);
-    // Reflet spéculaire acier
-    col+=vec3(.55,.60,.70)*spec*1.2;
-    // Teal glow sur bords (lumière interne de l'anneau)
-    col+=vec3(.0,.90,.65)*edgeGlow*.18;
-    // Hover
-    if(uHov>.5)col+=vec3(.0,.5,.35)*.12+vec3(.55,.60,.70)*spec*.6;
+    // Assemblage couleur
+    col=mix(hullDark,hullBase,plate*.6+micro+NdotL*.15);
+    col=mix(col,hullDark*.5,plateGroove*.6);      // rainures sombres
+    col+=hullLight*outerRim*.8;                    // bord module brillant
+    col+=hullAccent*innerRim*.5;                   // anneau interne bleuté
+    col+=hullDark*innerFill;
+    col+=hullLight*circuit*.6;                     // circuits
+    col+=hullLight*rivet;                          // rivets
+    col+=hullLight*reinforcement*.4;               // renforts haut/bas
+    // Spéculaire métal froid
+    col+=vec3(.45,.50,.65)*spec*1.5;
+    // Reflet teal minimal sur bords (lumière interne)
+    col+=vec3(.0,.70,.55)*reinforcement*.06*(1.+.3*sin(t*.5+uRingIdx));
+    if(uHov>.5)col+=hullAccent*.15+vec3(.45,.50,.65)*spec*.8;
 
-    float angleFade=smoothstep(.0,.15,NdotV);
-    alpha=(.88+rivet*.08)*angleFade;
+    float angleFade=smoothstep(.0,.12,NdotV);
+    alpha=(.90+rivet*.06)*angleFade;
     alpha=clamp(alpha,0.,1.);
 
   // ════════════════════════════════════════════════════════
   // FACE INTERNE — panneaux holographiques dashboard (Inner Ring)
   // ════════════════════════════════════════════════════════
   } else {
-    vec3 panelBg=vec3(.003,.010,.020);
-    vec3 teal=vec3(.0,.95,.72);
-    vec3 green=vec3(.12,.95,.38);
-    vec3 amber=vec3(.95,.62,.05);
-    vec3 blue=vec3(.15,.55,1.0);
+    // ── FACE INTERNE RINGWORLD — grands panneaux d'affichage bien délimités ──
+    // Inspiré de l'image : panneaux rectangulaires côte à côte sur la face interne
+    vec3 panelBg=vec3(.003,.008,.018);
+    vec3 teal=vec3(.0,.92,.70);
+    vec3 green=vec3(.10,.92,.35);
+    vec3 amber=vec3(.92,.60,.05);
+    vec3 blue=vec3(.12,.50,1.0);
+    vec3 cyan=vec3(.0,.82,.95);
 
-    // Séparateur de slot
-    float sepW=.012;
-    float isSep=step(min(slotFrac,1.-slotFrac)*2.,sepW);
+    // Accent par slot
+    vec3 slotAccent=mix(teal,green,step(.35,seed));
+    slotAccent=mix(slotAccent,amber,step(.68,seed));
+    slotAccent=mix(slotAccent,blue,step(.82,seed));
+    slotAccent=mix(slotAccent,cyan,step(.92,seed));
 
-    // Bords haut/bas
-    float edgeH=.05;
-    float topEdge=1.-smoothstep(0.,edgeH,uv.y);
-    float botEdge=smoothstep(1.-edgeH,1.,uv.y);
-    float isEdge=max(topEdge,botEdge);
+    // ── Cadre du panneau — bordure noire épaisse entre panneaux ──
+    float frameW=.04;
+    float fL=smoothstep(0.,frameW,slotFrac);
+    float fR=smoothstep(1.,1.-frameW,slotFrac);
+    float fT=smoothstep(0.,frameW,uv.y);
+    float fB=smoothstep(1.,1.-frameW,uv.y);
+    float frame=min(min(fL,fR),min(fT,fB)); // 1 = intérieur panneau, 0 = cadre
+    float isFrame=step(.5,1.-frame);
 
-    // Zone de contenu intérieure (bords top/bot gérés séparément)
-    float bT=smoothstep(0.,edgeH+.01,uv.y);
-    float bB=1.-smoothstep(1.-edgeH-.01,1.-edgeH,uv.y);
-    float contentY=bT*bB;
+    // ── Couleur de fond du panneau selon slot ──
+    // Panneaux avec contenu : fond bleu-noir foncé
+    // Panneaux vides : gris anthracite
+    vec3 slotBg=mix(vec3(.008,.010,.018),vec3(.012,.016,.030),slotIsOcc);
 
-    // Couleur accent du slot (variation selon seed)
-    vec3 slotAccent=mix(teal,green,step(.4,seed));
-    slotAccent=mix(slotAccent,amber,step(.75,seed));
-    slotAccent=mix(slotAccent,blue,step(.88,seed));
+    // ── Contenu dynamique du panneau ──
+    // Scan lines horizontales (style affichage)
+    float lineFreq=36.;
+    float scanY=fract(uv.y*lineFreq+t*.05);
+    float scanLines=(.85+.15*step(.5,scanY))*frame*contentY;
 
-    // ── BORDURE DE PANNEAU holographique ──
-    float borderW=.028;
-    float bL=smoothstep(0.,borderW,slotFrac);
-    float bR=smoothstep(1.,1.-borderW,slotFrac);
-    float bTb=smoothstep(0.,borderW,uv.y);
-    float bBb=smoothstep(1.,1.-borderW,uv.y);
-    float borderFade=min(min(bL,bR),min(bTb,bBb));
-    float border=step(.55,1.-borderFade);
-    float borderGlow=1.-borderFade;
-
-    // ── SCAN LINES holographiques ──
-    float lineFreq=28.;
-    float scanY=fract(uv.y*lineFreq);
-    float scanLine=step(.42,scanY)*.22*slotIsOcc*contentY;
-
-    // ── BARRES DE DONNÉES animées ──
-    float scrollRate=(1.2+seed*.6)*uScrollSpeed;
-    float barN=6.;
+    // ── Barres de données animées (représentent le contenu publicitaire) ──
+    float scrollRate=(1.0+seed*.5)*uScrollSpeed;
+    float barN=5.;
     float barUX=fract(slotFrac*barN);
-    float barIdx=floor(slotFrac*barN);
-    float bH=fract(hash(barIdx*3.7+slotIdx*11.3)*1.+t*scrollRate*.08*(1.+barIdx*.15));
-    bH=clamp(bH*.75+.10,.08,.90);
-    float bar=step(uv.y,bH)*step(.07,barUX)*step(barUX,.86)*slotIsOcc*contentY*(1.-isSep);
-    float barPulse=.65+.35*sin(t*2.2+barIdx*.9+seed*6.28);
-    vec3 barCol=mix(slotAccent,teal,.35);
+    float barIdx2=floor(slotFrac*barN);
+    float bH2=fract(hash(barIdx2*3.7+slotIdx*11.3)*1.+t*scrollRate*.06);
+    bH2=clamp(bH2*.8+.12,.12,.92);
+    float bar=step(uv.y,bH2)*step(.05,barUX)*step(barUX,.88)*slotIsOcc*contentY*frame*(1.-isFrame);
+    vec3 barCol=mix(slotAccent,teal,.4);
+    float barPulse=.7+.3*sin(t*1.8+barIdx2+seed*4.);
 
-    // ── INDICATEUR STATUS — corner top right ──
-    float dotX=abs(slotFrac-.84)*4.;float dotY=abs(uv.y-.88)*4.;
-    float statusDot=smoothstep(.5,.0,length(vec2(dotX,dotY)))*.8*slotIsOcc*contentY;
-    float dotPulse=.6+.4*sin(t*3.5+slotIdx*1.2);
+    // ── Indicateur status top-right ──
+    float dotX=abs(slotFrac-.88)*5.;float dotY=abs(uv.y-.88)*5.;
+    float statusDot=smoothstep(.55,.0,length(vec2(dotX,dotY)))*.9*slotIsOcc*frame;
+    float dotPulse=.55+.45*sin(t*3.5+slotIdx*1.1);
 
-    // ── TITRE SLOT — ligne horizontale en haut ──
-    float titleLine=smoothstep(0.,.01,uv.y-.12)*smoothstep(.19,.17,uv.y)*slotIsOcc*contentY;
-    titleLine*=(1.-abs(slotFrac-.5)*1.6)*2.;titleLine=clamp(titleLine,0.,1.);
+    // ── Bordure lumineuse du cadre ──
+    float borderInner=smoothstep(0.,frameW*.5,frame)*(1.-smoothstep(frameW*.5,frameW,frame));
+    borderInner+=isFrame*.15;
 
-    // ── GLOW CENTRAL ──
-    float cGlow=exp(-pow((uv.y-.5)*1.8,2.)*.8)*exp(-pow((slotFrac-.5)*1.8,2.)*.8);
+    // ── Glow central ──
+    float cGlow=exp(-pow((uv.y-.5)*1.6,2.)*.7)*exp(-pow((slotFrac-.5)*1.6,2.)*.7);
 
-    // ── Assemblage couleur ──
-    col=panelBg;
-    // Fond ambiant slot actif
-    if(slotIsOcc>.5) col+=panelBg*3.*cGlow*.5+panelBg*1.;
-    // Bordure lumineuse animée
-    col+=slotAccent*(1.8+.4*sin(t*2.4+slotIdx*.6))*borderGlow*border;
-    // Bords haut/bas — frise teal
-    col+=slotAccent*isEdge*(1.2+.4*sin(t*.8+uRingIdx));
-    // Scan lines
-    col+=slotAccent*scanLine;
-    // Barres données
-    col+=barCol*bar*barPulse*2.5;
-    // Status dot
+    // ── Assemblage ──
+    col=mix(panelBg*.4,slotBg,frame); // cadre sombre, fond panneau
+    col+=slotBg*scanLines*.15*slotIsOcc;
+    col+=slotAccent*borderInner*(1.0+.3*sin(t*2.+slotIdx*.5))*1.2;
+    col+=barCol*bar*barPulse*2.2;
     col+=slotAccent*statusDot*dotPulse*3.;
-    // Ligne titre
-    col+=slotAccent*titleLine*.8;
-    // Glow ambiant
-    col+=slotAccent*cGlow*(.06+.05*slotIsOcc);
-    // Séparateur
-    col=mix(col,panelBg*.15,isSep*.95);
+    col+=slotAccent*cGlow*(.07+.05*slotIsOcc)*frame;
 
-    // ── Texture de marque sur face interne ──
+    // ── Texture de marque ──
     vec4 texSample=vec4(0.);
-    float texV=clamp(uv.y,0.,1.);
-    if(uHasTex1>.5)      texSample=texture2D(uBrandTex1,vec2(fract(uv.x+uTexOffset1),texV));
-    else if(uHasTex2>.5) texSample=texture2D(uBrandTex2,vec2(fract(uv.x+uTexOffset2),texV));
-    else if(uHasTex3>.5) texSample=texture2D(uBrandTex3,vec2(fract(uv.x+uTexOffset3),texV));
-    else if(uHasTex4>.5) texSample=texture2D(uBrandTex4,vec2(fract(uv.x+uTexOffset4),texV));
-    else if(uHasTex5>.5) texSample=texture2D(uBrandTex5,vec2(fract(uv.x+uTexOffset5),texV));
-    else if(uHasTex6>.5) texSample=texture2D(uBrandTex6,vec2(fract(uv.x+uTexOffset6),texV));
-    else if(uHasTex7>.5) texSample=texture2D(uBrandTex7,vec2(fract(uv.x+uTexOffset7),texV));
-    else if(uHasTex8>.5) texSample=texture2D(uBrandTex8,vec2(fract(uv.x+uTexOffset8),texV));
+    float texV2=clamp(uv.y,0.,1.);
+    if(uHasTex1>.5)      texSample=texture2D(uBrandTex1,vec2(fract(uv.x+uTexOffset1),texV2));
+    else if(uHasTex2>.5) texSample=texture2D(uBrandTex2,vec2(fract(uv.x+uTexOffset2),texV2));
+    else if(uHasTex3>.5) texSample=texture2D(uBrandTex3,vec2(fract(uv.x+uTexOffset3),texV2));
+    else if(uHasTex4>.5) texSample=texture2D(uBrandTex4,vec2(fract(uv.x+uTexOffset4),texV2));
+    else if(uHasTex5>.5) texSample=texture2D(uBrandTex5,vec2(fract(uv.x+uTexOffset5),texV2));
+    else if(uHasTex6>.5) texSample=texture2D(uBrandTex6,vec2(fract(uv.x+uTexOffset6),texV2));
+    else if(uHasTex7>.5) texSample=texture2D(uBrandTex7,vec2(fract(uv.x+uTexOffset7),texV2));
+    else if(uHasTex8>.5) texSample=texture2D(uBrandTex8,vec2(fract(uv.x+uTexOffset8),texV2));
 
     if(anyHasTex>.5){
-      col=mix(col,col*.04,anyHasTex*.97);
-      col=mix(col,texSample.rgb,anyHasTex);
-      col+=texSample.rgb*anyHasTex*3.2;
+      col=mix(col,col*.05,anyHasTex*.96)*frame+(1.-frame)*col;
+      col=mix(col,texSample.rgb*frame,anyHasTex*frame);
+      col+=texSample.rgb*anyHasTex*frame*3.0;
     }
 
-    if(uHov>.5) col+=slotAccent*(.30+cGlow*.55);
-    col+=vec3(.5,.6,.7)*spec*.4;
+    if(uHov>.5) col+=slotAccent*(.28+cGlow*.5)*frame;
+    col+=vec3(.4,.5,.6)*spec*.3;
 
-    float angleFade=smoothstep(.0,.18,NdotV);
-    float baseAlpha=isSep>.5?.06:(slotHasTex>.5?.90:(slotIsOcc>.5?.72:.32));
-    alpha=baseAlpha*angleFade*(border>.5?1.:1.);
+    float angleFade=smoothstep(.0,.16,NdotV);
+    float baseAlpha=isFrame>.5?.92:(slotHasTex>.5?.92:(slotIsOcc>.5?.78:.38));
+    alpha=baseAlpha*angleFade;
     alpha=clamp(alpha,0.,1.);
   }
 
