@@ -184,16 +184,22 @@ const ELITE_RING_CFG = [
   {mR:SPHERE_R*3.60, tR:SPHERE_R*0.55, thick:SPHERE_R*0.18, rX:0.22, rZ:0.00, slots:8, col:'#00DDAA'},
 ];
 
-// ── BRIDGES — 8 ponts structuraux reliant la sphère à l'anneau ──
-const N_BRIDGES = 8;
-const BRIDGE_RING_RX = 0.22;
-const BRIDGE_INNER   = SPHERE_R*1.12;
-const BRIDGE_OUTER   = SPHERE_R*3.40;
-const BRIDGE_LEN     = BRIDGE_OUTER - BRIDGE_INNER;
-const BRIDGE_W       = SPHERE_R*0.09;
-const BRIDGE_H       = SPHERE_R*0.09;
-const BRIDGE_PANEL_W = SPHERE_R*0.70;
-const BRIDGE_PANEL_H = SPHERE_R*0.50;
+// ── BRIDGES — 8 treillis structuraux sphère ↔ anneau (Dyson sphere aesthetic) ──
+const N_BRIDGES    = 8;
+const BRIDGE_RING_RX = 0.22;                       // inclinaison anneau
+const BRIDGE_RING_MR = SPHERE_R*3.60;
+const BRIDGE_RING_TH = SPHERE_R*0.18;
+const BRIDGE_RSTART  = SPHERE_R*1.00;              // surface sphère
+const BRIDGE_REND    = BRIDGE_RING_MR-BRIDGE_RING_TH; // bord interne anneau
+const BRIDGE_SPAN    = BRIDGE_REND-BRIDGE_RSTART;  // longueur totale
+const BRIDGE_RAIL_W  = SPHERE_R*0.032;             // section d'un rail
+const BRIDGE_SPREAD  = SPHERE_R*0.12;              // demi-écartement entre les rails
+const BRIDGE_N_SEGS  = 7;                          // nb de segments / contreventements
+const BRIDGE_PANEL_W = SPHERE_R*0.80;
+const BRIDGE_PANEL_H = SPHERE_R*0.55;
+// BRIDGE_W/H conservés pour compatibilité
+const BRIDGE_W = SPHERE_R*0.09;
+const BRIDGE_H = SPHERE_R*0.09;
 
 // ── Post-processing shaders ──────────────────────────────────────────────────
 const CA_GRAIN_SHADER = {
@@ -699,13 +705,12 @@ void main(){
   gl_FragColor=vec4(col,clamp(alpha,0.,1.));
 }`
 
-// ── Bridge panel shader — panneau 1 slot sur chaque pont ──
+// ── Bridge panel shader — nœud d'énergie Dyson sphere ──
 const BRIDGE_PANEL_VERT=`
 precision highp float;
 varying vec2 vUV;varying vec3 vN,vWP;
 void main(){
-  vUV=uv;
-  vN=normalize(normalMatrix*normal);
+  vUV=uv;vN=normalize(normalMatrix*normal);
   vec4 wp=modelMatrix*vec4(position,1.);vWP=wp.xyz;
   gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);
 }`;
@@ -716,47 +721,104 @@ uniform vec3 uBrandCol;
 uniform sampler2D uBrandTex;uniform float uHasTex,uTexOffset;
 varying vec2 vUV;varying vec3 vN,vWP;
 float hash(float n){return fract(sin(n)*43758.5453);}
-float GGX(float NdotH,float rough){float a=rough*rough;float a2=a*a;float d=NdotH*NdotH*(a2-1.)+1.;return a2/(3.14159*d*d);}
+float GGX(float NdotH,float r){float a=r*r;float a2=a*a;float d=NdotH*NdotH*(a2-1.)+1.;return a2/(3.14159*d*d);}
+
+// Hexagonal grid SDF
+vec2 hexGrid(vec2 uv,float scale){
+  uv*=scale;
+  vec2 q=vec2(uv.x*1.1547,uv.y+uv.x*.5774);
+  vec2 qi=floor(q),qf=fract(q)-.5;
+  return qf;
+}
+float hexBorder(vec2 uv,float scale,float t){
+  vec2 hf=hexGrid(uv,scale);
+  float d=max(abs(hf.x)*.866+abs(hf.y)*.5,abs(hf.y));
+  return smoothstep(.44,.40,d)*(1.-smoothstep(.42,.44,d))*(1.+.4*sin(t*.8+d*20.));
+}
+
 void main(){
   if(uDim>.5){gl_FragColor=vec4(.003,.004,.007,1.);return;}
   float t=uTime;vec2 uv=vUV;
-  // Cadre du panneau
-  float fw=.045;
+
+  // ── Cadre structurel ──
+  float fw=.040;
   float fL=smoothstep(0.,fw,uv.x);float fR=smoothstep(1.,1.-fw,uv.x);
   float fT=smoothstep(0.,fw,uv.y);float fB=smoothstep(1.,1.-fw,uv.y);
   float inner=min(min(fL,fR),min(fT,fB));
-  float border=1.-inner;
-  // Fond
-  vec3 bg=vec3(.004,.010,.022);
-  vec3 accent=uBrandCol;
-  vec3 col=mix(bg*.3,bg,inner);
-  // Bordure lumineuse
-  float borderGlow=border*(1.5+.5*sin(t*2.2));
-  col+=accent*borderGlow*.8;
-  // Scan lines
-  float scan=step(.5,fract(uv.y*30.))*.08*uOcc*inner;
-  col+=accent*scan;
-  // Glow central
-  float cG=exp(-pow((uv.x-.5)*2.,2.))*exp(-pow((uv.y-.5)*2.,2.));
-  col+=accent*cG*(.06+.04*uOcc)*(.8+.2*sin(t*1.2));
-  // Barre de chargement
-  float bar=step(uv.x,.15+uOcc*.70)*step(uv.y,.18)*step(.12,uv.y)*inner;
-  col+=accent*bar*(.7+.3*sin(t*2.+uv.x*8.));
-  // Texture de marque
+  float frame=1.-inner;
+
+  // ── Palette Dyson ──
+  vec3 bg      =vec3(.003,.008,.018);
+  vec3 teal    =vec3(.0,.88,.68);
+  vec3 amber   =vec3(.95,.58,.04);
+  vec3 gold    =vec3(.90,.78,.22);
+  vec3 hotwhite=vec3(.90,.96,1.0);
+  vec3 accent  =mix(teal,uBrandCol,uOcc>.5?.6:.0);
+
+  // ── Grille hexagonale Dyson ──
+  float hex6 =hexBorder(uv,6.,t)*.55;
+  float hex12=hexBorder(uv,12.,t+1.5)*.35;
+  float hexPat=(hex6+hex12)*inner*(1.+uOcc*.4);
+
+  // ── Scan énergétique vertical ──
+  float scanSpeed=.25+uOcc*.15;
+  float scanY=fract(uv.y-t*scanSpeed);
+  float scanLine=exp(-scanY*18.)*.55*inner*(uOcc>.5?1.:.25);
+
+  // ── Flux d'énergie radial (lignes horizontales animées) ──
+  float flowY=fract(uv.y*8.-t*.8+uv.x*.3);
+  float flow=exp(-pow(flowY*.5,.2)*.9)*.18*inner*uOcc;
+
+  // ── Jauge d'énergie verticale (côté gauche) ──
+  float gaugeX=step(uv.x,.08)*step(.04,uv.x);
+  float gaugeLevel=.2+uOcc*.65+.08*sin(t*1.2);
+  float gauge=gaugeX*step(1.-uv.y,gaugeLevel)*inner;
+  float gaugePulse=.7+.3*sin(t*2.2+uv.y*8.);
+
+  // ── Cercle central (core énergie) ──
+  vec2 cc=uv-.5;
+  float cd=length(cc);
+  float outerRing=smoothstep(.24,.22,cd)-smoothstep(.22,.18,cd);
+  float innerRing=smoothstep(.14,.12,cd)-smoothstep(.12,.08,cd);
+  float core=smoothstep(.06,.0,cd);
+  float corePulse=.7+.3*sin(t*2.5);
+  float ringPulse=.6+.4*sin(t*1.4+cd*15.);
+  float energyCore=(outerRing*.6+innerRing*.8+core*1.4)*corePulse*(uOcc>.5?1.:.3)*inner;
+
+  // ── Croix d'alignement ──
+  float crossH=step(abs(cc.y),.008)*step(abs(cc.x),.22);
+  float crossV=step(abs(cc.x),.008)*step(abs(cc.y),.22);
+  float cross2=(crossH+crossV)*inner*.35*(uOcc>.5?1.:.15);
+
+  // ── Assemblage couleur ──
+  vec3 col=mix(bg*.4,bg,inner);
+  col+=accent*hexPat;
+  col+=teal*scanLine;
+  col+=accent*flow;
+  col+=amber*gauge*gaugePulse*.8;
+  col+=accent*energyCore*ringPulse;
+  col+=hotwhite*cross2;
+  // Bordure cadre lumineuse
+  col+=accent*frame*(1.6+.5*sin(t*2.0));
+  // Hover
+  if(uHov>.5){col+=accent*(.20+energyCore*.3);col+=hotwhite*cross2*.8;}
+
+  // ── Texture de marque ──
   if(uHasTex>.5){
     vec4 tex=texture2D(uBrandTex,vec2(fract(uv.x+uTexOffset),uv.y));
-    col=mix(col,col*.04,inner*.95);
+    col=mix(col,col*.04,inner*.96);
     col=mix(col,tex.rgb*inner,inner);
     col+=tex.rgb*inner*3.0;
   }
+
   // Specular
   vec3 vd=normalize(cameraPosition-vWP);
   vec3 h2=normalize(-normalize(vWP)+vd);
   float NdotH=max(0.,dot(normalize(vN),h2));
-  col+=vec3(.4,.5,.7)*GGX(NdotH,uHov>.5?.06:.18)*.6;
-  if(uHov>.5)col+=accent*(.25+cG*.4);
+  col+=hotwhite*GGX(NdotH,uHov>.5?.05:.16)*.5;
+
   float NdotV=abs(dot(normalize(vN),vd));
-  float alpha=mix(.05,.92,smoothstep(.0,.2,NdotV))*(uHasTex>.5?.98:(uOcc>.5?.82:.40));
+  float alpha=mix(.04,.94,smoothstep(.0,.18,NdotV))*(uHasTex>.5?.98:(uOcc>.5?.88:.50));
   gl_FragColor=vec4(col,clamp(alpha,0.,1.));
 }`;
 
@@ -1414,94 +1476,110 @@ class Scene3D{
   }
 
   _buildPrestigeMoons(){
-    // ── BRIDGES — poutres rectilignes sphère ↔ anneau ──
-    // Chaque pont = une poutre droite entre la surface de la sphère
-    // et le bord interne de l'anneau, avec joints aux 2 extrémités.
-    // 1 panneau publicitaire monté perpendiculairement au milieu.
+    // ── DYSON BRIDGE TRUSSES ──
+    // Treillis structuraux : 2 rails longitudinaux + contreventements diagonaux
+    // + conduit d'énergie central + colliers d'ancrage aux extrémités
+    // + panneau nœud d'énergie au milieu
     const T=this.T;this.prestigeMoons=[];
     const[pr,pg,pb]=hex3(TIER_NEON.prestige);
 
-    const ringMR   = SPHERE_R*3.60;
-    const ringTh   = SPHERE_R*0.18;
-    const ringRX   = 0.22;                   // doit matcher ELITE_RING_CFG
-    const rStart   = SPHERE_R;              // surface de la sphère
-    const rEnd     = ringMR - ringTh;       // bord interne de l'anneau
+    // ── Géométries partagées (identiques pour tous les ponts) ──
+    const span    = BRIDGE_SPAN;
+    const rW      = BRIDGE_RAIL_W;
+    const spread  = BRIDGE_SPREAD;
+    const segL    = span / BRIDGE_N_SEGS;
+    const braceLen= Math.sqrt(4*spread*spread + segL*segL);
+    const braceAngle = Math.atan2(spread*2, segL);
 
-    // matériau acier poutre — commun à tous les ponts
-    const beamMat=new T.MeshPhysicalMaterial({
-      color:new T.Color(.07,.082,.115),
-      metalness:0.96,roughness:0.20,
-      transparent:false,
-    });
-    const jointMat=new T.MeshPhysicalMaterial({
-      color:new T.Color(.12,.14,.20),
-      metalness:0.95,roughness:0.15,
-      transparent:false,
-    });
-    // fil néon contour
-    const wireMat=new T.LineBasicMaterial({color:new T.Color(0,.75,.55),transparent:true,opacity:.35,depthWrite:false});
+    const railGeo   = new T.BoxGeometry(rW, span, rW);
+    const cbGeo     = new T.BoxGeometry(spread*2+rW, rW*.8, rW*.8);
+    const braceGeo  = new T.BoxGeometry(rW*.7, braceLen, rW*.7);
+    const conduitGeo= new T.CylinderGeometry(rW*.28,rW*.28,span,6,1);
+    const anchorSGeo= new T.CylinderGeometry(spread*1.8,spread*2.1,rW*2,8,1); // sphère end
+    const anchorRGeo= new T.CylinderGeometry(spread*2.1,spread*2.4,rW*2,8,1); // ring end
+
+    // Matériaux communs
+    const railMat  = new T.MeshPhysicalMaterial({color:new T.Color(.062,.072,.105),metalness:.97,roughness:.18});
+    const braceMat = new T.MeshPhysicalMaterial({color:new T.Color(.048,.056,.082),metalness:.96,roughness:.22});
+    const anchorMat= new T.MeshPhysicalMaterial({color:new T.Color(.038,.044,.068),metalness:.98,roughness:.12});
+    const condMat  = new T.MeshBasicMaterial({color:new T.Color(.0,1.0,.75)});
 
     for(let idx=0;idx<N_BRIDGES;idx++){
       const angle=idx/N_BRIDGES*Math.PI*2;
+      const rx=BRIDGE_RING_RX;
 
-      // Direction radiale dans le plan incliné de l'anneau (rotation rX autour de X)
-      const dx= Math.cos(angle);
-      const dy=-Math.sin(angle)*Math.sin(ringRX);
-      const dz= Math.sin(angle)*Math.cos(ringRX);
-      // Déjà normalisé (cos²+sin²=1)
+      // ── Repère local du pont ──
+      // axisY = direction radiale dans le plan de l'anneau
+      const axY=new T.Vector3(Math.cos(angle), -Math.sin(angle)*Math.sin(rx), Math.sin(angle)*Math.cos(rx));
+      // axisZ = normale de l'anneau (approx)
+      const ringNorm=new T.Vector3(0,Math.cos(rx),-Math.sin(rx));
+      // axisX = tangentiel (cross Y × Z) → écartement des rails
+      const axX=new T.Vector3().crossVectors(axY,ringNorm).normalize();
+      // axisZ recalculé orthogonal
+      const axZ=new T.Vector3().crossVectors(axX,axY).normalize();
 
-      // Points d'ancrage
-      const sx=dx*rStart, sy=dy*rStart, sz=dz*rStart;  // sphère
-      const ex=dx*rEnd,   ey=dy*rEnd,   ez=dz*rEnd;    // anneau interne
-      const bridgeLen=rEnd-rStart;
-      const mx=(sx+ex)/2, my=(sy+ey)/2, mz=(sz+ez)/2;  // milieu
+      // Position centre du pont
+      const mid=axY.clone().multiplyScalar((BRIDGE_RSTART+BRIDGE_REND)/2);
 
-      // Quaternion : aligner l'axe Y du mesh (0,1,0) sur la direction (dx,dy,dz)
-      const yAxis=new T.Vector3(0,1,0);
-      const dir=new T.Vector3(dx,dy,dz).normalize();
-      const quat=new T.Quaternion().setFromUnitVectors(yAxis,dir);
+      // Quaternion Y-up → axY (pour aligner les éléments longitudinaux)
+      const quat=new T.Quaternion().setFromUnitVectors(new T.Vector3(0,1,0),axY);
 
-      // ── Poutre principale (section carrée) ──
-      const bW=BRIDGE_W, bH=BRIDGE_H;
-      const beamGeo=new T.BoxGeometry(bW,bridgeLen,bH);
-      const beam=new T.Mesh(beamGeo,beamMat);
-      beam.position.set(mx,my,mz);
-      beam.setRotationFromQuaternion(quat);
-      beam.castShadow=true;
-      this.systemGroup.add(beam);
+      // ── Groupe pont ── tout en local, puis transformé globalement
+      const grp=new T.Group();
+      grp.position.copy(mid);
+      grp.setRotationFromQuaternion(quat);
+      this.systemGroup.add(grp);
 
-      // ── Joint d'ancrage côté sphère ──
-      const j1=new T.Mesh(new T.BoxGeometry(bW*1.9,bW*1.9,bW*1.9),jointMat);
-      j1.position.set(sx,sy,sz);
-      this.systemGroup.add(j1);
+      // ── 2 rails longitudinaux (±spread en X local) ──
+      const r1=new T.Mesh(railGeo,railMat);r1.position.set( spread,0,0);grp.add(r1);
+      const r2=new T.Mesh(railGeo,railMat);r2.position.set(-spread,0,0);grp.add(r2);
 
-      // ── Joint d'ancrage côté anneau ──
-      const j2=new T.Mesh(new T.BoxGeometry(bW*1.9,bW*1.9,bW*1.9),jointMat);
-      j2.position.set(ex,ey,ez);
-      this.systemGroup.add(j2);
+      // ── Cross-beams + diagonales ──
+      for(let s=0;s<BRIDGE_N_SEGS;s++){
+        const y0= -span/2 + s*segL;
+        const y1=  y0 + segL;
+        const ym= (y0+y1)/2;
 
-      // ── Fil néon de contour ──
-      const hw=bW*0.5, hl=bridgeLen*0.5;
-      const wirePts=[
-        new T.Vector3(-hw,-hl,-hw),new T.Vector3( hw,-hl,-hw),
-        new T.Vector3( hw,-hl, hw),new T.Vector3(-hw,-hl, hw),
-        new T.Vector3(-hw,-hl,-hw), // bas
-        new T.Vector3(-hw, hl,-hw),new T.Vector3( hw, hl,-hw),
-        new T.Vector3( hw, hl, hw),new T.Vector3(-hw, hl, hw),
-        new T.Vector3(-hw, hl,-hw), // haut
-      ];
-      const wireGeo=new T.BufferGeometry().setFromPoints(wirePts);
-      const wire=new T.Line(wireGeo,wireMat);
-      wire.position.set(mx,my,mz);
-      wire.setRotationFromQuaternion(quat);
-      this.systemGroup.add(wire);
+        // Cross-beam (traverse horizontale)
+        const cb=new T.Mesh(cbGeo,braceMat);cb.position.set(0,y0,0);grp.add(cb);
 
-      // ── Panneau slot ──
-      // Normal du panneau = tangent perpendiculaire à la direction radiale
-      // tangent = cross(dir, ring_normal)  →  ring_normal = (0, cos(rX), -sin(rX))
-      const rn=new T.Vector3(0,Math.cos(ringRX),-Math.sin(ringRX));
-      const tangent=new T.Vector3().crossVectors(dir,rn).normalize();
+        // Diagonales X pattern : deux diagonales par segment
+        // Diag A : (+spread,y0) → (-spread,y1)
+        const dA=new T.Mesh(braceGeo,braceMat);
+        dA.position.set(0,ym,0);
+        dA.rotation.z= braceAngle;
+        grp.add(dA);
+        // Diag B : (-spread,y0) → (+spread,y1)
+        const dB=new T.Mesh(braceGeo,braceMat);
+        dB.position.set(0,ym,0);
+        dB.rotation.z=-braceAngle;
+        grp.add(dB);
+      }
+      // Cross-beam final (extrémité)
+      const cbEnd=new T.Mesh(cbGeo,braceMat);cbEnd.position.set(0,span/2,0);grp.add(cbEnd);
 
+      // ── Conduit d'énergie central ──
+      const conduit=new T.Mesh(conduitGeo,condMat);grp.add(conduit);
+
+      // ── Collier d'ancrage côté SPHÈRE (Y = -span/2) ──
+      // Orienté perpendiculairement au pont
+      const anS=new T.Mesh(anchorSGeo,anchorMat);
+      anS.position.set(0,-span/2,0);
+      // Le CylinderGeometry est orienté Y, il faut le faire pointer en axX
+      // (perpendiculaire à la poutre pour faire un "flasque" autour du joint)
+      // → tourner 90° autour Z pour aligner avec le plan transverse
+      anS.rotation.set(0,0,Math.PI/2);
+      grp.add(anS);
+
+      // ── Collier d'ancrage côté ANNEAU (Y = +span/2) ──
+      const anR=new T.Mesh(anchorRGeo,anchorMat);
+      anR.position.set(0,span/2,0);
+      anR.rotation.set(0,0,Math.PI/2);
+      grp.add(anR);
+
+      // ── Panneau nœud d'énergie ──
+      // Monté perpendiculairement, centré sur le pont,
+      // offset dans la direction axX pour être visible de côté
       const dummyTex=(()=>{
         const c=document.createElement('canvas');c.width=1;c.height=1;
         const ctx2=c.getContext('2d');ctx2.fillStyle='#000';ctx2.fillRect(0,0,1,1);
@@ -1520,24 +1598,24 @@ class Scene3D{
           blending:T.AdditiveBlending,side:T.DoubleSide
         })
       );
-      // Positionner le panneau au milieu du pont,
-      // décalé latéralement (tangent) pour être visible
-      const panelOffset=bW*0.5+BRIDGE_PANEL_H*0.5+SPHERE_R*0.015;
-      panelMesh.position.set(
-        mx+tangent.x*panelOffset,
-        my+tangent.y*panelOffset,
-        mz+tangent.z*panelOffset
-      );
-      // Orienter le panneau : normal = tangent, up = dir radiale
-      const panelQuat=new T.Quaternion().setFromUnitVectors(new T.Vector3(0,0,1),tangent);
-      panelMesh.setRotationFromQuaternion(panelQuat);
+      // Le panneau est dans le groupe donc son Y local = long du pont
+      // On veut que sa normale soit dans le plan XZ du groupe,
+      // et qu'il soit visible depuis l'extérieur de l'anneau → offset +Z
+      const panelSideOffset=spread+BRIDGE_PANEL_H*0.5+rW*0.5;
+      panelMesh.position.set(0, 0, panelSideOffset);
+      // Normal du panneau = +Z local → face visible depuis l'extérieur
+      // PlaneGeometry par défaut normal = +Z, donc pas de rotation nécessaire
+      // Mais on veut aussi qu'il soit perpendiculaire au pont (90° autour X)
+      panelMesh.rotation.x=Math.PI/2;
       panelMesh.renderOrder=4;
-      this.systemGroup.add(panelMesh);
+      grp.add(panelMesh);
 
+      // Raycasting : exposer le panelMesh directement dans systemGroup
+      // en tant que mesh enfant (inherited transform) → intersectObject fonctionne
       this.prestigeMoons.push({
-        moonMesh:panelMesh,beam,wire,j1,j2,
-        haloMesh:panelMesh,u:uP,
-        cfg:{angle,dx,dy,dz,mx,my,mz},
+        moonMesh:panelMesh,grp,u:uP,
+        haloMesh:panelMesh,
+        cfg:{angle,axY,axX,mid},
         slot:null,_dummyTex:dummyTex
       });
     }
@@ -2073,8 +2151,7 @@ class Scene3D{
         else if(fi<=-100&&fi>-1000){
           const mi=-fi-100;const bridge=this.prestigeMoons[mi];
           this.onClick?.(bridge.slot||{tier:'prestige'},'moon',mi);
-          // Zoom vers le pont
-          if(bridge){const cfg=bridge.cfg;this.zoomTo({x:cfg.dx*SPHERE_R*2.2,y:cfg.dy*SPHERE_R*2.2,z:cfg.dz*SPHERE_R*2.2});}
+          if(bridge){const m=bridge.cfg.mid;this.zoomTo({x:m.x*0.6,y:m.y*0.6,z:m.z*0.6+8});}
         }else if(fi>=0){
           this._setSel(fi);if(this._epU)this._epU.uSelected.value=0;
           const face=this._faces?.[fi];this.onClick?.(this.faceSlots[fi],'face',fi);
@@ -2260,7 +2337,11 @@ class Scene3D{
       _slotTextures?.forEach(t=>t?.dispose());
     });
     Object.values(this._ringGeoCache).forEach(g=>g?.dispose());this._ringGeoCache={};
-    this.prestigeMoons.forEach(({moonMesh,beam,wire,j1,j2,_dummyTex})=>{moonMesh?.geometry?.dispose();moonMesh?.material?.dispose();beam?.geometry?.dispose();beam?.material?.dispose();wire?.geometry?.dispose();wire?.material?.dispose();j1?.geometry?.dispose();j1?.material?.dispose();j2?.geometry?.dispose();j2?.material?.dispose();_dummyTex?.dispose();});
+    this.prestigeMoons.forEach(({moonMesh,grp,_dummyTex})=>{
+      // Disposer récursivement tous les meshes du groupe
+      grp?.traverse(child=>{child?.geometry?.dispose();child?.material?.dispose();});
+      _dummyTex?.dispose();
+    });
     this.epicHalos.forEach(({m})=>{m?.geometry?.dispose();m?.material?.dispose();});
     this.decoRings.forEach(({m})=>{m?.geometry?.dispose();m?.material?.dispose();});
 
