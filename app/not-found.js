@@ -180,11 +180,11 @@ export default function NotFound() {
           <div className="title">Ce bloc n'existe pas</div>
           <p className="desc">
             La page que vous cherchez a été déplacée ou n'existe plus.<br />
-            Il reste plein de blocs disponibles sur la Sphère !
+            Il reste plein de blocs disponibles sur la grille !
           </p>
 
           <div className="actions">
-            <a href="/" className="cta cta-gold">◈ Explorer la Sphère →</a>
+            <a href="/" className="cta cta-gold">◈ Explorer la Grille →</a>
             <a href="/dashboard" className="cta">Dashboard</a>
           </div>
         </div>
