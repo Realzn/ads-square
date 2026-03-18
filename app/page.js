@@ -21,6 +21,7 @@ import {
 import { getSession, signIn, signUp, signOut } from '../lib/supabase-auth';
 import { getT } from '../lib/i18n';
 import { LangContext, LangSetterContext, useLang, useLangSetter, useT } from '../lib/lang-context';
+import SphereWIPModal, { useSphereAdmin } from './SphereWIPModal';
 
 // ─── Language context (global — depuis lib/lang-context.js, provider dans layout.js) ──
 // useLang, useLangSetter, useT sont importés depuis lib/lang-context
@@ -4772,7 +4773,9 @@ export default function App() {
   const [view, setView]             = useState('landing');
   const [manifestAccepted, setManifestAccepted] = useState(false);
   const [showWaitlist, setShowWaitlist] = useState(false);
+  const [showSphereWIP, setShowSphereWIP] = useState(false);
   const [showMobileBlocked, setShowMobileBlocked] = useState(false);
+  const { isAdmin } = useSphereAdmin();
   const [checkoutSlot, setCheckoutSlot] = useState(null);
   const [buyoutSlot, setBuyoutSlot]     = useState(null);
   const [showBoost, setShowBoost]       = useState(false);
