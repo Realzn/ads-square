@@ -218,22 +218,294 @@ function TopBar({ view, setView }) {
   );
 }
 
-function PanelView({ live, queue, elapsed, progress, remaining, onPromote }) {
+// ─────────────────────────────────────────────────────────────────
+//  HOOK GÉOLOCALISATION — IP-based, sans permission
+// ─────────────────────────────────────────────────────────────────
+function useViewerLocation() {
+  const [loc, setLoc] = useState(null); // { city, country, flag, region }
+  useEffect(() => {
+    // ip-api.com free tier, no key needed, CORS ok
+    fetch('https://ip-api.com/json/?fields=city,country,countryCode,regionName&lang=fr')
+      .then(r => r.json())
+      .then(d => {
+        if (d.city) {
+          const flags = { FR:'🇫🇷', US:'🇺🇸', DE:'🇩🇪', GB:'🇬🇧', ES:'🇪🇸', IT:'🇮🇹',
+                          JP:'🇯🇵', CA:'🇨🇦', BR:'🇧🇷', AU:'🇦🇺', NL:'🇳🇱', BE:'🇧🇪',
+                          CH:'🇨🇭', PL:'🇵🇱', PT:'🇵🇹', SE:'🇸🇪', NO:'🇳🇴', DK:'🇩🇰',
+                          MX:'🇲🇽', AR:'🇦🇷', ZA:'🇿🇦', MA:'🇲🇦', TN:'🇹🇳', SN:'🇸🇳' };
+          setLoc({
+            city: d.city,
+            country: d.country,
+            code: d.countryCode,
+            region: d.regionName,
+            flag: flags[d.countryCode] || '🌍',
+          });
+        }
+      })
+      .catch(() => {}); // fail silently
+  }, []);
+  return loc;
+}
+
+// ─────────────────────────────────────────────────────────────────
+//  HOOK COMPTEUR DE VUES LIVE
+// ─────────────────────────────────────────────────────────────────
+function useLiveViews(eclat_id) {
+  const [views, setViews] = useState(null);
+  const sessionRef = useRef(false);
+
+  useEffect(() => {
+    if (!eclat_id) { setViews(null); return; }
+
+    // Enregistrer cette vue (une seule fois par éclat par session)
+    if (!sessionRef.current) {
+      sessionRef.current = true;
+      const sb = getSupabaseClient();
+      if (sb) {
+        sb.from('eclat_views').insert([{
+          eclat_id,
+          session_hash: Math.random().toString(36).slice(2), // simple session id
+          viewed_at: new Date().toISOString(),
+        }]).catch(() => {}); // fail silently si table absente
+      }
+    }
+
+    // Récupérer le count initial
+    const sb = getSupabaseClient();
+    if (!sb) {
+      setViews(Math.floor(40 + Math.random() * 80)); // demo
+      return;
+    }
+    const fetchCount = async () => {
+      const { count } = await sb.from('eclat_views')
+        .select('*', { count: 'exact', head: true })
+        .eq('eclat_id', eclat_id);
+      if (count !== null) setViews(count);
+      else setViews(Math.floor(40 + Math.random() * 80)); // fallback demo
+    };
+    fetchCount();
+
+    // Realtime updates
+    const ch = sb.channel(`views-${eclat_id}`)
+      .on('postgres_changes', { event:'INSERT', schema:'public', table:'eclat_views', filter:`eclat_id=eq.${eclat_id}` },
+        () => setViews(v => (v || 0) + 1)
+      ).subscribe();
+    return () => sb.removeChannel(ch);
+  }, [eclat_id]);
+
+  return views;
+}
+
+// ─────────────────────────────────────────────────────────────────
+//  ÉCRAN FIN D'ÉCLAT — proposition localisée
+// ─────────────────────────────────────────────────────────────────
+function EclatEndScreen({ lastEclat, viewCount, onPromote, onDismiss }) {
+  const loc = useViewerLocation();
+  const col = lastEclat?.primary_color || DS.cyan;
+  const [visible, setVisible] = useState(false);
+  const [tick, setTick] = useState(0);
+
+  useEffect(() => {
+    const t = setTimeout(() => setVisible(true), 80);
+    return () => clearTimeout(t);
+  }, []);
+
+  // Animation orbe
+  useEffect(() => {
+    const t = setInterval(() => setTick(v => v + 1), 55);
+    return () => clearInterval(t);
+  }, []);
+  const angle = (tick * 0.3) % 360;
+
+  return (
+    <div style={{
+      position:'absolute', inset:0, zIndex:20,
+      background: DS.void,
+      display:'flex', alignItems:'center', justifyContent:'center',
+      flexDirection:'column',
+      opacity: visible ? 1 : 0,
+      transform: visible ? 'scale(1)' : 'scale(1.02)',
+      transition: 'opacity 0.6s ease, transform 0.6s ease',
+    }}>
+      {/* Fond grille */}
+      <svg style={{ position:'absolute', inset:0, width:'100%', height:'100%', opacity:0.035, pointerEvents:'none' }}>
+        <defs><pattern id="gend" width="60" height="60" patternUnits="userSpaceOnUse"><path d="M 60 0 L 0 0 0 60" fill="none" stroke={DS.cyan} strokeWidth="0.4"/></pattern></defs>
+        <rect width="100%" height="100%" fill="url(#gend)"/>
+      </svg>
+
+      {/* Orbe déco */}
+      <div style={{ position:'absolute', top:'50%', left:'50%', transform:'translate(-50%,-50%)', width:320, height:320, pointerEvents:'none', opacity:0.08 }}>
+        {[{r:140,col:DS.cyan,ph:0},{r:110,col:DS.gold,ph:60},{r:80,col:DS.violet,ph:-40}].map(({r,col:c,ph},i)=>(
+          <div key={i} style={{ position:'absolute', top:'50%', left:'50%', width:r*2, height:r*2, transform:`translate(-50%,-50%) rotate(${angle+ph}deg)`, border:`1px solid ${c}`, borderRadius:'50%' }}/>
+        ))}
+      </div>
+
+      {/* Scan line */}
+      <div style={{ position:'absolute', top:0, left:0, right:0, height:1, background:`linear-gradient(90deg,transparent,${DS.cyan}40,transparent)` }}/>
+      <div style={{ position:'absolute', bottom:0, left:0, right:0, height:1, background:`linear-gradient(90deg,transparent,${DS.gold}30,transparent)` }}/>
+
+      <div style={{ position:'relative', zIndex:1, display:'flex', flexDirection:'column', alignItems:'center', maxWidth:520, width:'100%', padding:'0 32px', textAlign:'center' }}>
+
+        {/* Badge "fin d'éclat" */}
+        <div style={{
+          display:'inline-flex', alignItems:'center', gap:8, marginBottom:24,
+          background:'rgba(255,255,255,0.04)', border:`1px solid rgba(255,255,255,0.12)`,
+          clipPath:CLP_S, padding:'5px 14px',
+          fontFamily:F.mono, fontSize:8, color:DS.textLo, letterSpacing:'.18em',
+        }}>
+          <span style={{ width:5, height:5, background:DS.rose, borderRadius:'50%', display:'inline-block' }}/>
+          ÉCLAT TERMINÉ
+          {lastEclat?.emetteur_name && <> · <span style={{ color:DS.textMid }}>{lastEclat.emetteur_name}</span></>}
+        </div>
+
+        {/* Stats éclat terminé */}
+        {viewCount !== null && (
+          <div style={{
+            display:'flex', alignItems:'center', gap:16, marginBottom:28,
+            background:'rgba(0,8,24,0.6)', border:`1px solid ${DS.brd}`,
+            clipPath:CLP_S, padding:'10px 20px',
+          }}>
+            <div style={{ textAlign:'center' }}>
+              <div style={{ fontFamily:F.mono, fontSize:20, fontWeight:900, color:DS.textHi, lineHeight:1 }}>
+                {viewCount.toLocaleString('fr-FR')}
+              </div>
+              <div style={{ fontFamily:F.mono, fontSize:7, color:DS.textLo, letterSpacing:'.14em', marginTop:3 }}>VUES</div>
+            </div>
+            <div style={{ width:1, height:28, background:DS.brd }}/>
+            <div style={{ textAlign:'center' }}>
+              <div style={{ fontFamily:F.mono, fontSize:20, fontWeight:900, color:DS.gold, lineHeight:1 }}>
+                {fmt.eur(lastEclat?.duration_seconds || 0)}
+              </div>
+              <div style={{ fontFamily:F.mono, fontSize:7, color:DS.textLo, letterSpacing:'.14em', marginTop:3 }}>COÛT</div>
+            </div>
+            {lastEclat?.duration_seconds > 0 && viewCount > 0 && (
+              <>
+                <div style={{ width:1, height:28, background:DS.brd }}/>
+                <div style={{ textAlign:'center' }}>
+                  <div style={{ fontFamily:F.mono, fontSize:20, fontWeight:900, color:DS.green, lineHeight:1 }}>
+                    {((lastEclat.duration_seconds * PRICE) / viewCount * 100).toFixed(1)}ct
+                  </div>
+                  <div style={{ fontFamily:F.mono, fontSize:7, color:DS.textLo, letterSpacing:'.14em', marginTop:3 }}>PAR VUE</div>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
+        {/* Titre principal */}
+        <div style={{
+          fontFamily:F.ui, fontSize:'clamp(1.8rem,5vw,3rem)',
+          fontWeight:900, color:DS.textHi, letterSpacing:'-0.01em',
+          lineHeight:1.05, marginBottom:12,
+        }}>
+          Le panneau est<br/>
+          <span style={{ color:DS.gold }}>libre maintenant</span>
+        </div>
+
+        {/* Proposition localisée */}
+        <div style={{
+          fontFamily:F.mono, fontSize:10, color:DS.textMid,
+          lineHeight:1.9, letterSpacing:'.04em', marginBottom:24,
+        }}>
+          {loc ? (
+            <>
+              <span style={{ color:DS.textHi }}>{loc.flag} {loc.city}</span>
+              {', '}
+              <span style={{ color:DS.textMid }}>{loc.country}</span>
+              {' — votre audience vous regarde.'}
+              <br/>
+              Diffusez votre contenu à tous les visiteurs depuis{' '}
+              <span style={{ color:DS.gold }}>0,01€</span>.
+            </>
+          ) : (
+            <>
+              Votre audience vous regarde en ce moment.
+              <br/>
+              Diffusez votre contenu depuis <span style={{ color:DS.gold }}>0,01€</span>.
+            </>
+          )}
+        </div>
+
+        {/* CTA principal */}
+        <button onClick={onPromote} style={{
+          background:`linear-gradient(135deg,${DS.gold}ee,${DS.gold}cc)`,
+          color:DS.void, border:'none',
+          fontFamily:F.mono, fontSize:12, fontWeight:900, letterSpacing:'.18em',
+          padding:'15px 36px', cursor:'pointer', clipPath:CLP,
+          transition:'all 0.18s',
+          boxShadow:`0 0 32px ${DS.gold}40`,
+          marginBottom:12,
+          width:'100%',
+        }}
+        onMouseEnter={e=>{ e.currentTarget.style.boxShadow=`0 0 56px ${DS.gold}70`; e.currentTarget.style.transform='translateY(-1px)'; }}
+        onMouseLeave={e=>{ e.currentTarget.style.boxShadow=`0 0 32px ${DS.gold}40`; e.currentTarget.style.transform=''; }}>
+          ◈ PROMOUVOIR ICI · 1ct/s
+          {loc && <span style={{ fontSize:9, opacity:0.75, marginLeft:8 }}>depuis {loc.city}</span>}
+        </button>
+
+        {/* Lien discret "ignorer" */}
+        <button onClick={onDismiss} style={{
+          background:'transparent', border:'none',
+          fontFamily:F.mono, fontSize:8, color:DS.textLo, letterSpacing:'.12em',
+          cursor:'pointer', padding:'6px 12px', transition:'color 0.15s',
+        }}
+        onMouseEnter={e=>e.currentTarget.style.color=DS.textMid}
+        onMouseLeave={e=>e.currentTarget.style.color=DS.textLo}>
+          ignorer →
+        </button>
+      </div>
+
+      <style>{`
+        @keyframes endFadeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+      `}</style>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────
+//  PANEL VIEW — broadcast + compteur vues + fin d'éclat
+// ─────────────────────────────────────────────────────────────────
+function PanelView({ live, queue, elapsed, progress, remaining, onPromote, prevLive, viewCount }) {
   const col = live?.primary_color || DS.cyan;
   const bg  = live?.background_color || DS.void;
+
+  // Fin d'éclat : remaining === 0 mais un éclat existait
+  const showEndScreen = !live && prevLive && prevLive.id;
+
   return (
-    <div style={{ width:'100%', height:'100%', position:'relative', overflow:'hidden', background:bg, transition:'background 1.2s' }}>
+    <div style={{ width:'100%', height:'100%', position:'relative', overflow:'hidden', background: live ? bg : DS.void, transition:'background 1.2s' }}>
       <svg style={{ position:'absolute', inset:0, width:'100%', height:'100%', opacity:0.04, pointerEvents:'none' }}>
         <defs><pattern id="g" width="80" height="80" patternUnits="userSpaceOnUse"><path d="M 80 0 L 0 0 0 80" fill="none" stroke={col} strokeWidth="0.5"/></pattern></defs>
         <rect width="100%" height="100%" fill="url(#g)"/>
       </svg>
+
       {live ? <>
+        {/* ── ÉCLAT ACTIF ── */}
         <div style={{ position:'absolute', inset:0, pointerEvents:'none', background:`radial-gradient(ellipse 65% 55% at 50% 48%,${col}20 0%,transparent 68%)` }}/>
+
         <div style={{ position:'absolute', inset:0, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', padding:'5vw', zIndex:2 }}>
-          <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:'3vh', background:col+'14', border:`1px solid ${col}50`, clipPath:CLP_S, padding:'5px 14px', fontFamily:F.mono, fontSize:9, color:col, letterSpacing:'.18em' }}>
-            <span style={{ width:6, height:6, borderRadius:'50%', background:col, boxShadow:`0 0 8px ${col}`, animation:'lp 1.2s ease-in-out infinite', display:'inline-block' }}/>
-            ÉCLAT·ACTIF · {remaining}s
+
+          {/* Badge live + vues */}
+          <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:'3vh', flexWrap:'wrap', justifyContent:'center' }}>
+            <div style={{ display:'flex', alignItems:'center', gap:8, background:col+'14', border:`1px solid ${col}50`, clipPath:CLP_S, padding:'5px 14px', fontFamily:F.mono, fontSize:9, color:col, letterSpacing:'.18em' }}>
+              <span style={{ width:6, height:6, borderRadius:'50%', background:col, boxShadow:`0 0 8px ${col}`, animation:'lp 1.2s ease-in-out infinite', display:'inline-block' }}/>
+              ÉCLAT·ACTIF · {remaining}s
+            </div>
+            {/* Compteur de vues */}
+            {viewCount !== null && (
+              <div style={{
+                display:'flex', alignItems:'center', gap:6,
+                background:'rgba(0,200,240,0.06)', border:`1px solid ${DS.brd}`,
+                clipPath:CLP_S, padding:'5px 12px',
+                fontFamily:F.mono, fontSize:9, color:DS.textMid, letterSpacing:'.14em',
+              }}>
+                <span style={{ fontSize:8 }}>◉</span>
+                <span style={{ color:DS.textHi, fontWeight:700 }}>{viewCount.toLocaleString('fr-FR')}</span>
+                <span style={{ color:DS.textLo }}>VUES</span>
+              </div>
+            )}
           </div>
+
           <div style={{ fontSize:'clamp(2.8rem,9vw,7.5rem)', fontWeight:900, fontFamily:F.ui, color:'#fff', letterSpacing:'-0.02em', lineHeight:0.9, textAlign:'center', textShadow:`0 0 80px ${col}60,0 0 160px ${col}20` }}>
             {live.emetteur_name}
           </div>
@@ -245,18 +517,34 @@ function PanelView({ live, queue, elapsed, progress, remaining, onPromote }) {
             </a>
           )}
         </div>
+
+        {/* Barre progression */}
         <div style={{ position:'absolute', bottom:0, left:0, right:0, height:3, background:'rgba(255,255,255,0.06)' }}>
           <div style={{ height:'100%', width:progress+'%', background:col, boxShadow:`0 0 12px ${col}`, transition:'width 1s linear' }}/>
         </div>
+
+        {/* Timer + coût */}
         <div style={{ position:'absolute', bottom:14, right:20, fontFamily:F.mono, fontSize:10, color:col+'80', letterSpacing:'.10em' }}>
           {remaining}s · {fmt.eur(live.duration_seconds)}
         </div>
+
+        {/* Corners */}
         {[[{top:16,left:16},{borderTop:`1px solid ${col}60`,borderLeft:`1px solid ${col}60`}],
           [{top:16,right:16},{borderTop:`1px solid ${col}60`,borderRight:`1px solid ${col}60`}],
           [{bottom:18,left:16},{borderBottom:`1px solid ${col}60`,borderLeft:`1px solid ${col}60`}],
           [{bottom:18,right:16},{borderBottom:`1px solid ${col}60`,borderRight:`1px solid ${col}60`}],
         ].map(([pos,brd],i) => <div key={i} style={{ position:'absolute', width:20, height:20, ...pos, ...brd, pointerEvents:'none' }}/>)}
-      </> : (
+
+      </> : showEndScreen ? (
+        /* ── FIN D'ÉCLAT — écran de promotion localisé ── */
+        <EclatEndScreen
+          lastEclat={prevLive}
+          viewCount={viewCount}
+          onPromote={onPromote}
+          onDismiss={onPromote} // dismiss = aller au booking quand même
+        />
+      ) : (
+        /* ── VEILLE — panneau libre ── */
         <div style={{ position:'absolute', inset:0, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:'2vh' }}>
           <div style={{ fontSize:'clamp(3rem,10vw,8rem)', color:DS.cyan+'18', lineHeight:1 }}>◈</div>
           <div style={{ fontFamily:F.mono, fontSize:'clamp(.75rem,1.5vw,.95rem)', color:DS.textLo, letterSpacing:'.3em' }}>CAPTEUR·EN·VEILLE</div>
@@ -277,15 +565,20 @@ function PanelView({ live, queue, elapsed, progress, remaining, onPromote }) {
           </div>
         </div>
       )}
-      <div style={{ position:'absolute', bottom:live?24:14, left:0, right:0, display:'flex', gap:6, padding:'0 16px', overflowX:'auto', scrollbarWidth:'none', alignItems:'center', justifyContent:'center' }}>
-        {queue.length > 0 ? queue.map((item,i) => (
-          <div key={item.id} style={{ display:'flex', alignItems:'center', gap:7, flexShrink:0, background:'rgba(1,4,14,0.88)', backdropFilter:'blur(8px)', border:`1px solid ${i===0?(item.primary_color||DS.cyan)+'60':DS.brd}`, clipPath:CLP_S, padding:'4px 10px' }}>
-            <div style={{ width:5, height:5, borderRadius:'50%', background:item.primary_color||DS.cyan, flexShrink:0 }}/>
-            <span style={{ fontFamily:F.mono, fontSize:8, color:i===0?DS.textHi:DS.textMid, letterSpacing:'.04em', whiteSpace:'nowrap' }}>{item.emetteur_name}</span>
-            <span style={{ fontFamily:F.mono, fontSize:7.5, color:DS.textLo }}>{fmt.dur(item.duration_seconds)}</span>
-          </div>
-        )) : <div style={{ fontFamily:F.mono, fontSize:8, color:DS.textLo, letterSpacing:'.14em' }}>FLUX VIDE · PROCHAIN ÉCLAT IMMÉDIAT</div>}
-      </div>
+
+      {/* File d'attente — toujours visible en bas */}
+      {!showEndScreen && (
+        <div style={{ position:'absolute', bottom:live?24:14, left:0, right:0, display:'flex', gap:6, padding:'0 16px', overflowX:'auto', scrollbarWidth:'none', alignItems:'center', justifyContent:'center' }}>
+          {queue.length > 0 ? queue.map((item,i) => (
+            <div key={item.id} style={{ display:'flex', alignItems:'center', gap:7, flexShrink:0, background:'rgba(1,4,14,0.88)', backdropFilter:'blur(8px)', border:`1px solid ${i===0?(item.primary_color||DS.cyan)+'60':DS.brd}`, clipPath:CLP_S, padding:'4px 10px' }}>
+              <div style={{ width:5, height:5, borderRadius:'50%', background:item.primary_color||DS.cyan, flexShrink:0 }}/>
+              <span style={{ fontFamily:F.mono, fontSize:8, color:i===0?DS.textHi:DS.textMid, letterSpacing:'.04em', whiteSpace:'nowrap' }}>{item.emetteur_name}</span>
+              <span style={{ fontFamily:F.mono, fontSize:7.5, color:DS.textLo }}>{fmt.dur(item.duration_seconds)}</span>
+            </div>
+          )) : <div style={{ fontFamily:F.mono, fontSize:8, color:DS.textLo, letterSpacing:'.14em' }}>FLUX VIDE · PROCHAIN ÉCLAT IMMÉDIAT</div>}
+        </div>
+      )}
+
       <style>{`@keyframes lp{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.25;transform:scale(.75)}}`}</style>
     </div>
   );
@@ -640,7 +933,24 @@ export default function CapteurPage() {
   const [view,    setView]    = useState('panel');
   const [elapsed, setElapsed] = useState(0);
   const [booked,  setBooked]  = useState(null);
+  const [prevLive, setPrevLive] = useState(null); // dernier éclat terminé
   const timerRef = useRef(null);
+
+  // Compteur de vues du live actuel
+  const viewCount = useLiveViews(live?.id || null);
+
+  // Détecter la fin d'un éclat : live → null
+  const prevLiveRef = useRef(live);
+  useEffect(() => {
+    if (prevLiveRef.current && !live) {
+      // L'éclat vient de se terminer
+      setPrevLive(prevLiveRef.current);
+    }
+    if (live) {
+      setPrevLive(null); // nouveau éclat = reset
+    }
+    prevLiveRef.current = live;
+  }, [live]);
 
   useEffect(() => {
     if (timerRef.current) clearInterval(timerRef.current);
@@ -683,7 +993,7 @@ export default function CapteurPage() {
     <div style={{ width:'100%', height:'100vh', display:'flex', flexDirection:'column', background:DS.void, fontFamily:F.ui }}>
       <TopBar view={view==='success'?'book':view} setView={handleSetView}/>
       <div style={{ flex:1, marginTop:44, overflow:'hidden', display:'flex', flexDirection:'column' }}>
-        {view==='panel'   && <PanelView live={live} queue={queue} elapsed={elapsed} progress={progress} remaining={remaining} onPromote={handlePromote}/>}
+        {view==='panel'   && <PanelView live={live} queue={queue} elapsed={elapsed} progress={progress} remaining={remaining} onPromote={handlePromote} prevLive={prevLive} viewCount={viewCount}/>}
         {view==='book'    && (booked ? <SuccessView booking={booked} onBack={()=>{setBooked(null);setView('panel');}}/> : <BookView queue={queue} remaining={remaining} onDone={handleBooked}/>)}
         {view==='success' && booked && <SuccessView booking={booked} onBack={()=>{setBooked(null);setView('panel');}}/>}
         {view==='history' && <HistoryView history={history} onPromote={handlePromote}/>}
