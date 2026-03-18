@@ -274,7 +274,7 @@ function SphereWIPModal({ onWaitlist, onCapteur, onAdminBypass }) {
               onMouseEnter={e => { e.currentTarget.style.background = DS.cyan + '0e'; e.currentTarget.style.borderColor = DS.cyan; }}
               onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.borderColor = DS.cyan + '50'; }}>
                 <span style={{ fontSize: 12 }}>⚡</span>
-                PROMOUVOIR SUR LE CAPTEUR · 1€/s
+                PROMOUVOIR SUR LE CAPTEUR · 1ct/s
               </button>
               <div style={{ fontFamily: F.mono, fontSize: 7.5, color: DS.textLo, letterSpacing: '.08em', marginTop: 8, textAlign: 'center' }}>
                 Le panneau broadcast est disponible maintenant
