@@ -293,11 +293,11 @@ export default function SphereWIPModal({ onClose }) {
               onMouseEnter={e=>{ e.currentTarget.style.background=DS.cyan+'0e'; e.currentTarget.style.borderColor=DS.cyan; }}
               onMouseLeave={e=>{ e.currentTarget.style.background='transparent'; e.currentTarget.style.borderColor=DS.cyan+'55'; }}>
                 <span style={{ fontSize:13 }}>⚡</span>
-                PROMOUVOIR SUR LE CAPTEUR · 1€/s
+                PROMOUVOIR SUR LE CAPTEUR · 1ct/s
               </div>
             </a>
             <div style={{ fontFamily:F.mono, fontSize:7.5, color:DS.textLo, letterSpacing:'.08em', marginTop:7, textAlign:'center' }}>
-              Diffusion broadcast · panneau disponible maintenant
+              Diffusion broadcast · dès 0,01€/s
             </div>
 
             {/* Footer : retour + admin */}
