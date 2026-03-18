@@ -4197,19 +4197,27 @@ function FlatView2D({ slots=[], onSlotSelect, activeFilter, visible=false }) {
       return layout;
     }
 
-    function hexColor(hex, alpha) {
-      const r=parseInt(hex.slice(1,3),16), g=parseInt(hex.slice(3,5),16), b=parseInt(hex.slice(5,7),16);
-      return `rgba(${r},${g},${b},${alpha})`;
-    }
+    // ── Monochrome helpers ──────────────────────────────────────
+    // Tier brightness hierarchy : epicenter=max → viral=min
+    const TIER_BRIGHTNESS = {
+      epicenter: 1.00,
+      prestige:  0.88,
+      elite:     0.74,
+      business:  0.60,
+      standard:  0.46,
+      viral:     0.34,
+    };
+
+    function bw(alpha) { return `rgba(255,255,255,${alpha})`; }
+    function bwDim(alpha) { return `rgba(200,210,220,${alpha})`; }
 
     function drawDotGrid(W, H) {
-      // Vercel-style subtle dot grid background
-      const spacing = 24;
-      ctx.fillStyle = 'rgba(255,255,255,0.018)';
-      for (let x = spacing; x < W; x += spacing) {
-        for (let y = spacing; y < H; y += spacing) {
+      const spacing = 28;
+      ctx.fillStyle = 'rgba(255,255,255,0.022)';
+      for (let x = spacing * 0.5; x < W; x += spacing) {
+        for (let y = spacing * 0.5; y < H; y += spacing) {
           ctx.beginPath();
-          ctx.arc(x, y, 0.8, 0, Math.PI * 2);
+          ctx.arc(x, y, 0.7, 0, Math.PI * 2);
           ctx.fill();
         }
       }
@@ -4220,194 +4228,192 @@ function FlatView2D({ slots=[], onSlotSelect, activeFilter, visible=false }) {
       const W = canvas.offsetWidth, H = canvas.offsetHeight;
       ctx.clearRect(0, 0, W, H);
 
-      // ── Background — deep black with radial vignette ──
-      ctx.fillStyle = '#000810';
+      // ── Background — pure black ──
+      ctx.fillStyle = '#000000';
       ctx.fillRect(0, 0, W, H);
-      const vignette = ctx.createRadialGradient(W*.5, H*.5, 0, W*.5, H*.5, Math.max(W,H)*.65);
-      vignette.addColorStop(0, 'rgba(0,12,28,0)');
-      vignette.addColorStop(1, 'rgba(0,4,10,0.6)');
-      ctx.fillStyle = vignette; ctx.fillRect(0, 0, W, H);
 
-      // ── Dot grid ──
+      // ── Subtle dot grid ──
       drawDotGrid(W, H);
 
       const layout = buildLayout();
       layoutRef.current = layout;
       const hovItem = hovRef.current;
-      const cx = W*.5, cy = H*.5, maxR = Math.min(W,H)*.44;
+      const cx = W * 0.5, cy = H * 0.5, maxR = Math.min(W, H) * 0.44;
 
-      // ── Ring guide lines — dashed, minimal ──
+      // ── Ring guides — white, ultra-fine dashed ──
       TIER_ORDER.forEach(tier => {
         if (tier === 'epicenter') return;
-        const cfg = TIER_RING_CONFIG[tier];
+        const cfg   = TIER_RING_CONFIG[tier];
         const ringR = cfg.ringR * maxR * 2.5;
-        const col = pal[tier] || TIER_NEON[tier];
+        const bri   = TIER_BRIGHTNESS[tier];
         ctx.save();
-        ctx.setLineDash([3, 8]);
-        ctx.beginPath(); ctx.arc(cx, cy, ringR, 0, Math.PI*2);
-        ctx.strokeStyle = hexColor(col, 0.07);
+        ctx.setLineDash([2, 10]);
+        ctx.beginPath(); ctx.arc(cx, cy, ringR, 0, Math.PI * 2);
+        ctx.strokeStyle = `rgba(255,255,255,${bri * 0.10})`;
         ctx.lineWidth = 0.5;
         ctx.stroke();
         ctx.setLineDash([]);
         ctx.restore();
       });
 
-      // ── Central glow behind epicenter ──
-      const epicGlow = ctx.createRadialGradient(cx, cy, 0, cx, cy, maxR * 0.6);
-      const epicCol = pal.epicenter || TIER_NEON.epicenter;
-      epicGlow.addColorStop(0, hexColor(epicCol, 0.04));
-      epicGlow.addColorStop(0.4, hexColor(epicCol, 0.012));
-      epicGlow.addColorStop(1, 'rgba(0,0,0,0)');
+      // ── Subtle central radial — depth cue ──
+      const epicGlow = ctx.createRadialGradient(cx, cy, 0, cx, cy, maxR * 0.55);
+      epicGlow.addColorStop(0,   'rgba(255,255,255,0.028)');
+      epicGlow.addColorStop(0.5, 'rgba(255,255,255,0.008)');
+      epicGlow.addColorStop(1,   'rgba(0,0,0,0)');
       ctx.fillStyle = epicGlow;
-      ctx.fillRect(cx - maxR, cy - maxR, maxR * 2, maxR * 2);
+      ctx.fillRect(0, 0, W, H);
 
       // ── Dots ──
       layout.forEach(({ tier, x, y, r, slot, occ }) => {
-        const col = pal[tier] || TIER_NEON[tier];
-        const isHov = hovItem && slot && (hovItem.slot?.id || hovItem.slot?._id) && 
-                      (hovItem.slot?.id || hovItem.slot?._id) === (slot?.id || slot?._id);
+        const bri   = TIER_BRIGHTNESS[tier];
+        const isHov = hovItem && slot &&
+          (hovItem.slot?.id || hovItem.slot?._id) &&
+          (hovItem.slot?.id || hovItem.slot?._id) === (slot?.id || slot?._id);
 
         if (occ) {
-          // Pulse phase — unique per position for organic feel
           const phase = (x * 0.019 + y * 0.013) % (Math.PI * 2);
-          const pulse = 0.93 + 0.07 * Math.sin(t * 1.2 + phase);
-          const rr = r * pulse * (isHov ? 1.45 : 1.0);
+          // Occupied slots pulse gently
+          const pulse = 0.96 + 0.04 * Math.sin(t * 1.1 + phase);
+          const rr    = r * pulse * (isHov ? 1.55 : 1.0);
 
-          // Outer glow — only for larger dots (prestige+)
-          if (r >= 5) {
-            const glowR = rr * (isHov ? 4.5 : 3.2);
-            const grd = ctx.createRadialGradient(x, y, 0, x, y, glowR);
-            grd.addColorStop(0, hexColor(col, isHov ? 0.22 : 0.14));
-            grd.addColorStop(0.5, hexColor(col, isHov ? 0.08 : 0.04));
-            grd.addColorStop(1, 'rgba(0,0,0,0)');
-            ctx.beginPath(); ctx.arc(x, y, glowR, 0, Math.PI*2);
+          // Outer glow — white halo, size proportional to tier
+          if (r >= 4) {
+            const glowR = rr * (isHov ? 5.5 : 3.8);
+            const grd   = ctx.createRadialGradient(x, y, rr * 0.3, x, y, glowR);
+            grd.addColorStop(0,   bw(isHov ? bri * 0.28 : bri * 0.15));
+            grd.addColorStop(0.4, bw(isHov ? bri * 0.10 : bri * 0.05));
+            grd.addColorStop(1,   'rgba(0,0,0,0)');
+            ctx.beginPath(); ctx.arc(x, y, glowR, 0, Math.PI * 2);
             ctx.fillStyle = grd; ctx.fill();
           }
 
-          // Mid ring halo for hovered items
-          if (isHov && r >= 3) {
-            ctx.beginPath(); ctx.arc(x, y, rr * 2.2, 0, Math.PI*2);
-            ctx.strokeStyle = hexColor(col, 0.25);
-            ctx.lineWidth = 0.6;
+          // Hover outer ring
+          if (isHov) {
+            ctx.beginPath(); ctx.arc(x, y, rr * 2.4, 0, Math.PI * 2);
+            ctx.strokeStyle = bw(0.18);
+            ctx.lineWidth = 0.8;
+            ctx.stroke();
+            ctx.beginPath(); ctx.arc(x, y, rr * 3.4, 0, Math.PI * 2);
+            ctx.strokeStyle = bw(0.07);
+            ctx.lineWidth = 0.5;
             ctx.stroke();
           }
 
-          // Main dot — gradient fill for depth
-          const dotGrd = ctx.createRadialGradient(x - rr*0.3, y - rr*0.3, 0, x, y, rr);
-          dotGrd.addColorStop(0, hexColor(col, isHov ? 1.0 : 0.90));
-          dotGrd.addColorStop(0.6, hexColor(col, isHov ? 0.85 : 0.68));
-          dotGrd.addColorStop(1, hexColor(col, isHov ? 0.60 : 0.40));
-          ctx.beginPath(); ctx.arc(x, y, rr, 0, Math.PI*2);
+          // Main dot — solid white, brightness = tier hierarchy
+          const dotAlpha = isHov ? 1.0 : bri;
+          const dotGrd = ctx.createRadialGradient(x - rr * 0.28, y - rr * 0.28, 0, x, y, rr);
+          dotGrd.addColorStop(0,   bw(Math.min(1, dotAlpha * 1.08)));
+          dotGrd.addColorStop(0.5, bw(dotAlpha));
+          dotGrd.addColorStop(1,   bw(dotAlpha * 0.72));
+          ctx.beginPath(); ctx.arc(x, y, rr, 0, Math.PI * 2);
           ctx.fillStyle = dotGrd; ctx.fill();
 
-          // Crisp border
-          ctx.beginPath(); ctx.arc(x, y, rr, 0, Math.PI*2);
-          ctx.strokeStyle = hexColor(col, isHov ? 1.0 : 0.70);
-          ctx.lineWidth = isHov ? 1.5 : 0.8;
+          // Sharp border
+          ctx.beginPath(); ctx.arc(x, y, rr, 0, Math.PI * 2);
+          ctx.strokeStyle = bw(isHov ? 1.0 : Math.min(1, bri * 1.1));
+          ctx.lineWidth = isHov ? 1.2 : 0.6;
           ctx.stroke();
 
-          // Epicenter crosshair
+          // Epicenter special: crosshair + outer ring
           if (tier === 'epicenter') {
             ctx.save();
-            ctx.strokeStyle = hexColor(col, 0.55);
-            ctx.lineWidth = 1.2;
-            const arm = rr * 0.7;
-            ctx.beginPath(); ctx.moveTo(x-arm, y); ctx.lineTo(x+arm, y); ctx.stroke();
-            ctx.beginPath(); ctx.moveTo(x, y-arm); ctx.lineTo(x, y+arm); ctx.stroke();
-            // Outer ring
-            ctx.beginPath(); ctx.arc(x, y, rr + 5, 0, Math.PI*2);
-            ctx.strokeStyle = hexColor(col, 0.30);
-            ctx.lineWidth = 0.8;
+            ctx.strokeStyle = bw(0.55);
+            ctx.lineWidth = 1.0;
+            const arm = rr * 0.65;
+            ctx.beginPath(); ctx.moveTo(x - arm, y); ctx.lineTo(x + arm, y); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(x, y - arm); ctx.lineTo(x, y + arm); ctx.stroke();
+            ctx.beginPath(); ctx.arc(x, y, rr + 6, 0, Math.PI * 2);
+            ctx.strokeStyle = bw(0.22);
+            ctx.lineWidth = 0.7;
             ctx.stroke();
             ctx.restore();
           }
 
-          // Name label for large enough dots
+          // Name label — white text, large tiers
           if (r >= 10 && slot?.display_name) {
             ctx.save();
-            ctx.shadowColor = hexColor(col, 0.6);
-            ctx.shadowBlur = 4;
-            ctx.font = `700 ${Math.max(6.5, r * 0.52)}px "JetBrains Mono",monospace`;
-            ctx.fillStyle = 'rgba(255,255,255,0.95)';
+            ctx.shadowColor = 'rgba(255,255,255,0.5)';
+            ctx.shadowBlur = 5;
+            ctx.font = `700 ${Math.max(6, r * 0.48)}px "JetBrains Mono",monospace`;
+            ctx.fillStyle = 'rgba(0,0,0,0.95)'; // Black text on white dot
             ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
             ctx.fillText(slot.display_name.toUpperCase().slice(0, 6), x, y);
             ctx.restore();
           }
 
-          // Inline label for smaller hovered dots
+          // Hover label for small dots
           if (isHov && r < 10 && slot?.display_name) {
-            const side = x > W * .5 ? 1 : -1;
-            const lx = x + side * (rr + 10);
+            const side = x > W * 0.5 ? 1 : -1;
+            const lx   = x + side * (rr + 12);
             ctx.save();
-            ctx.shadowColor = hexColor(col, 0.5);
-            ctx.shadowBlur = 6;
-            ctx.font = `700 8px "JetBrains Mono",monospace`;
-            ctx.fillStyle = hexColor(col, 0.95);
+            ctx.font = `700 8.5px "JetBrains Mono",monospace`;
+            ctx.fillStyle = bw(0.92);
             ctx.textAlign = side > 0 ? 'left' : 'right';
             ctx.textBaseline = 'middle';
-            ctx.fillText(slot.display_name.toUpperCase().slice(0, 14), lx, y);
+            ctx.fillText(slot.display_name.toUpperCase().slice(0, 16), lx, y);
             ctx.restore();
-            // Connector line
+            // Connector
             ctx.beginPath();
-            ctx.moveTo(x + side * rr, y);
-            ctx.lineTo(lx + side * -4, y);
-            ctx.strokeStyle = hexColor(col, 0.25);
+            ctx.moveTo(x + side * (rr + 1), y);
+            ctx.lineTo(lx + side * -3, y);
+            ctx.strokeStyle = bw(0.20);
             ctx.lineWidth = 0.5;
             ctx.stroke();
           }
 
         } else {
-          // Empty slot — minimal ghost dot
-          const dotR = Math.max(r * 0.32, 1.0);
-          ctx.beginPath(); ctx.arc(x, y, dotR, 0, Math.PI*2);
-          ctx.fillStyle = hexColor(col, isHov ? 0.28 : 0.07);
-          ctx.fill();
+          // ── Empty slot — square pixel, crisp and minimal ──
+          const dotR = Math.max(r * 0.28, 0.9);
+          // Square for empty (vs circle for occupied) — instant visual distinction
+          if (isHov) {
+            ctx.fillStyle = bw(0.45);
+            ctx.fillRect(x - dotR * 1.6, y - dotR * 1.6, dotR * 3.2, dotR * 3.2);
+            ctx.strokeStyle = bw(0.60);
+            ctx.lineWidth = 0.7;
+            ctx.strokeRect(x - dotR * 2.4, y - dotR * 2.4, dotR * 4.8, dotR * 4.8);
+          } else {
+            ctx.fillStyle = `rgba(255,255,255,${0.06 + bri * 0.05})`;
+            ctx.fillRect(x - dotR, y - dotR, dotR * 2, dotR * 2);
+          }
         }
       });
 
-      // ── Tier ring labels — right side, clean alignment ──
-      const labelX = cx + maxR * 2.5 + 14;
-      let labelStack = []; // collect for smart Y positioning
-      TIER_ORDER.forEach(tier => {
+      // ── Tier labels — right-aligned column ──
+      TIER_ORDER.forEach((tier, ti) => {
         if (tier === 'epicenter') return;
-        const cfg  = TIER_RING_CONFIG[tier];
+        const cfg   = TIER_RING_CONFIG[tier];
         const ringR = cfg.ringR * maxR * 2.5;
-        const col  = pal[tier] || TIER_NEON[tier];
-        const occ  = (slotsByTier[tier] || []).filter(s => s.occ || s.status==='active').length;
+        const bri   = TIER_BRIGHTNESS[tier];
+        const occ   = (slotsByTier[tier] || []).filter(s => s.occ || s.status === 'active').length;
         const total = cfg.total;
-        const pct = total > 0 ? occ / total : 0;
+        const lx    = cx + ringR + 12;
+        const ly    = cy + ti * 0; // stack at same-ish angle
 
-        // Label on the right of the outermost ring edge
-        const lx = cx + ringR + 10;
-        const ly = cy;
-
-        // Tier name
         ctx.font = `600 7px "JetBrains Mono",monospace`;
-        ctx.fillStyle = hexColor(col, 0.55);
+        ctx.fillStyle = bw(bri * 0.65);
         ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-        ctx.fillText(tier.toUpperCase(), lx, ly - 5);
+        ctx.fillText(tier.toUpperCase(), lx, ly - 4);
 
-        // Count
         ctx.font = `500 6.5px "JetBrains Mono",monospace`;
-        ctx.fillStyle = hexColor(col, 0.32);
+        ctx.fillStyle = bw(bri * 0.35);
         ctx.fillText(`${occ}/${total}`, lx, ly + 5);
       });
 
       // Epicenter label
       {
-        const col = pal.epicenter || TIER_NEON.epicenter;
-        const occ = (slotsByTier.epicenter || []).filter(s => s.occ || s.status==='active').length;
+        const occ = (slotsByTier.epicenter || []).filter(s => s.occ || s.status === 'active').length;
         ctx.font = `700 7px "JetBrains Mono",monospace`;
-        ctx.fillStyle = hexColor(col, 0.50);
+        ctx.fillStyle = bw(0.55);
         ctx.textAlign = 'center'; ctx.textBaseline = 'top';
         ctx.fillText(`ÉPICENTRE · ${occ}/1`, cx, cy + TIER_RING_CONFIG.epicenter.dotR + 10);
       }
 
-      // ── Bottom watermark ──
+      // ── Watermark ──
       ctx.font = `500 7px "JetBrains Mono",monospace`;
-      ctx.fillStyle = 'rgba(0,200,240,0.08)';
+      ctx.fillStyle = 'rgba(255,255,255,0.07)';
       ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
-      ctx.fillText('DYSON · COSMOS · ORBITAL MAP · v7', W * .5, H - 12);
+      ctx.fillText('DYSON · COSMOS · ORBITAL MAP', W * 0.5, H - 12);
 
       raf = requestAnimationFrame(draw);
     }
@@ -4457,51 +4463,49 @@ function FlatView2D({ slots=[], onSlotSelect, activeFilter, visible=false }) {
         onMouseLeave={() => { hovRef.current = null; setHov(null); }}
       />
 
-      {/* ── Vercel-style tier legend — bottom left ── */}
+      {/* ── Monochrome tier legend — bottom left ── */}
       <div style={{
         position:'absolute', bottom:28, left:20,
-        display:'flex', flexDirection:'column', gap:5,
+        display:'flex', flexDirection:'column', gap:4,
         pointerEvents:'none',
       }}>
         {TIER_ORDER.map(tier => {
-          const col = pal[tier] || TIER_NEON[tier];
+          const BRI = {epicenter:1.00,prestige:0.88,elite:0.74,business:0.60,standard:0.46,viral:0.34};
+          const bri = BRI[tier] || 0.34;
           const occ = (slotsByTier[tier] || []).filter(s => s?.occ || s?.status==='active').length;
           const tot = TIER_RING_CONFIG[tier].total;
           const pct = tot > 0 ? occ / tot : 0;
           return (
             <div key={tier} style={{ display:'flex', alignItems:'center', gap:7 }}>
               <div style={{
-                width: 6, height: 6, borderRadius: '50%', flexShrink: 0,
-                background: col,
-                opacity: occ > 0 ? 0.85 : 0.20,
-                boxShadow: occ > 0 ? `0 0 5px ${col}60` : 'none',
+                width:5, height:5, flexShrink:0,
+                borderRadius: occ > 0 ? '50%' : '1px',
+                background: occ > 0 ? `rgba(255,255,255,${bri * 0.88})` : 'rgba(255,255,255,0.14)',
               }}/>
               <span style={{
                 fontFamily:'"JetBrains Mono",monospace', fontSize:7,
-                color: occ > 0 ? `${col}90` : 'rgba(255,255,255,0.18)',
-                letterSpacing:'.10em', fontWeight: 600,
-                minWidth: 52,
+                color:`rgba(255,255,255,${occ > 0 ? bri * 0.75 : 0.18})`,
+                letterSpacing:'.10em', fontWeight:600, minWidth:52,
               }}>{tier.toUpperCase()}</span>
-              {/* Mini progress bar */}
-              <div style={{ width:40, height:2, background:'rgba(255,255,255,0.06)', position:'relative', overflow:'hidden' }}>
+              <div style={{ width:36, height:1.5, background:'rgba(255,255,255,0.08)', position:'relative', overflow:'hidden' }}>
                 <div style={{
                   position:'absolute', left:0, top:0, bottom:0,
                   width:`${pct * 100}%`,
-                  background: col, opacity: 0.6,
+                  background:`rgba(255,255,255,${bri * 0.55})`,
                   transition:'width .5s ease',
                 }}/>
               </div>
               <span style={{
                 fontFamily:'"JetBrains Mono",monospace', fontSize:6.5,
-                color:'rgba(255,255,255,0.22)', letterSpacing:'.04em',
+                color:`rgba(255,255,255,${bri * 0.35})`, letterSpacing:'.04em',
                 minWidth:28, textAlign:'right',
-              }}>{occ}<span style={{opacity:.5}}>/{tot}</span></span>
+              }}>{occ}<span style={{opacity:.45}}>/{tot}</span></span>
             </div>
           );
         })}
       </div>
 
-      {/* ── Hover tooltip — Vercel-style card ── */}
+      {/* ── Hover tooltip — monochrome ── */}
       {hov?.occ && (
         <div style={{
           position:'absolute',
@@ -4511,96 +4515,76 @@ function FlatView2D({ slots=[], onSlotSelect, activeFilter, visible=false }) {
           pointerEvents:'none', zIndex:60,
           animation:'flatHovIn 0.15s cubic-bezier(.16,1,.3,1) both',
         }}>
-          {/* Card */}
           <div style={{
-            background:'rgba(4,8,20,0.97)',
-            border:`1px solid ${hovCol}28`,
-            borderTop:`1px solid ${hovCol}50`,
-            borderRadius:8,
-            padding:'10px 14px',
-            minWidth:140, maxWidth:220,
-            boxShadow:`0 8px 32px rgba(0,0,0,0.6), 0 0 0 0.5px ${hovCol}18`,
+            background:'rgba(0,0,0,0.95)',
+            border:'1px solid rgba(255,255,255,0.18)',
+            borderTop:'1px solid rgba(255,255,255,0.35)',
+            clipPath:'polygon(0 0,calc(100% - 8px) 0,100% 8px,100% 100%,8px 100%,0 calc(100% - 8px))',
+            padding:'10px 14px', minWidth:148, maxWidth:220,
+            boxShadow:'0 12px 40px rgba(0,0,0,0.85)',
             backdropFilter:'blur(12px)',
           }}>
-            {/* Tier badge */}
-            <div style={{
-              display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:7,
-            }}>
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:8 }}>
               <div style={{
                 fontFamily:'"JetBrains Mono",monospace', fontSize:7.5, letterSpacing:'.14em',
-                color: hovCol, fontWeight:700,
-                background:`${hovCol}14`, border:`0.5px solid ${hovCol}30`,
-                padding:'2px 7px', borderRadius:3,
+                color:'rgba(255,255,255,0.90)', fontWeight:700,
+                background:'rgba(255,255,255,0.10)', border:'0.5px solid rgba(255,255,255,0.25)',
+                padding:'2px 8px',
               }}>{hov.tier.toUpperCase()}</div>
               <div style={{
                 display:'flex', alignItems:'center', gap:4,
                 fontFamily:'"JetBrains Mono",monospace', fontSize:7,
-                color: hov.occ ? '#00D880' : 'rgba(255,255,255,0.25)',
+                color: hov.occ ? 'rgba(255,255,255,0.80)' : 'rgba(255,255,255,0.25)',
               }}>
-                <div style={{ width:4, height:4, borderRadius:'50%', background: hov.occ ? '#00D880' : 'rgba(255,255,255,0.20)' }}/>
+                <div style={{ width:4, height:4, background: hov.occ ? 'rgba(255,255,255,0.90)' : 'rgba(255,255,255,0.20)' }}/>
                 {hov.occ ? 'ACTIF' : 'LIBRE'}
               </div>
             </div>
-
-            {/* Name */}
             {hov.slot?.display_name && (
               <div style={{
-                fontFamily:'"JetBrains Mono",monospace', fontSize:11.5, fontWeight:700,
-                color:'rgba(230,240,255,0.95)', marginBottom:4, letterSpacing:'.04em',
-                lineHeight:1.2,
+                fontFamily:'"JetBrains Mono",monospace', fontSize:12, fontWeight:700,
+                color:'rgba(255,255,255,0.96)', marginBottom:4, letterSpacing:'.03em', lineHeight:1.2,
               }}>{hov.slot.display_name.toUpperCase()}</div>
             )}
-
-            {/* Tenant */}
             {hov.slot?.tenant?.slogan && (
               <div style={{
                 fontFamily:'Rajdhani,system-ui,sans-serif', fontSize:9,
-                color:'rgba(180,200,230,0.55)', lineHeight:1.5, marginBottom:6,
+                color:'rgba(255,255,255,0.40)', lineHeight:1.5, marginBottom:6,
               }}>{hov.slot.tenant.slogan}</div>
             )}
-
-            {/* Price */}
             <div style={{
               display:'flex', alignItems:'baseline', gap:4, paddingTop:6,
-              borderTop:`0.5px solid rgba(255,255,255,0.06)`,
+              borderTop:'0.5px solid rgba(255,255,255,0.09)',
             }}>
-              <span style={{ color:'#E8A020', fontFamily:'"JetBrains Mono",monospace', fontSize:13, fontWeight:700 }}>
+              <span style={{ color:'rgba(255,255,255,0.90)', fontFamily:'"JetBrains Mono",monospace', fontSize:13, fontWeight:700 }}>
                 €{fmt(hov.tier)}
               </span>
-              <span style={{ color:'rgba(255,255,255,0.25)', fontFamily:'"JetBrains Mono",monospace', fontSize:7 }}>/JOUR</span>
+              <span style={{ color:'rgba(255,255,255,0.28)', fontFamily:'"JetBrains Mono",monospace', fontSize:7 }}>/JOUR</span>
             </div>
           </div>
-          {/* Arrow pointer */}
           <div style={{
             position:'absolute',
             [hov.x > cW * .55 ? 'right' : 'left']: -5,
             top:'50%', transform:'translateY(-50%)',
-            width:5, height:8,
-            background:'rgba(4,8,20,0.97)',
-            clipPath: hov.x > cW * .55
-              ? 'polygon(100% 0, 0 50%, 100% 100%)'
-              : 'polygon(0 0, 100% 50%, 0 100%)',
-            opacity: 0.9,
+            width:5, height:8, background:'rgba(0,0,0,0.95)',
+            clipPath: hov.x > cW * .55 ? 'polygon(100% 0, 0 50%, 100% 100%)' : 'polygon(0 0, 100% 50%, 0 100%)',
           }}/>
         </div>
       )}
 
-      {/* ── Grid mode label ── */}
+      {/* ── MAP label ── */}
       <div style={{
         position:'absolute', top:14, left:'50%', transform:'translateX(-50%)',
-        display:'flex', alignItems:'center', gap:8,
-        padding:'4px 14px',
-        background:'rgba(0,4,18,0.70)',
-        border:'0.5px solid rgba(0,200,240,0.10)',
-        borderRadius:20,
-        backdropFilter:'blur(8px)',
-        pointerEvents:'none',
+        display:'flex', alignItems:'center', gap:8, padding:'4px 14px',
+        background:'rgba(0,0,0,0.65)',
+        border:'0.5px solid rgba(255,255,255,0.10)',
+        borderRadius:20, backdropFilter:'blur(8px)', pointerEvents:'none',
       }}>
-        <span style={{ fontSize:8, color:'rgba(0,200,240,0.40)' }}>⊞</span>
+        <span style={{ fontSize:8, color:'rgba(255,255,255,0.35)' }}>&#x229E;</span>
         <span style={{
           fontFamily:'"JetBrains Mono",monospace', fontSize:7.5, letterSpacing:'.20em',
-          color:'rgba(0,200,240,0.35)', fontWeight:600,
-        }}>ORBITAL·MAP · 2D</span>
+          color:'rgba(255,255,255,0.30)', fontWeight:600,
+        }}>ORBITAL · MAP · 2D</span>
       </div>
 
       <style>{`
