@@ -4884,7 +4884,16 @@ export default function App() {
               </div>
             </a>
 
-            {/* Waitlist CTA */}
+            {/* Sphère ◎ */}
+            <div
+              onClick={() => isAdmin ? (window.location.href='/sphere') : setShowSphereWIP(true)}
+              style={{padding:isMobile?'5px 9px':'5px 14px',background:'transparent',border:`0.5px solid ${U.border}`,clipPath:'polygon(0 0,calc(100% - 6px) 0,100% 6px,100% 100%,0 100%)',color:U.muted,fontFamily:F.mono,fontSize:isMobile?10:10.5,fontWeight:700,letterSpacing:'.12em',cursor:'pointer',transition:'all 0.12s',whiteSpace:'nowrap',display:'flex',alignItems:'center',gap:isMobile?0:5, position:'relative'}}
+              onMouseEnter={e=>{e.currentTarget.style.color=U.violet;e.currentTarget.style.borderColor=U.violet+'60';e.currentTarget.style.background=U.violet+'0e';}}
+              onMouseLeave={e=>{e.currentTarget.style.color=U.muted;e.currentTarget.style.borderColor=U.border;e.currentTarget.style.background='transparent';}}>
+              <span style={{fontSize:11}}>◎</span>{!isMobile&&<span>SPHÈRE</span>}
+              {/* Badge "bientôt" */}
+              {!isMobile && !isAdmin && <span style={{position:'absolute',top:-5,right:-4,background:U.violet,color:'#fff',fontFamily:F.mono,fontSize:5.5,fontWeight:700,letterSpacing:'.10em',padding:'1px 4px',lineHeight:1.2}}>BIENTÔT</span>}
+            </div>
             <button onClick={handleWaitlist} style={{
               padding: isMobile ? '5px 10px' : '6px 16px',
               background: `${U.accent}18`,
@@ -4903,13 +4912,17 @@ export default function App() {
             {/* Auth */}
             {authUser ? (
               <>
-                <a href="/dashboard" title="Dashboard" style={{
-                  width: 30, height: 30,
-                  clipPath: 'polygon(15% 0,85% 0,100% 15%,100% 85%,85% 100%,15% 100%,0 85%,0 15%)',
-                  background: `${U.accent}14`, border: `1px solid ${U.accent}44`,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  textDecoration: 'none', flexShrink: 0, cursor: 'pointer',
-                }}><span style={{ fontSize: 13 }}>👤</span></a>
+                <a
+                  href={isAdmin ? '/sphere' : undefined}
+                  onClick={!isAdmin ? (e) => { e.preventDefault(); setShowSphereWIP(true); } : undefined}
+                  title="Sphère de Dyson"
+                  style={{
+                    width: 30, height: 30,
+                    clipPath: 'polygon(15% 0,85% 0,100% 15%,100% 85%,85% 100%,15% 100%,0 85%,0 15%)',
+                    background: `${U.accent}14`, border: `1px solid ${U.accent}44`,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    textDecoration: 'none', flexShrink: 0, cursor: 'pointer',
+                  }}><span style={{ fontSize: 13 }}>👤</span></a>
                 {!isMobile && (
                   <button onClick={handleSignOut} title="Se déconnecter" style={{
                     width: 30, height: 30,
@@ -4987,6 +5000,7 @@ export default function App() {
         {/* ── Modals ── */}
         {showMobileBlocked && <MobileBlockedModal onClose={() => setShowMobileBlocked(false)} />}
         {showWaitlist  && <WaitlistModal  onClose={() => setShowWaitlist(false)} />}
+        {showSphereWIP && <SphereWIPModal onClose={() => setShowSphereWIP(false)} />}
         {checkoutSlot  && <CheckoutModal  slot={checkoutSlot} onClose={() => setCheckoutSlot(null)} />}
         {buyoutSlot    && <BuyoutModal    slot={buyoutSlot}   onClose={() => setBuyoutSlot(null)} />}
         {showBoost     && <BoostModal     onClose={() => setShowBoost(false)} />}
