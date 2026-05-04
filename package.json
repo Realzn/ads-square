@@ -18,7 +18,7 @@
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "stripe": "^14.14.0",
-    "three": "^0.183.1"
+    "three": "^0.184.0"
   },
   "devDependencies": {
     "@next/bundle-analyzer": "^15.0.0",

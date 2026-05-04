@@ -1084,6 +1084,7 @@ class Scene3D{
       _cosmicEvents:generateCosmicEvents(137),
       // LOD ring cache
       _ringGeoCache:{},
+      _didWarmupShaders:false,
       // ── P2 FIX: Material cache — reuse instead of recreate ──
       _panelMat:null,     // ShaderMaterial panel (recycled across _buildMesh calls)
       _viralMat:null,     // ShaderMaterial viral swarm
@@ -1112,9 +1113,13 @@ class Scene3D{
     r.shadowMap.enabled=true;
     r.shadowMap.type=THREE.PCFShadowMap;
     r.shadowMap.autoUpdate=false; // ★ Manuel — update seulement si besoin
+    // NOTE (r184+): si accès WebGL raw futur, utiliser renderer.state.pixelStorei(...)
+    // pour garder le cache d'état Three.js cohérent.
     this.renderer=r;
 
     this.scene=new THREE.Scene();
+    // NOTE migration r183→r184: si des maps background/environment sont ajoutées plus tard,
+    // valider visuellement scene.backgroundRotation / scene.environmentRotation.
     this.scene.fog=new THREE.FogExp2(0x03040B,.00028);
     this.camera=new THREE.PerspectiveCamera(40,W/H,.1,3000);
     this.camera.position.z=this.zoomCurrent;
@@ -1150,6 +1155,19 @@ class Scene3D{
     this._bindEvents();
     this._bindVisibilityChange();
     this._animate();
+  }
+
+  async warmupShaders(){
+    if(this._didWarmupShaders)return;
+    const renderer=this.renderer,scene=this.scene,camera=this.camera;
+    if(!renderer||!scene||!camera)return;
+    this._didWarmupShaders=true;
+    try{
+      if(typeof renderer.compileAsync==='function')await renderer.compileAsync(scene,camera);
+      else if(typeof renderer.compile==='function')renderer.compile(scene,camera);
+    }catch(err){
+      console.warn('[View3D] Shader warmup skipped:',err);
+    }
   }
 
   async _buildComposer(THREE,W,H){
@@ -5002,9 +5020,13 @@ export default function View3D({slots=[],isLive=false,onCheckout,onBuyout,onView
         };
         return sc.init(T,G);
       })
-      .then(()=>{
+      .then(async()=>{
         if(!mounted)return;
-        const s=sceneRef.current;s.setFaces(cosmosFaces,eliteSlots,prestigeSlots,false);setLoading(false);
+        const s=sceneRef.current;
+        s.setFaces(cosmosFaces,eliteSlots,prestigeSlots,false);
+        await s.warmupShaders();
+        if(!mounted)return;
+        setLoading(false);
         insideTimer.current=setInterval(()=>{
           if(!sceneRef.current)return;
           setIsInside(p=>{const n=sceneRef.current._insideBlend>.30;return p!==n?n:p;});
