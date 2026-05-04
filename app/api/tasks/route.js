@@ -4,6 +4,8 @@
 import { NextResponse } from 'next/server';
 import { createServiceClient } from '../../../lib/supabase-server';
 import { createClient } from '@supabase/supabase-js';
+import { ingestAIEvent } from '../../../lib/ai/events';
+import { runAIOrchestrator } from '../../../lib/ai/orchestrator';
 
 export const dynamic = 'force-dynamic';
 
@@ -154,6 +156,26 @@ export async function POST(request) {
         }),
       }).catch(() => {});
     }
+
+    await ingestAIEvent({
+      eventType: 'daily_task_completed',
+      eventSource: 'tasks.api',
+      entityType: 'task',
+      entityId: task_id,
+      advertiserId: advertiser.id,
+      payload: {
+        task_type: task.task_type,
+        proof_platform: proof_platform || null,
+        streak_after: newStreak,
+      },
+    });
+
+    await runAIOrchestrator({
+      triggerType: 'task_completed',
+      inputPayload: { taskId: task_id, advertiserId: advertiser.id },
+      autoExecute: false,
+      actor: 'tasks.api',
+    }).catch(() => {});
 
     return NextResponse.json({ ok: true, streak: newStreak });
 

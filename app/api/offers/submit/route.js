@@ -1,6 +1,8 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
 import { sendOfferNotification } from '../../../../lib/emails';
+import { ingestAIEvent } from '../../../../lib/ai/events';
+import { runAIOrchestrator } from '../../../../lib/ai/orchestrator';
 
 export async function POST(req) {
   try {
@@ -11,7 +13,7 @@ export async function POST(req) {
     const { slotX, slotY, bookingId, offerCents, buyerEmail, buyerName, message } = await req.json();
 
     // Validate
-    if (!slotX == null || slotY == null) return NextResponse.json({ error: 'Missing slot' }, { status: 400 });
+    if (slotX == null || slotY == null) return NextResponse.json({ error: 'Missing slot' }, { status: 400 });
     if (!buyerEmail?.includes('@')) return NextResponse.json({ error: 'Invalid email' }, { status: 400 });
     if (!offerCents || offerCents < 100) return NextResponse.json({ error: 'Offer too low' }, { status: 400 });
     if (!bookingId) return NextResponse.json({ error: 'Missing booking ID' }, { status: 400 });
@@ -89,6 +91,28 @@ export async function POST(req) {
       // Email failure non-bloquant — l'offre est quand même enregistrée
       console.error('[Offers] Email send failed:', emailErr.message);
     }
+
+    await ingestAIEvent({
+      eventType: 'offer_submitted',
+      eventSource: 'offers.submit',
+      entityType: 'offer',
+      entityId: offer.id,
+      advertiserId: booking.advertiser_id,
+      bookingId,
+      payload: {
+        slot_x: slotX,
+        slot_y: slotY,
+        offer_cents: offerCents,
+        buyer_email: buyerEmail,
+      },
+    });
+
+    await runAIOrchestrator({
+      triggerType: 'offer_submitted',
+      inputPayload: { offerId: offer.id, bookingId },
+      autoExecute: false,
+      actor: 'offers.submit',
+    }).catch(() => {});
 
     return NextResponse.json({
       ok: true,

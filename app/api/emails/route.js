@@ -199,6 +199,17 @@ function suspensionWarning({ name, rank, daysLeft, slotX, slotY }) {
   `, `Votre slot sera suspendu dans ${daysLeft} jour${daysLeft > 1 ? 's' : ''}`);
 }
 
+function aiNudge({ nudge, cta_url, cta_text }) {
+  return baseTemplate(`
+    <div class="card">
+      <h1>Suggestion intelligente pour votre croissance ✦</h1>
+      <p>${nudge || 'Nous avons détecté une opportunité d’amélioration de vos performances.'}</p>
+      <hr class="divider">
+      <a href="${cta_url || APP_URL}" class="btn">${cta_text || 'Voir la recommandation'} →</a>
+    </div>
+  `, 'Nouveau conseil IA AdsMostFair');
+}
+
 // ─── Dispatcher ────────────────────────────────────────────────────────────
 
 export async function POST(request) {
@@ -274,6 +285,10 @@ export async function POST(request) {
       case 'suspension_warning':
         html = suspensionWarning(data);
         emailSubject = subject || `⚠️ Votre slot sera suspendu dans ${data.daysLeft} jour(s)`;
+        break;
+      case 'ai_nudge':
+        html = aiNudge(data);
+        emailSubject = subject || '✨ Recommandation IA AdsMostFair';
         break;
       default:
         return NextResponse.json({ error: `Type inconnu: ${type}` }, { status: 400 });

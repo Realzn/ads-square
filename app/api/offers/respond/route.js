@@ -3,6 +3,8 @@
 
 import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
+import { ingestAIEvent } from '../../../../lib/ai/events';
+import { runAIOrchestrator } from '../../../../lib/ai/orchestrator';
 
 export async function POST(req) {
   try {
@@ -41,12 +43,21 @@ export async function POST(req) {
     }
 
     // Verify via advertisers table that userId matches
-    const { data: advertiser } = await supabase
+    let { data: advertiser } = await supabase
       .from('advertisers')
       .select('id')
       .eq('user_id', userId)
       .eq('id', booking.advertiser_id)
       .maybeSingle();
+
+    if (!advertiser) {
+      ({ data: advertiser } = await supabase
+        .from('advertisers')
+        .select('id')
+        .eq('auth_user_id', userId)
+        .eq('id', booking.advertiser_id)
+        .maybeSingle());
+    }
 
     if (!advertiser) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
@@ -73,6 +84,27 @@ export async function POST(req) {
         .eq('status', 'pending')
         .neq('id', offerId);
     }
+
+    await ingestAIEvent({
+      eventType: 'offer_responded',
+      eventSource: 'offers.respond',
+      entityType: 'offer',
+      entityId: offerId,
+      advertiserId: booking.advertiser_id,
+      bookingId: booking.id,
+      payload: {
+        action,
+        new_status: newStatus,
+        offer_amount_cents: offer.offer_amount_cents,
+      },
+    });
+
+    await runAIOrchestrator({
+      triggerType: 'offer_responded',
+      inputPayload: { offerId, status: newStatus },
+      autoExecute: false,
+      actor: 'offers.respond',
+    }).catch(() => {});
 
     return NextResponse.json({ success: true, status: newStatus });
   } catch (err) {

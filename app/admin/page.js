@@ -995,6 +995,153 @@ function TabAnalytics({ api }) {
 }
 
 // ══════════════════════════════════════════════════════════════════════════
+// TAB : AI OPS
+// ══════════════════════════════════════════════════════════════════════════
+function TabAIOps({ token, onToast }) {
+  const [loading, setLoading] = useState(true);
+  const [metrics, setMetrics] = useState(null);
+  const [recommendations, setRecommendations] = useState([]);
+  const [running, setRunning] = useState(false);
+  const [executingId, setExecutingId] = useState(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [mRes, rRes] = await Promise.all([
+        fetch('/api/ai/metrics?days=30', { headers: { 'x-admin-token': token } }),
+        fetch('/api/ai/recommendations?scope=admin&status=proposed&limit=30', { headers: { 'x-admin-token': token } }),
+      ]);
+
+      const m = await mRes.json().catch(() => ({}));
+      const r = await rRes.json().catch(() => ({}));
+
+      if (!mRes.ok) throw new Error(m.error || 'AI metrics unavailable');
+      if (!rRes.ok) throw new Error(r.error || 'AI recommendations unavailable');
+
+      setMetrics(m);
+      setRecommendations(r.recommendations || []);
+    } catch (err) {
+      onToast({ msg: err.message, type: 'error' });
+    } finally {
+      setLoading(false);
+    }
+  }, [token]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const runOrchestrator = async () => {
+    setRunning(true);
+    try {
+      const res = await fetch('/api/ai/orchestrate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-admin-token': token },
+        body: JSON.stringify({ triggerType: 'admin_manual', autoExecute: false, actor: 'admin' }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json.error || 'Orchestrator error');
+      onToast({ msg: `Orchestrateur exécuté · ${json.recommendationCount || 0} recommandations`, type: 'success' });
+      load();
+    } catch (err) {
+      onToast({ msg: err.message, type: 'error' });
+    } finally {
+      setRunning(false);
+    }
+  };
+
+  const executeAction = async (rec) => {
+    const action = Array.isArray(rec.ai_actions) ? rec.ai_actions[0] : rec.ai_actions;
+    if (!action?.id) return;
+    setExecutingId(action.id);
+    try {
+      const res = await fetch('/api/ai/actions/execute', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-admin-token': token },
+        body: JSON.stringify({ actionId: action.id, approve: true, actor: 'admin' }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json.error || 'Action execution failed');
+      onToast({ msg: 'Action IA exécutée', type: 'success' });
+      load();
+    } catch (err) {
+      onToast({ msg: err.message, type: 'error' });
+    } finally {
+      setExecutingId(null);
+    }
+  };
+
+  if (loading) return <LoadingSpinner />;
+
+  const summary = metrics?.summary || {};
+  const recentRuns = metrics?.recent_runs || [];
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+      <div style={{ display: 'flex', gap: 10, justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap' }}>
+        <SectionTitle>AI OPS · CONTROL PLANE</SectionTitle>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <Btn variant="ghost" size="sm" onClick={load}>Rafraîchir</Btn>
+          <Btn variant="primary" size="sm" onClick={runOrchestrator} disabled={running}>{running ? '…' : 'Lancer orchestrateur'}</Btn>
+        </div>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12 }}>
+        <KPI label="RUNS 30J" value={fmtN(summary.runs_total || 0)} color={A.cyan} icon="🤖" sub={`${fmtN(summary.runs_failed || 0)} échecs`} />
+        <KPI label="RECOMMANDATIONS" value={fmtN(summary.recommendations_total || 0)} color={A.accent} icon="💡" sub={`${fmtN(summary.recommendations_open || 0)} ouvertes`} />
+        <KPI label="ACTIONS" value={fmtN(summary.executions_total || 0)} color={A.green} icon="⚙️" sub={`${fmtN(summary.executions_success || 0)} succès`} />
+        <KPI label="ÉCHECS EXEC" value={fmtN(summary.executions_failed || 0)} color={A.red} icon="🚨" />
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1.3fr 1fr', gap: 12 }}>
+        <Card>
+          <div style={{ fontSize: 12, fontWeight: 700, color: A.muted, marginBottom: 12, letterSpacing: '0.07em' }}>RECOMMANDATIONS PRIORITAIRES</div>
+          {recommendations.length === 0 ? (
+            <div style={{ color: A.muted, fontSize: 12 }}>Aucune recommandation en attente.</div>
+          ) : recommendations.map((rec) => {
+            const action = Array.isArray(rec.ai_actions) ? rec.ai_actions[0] : rec.ai_actions;
+            return (
+              <div key={rec.id} style={{ padding: '10px 12px', borderRadius: 8, border: `1px solid ${A.border}`, background: A.s2, marginBottom: 8 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center' }}>
+                  <div>
+                    <div style={{ color: A.text, fontWeight: 700, fontSize: 13 }}>{rec.title}</div>
+                    <div style={{ color: A.muted, fontSize: 11, marginTop: 2 }}>
+                      {rec.agent_type?.toUpperCase()} · score {Number(rec.score || 0).toFixed(2)} · priorité P{rec.priority}
+                    </div>
+                  </div>
+                  <Btn
+                    size="xs"
+                    variant="success"
+                    onClick={() => executeAction(rec)}
+                    disabled={!action?.id || executingId === action?.id}
+                  >
+                    {executingId === action?.id ? '…' : 'Exécuter'}
+                  </Btn>
+                </div>
+                {rec.description && <div style={{ color: A.muted, fontSize: 11, marginTop: 7 }}>{rec.description}</div>}
+              </div>
+            );
+          })}
+        </Card>
+
+        <Card>
+          <div style={{ fontSize: 12, fontWeight: 700, color: A.muted, marginBottom: 12, letterSpacing: '0.07em' }}>PIPELINE RUNS</div>
+          {recentRuns.length === 0 ? (
+            <div style={{ color: A.muted, fontSize: 12 }}>Pas encore de run.</div>
+          ) : recentRuns.slice(0, 12).map((run) => (
+            <div key={run.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: `1px solid ${A.border}` }}>
+              <div>
+                <div style={{ fontSize: 12, color: A.text }}>{run.agent_type}</div>
+                <div style={{ fontSize: 10, color: A.muted }}>{agoFallback(run.started_at)}</div>
+              </div>
+              <StatusBadge status={run.status === 'success' ? 'accepted' : run.status === 'failed' ? 'rejected' : 'pending'} />
+            </div>
+          ))}
+        </Card>
+      </div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════
 // TAB : CONFIGURATION — tiers + blocs individuels
 // ══════════════════════════════════════════════════════════════════════════
 function TabConfig({ api, onToast }) {
@@ -1295,6 +1442,7 @@ const STATIC_TABS = [
   { id: 'offers',     icon: '🤝', key: 'tab_offers'    },
   { id: 'revenue',    icon: '💶', key: 'tab_revenue'   },
   { id: 'analytics',  icon: '📊', key: 'tab_analytics' },
+  { id: 'ai_ops',     icon: '🤖', key: 'tab_ai_ops'    },
   { id: 'config',     icon: '⚙',  key: 'tab_config'   },
 ];
 
@@ -1361,7 +1509,7 @@ export default function AdminDashboard() {
                 transition:'all .10s',
                 clipPath: isActive ? 'polygon(0 0,calc(100% - 5px) 0,100% 5px,100% 100%,0 100%)' : 'none',
               }}>
-                <span style={{ fontSize:13, flexShrink:0 }}>{tb.icon}</span>{t(tb.key).toUpperCase()}
+                <span style={{ fontSize:13, flexShrink:0 }}>{tb.icon}</span>{tb.id === 'ai_ops' ? 'AI OPS' : t(tb.key).toUpperCase()}
               </button>
             );
           })}
@@ -1382,7 +1530,7 @@ export default function AdminDashboard() {
           boxShadow:'0 4px 32px rgba(0,0,0,0.5)',
         }}>
           <div>
-            <div style={{ fontSize:16, fontWeight:700, fontFamily:F.m, letterSpacing:'.10em', color:A.text }}>{t(STATIC_TABS.find(tb => tb.id === tab)?.key || 'tab_overview').toUpperCase()}</div>
+            <div style={{ fontSize:16, fontWeight:700, fontFamily:F.m, letterSpacing:'.10em', color:A.text }}>{tab === 'ai_ops' ? 'AI OPS' : t(STATIC_TABS.find(tb => tb.id === tab)?.key || 'tab_overview').toUpperCase()}</div>
             <div style={{ fontSize:9, color:A.muted, marginTop:2, fontFamily:F.m, letterSpacing:'.12em' }}>{new Date().toLocaleDateString(lang === 'en' ? 'en-GB' : 'fr-FR', { weekday:'long', year:'numeric', month:'long', day:'numeric' }).toUpperCase()}</div>
           </div>
           <Btn size="sm" variant="ghost" onClick={() => window.location.reload()}>{t('admin_refresh')}</Btn>
@@ -1394,6 +1542,7 @@ export default function AdminDashboard() {
           {tab === 'offers'    && <TabOffers    api={api} onToast={onToast} />}
           {tab === 'revenue'   && <TabRevenue   api={api} />}
           {tab === 'analytics' && <TabAnalytics api={api} />}
+          {tab === 'ai_ops'    && <TabAIOps     token={token} onToast={onToast} />}
           {tab === 'config'    && <TabConfig    api={api} onToast={onToast} />}
         </div>
       </div>

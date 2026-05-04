@@ -5,7 +5,9 @@
 import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { createServiceClient } from '../../../../lib/supabase-server';
-import { sendSubscriptionConfirmation, sendSuspensionWarning, sendSlotReactivated } from '../../../../lib/emails-sphere';
+import { sendSubscriptionConfirmation } from '../../../../lib/emails-sphere';
+import { ingestAIEvent } from '../../../../lib/ai/events';
+import { runAIOrchestrator } from '../../../../lib/ai/orchestrator';
 
 export const dynamic = 'force-dynamic';
 
@@ -93,6 +95,16 @@ export async function POST(request) {
       // 4. Email de bienvenue
       await sendSubscriptionConfirmation({ to: email, displayName: finalName, rank, tier, slotX: slot_x, slotY: slot_y });
 
+      await ingestAIEvent({
+        eventType: 'subscription_checkout_completed',
+        eventSource: 'stripe.webhook.subscription',
+        entityType: 'subscription',
+        entityId: stripeSubId,
+        advertiserId: advertiser_id,
+        bookingId: booking?.id,
+        payload: { slot_x, slot_y, tier, rank, amount_total: session.amount_total || 0 },
+      });
+
       console.log(`[Sub Webhook] Abonnement activé — slot (${slot_x},${slot_y}) rang ${rank}`);
       break;
     }
@@ -117,10 +129,24 @@ export async function POST(request) {
 
       // Créer les tâches du lendemain
       const { data: sub } = await supabase.from('subscriptions')
-        .select('id').eq('stripe_subscription_id', stripeSubId).single();
+        .select('id, advertiser_id, booking_id').eq('stripe_subscription_id', stripeSubId).single();
       if (sub?.id) {
         await supabase.rpc('create_daily_tasks_for_subscription', { p_subscription_id: sub.id });
       }
+
+      await ingestAIEvent({
+        eventType: 'subscription_payment_succeeded',
+        eventSource: 'stripe.webhook.subscription',
+        entityType: 'subscription',
+        entityId: stripeSubId,
+        advertiserId: sub?.advertiser_id || null,
+        bookingId: sub?.booking_id || null,
+        payload: {
+          amount_paid: invoice.amount_paid,
+          currency: invoice.currency,
+          period_end: invoice.period_end,
+        },
+      });
       break;
     }
 
@@ -130,14 +156,34 @@ export async function POST(request) {
       const stripeSubId = invoice.subscription;
       if (!stripeSubId) break;
 
+      const { data: currentSub } = await supabase.from('subscriptions')
+        .select('id, advertiser_id, booking_id')
+        .eq('stripe_subscription_id', stripeSubId)
+        .maybeSingle();
+
       await supabase.from('subscriptions')
         .update({ status: 'past_due', updated_at: new Date().toISOString() })
         .eq('stripe_subscription_id', stripeSubId);
 
-      // Griser le slot
-      await supabase.from('bookings')
-        .update({ status: 'suspended' })
-        .eq('id', supabase.from('subscriptions').select('booking_id').eq('stripe_subscription_id', stripeSubId));
+      if (currentSub?.booking_id) {
+        await supabase.from('bookings')
+          .update({ status: 'suspended' })
+          .eq('id', currentSub.booking_id);
+      }
+
+      await ingestAIEvent({
+        eventType: 'subscription_payment_failed',
+        eventSource: 'stripe.webhook.subscription',
+        entityType: 'subscription',
+        entityId: stripeSubId,
+        advertiserId: currentSub?.advertiser_id || null,
+        bookingId: currentSub?.booking_id || null,
+        payload: {
+          amount_due: invoice.amount_due,
+          currency: invoice.currency,
+          attempt_count: invoice.attempt_count,
+        },
+      });
       break;
     }
 
@@ -164,6 +210,20 @@ export async function POST(request) {
         void_until: new Date(Date.now() + 24 * 3600000).toISOString(),
       }).eq('id', ourSub.booking_id);
 
+      await ingestAIEvent({
+        eventType: 'subscription_deleted',
+        eventSource: 'stripe.webhook.subscription',
+        entityType: 'subscription',
+        entityId: sub.id,
+        advertiserId: ourSub.advertiser_id,
+        bookingId: ourSub.booking_id,
+        payload: {
+          rank: ourSub.rank,
+          slot_x: ourSub.slot_x,
+          slot_y: ourSub.slot_y,
+        },
+      });
+
       console.log(`[Sub Webhook] Abonnement annulé — slot (${ourSub.slot_x},${ourSub.slot_y})`);
       break;
     }
@@ -171,6 +231,13 @@ export async function POST(request) {
     default:
       console.log(`[Sub Webhook] Événement non géré : ${event.type}`);
   }
+
+  await runAIOrchestrator({
+    triggerType: 'stripe_subscription_webhook',
+    inputPayload: { eventType: event.type },
+    autoExecute: false,
+    actor: 'stripe.webhook.subscription',
+  }).catch(() => {});
 
   return NextResponse.json({ received: true });
 }
