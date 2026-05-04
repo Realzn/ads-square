@@ -5,6 +5,8 @@ import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { createServiceClient } from '../../../../lib/supabase-server';
 import { sendPaymentConfirmation } from '../../../../lib/emails';
+import { ingestAIEvent } from '../../../../lib/ai/events';
+import { runAIOrchestrator } from '../../../../lib/ai/orchestrator';
 
 // ✅ No module-level Stripe init — process.env not available at load time in CF Workers
 
@@ -100,6 +102,21 @@ export async function POST(request) {
           .eq('email', email);
       }
 
+      await ingestAIEvent({
+        eventType: 'checkout_completed',
+        eventSource: 'stripe.webhook',
+        entityType: 'booking',
+        entityId: session.id,
+        payload: {
+          slot_x,
+          slot_y,
+          tier,
+          days: daysNum,
+          amount_total: session.amount_total || 0,
+          email,
+        },
+      });
+
       break;
     }
 
@@ -113,6 +130,17 @@ export async function POST(request) {
         .update({ status: 'cancelled' })
         .eq('stripe_session_id', session.id)
         .eq('status', 'pending');
+
+      await ingestAIEvent({
+        eventType: 'checkout_expired',
+        eventSource: 'stripe.webhook',
+        entityType: 'booking',
+        entityId: session.id,
+        payload: {
+          payment_status: session.payment_status,
+          expires_at: session.expires_at,
+        },
+      });
 
       break;
     }
@@ -129,12 +157,30 @@ export async function POST(request) {
         .eq('stripe_payment_id', paymentIntent)
         .eq('status', 'active');
 
+      await ingestAIEvent({
+        eventType: 'payment_refunded',
+        eventSource: 'stripe.webhook',
+        entityType: 'payment',
+        entityId: paymentIntent,
+        payload: {
+          amount_refunded: charge.amount_refunded,
+          currency: charge.currency,
+        },
+      });
+
       break;
     }
 
     default:
       console.log(`[Webhook] Unhandled event type: ${event.type}`);
   }
+
+  await runAIOrchestrator({
+    triggerType: 'stripe_webhook',
+    inputPayload: { eventType: event.type },
+    autoExecute: false,
+    actor: 'stripe.webhook',
+  }).catch(() => {});
 
   return NextResponse.json({ received: true });
 }

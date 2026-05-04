@@ -193,6 +193,10 @@ export default function DashboardPage() {
   const [authErr, setAuthErr]   = useState('');
   const [authLoading, setAL]    = useState(false);
 
+  const [copilotRecs, setCopilotRecs] = useState([]);
+  const [copilotLoading, setCopilotLoading] = useState(false);
+  const [copilotActionLoading, setCopilotActionLoading] = useState(null);
+
   // Init token from localStorage
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -213,7 +217,26 @@ export default function DashboardPage() {
     } catch { /* silent */ } finally { setLoading(false); }
   }, []);
 
-  useEffect(() => { if (token) fetchData(token); }, [token, fetchData]);
+  const loadCopilot = useCallback(async (tk) => {
+    if (!tk) return;
+    setCopilotLoading(true);
+    try {
+      const res = await fetch(`/api/ai/recommendations?scope=advertiser&limit=3&token=${encodeURIComponent(tk)}`);
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json.error || 'AI unavailable');
+      setCopilotRecs(json.recommendations || []);
+    } catch {
+      setCopilotRecs([]);
+    } finally {
+      setCopilotLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!token) return;
+    fetchData(token);
+    loadCopilot(token);
+  }, [token, fetchData, loadCopilot]);
 
   const handleCompleteTask = async (taskId, proof) => {
     if (!token) return;
@@ -223,6 +246,24 @@ export default function DashboardPage() {
       body: JSON.stringify({ token, task_id: taskId, proof_text: proof.text, proof_url: proof.url, proof_platform: proof.platform }),
     });
     if (r.ok) fetchData(token);
+  };
+
+  const handleApplyCopilot = async (rec) => {
+    const action = Array.isArray(rec.ai_actions) ? rec.ai_actions[0] : rec.ai_actions;
+    if (!action?.id || !token) return;
+    setCopilotActionLoading(action.id);
+    try {
+      const res = await fetch('/api/ai/actions/execute', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ actionId: action.id, token, approve: true }),
+      });
+      if (res.ok) {
+        loadCopilot(token);
+      }
+    } finally {
+      setCopilotActionLoading(null);
+    }
   };
 
   // Magic link auth via Supabase
@@ -256,7 +297,15 @@ export default function DashboardPage() {
     } catch (e) { setAuthErr(e.message); } finally { setAL(false); }
   };
 
-  const handleLogout = () => { localStorage.removeItem('ads_token'); setToken(null); setData(null); setStep('email'); setEmail(''); setOtp(''); };
+  const handleLogout = () => {
+    localStorage.removeItem('ads_token');
+    setToken(null);
+    setData(null);
+    setCopilotRecs([]);
+    setStep('email');
+    setEmail('');
+    setOtp('');
+  };
 
   /* ── Login screen ───────────────────────────────────────────────────── */
   if (!token) return (
@@ -422,6 +471,61 @@ export default function DashboardPage() {
             </Card>
           )}
         </div>
+
+        {/* ── Copilote croissance IA ───────────────────────────── */}
+        <Card style={{ marginBottom: 20, border: `1px solid rgba(232,160,32,0.32)` }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+            <div>
+              <div style={{ fontSize: 11, letterSpacing: '0.10em', color: C.muted }}>COPILOTE CROISSANCE</div>
+              <div style={{ fontSize: 16, fontWeight: 800, color: C.text, marginTop: 4 }}>Suggestions IA business</div>
+            </div>
+            <button
+              onClick={() => loadCopilot(token)}
+              style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 7, color: C.muted, padding: '6px 10px', fontSize: 11, cursor: 'pointer' }}
+            >
+              Actualiser
+            </button>
+          </div>
+
+          {copilotLoading ? (
+            <div style={{ color: C.muted, fontSize: 12 }}>Analyse en cours…</div>
+          ) : copilotRecs.length === 0 ? (
+            <div style={{ color: C.muted, fontSize: 12 }}>Aucune action prioritaire pour le moment. Continuez vos efforts ✨</div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {copilotRecs.map((rec) => {
+                const action = Array.isArray(rec.ai_actions) ? rec.ai_actions[0] : rec.ai_actions;
+                return (
+                  <div key={rec.id} style={{ padding: '10px 12px', borderRadius: 8, border: `1px solid ${C.border}`, background: 'rgba(0,200,240,0.03)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center' }}>
+                      <div>
+                        <div style={{ color: C.text, fontWeight: 700, fontSize: 13 }}>{rec.title}</div>
+                        <div style={{ color: C.muted, fontSize: 11, marginTop: 2 }}>{rec.description}</div>
+                      </div>
+                      <button
+                        onClick={() => handleApplyCopilot(rec)}
+                        disabled={!action?.id || copilotActionLoading === action?.id}
+                        style={{
+                          border: 'none',
+                          background: C.amber,
+                          color: '#111',
+                          borderRadius: 7,
+                          padding: '8px 12px',
+                          fontSize: 11,
+                          fontWeight: 800,
+                          cursor: !action?.id ? 'not-allowed' : 'pointer',
+                          opacity: !action?.id ? 0.45 : 1,
+                        }}
+                      >
+                        {copilotActionLoading === action?.id ? '…' : 'Appliquer'}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </Card>
 
         {/* ── Tabs ─────────────────────────────────────────────── */}
         <div style={{ display: 'flex', gap: 4, marginBottom: 20, background: 'rgba(0,200,240,0.04)', padding: 4, borderRadius: 10, border: `1px solid ${C.border}` }}>

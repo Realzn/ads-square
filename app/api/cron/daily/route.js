@@ -4,6 +4,8 @@
 
 import { NextResponse } from 'next/server';
 import { createServiceClient } from '../../../../lib/supabase-server';
+import { ingestAIEvent } from '../../../../lib/ai/events';
+import { runAIOrchestrator } from '../../../../lib/ai/orchestrator';
 
 export const dynamic = 'force-dynamic';
 
@@ -127,6 +129,25 @@ export async function POST(request) {
       await supabase.rpc('expire_old_offers').catch(() => {});
       results.expire = { ok: true };
     }
+
+    // ── 6. Tick orchestrateur IA business ────────────────────────────────────
+    if (job === 'all' || job === 'ai') {
+      const aiResult = await runAIOrchestrator({
+        triggerType: 'cron_daily',
+        inputPayload: { job, source: 'cron.daily' },
+        autoExecute: false,
+        actor: 'cron.daily',
+      }).catch((error) => ({ ok: false, error: error.message }));
+      results.ai = aiResult;
+    }
+
+    await ingestAIEvent({
+      eventType: 'cron_daily_completed',
+      eventSource: 'cron.daily',
+      entityType: 'cron_job',
+      entityId: job,
+      payload: { results },
+    });
 
     return NextResponse.json({
       ok: true,

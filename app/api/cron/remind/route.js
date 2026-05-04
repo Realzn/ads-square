@@ -10,9 +10,21 @@
 import { NextResponse } from 'next/server';
 import { createServiceClient } from '../../../../lib/supabase-server';
 import { sendExpiryReminder, sendExpiryNotification } from '../../../../lib/emails';
+import { ingestAIEvent } from '../../../../lib/ai/events';
+import { runAIOrchestrator } from '../../../../lib/ai/orchestrator';
 
 const TIER_PRICE = {
-  one: 1000, ten: 100, corner_ten: 100, hundred: 10, thousand: 1,
+  one: 1000,
+  ten: 100,
+  corner_ten: 100,
+  hundred: 10,
+  thousand: 1,
+  epicenter: 1000,
+  prestige: 100,
+  elite: 50,
+  business: 10,
+  standard: 3,
+  viral: 1,
 };
 
 export async function GET(request) {
@@ -52,7 +64,6 @@ export async function GET(request) {
       if (!adv?.email) continue;
 
       // Vérifier qu'on n'a pas déjà envoyé ce rappel (éviter doublons si cron tourne plusieurs fois)
-      const remindKey = `remind_sent_${booking.id}`;
       const { data: alreadySent } = await supabase
         .from('bookings')
         .select('remind_sent_at')
@@ -130,6 +141,21 @@ export async function GET(request) {
       expiry_notifs:   expiredSent,
       remind_errors:   remindErrors.length,
     };
+
+    summary.ai = await runAIOrchestrator({
+      triggerType: 'cron_remind',
+      inputPayload: summary,
+      autoExecute: false,
+      actor: 'cron.remind',
+    }).catch((error) => ({ ok: false, error: error.message }));
+
+    await ingestAIEvent({
+      eventType: 'cron_remind_completed',
+      eventSource: 'cron.remind',
+      entityType: 'cron_job',
+      entityId: 'remind',
+      payload: summary,
+    });
 
     console.log('[Cron/Remind]', summary);
     return NextResponse.json(summary);
