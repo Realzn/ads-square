@@ -4770,7 +4770,7 @@ export default function App() {
   // On récupère lang et setLang depuis le contexte global
   const lang = useLang();
   const setLang = useLangSetter();
-  const [view, setView]             = useState('landing');
+  const [view, setView]             = useState('cosmos');
   const [manifestAccepted, setManifestAccepted] = useState(false);
   const [showWaitlist, setShowWaitlist] = useState(false);
   const [showSphereWIP, setShowSphereWIP] = useState(false);

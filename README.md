@@ -2,6 +2,9 @@
 
 La grille publicitaire ouverte à tous. Réservez un bloc dès 1€/jour.
 
+### Release note
+- 2026-05-09 : la nouvelle vue 3D moderne (`View3DNew`) est désormais activée par défaut sur desktop (plus besoin de `?view3d=new`).
+
 ## Stack
 
 - **Next.js 15** (App Router) + **React 19**
