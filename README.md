@@ -3,7 +3,8 @@
 La grille publicitaire ouverte à tous. Réservez un bloc dès 1€/jour.
 
 ### Release note
-- 2026-05-09 : la nouvelle vue 3D moderne (`View3DNew`) est désormais activée par défaut sur desktop (plus besoin de `?view3d=new`).
+- 2026-05-10 : la nouvelle vue 3D moderne (`View3DNew`) est activée par défaut sur desktop, sans switch QA ni paramètre `?view3d=new`.
+- L'ancien rendu legacy n'est plus exposé publiquement ; seul un fallback d'urgence interne via `VIEW3D_INTERNAL_EMERGENCY_LEGACY=1` est conservé.
 
 ## Stack
 

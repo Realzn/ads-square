@@ -17,6 +17,8 @@ export const metadata = {
 };
 
 export default function RootLayout({ children }) {
+  const view3dLegacyEmergency = process.env.VIEW3D_INTERNAL_EMERGENCY_LEGACY === '1';
+
   return (
     <html lang="fr" suppressHydrationWarning>
       <head>
@@ -24,6 +26,11 @@ export default function RootLayout({ children }) {
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `window.__ADS_INTERNAL_VIEW3D_EMERGENCY_LEGACY__=${view3dLegacyEmergency ? 'true' : 'false'};`,
+          }}
+        />
       </head>
       <body style={{ margin: 0, padding: 0, background: '#01020A' }}>
         {/* LangProvider pour page.js / sphere / composants hérités */}
