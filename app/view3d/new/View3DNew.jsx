@@ -258,13 +258,16 @@ export default function View3DNew({
   const fallbackActive = !webglReady || Boolean(engineError)
 
   return (
-    <div style={{
-      flex: 1,
-      position: 'relative',
-      overflow: 'hidden',
-      background: VIEW_THEME.backgroundGradient,
-      color: VIEW_THEME.text,
-    }}>
+    <div
+      data-release-note="2026-05-15:AAA quality pass applied on View3DNew"
+      style={{
+        flex: 1,
+        position: 'relative',
+        overflow: 'hidden',
+        background: VIEW_THEME.backgroundGradient,
+        color: VIEW_THEME.text,
+      }}
+    >
       <canvas
         ref={canvasRef}
         onPointerMove={handlePointerMove}

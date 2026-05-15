@@ -1,15 +1,45 @@
 const QUALITY_PROFILES = {
+  ultra: {
+    key: 'ultra',
+    dprMin: 1.25,
+    dprMax: 2.2,
+    antialias: true,
+    shadows: true,
+    shadowMapSize: 2048,
+    postprocess: true,
+    bloomStrength: 0.5,
+    bloomRadius: 0.42,
+    bloomThreshold: 0.74,
+    starCount: 4600,
+    slotDetail: 1.2,
+    panelCurveSegments: 14,
+    panelBevelSegments: 5,
+    smaa: true,
+    colorGrade: true,
+    chromaticAberration: 0.001,
+    vignette: 0.32,
+    targetFps: 60,
+  },
   high: {
     key: 'high',
     dprMin: 1,
     dprMax: 2,
     antialias: true,
     shadows: true,
-    shadowMapSize: 1024,
+    shadowMapSize: 1536,
     postprocess: true,
     bloomStrength: 0.4,
-    starCount: 2200,
-    slotDetail: 1,
+    bloomRadius: 0.38,
+    bloomThreshold: 0.78,
+    starCount: 3200,
+    slotDetail: 1.05,
+    panelCurveSegments: 12,
+    panelBevelSegments: 4,
+    smaa: true,
+    colorGrade: true,
+    chromaticAberration: 0.0007,
+    vignette: 0.28,
+    targetFps: 60,
   },
   medium: {
     key: 'medium',
@@ -17,11 +47,20 @@ const QUALITY_PROFILES = {
     dprMax: 1.5,
     antialias: true,
     shadows: true,
-    shadowMapSize: 512,
+    shadowMapSize: 768,
     postprocess: true,
-    bloomStrength: 0.25,
-    starCount: 1400,
-    slotDetail: 0.8,
+    bloomStrength: 0.28,
+    bloomRadius: 0.3,
+    bloomThreshold: 0.82,
+    starCount: 1900,
+    slotDetail: 0.9,
+    panelCurveSegments: 10,
+    panelBevelSegments: 3,
+    smaa: false,
+    colorGrade: true,
+    chromaticAberration: 0.0004,
+    vignette: 0.22,
+    targetFps: 50,
   },
   low: {
     key: 'low',
@@ -32,8 +71,17 @@ const QUALITY_PROFILES = {
     shadowMapSize: 256,
     postprocess: false,
     bloomStrength: 0,
-    starCount: 700,
-    slotDetail: 0.65,
+    bloomRadius: 0,
+    bloomThreshold: 1,
+    starCount: 800,
+    slotDetail: 0.72,
+    panelCurveSegments: 7,
+    panelBevelSegments: 2,
+    smaa: false,
+    colorGrade: false,
+    chromaticAberration: 0,
+    vignette: 0,
+    targetFps: 36,
   },
   fallback: {
     key: 'fallback',
@@ -44,8 +92,17 @@ const QUALITY_PROFILES = {
     shadowMapSize: 0,
     postprocess: false,
     bloomStrength: 0,
+    bloomRadius: 0,
+    bloomThreshold: 1,
     starCount: 0,
     slotDetail: 0.55,
+    panelCurveSegments: 6,
+    panelBevelSegments: 1,
+    smaa: false,
+    colorGrade: false,
+    chromaticAberration: 0,
+    vignette: 0,
+    targetFps: 30,
   },
 }
 
@@ -70,13 +127,20 @@ export function getQualityProfile() {
   const cores = navigator.hardwareConcurrency || 4
   const memory = navigator.deviceMemory || 4
   const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches
+  const coarsePointer = window.matchMedia?.('(pointer: coarse)')?.matches
 
   if (reducedMotion) return QUALITY_PROFILES.low
 
-  const veryStrongDevice = cores >= 8 && memory >= 8 && width >= 1440 && dpr >= 1.25
-  if (veryStrongDevice) return QUALITY_PROFILES.high
+  if (coarsePointer && width < 1024) return QUALITY_PROFILES.low
 
-  const constrained = width < 1100 || cores <= 4 || memory <= 4
+  const desktop = !coarsePointer && width >= 1180
+  const ultraCapable = desktop && cores >= 8 && memory >= 8 && dpr >= 1.2 && width >= 1500
+  if (ultraCapable) return QUALITY_PROFILES.ultra
+
+  const highCapable = desktop && cores >= 4 && memory >= 4
+  if (highCapable) return QUALITY_PROFILES.high
+
+  const constrained = width < 900 || cores <= 2 || memory <= 3
   if (constrained) return QUALITY_PROFILES.low
 
   return QUALITY_PROFILES.medium
@@ -89,7 +153,7 @@ export function getPixelRatio(profile) {
 }
 
 export function createAdaptiveFrameLimiter(profile) {
-  const targetFps = profile.key === 'high' ? 60 : profile.key === 'medium' ? 48 : 32
+  const targetFps = profile?.targetFps || (profile.key === 'high' ? 60 : profile.key === 'medium' ? 48 : 32)
   const frameStep = 1 / targetFps
   let accumulator = 0
 
