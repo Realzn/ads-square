@@ -1,5 +1,6 @@
 import { TIER_ORDER, getTierColor } from '../../shared/constants'
 import { getInstanceColor } from '../materials/pbrMaterials'
+import { createPromoBillboardLayer } from './promoBillboards'
 
 const LAYER_CONFIG = {
   prestige: { radius: 11.4, size: 1.56, spread: 0.19 },
@@ -144,7 +145,7 @@ function createNebulaSprites(THREE, count = 5) {
   return group
 }
 
-export function createDysonScene({ THREE, scene, slots, quality, materialLibrary }) {
+export function createDysonScene({ THREE, scene, camera, slots, quality, materialLibrary }) {
   const root = new THREE.Group()
   scene.add(root)
 
@@ -153,6 +154,7 @@ export function createDysonScene({ THREE, scene, slots, quality, materialLibrary
   const interactiveObjects = []
   const slotLookup = new Map()
   const instanceLookup = new Map()
+  const occupiedBillboards = []
 
   const coreLight = new THREE.PointLight(0xffd9a8, quality.key === 'low' ? 2 : 3.8, 110, 2)
   root.add(coreLight)
@@ -247,6 +249,16 @@ export function createDysonScene({ THREE, scene, slots, quality, materialLibrary
     }
     interactiveObjects.push(coreMesh)
     slotLookup.set(epicSlot.id, coreMesh.userData)
+
+    if (epicSlot.occ) {
+      occupiedBillboards.push({
+        slot: epicSlot,
+        tier: 'epicenter',
+        position: new THREE.Vector3(0, 0, 0),
+        normal: new THREE.Vector3(0, 1, 0),
+        promo: epicSlot.promo,
+      })
+    }
   }
 
   const dummy = new THREE.Object3D()
@@ -306,6 +318,16 @@ export function createDysonScene({ THREE, scene, slots, quality, materialLibrary
       mesh.setMatrixAt(i, dummy.matrix)
       mesh.setColorAt(i, getInstanceColor(THREE, slot, tier))
       setSlotInLookup(slot, { __instanceId: i, __position: position, __normal: normal, __mesh: mesh })
+
+      if (slot.occ) {
+        occupiedBillboards.push({
+          slot,
+          tier,
+          position: position.clone(),
+          normal: normal.clone(),
+          promo: slot.promo,
+        })
+      }
     }
 
     mesh.instanceMatrix.needsUpdate = true
@@ -330,6 +352,13 @@ export function createDysonScene({ THREE, scene, slots, quality, materialLibrary
     disposable.push(orbit.geometry, orbit.material)
     animated.push({ type: 'orbit', mesh: orbit, speed: 0.015 + seeded({ x: layer.radius, y: layer.size }, 6) * 0.02 })
   }
+
+  const promoBillboards = createPromoBillboardLayer({
+    THREE,
+    root,
+    entries: occupiedBillboards,
+    quality,
+  })
 
   const raycast = raycaster => {
     const hits = raycaster.intersectObjects(interactiveObjects, false)
@@ -372,6 +401,8 @@ export function createDysonScene({ THREE, scene, slots, quality, materialLibrary
       coreMesh.material.emissiveIntensity = coreSelected ? 0.82 : coreHovered ? 0.67 : 0.55
       coreHalo.material.opacity = coreSelected ? 0.2 : coreHovered ? 0.16 : 0.1
     }
+
+    promoBillboards.updateState({ activeTier, hoveredSlotId, selectedSlotId })
   }
 
   const tick = (dt, elapsed) => {
@@ -396,6 +427,8 @@ export function createDysonScene({ THREE, scene, slots, quality, materialLibrary
         item.mesh.rotation.y -= dt * 0.003
       }
     }
+
+    promoBillboards.tick({ dt, elapsed, camera })
   }
 
   const getSlotCameraHint = slotId => {
@@ -410,6 +443,7 @@ export function createDysonScene({ THREE, scene, slots, quality, materialLibrary
   }
 
   const dispose = () => {
+    promoBillboards.dispose()
     for (const item of disposable) {
       if (!item) continue
       if (typeof item.dispose === 'function') item.dispose()

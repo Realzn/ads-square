@@ -1,4 +1,5 @@
 import { TIER_ORDER, TIER_INDEX } from '../../shared/constants'
+import { normalizePromoContent } from './promoContent'
 
 function toSlotId(slot, idx) {
   if (slot?.id != null) return String(slot.id)
@@ -14,7 +15,8 @@ export function normalizeSlots(rawSlots = []) {
         ...slot,
         id: toSlotId(slot, idx),
         tier,
-        occ: Boolean(slot?.occ),
+        occ: Boolean(slot?.occ ?? slot?.is_occupied),
+        promo: normalizePromoContent(slot),
       }
     })
     .sort((a, b) => {

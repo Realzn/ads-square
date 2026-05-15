@@ -18,6 +18,8 @@ export default function SlotPanel({ slot, user, onClose, onCheckout, onBuyout, o
   if (!slot) return null
 
   const color = getTierColor(slot.tier)
+  const promo = slot.promo || {}
+  const hasImage = Boolean(promo.imageUrl)
 
   return (
     <div style={{
@@ -25,7 +27,7 @@ export default function SlotPanel({ slot, user, onClose, onCheckout, onBuyout, o
       right: 14,
       top: 14,
       zIndex: 26,
-      width: 316,
+      width: 332,
       maxWidth: 'calc(100% - 28px)',
       background: 'linear-gradient(155deg, rgba(8,12,30,0.95), rgba(8,12,24,0.86))',
       border: `1px solid ${color}66`,
@@ -55,15 +57,62 @@ export default function SlotPanel({ slot, user, onClose, onCheckout, onBuyout, o
         </button>
       </div>
 
-      <div style={{ color: VIEW_THEME.text, fontSize: 18, marginBottom: 4 }}>
-        {slot.tenant?.name || 'Slot disponible'}
-      </div>
-      <div style={{ color: VIEW_THEME.dim, fontSize: 12, lineHeight: 1.45 }}>
-        {slot.tenant?.slogan || (slot.occ ? 'Campagne active' : 'Disponible immédiatement')}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: '76px 1fr',
+        gap: 10,
+        marginBottom: 12,
+      }}>
+        <div style={{
+          width: 76,
+          height: 76,
+          borderRadius: 12,
+          overflow: 'hidden',
+          background: hasImage
+            ? `url(${promo.imageUrl}) center/cover no-repeat`
+            : `linear-gradient(145deg, ${color}30, rgba(11,18,34,0.9))`,
+          border: `1px solid ${color}55`,
+          boxShadow: `inset 0 0 0 1px ${color}20`,
+          display: 'grid',
+          placeItems: 'center',
+          fontSize: 22,
+          color: '#fff',
+        }}>
+          {!hasImage && (promo.contentIcon || '◈')}
+        </div>
+
+        <div>
+          <div style={{ color: VIEW_THEME.text, fontSize: 18, marginBottom: 4 }}>
+            {promo.title || slot.tenant?.name || 'Slot disponible'}
+          </div>
+          <div style={{ color: VIEW_THEME.dim, fontSize: 12, lineHeight: 1.45 }}>
+            {promo.teaser || slot.tenant?.slogan || (slot.occ ? 'Campagne active' : 'Disponible immédiatement')}
+          </div>
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 8, flexWrap: 'wrap' }}>
+            <span style={{
+              padding: '2px 7px',
+              borderRadius: 999,
+              border: `1px solid ${color}66`,
+              color,
+              fontSize: 9,
+              letterSpacing: '.08em',
+            }}>
+              {promo.badge || 'PROMO'}
+            </span>
+            <span style={{
+              padding: '2px 7px',
+              borderRadius: 999,
+              border: '1px solid rgba(175,201,255,0.35)',
+              color: VIEW_THEME.muted,
+              fontSize: 9,
+            }}>
+              {promo.ctaText || 'Découvrir'}
+            </span>
+          </div>
+        </div>
       </div>
 
       <div style={{
-        marginTop: 12,
         marginBottom: 12,
         padding: '9px 11px',
         border: '1px solid rgba(171,198,255,0.26)',
