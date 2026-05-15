@@ -3,6 +3,7 @@
 La grille publicitaire ouverte à tous. Réservez un bloc dès 1€/jour.
 
 ### Release note
+- 2026-05-15 : AAA quality pass applied on View3DNew (géométrie organique, matériaux PBR premium, lighting cinématique, post-processing renforcé, caméra plus immersive).
 - 2026-05-10 : la nouvelle vue 3D moderne (`View3DNew`) est activée par défaut sur desktop, sans switch QA ni paramètre `?view3d=new`.
 - L'ancien rendu legacy n'est plus exposé publiquement ; seul un fallback d'urgence interne via `VIEW3D_INTERNAL_EMERGENCY_LEGACY=1` est conservé.
 

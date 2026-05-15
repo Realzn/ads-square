@@ -17,13 +17,17 @@ export default function MinimalControls({ onResetCamera }) {
           border: `1px solid ${VIEW_THEME.panelBorder}`,
           background: VIEW_THEME.panel,
           color: VIEW_THEME.muted,
-          padding: '8px 10px',
+          padding: '9px 12px',
+          borderRadius: 10,
           cursor: 'pointer',
           letterSpacing: '.08em',
           fontSize: 10,
+          textTransform: 'uppercase',
+          backdropFilter: 'blur(10px)',
+          boxShadow: '0 10px 24px rgba(0,0,0,0.35)',
         }}
       >
-        RESET CAM
+        Recentrer caméra
       </button>
     </div>
   )

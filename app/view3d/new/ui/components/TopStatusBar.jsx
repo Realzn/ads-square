@@ -1,5 +1,20 @@
 import { VIEW_THEME } from '../../../shared/constants'
 
+function pillStyle({ border, color, background }) {
+  return {
+    padding: '8px 12px',
+    borderRadius: 999,
+    border,
+    background,
+    color,
+    fontSize: 10,
+    letterSpacing: '.1em',
+    textTransform: 'uppercase',
+    backdropFilter: 'blur(12px)',
+    boxShadow: '0 8px 18px rgba(0,0,0,0.28)',
+  }
+}
+
 export default function TopStatusBar({ isLive, globalStats, qualityKey }) {
   return (
     <div style={{
@@ -11,37 +26,31 @@ export default function TopStatusBar({ isLive, globalStats, qualityKey }) {
       gap: 8,
       alignItems: 'center',
       pointerEvents: 'none',
+      flexWrap: 'wrap',
+      maxWidth: 'calc(100% - 28px)',
     }}>
-      <div style={{
-        padding: '7px 10px',
+      <div style={pillStyle({
         border: `1px solid ${VIEW_THEME.panelBorder}`,
         background: VIEW_THEME.panel,
         color: VIEW_THEME.text,
-        fontSize: 11,
-        letterSpacing: '.12em',
-      }}>
-        DYSON SPHERE
+      })}>
+        DYSON COSMOS
       </div>
-      <div style={{
-        padding: '7px 10px',
-        border: `1px solid ${VIEW_THEME.panelBorder}`,
-        background: VIEW_THEME.panel,
+
+      <div style={pillStyle({
+        border: `1px solid ${isLive ? VIEW_THEME.success : VIEW_THEME.danger}`,
+        background: isLive ? 'rgba(55,220,155,0.15)' : 'rgba(255,104,138,0.14)',
         color: isLive ? VIEW_THEME.success : VIEW_THEME.danger,
-        fontSize: 10,
-        letterSpacing: '.11em',
-      }}>
+      })}>
         {isLive ? 'LIVE' : 'OFFLINE'} · {globalStats.occupied}/{globalStats.total}
       </div>
-      <div style={{
-        padding: '7px 10px',
-        border: `1px solid ${VIEW_THEME.panelBorder}`,
-        background: VIEW_THEME.panel,
+
+      <div style={pillStyle({
+        border: '1px solid rgba(161,198,255,0.24)',
+        background: 'rgba(22,31,58,0.55)',
         color: VIEW_THEME.dim,
-        fontSize: 10,
-        letterSpacing: '.1em',
-        textTransform: 'uppercase',
-      }}>
-        quality {qualityKey}
+      })}>
+        render {qualityKey}
       </div>
     </div>
   )
