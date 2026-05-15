@@ -19,7 +19,7 @@ export default function View3D(props) {
     <div
       style={{ flex: 1, position: 'relative', minHeight: 0 }}
       data-view3d-active={legacyEmergencyEnabled ? 'legacy-emergency' : 'new-default'}
-      data-release-note="2026-05-10:view3d-new-default-enforced"
+      data-release-note="2026-05-15:billboard-promos-per-slot + slot-display-fixes"
     >
       <ActiveView {...props} />
     </div>

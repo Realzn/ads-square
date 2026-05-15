@@ -89,6 +89,7 @@ export default function View3DNew({
         runtime.dyson = createDysonScene({
           THREE,
           scene: runtime.setup.scene,
+          camera: runtime.setup.camera,
           slots: normalizedSlots,
           quality,
           materialLibrary: runtime.materialLibrary,
@@ -196,10 +197,15 @@ export default function View3DNew({
     setPointer(null)
   }, [])
 
-  const handleClick = useCallback(() => {
+  const handleClick = useCallback(event => {
     const runtime = runtimeRef.current
-    if (!runtime?.raycaster || !runtime?.pointerNdc || !runtime?.setup || !runtime?.dyson) return
+    if (!runtime?.raycaster || !runtime?.pointerNdc || !runtime?.setup || !runtime?.dyson || !canvasRef.current) return
 
+    const rect = canvasRef.current.getBoundingClientRect()
+    const x = ((event.clientX - rect.left) / rect.width) * 2 - 1
+    const y = -((event.clientY - rect.top) / rect.height) * 2 + 1
+
+    runtime.pointerNdc.set(x, y)
     runtime.raycaster.setFromCamera(runtime.pointerNdc, runtime.setup.camera)
     const hit = runtime.dyson.raycast(runtime.raycaster)
 
@@ -259,7 +265,7 @@ export default function View3DNew({
 
   return (
     <div
-      data-release-note="2026-05-15:AAA quality pass applied on View3DNew"
+      data-release-note="2026-05-15:billboard-promos-per-slot + view3d-display-fixes"
       style={{
         flex: 1,
         position: 'relative',
@@ -277,7 +283,7 @@ export default function View3DNew({
           width: '100%',
           height: '100%',
           display: fallbackActive ? 'none' : 'block',
-          cursor: 'grab',
+          cursor: hoveredSlotId ? 'pointer' : 'grab',
         }}
       />
 

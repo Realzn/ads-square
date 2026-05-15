@@ -1,19 +1,29 @@
 import { formatTierPrice, getTierColor, getTierLabel, VIEW_THEME } from '../../../shared/constants'
 
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value))
+}
+
 export default function SlotTooltip({ hoverSlot, pointer }) {
   if (!hoverSlot || !pointer) return null
 
   const color = getTierColor(hoverSlot.tier)
+  const promo = hoverSlot.promo || {}
+  const maxWidth = 262
+  const viewportW = typeof window !== 'undefined' ? window.innerWidth : 1280
+  const viewportH = typeof window !== 'undefined' ? window.innerHeight : 720
+  const left = clamp(pointer.x + 14, 10, Math.max(10, viewportW - maxWidth - 10))
+  const top = clamp(pointer.y + 10, 10, Math.max(10, viewportH - 114))
 
   return (
     <div style={{
       position: 'absolute',
-      left: pointer.x + 14,
-      top: pointer.y + 10,
+      left,
+      top,
       zIndex: 24,
-      maxWidth: 250,
+      maxWidth,
       pointerEvents: 'none',
-      background: 'linear-gradient(155deg, rgba(9,13,31,0.95), rgba(8,12,24,0.88))',
+      background: 'linear-gradient(155deg, rgba(9,13,31,0.95), rgba(8,12,24,0.9))',
       border: `1px solid ${color}66`,
       borderRadius: 12,
       padding: '9px 11px',
@@ -26,10 +36,10 @@ export default function SlotTooltip({ hoverSlot, pointer }) {
         {getTierLabel(hoverSlot.tier)} · {hoverSlot.id}
       </div>
       <div style={{ fontSize: 12, marginBottom: 4 }}>
-        {hoverSlot.tenant?.name || 'Slot disponible'}
+        {promo.title || hoverSlot.tenant?.name || 'Slot disponible'}
       </div>
       <div style={{ fontSize: 9, color: VIEW_THEME.dim }}>
-        {hoverSlot.occ ? 'Occupé' : 'Disponible'} · {formatTierPrice(hoverSlot.tier)}
+        {hoverSlot.occ ? promo.productServiceLabel || 'Campagne active' : 'Disponible'} · {formatTierPrice(hoverSlot.tier)}
       </div>
     </div>
   )
